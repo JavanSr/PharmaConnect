@@ -1,0 +1,3 @@
+registration_number,generic_name,brand_name,manufacturer,dosage_form,strength,unit_of_measure,pack_size,drug_class,storage_condition,is_cold_chain,is_essential_medicine
+TZ-TMDA-0001-2020,Amoxicillin,Amoxil,GSK,Capsule,500mg,capsules,1000,Antibiotic,AMBIENT,false,true
+TZ-TMDA-0043-2022,Insulin Regular,Actrapid,Novo Nordisk,Injection,100IU/ml,vials,1,Antidiabetic,REFRIGERATED,true,true

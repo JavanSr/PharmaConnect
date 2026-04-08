@@ -1,0 +1,150 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  PHARMACY_ADMIN
+  STAFF
+}
+
+enum MovementType {
+  INITIAL
+  IN
+  OUT
+  ADJUSTMENT
+}
+
+enum ArticleCategory {
+  REGULATORY_UPDATES
+  PHARMACY_PRACTICE
+  MEDICINE_SAFETY
+  BUSINESS_TIPS
+}
+
+enum ComplianceStatus {
+  PENDING
+  COMPLETED
+  OVERDUE
+}
+
+model Pharmacy {
+  id              String            @id @default(cuid())
+  name            String
+  region          String
+  district        String
+  address         String
+  phone           String
+  email           String
+  createdAt       DateTime          @default(now())
+  users           User[]
+  products        Product[]
+  stockMovements  StockMovement[]
+  complianceItems ComplianceItem[]
+}
+
+model User {
+  id               String             @id @default(cuid())
+  name             String
+  email            String             @unique
+  passwordHash     String
+  role             UserRole
+  pharmacyId       String?
+  createdAt        DateTime           @default(now())
+  pharmacy         Pharmacy?          @relation(fields: [pharmacyId], references: [id])
+  stockMovements   StockMovement[]
+  authoredArticles KnowledgeArticle[] @relation("ArticleAuthor")
+  complianceCreated ComplianceItem[]  @relation("ComplianceCreator")
+  notifications    Notification[]
+}
+
+model Product {
+  id             String          @id @default(cuid())
+  pharmacyId     String
+  productName    String
+  genericName    String?
+  brandName      String?
+  category       String
+  supplier       String
+  batchNumber    String
+  quantity       Int
+  costPrice      Float
+  sellingPrice   Float
+  expiryDate     DateTime
+  reorderLevel   Int
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  isArchived     Boolean         @default(false)
+  pharmacy       Pharmacy        @relation(fields: [pharmacyId], references: [id])
+  stockMovements StockMovement[]
+
+  @@index([pharmacyId, productName])
+  @@index([pharmacyId, expiryDate])
+}
+
+model StockMovement {
+  id           String       @id @default(cuid())
+  productId    String
+  pharmacyId   String
+  movementType MovementType
+  quantity     Int
+  note         String?
+  createdById  String
+  createdAt    DateTime     @default(now())
+  product      Product      @relation(fields: [productId], references: [id])
+  pharmacy     Pharmacy     @relation(fields: [pharmacyId], references: [id])
+  createdBy    User         @relation(fields: [createdById], references: [id])
+
+  @@index([pharmacyId, createdAt])
+}
+
+model KnowledgeArticle {
+  id          String          @id @default(cuid())
+  title       String
+  category    ArticleCategory
+  summary     String
+  content     String
+  featured    Boolean         @default(false)
+  published   Boolean         @default(true)
+  createdById String
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  createdBy   User            @relation("ArticleAuthor", fields: [createdById], references: [id])
+
+  @@index([category, published])
+}
+
+model ComplianceItem {
+  id           String            @id @default(cuid())
+  pharmacyId   String
+  title        String
+  category     String
+  authority    String
+  deadlineDate DateTime
+  reminderDate DateTime
+  status       ComplianceStatus  @default(PENDING)
+  notes        String?
+  createdById  String
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  pharmacy     Pharmacy          @relation(fields: [pharmacyId], references: [id])
+  createdBy    User              @relation("ComplianceCreator", fields: [createdById], references: [id])
+
+  @@index([pharmacyId, deadlineDate])
+}
+
+model Notification {
+  id         String   @id @default(cuid())
+  userId     String
+  type       String
+  title      String
+  message    String
+  readStatus Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id])
+}

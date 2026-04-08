@@ -1,0 +1,50 @@
+@import "tailwindcss";
+
+:root {
+  --color-app-bg: #f4f7f7;
+  --color-sidebar: #0d2430;
+  --color-ink: #112531;
+  --color-soft-ink: #54717f;
+  --color-border: #dbe5e8;
+  --color-soft: #eef5f4;
+  --color-accent: #137c82;
+  --color-accent-strong: #0d666b;
+  --color-danger: #c2415b;
+}
+
+@theme inline {
+  --font-sans: "Aptos", "Segoe UI", "Trebuchet MS", sans-serif;
+  --font-mono: "Cascadia Code", "Consolas", monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--color-app-bg);
+  color: var(--color-ink);
+  font-family: "Aptos", "Segoe UI", "Trebuchet MS", sans-serif;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+::selection {
+  background: rgba(19, 124, 130, 0.18);
+}

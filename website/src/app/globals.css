@@ -1,0 +1,57 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --pc-primary: #1A6B5C;
+  --pc-primary-dark: #0D4035;
+  --pc-primary-mid: #2A9478;
+  --pc-primary-light: #D6F0E8;
+  --pc-primary-mist: #EDF7F3;
+  --pc-primary-raw: 26 107 92;
+  --pc-amber: #D97706;
+  --pc-slate: #1E293B;
+  --pc-slate-mid: #64748B;
+  --pc-mist: #F8FAFB;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-height: 100vh;
+  color: var(--pc-slate);
+  background: var(--pc-mist);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  line-height: 1.7;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.hero-pattern {
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 27px,
+    rgba(var(--pc-primary-raw), 0.05) 27px,
+    rgba(var(--pc-primary-raw), 0.05) 28px
+  );
+}
+
+.marquee-track {
+  animation: marquee 28s linear infinite;
+}
+
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(-50%);
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "nav": {
+    "platform": "Platform",
+    "pricing": "Pricing",
+    "roadmap": "Roadmap",
+    "about": "About",
+    "blog": "Blog",
+    "getAccess": "Get early access",
+    "investors": "For investors"
+  },
+  "hero": {
+    "eyebrow": "January 26, 2026 - Tanzania launched universal health insurance",
+    "heading": "The operating system for better pharmaceutical services",
+    "body": "Manage NHIF claims, inventory, patient safety, compliance, and daily dispensing work from one pharmacy-side system built for practical use in Tanzania.",
+    "cta": "Request early access",
+    "secondary": "See how it works"
+  },
+  "footer": {
+    "tagline": "The pharmacy-side operating system for better pharmaceutical services",
+    "legal": "PDPC Registration: pending - April 2026"
+  }
+}

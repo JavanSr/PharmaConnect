@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 56" fill="none">
+  <!-- Mark at 44px height, scaled from 120px ref canvas (factor 0.367) -->
+  <!-- Vertical arm: x=19.1 y=2.9 w=5.9 h=38.2 -->
+  <!-- Horizontal arm: x=2.9 y=19.1 w=38.2 h=5.9 -->
+  <!-- Nodes r=2.9 at (22,5.9)(22,40.5)(5.9,22)(38.1,22) -->
+  <!-- Centre r=4.0 -->
+
+  <!-- Rounded square background: none for light lockup -->
+
+  <!-- Vertical arm -->
+  <rect x="19.1" y="2.9" width="5.9" height="38.2" rx="0.7" fill="#0D4035"/>
+  <!-- Horizontal arm -->
+  <rect x="2.9"  y="19.1" width="38.2" height="5.9" rx="0.7" fill="#0D4035"/>
+
+  <!-- Tip nodes -->
+  <circle cx="22"   cy="5.9"  r="2.9" fill="#0D4035"/>
+  <circle cx="22"   cy="38.1" r="2.9" fill="#0D4035"/>
+  <circle cx="5.9"  cy="22"   r="2.9" fill="#0D4035"/>
+  <circle cx="38.1" cy="22"   r="2.9" fill="#0D4035"/>
+
+  <!-- Centre hub -->
+  <circle cx="22" cy="22" r="4.0" fill="white" stroke="#2A9478" stroke-width="0.9"/>
+
+  <!-- Wordmark — single <text> with <tspan> so "PharmaConnect" flows as one word -->
+  <text x="60" y="31"
+    font-family="'DM Sans', 'Segoe UI', system-ui, sans-serif"
+    font-size="24" font-weight="600" letter-spacing="-0.5">
+    <tspan fill="#0D4035">Pharma</tspan><tspan fill="#2A9478">Connect</tspan>
+  </text>
+
+  <!-- Tagline — only shown in hero contexts, hidden by default -->
+  <text x="61" y="46"
+    font-family="'DM Sans', 'Segoe UI', system-ui, sans-serif"
+    font-size="9" font-weight="400" letter-spacing="1.8"
+    fill="#0D4035" fill-opacity="0.45">PHARMACY OPERATING SYSTEM</text>
+</svg>

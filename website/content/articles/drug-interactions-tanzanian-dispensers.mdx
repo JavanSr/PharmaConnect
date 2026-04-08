@@ -1,0 +1,64 @@
+---
+title: "Drug interaction checks for Tanzanian dispensers"
+date: "2026-04-03"
+category: "Clinical"
+readingTime: 9
+author: "PharmaConnect"
+excerpt: "Why safety prompts belong inside the dispensing event."
+---
+
+A drug interaction warning is most useful when it appears before medicine leaves the counter. Separate references can help learning, but busy dispensers need timely prompts during the actual workflow.
+
+The alert model should be practical. Minor warnings can support counselling, moderate warnings can invite review, and major or contraindicated combinations should require pharmacist authorization.
+
+Privacy matters. Safety checking can work with allergy flags, chronic condition flags, active medications, and an internal patient UUID without storing names, phone numbers, addresses, or national IDs in the patient table.
+
+## A practical alert model
+
+Interaction checking must be designed for real pharmacy pressure. If every warning looks urgent, staff eventually ignore the system. PharmaConnect separates severity so a minor counselling note does not feel the same as a contraindicated combination.
+
+Minor alerts are useful for counselling and awareness. Moderate alerts should slow the dispenser enough to review the combination and decide whether pharmacist input is needed. Major and contraindicated alerts should require pharmacist authorization, because the risk is no longer routine.
+
+The safety surface should also respect role-based access. A clerk should not see patient clinical data. A dispenser may see the alert required to complete their work. A pharmacist should be able to review, override with a PIN, and leave an audit trail when the decision is clinically justified.
+
+Patient safety also depends on stock discipline. Expired products and wrong batches can create harm even when the medicine choice is clinically reasonable. That is why interaction checking belongs beside FEFO dispensing and immutable stock movement records.
+
+The most important design principle is timing. A warning after the sale is a report. A warning before completion is a safety intervention. PharmaConnect is built around the second case.
+
+## Designing alerts that staff can trust
+
+The hardest part of safety software is not displaying a red box. The hard part is deciding when the red box should appear. If the system produces too many low-value warnings, staff learn to dismiss it. If the system hides serious warnings, it fails at the moment it matters most. A good first version must balance sensitivity with practical workflow discipline.
+
+PharmaConnect uses severity as the organizing principle. Minor warnings support counselling and awareness. Moderate warnings invite review and caution. Major warnings require pharmacist judgment. Contraindicated alerts should stop the ordinary flow unless a pharmacist enters a PIN and records a reason. That structure gives the team a shared language for risk.
+
+This model also fits real pharmacy roles. A clerk may help with non-clinical tasks but should not access patient clinical details. A dispenser can see the warning needed to avoid an unsafe sale. A pharmacist can review serious alerts and document the professional decision. The system should not flatten these roles into one generic user.
+
+The privacy boundary matters. A patient safety module can be useful without storing a patient name, phone number, national ID, or address in the patient table. Allergy flags, chronic condition flags, active medication context, and internal UUID linkage are enough for the basic Phase 1 safety checks described here.
+
+Safety also benefits from recent dispensing context. Seeing the last few prescription records can prevent duplication and help staff identify risky combinations. However, that history must be handled carefully. It should support clinical judgment without turning the pharmacy system into a personal identity database.
+
+The override trail is equally important. Sometimes a pharmacist may proceed despite a warning because the clinical context supports the decision. In that case, the system should capture that the warning was seen, who authorized the override, and why. This protects patients, professionals, and pharmacy owners.
+
+The founder's patient safety vision is intentionally practical. It is not about replacing professional judgment. It is about placing the right reminder in front of the right person before the medicine leaves the counter.
+
+## Why this belongs in Phase 1
+
+It may be tempting to postpone patient safety until after inventory and claims are fully mature. PharmaConnect does not take that path because the dispensing moment is where operational and clinical risk meet. A product may be in stock, a claim may be valid, and the sale may still be unsafe if the patient is taking a conflicting medicine or has a relevant allergy flag.
+
+The Phase 1 version stays intentionally narrow. It does not attempt to diagnose patients. It does not store personal identity details in the patient table. It does not replace pharmacist judgment. It adds a practical safety layer around the common information a pharmacy can use responsibly: allergy flags, chronic condition flags, active medications, recent prescription context, and severity-based interaction rules.
+
+This also helps pharmacy owners. Safety failures are not only clinical events; they are operational and reputational risks. A pharmacy that can show warnings, reviews, and override trails has a stronger record than one that relies only on memory and informal discussion.
+
+For dispensers, the value is clarity. The system should say what the issue is, how serious it is, whether a pharmacist PIN is required, and what must happen before the dispensing event can be completed. That kind of structured prompt reduces guesswork.
+
+For pharmacists, the value is accountability without unnecessary burden. When a serious alert appears, the pharmacist can review the context and decide whether the warning blocks the transaction or whether an override is clinically justified. The important part is that the decision is visible and auditable.
+
+This is why interaction checking is not a decorative feature. It is part of making the pharmacy operating system worthy of healthcare work.
+
+It also gives the team a repeatable process for learning from near misses instead of treating every risky combination as a one-off memory test.
+
+## Muhtasari wa Kiswahili
+
+Tahadhari za mwingiliano wa dawa zinapaswa kuonekana kabla ya dawa kutolewa.
+Tahadhari kubwa zinahitaji uamuzi wa mfamasia na kumbukumbu ya sababu.
+Mfumo unaweza kulinda usalama bila kuhifadhi taarifa binafsi zisizohitajika.

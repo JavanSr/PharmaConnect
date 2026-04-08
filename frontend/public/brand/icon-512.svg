@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <!-- Full bleed background for maskable -->
+  <rect width="512" height="512" fill="#0D4035"/>
+
+  <!-- Mark centred, occupying 60% of canvas (307px), offset 102.5px -->
+  <!-- Scale: 307/120 = 2.558 -->
+  <!-- Vertical arm: x=102.5+(52*2.558)=235.5, y=102.5+(8*2.558)=122.9, w=40.9, h=266.1 -->
+  <!-- Horizontal arm: x=102.5+(8*2.558)=122.9, y=102.5+(52*2.558)=235.5, w=266.1, h=40.9 -->
+  <!-- Nodes r=20.5 at (256,122.9)(256,389.1)(122.9,256)(389.1,256) -->
+  <!-- Centre r=28.1 -->
+
+  <rect x="235.5" y="122.9" width="40.9" height="266.1" rx="5.1" fill="white"/>
+  <rect x="122.9" y="235.5" width="266.1" height="40.9" rx="5.1" fill="white"/>
+
+  <circle cx="256"   cy="122.9" r="20.5" fill="white"/>
+  <circle cx="256"   cy="389.1" r="20.5" fill="white"/>
+  <circle cx="122.9" cy="256"   r="20.5" fill="white"/>
+  <circle cx="389.1" cy="256"   r="20.5" fill="white"/>
+
+  <circle cx="256" cy="256" r="28.1" fill="#0D4035" stroke="rgba(255,255,255,0.4)" stroke-width="6.4"/>
+</svg>
