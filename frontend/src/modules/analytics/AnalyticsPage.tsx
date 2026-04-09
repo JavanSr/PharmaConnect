@@ -1,0 +1,340 @@
+import React, { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  Cell,
+  PieChart,
+  Pie,
+  Legend,
+} from 'recharts';
+import { Package, TrendingDown, ShieldCheck, AlertTriangle, ArrowRight } from 'lucide-react';
+import { Card } from '@/components/ui/Card';
+import { Badge } from '@/components/ui/Badge';
+import { api } from '@/lib/api';
+
+type MovementKey = 'received' | 'dispensed' | 'adjusted' | 'damaged' | 'other';
+type ComplianceKey = 'GREEN' | 'AMBER' | 'RED' | 'EXPIRED';
+type StorageKey = 'AMBIENT' | 'REFRIGERATED' | 'FROZEN';
+
+type AnalyticsSummary = {
+  inventory: {
+    totalProducts: number;
+    totalStockValue: number;
+    lowStockCount: number;
+    outOfStockCount: number;
+    storageBreakdown: Record<StorageKey, number>;
+    expiryRisk: Record<string, number>;
+  };
+  movements: {
+    periodDays: number;
+    counts: Record<MovementKey, number>;
+    topDispensed: Array<{ name: string; units: number }>;
+  };
+  compliance: {
+    score: number;
+    total: number;
+    breakdown: Record<ComplianceKey, number>;
+  };
+};
+
+type AnalyticsResponse = {
+  success: boolean;
+  data: AnalyticsSummary;
+};
+
+const TZS = (value: number) =>
+  new Intl.NumberFormat('en-TZ', {
+    style: 'currency',
+    currency: 'TZS',
+    maximumFractionDigits: 0,
+  }).format(value);
+
+const MOVEMENT_COLORS: Record<MovementKey, string> = {
+  received: '#1A6B5C',
+  dispensed: '#1D9E75',
+  adjusted: '#D97706',
+  damaged: '#DC2626',
+  other: '#94A3B8',
+};
+
+const COMPLIANCE_COLORS: Record<ComplianceKey, string> = {
+  GREEN: '#1A6B5C',
+  AMBER: '#D97706',
+  RED: '#DC2626',
+  EXPIRED: '#94A3B8',
+};
+
+export const AnalyticsPage: React.FC = () => {
+  const { data, isLoading, isError } = useQuery<AnalyticsResponse>({
+    queryKey: ['analytics-summary'],
+    queryFn: () => api.get('/analytics/summary').then(r => r.data),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const summary = data?.data;
+
+  const movementChartData = useMemo(() => {
+    if (!summary) return [];
+    return Object.entries(summary.movements.counts).map(([key, value]) => {
+      const movementKey = key as MovementKey;
+      return {
+        name: movementKey.charAt(0).toUpperCase() + movementKey.slice(1),
+        units: value,
+        fill: MOVEMENT_COLORS[movementKey] ?? '#94A3B8',
+      };
+    });
+  }, [summary]);
+
+  const compliancePieData = useMemo(() => {
+    if (!summary) return [];
+    return Object.entries(summary.compliance.breakdown)
+      .filter(([, value]) => value > 0)
+      .map(([key, value]) => {
+        const complianceKey = key as ComplianceKey;
+        return {
+          name: complianceKey,
+          value,
+          fill: COMPLIANCE_COLORS[complianceKey] ?? '#94A3B8',
+        };
+      });
+  }, [summary]);
+
+  const expiryRisk = summary?.inventory.expiryRisk;
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="w-8 h-8 border-3 border-[#1A6B5C] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (isError || !summary) {
+    return (
+      <Card>
+        <div className="p-8 text-center text-sm text-[#64748B]">
+          Analytics summary could not be loaded.
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-start justify-between flex-wrap gap-2">
+        <div>
+          <h1 className="text-xl font-bold text-[#0D4035]">Analytics</h1>
+          <p className="text-sm text-[#64748B] mt-1">
+            Operational snapshot: inventory, movements, and compliance across active modules.
+          </p>
+        </div>
+        <Badge variant="info" size="sm">Last 30 days</Badge>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <KpiCard
+          label="Total Stock Value"
+          value={TZS(summary.inventory.totalStockValue)}
+          sub="Based on selling prices"
+          icon={<Package size={20} className="text-[#1A6B5C]" />}
+          color="bg-[#D6F0E8]"
+          link="/inventory/products"
+        />
+        <KpiCard
+          label="Units Dispensed"
+          value={summary.movements.counts.dispensed.toLocaleString()}
+          sub="Past 30 days"
+          icon={<TrendingDown size={20} className="text-[#1D9E75]" />}
+          color="bg-[#D6F0E8]"
+          link="/inventory"
+        />
+        <KpiCard
+          label="Low / Out of Stock"
+          value={`${summary.inventory.lowStockCount} / ${summary.inventory.outOfStockCount}`}
+          sub="Low stock / out of stock"
+          icon={<AlertTriangle size={20} className="text-[#D97706]" />}
+          color="bg-amber-50"
+          link="/inventory"
+        />
+        <KpiCard
+          label="Compliance Score"
+          value={`${summary.compliance.score}%`}
+          sub={`${summary.compliance.total} items tracked`}
+          icon={<ShieldCheck size={20} className="text-[#1A6B5C]" />}
+          color="bg-[#D6F0E8]"
+          link="/compliance"
+        />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card header={
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-semibold text-[#0D4035]">Stock Movements (30 days)</span>
+            <Link to="/inventory" className="text-xs text-[#1A6B5C] hover:underline flex items-center gap-1">
+              View inventory <ArrowRight size={12} />
+            </Link>
+          </div>
+        }>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={movementChartData} barCategoryGap="30%">
+              <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#64748B' }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11, fill: '#64748B' }} axisLine={false} tickLine={false} />
+              <Tooltip
+                contentStyle={{ borderRadius: 12, border: '1px solid #D6F0E8', fontSize: 12 }}
+                formatter={(value) => [`${Number(value).toLocaleString()} units`, '']}
+              />
+              <Bar dataKey="units" radius={[6, 6, 0, 0]}>
+                {movementChartData.map((entry) => (
+                  <Cell key={entry.name} fill={entry.fill} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </Card>
+
+        <Card header={
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-semibold text-[#0D4035]">Compliance Breakdown</span>
+            <Link to="/compliance" className="text-xs text-[#1A6B5C] hover:underline flex items-center gap-1">
+              View all <ArrowRight size={12} />
+            </Link>
+          </div>
+        }>
+          {compliancePieData.length === 0 ? (
+            <div className="flex items-center justify-center h-48 text-sm text-[#64748B]">
+              No compliance items recorded yet
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={200}>
+              <PieChart>
+                <Pie
+                  data={compliancePieData}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={75}
+                  innerRadius={45}
+                  paddingAngle={3}
+                >
+                  {compliancePieData.map((entry) => (
+                    <Cell key={entry.name} fill={entry.fill} />
+                  ))}
+                </Pie>
+                <Legend iconType="circle" iconSize={10} wrapperStyle={{ fontSize: 12 }} />
+                <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #D6F0E8', fontSize: 12 }} />
+              </PieChart>
+            </ResponsiveContainer>
+          )}
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card header={<span className="text-sm font-semibold text-[#0D4035]">Top Dispensed Products (30 days)</span>} padding={false}>
+          {!summary.movements.topDispensed.length ? (
+            <div className="p-8 text-center text-sm text-[#64748B]">No dispensing data yet</div>
+          ) : (
+            <div className="divide-y divide-[#D6F0E8]">
+              {summary.movements.topDispensed.map((item) => {
+                const maxUnits = summary.movements.topDispensed[0].units;
+                const pct = maxUnits > 0 ? Math.round((item.units / maxUnits) * 100) : 0;
+                return (
+                  <div key={item.name} className="px-5 py-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-sm font-medium text-[#0D4035] truncate flex-1">{item.name}</p>
+                      <span className="text-sm font-bold text-[#1A6B5C] ml-3">{item.units.toLocaleString()}</span>
+                    </div>
+                    <div className="h-1.5 bg-[#D6F0E8] rounded-full overflow-hidden">
+                      <div className="h-full bg-[#1A6B5C] rounded-full" style={{ width: `${pct}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+
+        <Card header={
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-semibold text-[#0D4035]">Expiry Risk (batches)</span>
+            <Link to="/inventory/expiry" className="text-xs text-[#1A6B5C] hover:underline flex items-center gap-1">
+              View expiry <ArrowRight size={12} />
+            </Link>
+          </div>
+        }>
+          <div className="space-y-3 pt-2">
+            {[
+              { label: 'Expires today or tomorrow', key: 'days1', variant: 'danger', pulse: true },
+              { label: 'Expires within 7 days', key: 'days7', variant: 'danger', pulse: false },
+              { label: 'Expires within 30 days', key: 'days30', variant: 'warning', pulse: false },
+              { label: 'Expires within 60 days', key: 'days60', variant: 'info', pulse: false },
+              { label: 'Expires within 90 days', key: 'days90', variant: 'muted', pulse: false },
+            ].map((row) => (
+              <div key={row.key} className="flex items-center justify-between py-1">
+                <span className="text-sm text-[#64748B]">{row.label}</span>
+                <Badge
+                  variant={row.variant as any}
+                  size="sm"
+                  className={row.pulse && (expiryRisk?.[row.key] ?? 0) > 0 ? 'animate-pulse' : ''}
+                >
+                  {expiryRisk?.[row.key] ?? 0} batches
+                </Badge>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+
+      <Card header={<span className="text-sm font-semibold text-[#0D4035]">Storage Conditions</span>}>
+        <div className="grid grid-cols-3 gap-4 pt-2">
+          {[
+            { label: 'Ambient', key: 'AMBIENT' as StorageKey, color: 'text-[#64748B]', bg: 'bg-[#EDF7F3]' },
+            { label: 'Refrigerated', key: 'REFRIGERATED' as StorageKey, color: 'text-[#1A6B5C]', bg: 'bg-[#D6F0E8]' },
+            { label: 'Frozen', key: 'FROZEN' as StorageKey, color: 'text-[#6D28D9]', bg: 'bg-[#EDE9FE]' },
+          ].map((storage) => (
+            <div key={storage.key} className={`${storage.bg} rounded-2xl p-4 text-center`}>
+              <p className={`text-2xl font-bold ${storage.color}`}>
+                {summary.inventory.storageBreakdown[storage.key] ?? 0}
+              </p>
+              <p className="text-xs text-[#64748B] mt-1">{storage.label}</p>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      <p className="text-xs text-[#64748B] text-center pb-2">
+        In-depth analytics with trends, revenue breakdowns, and forecasting coming in Phase 2.
+      </p>
+    </div>
+  );
+};
+
+const KpiCard: React.FC<{
+  label: string;
+  value: string;
+  sub: string;
+  icon: React.ReactNode;
+  color: string;
+  link: string;
+}> = ({ label, value, sub, icon, color, link }) => (
+  <Link to={link}>
+    <div className="bg-white rounded-2xl border border-[#D6F0E8] p-5 hover:shadow-md transition-shadow">
+      <div className="flex items-start justify-between">
+        <div className="min-w-0">
+          <p className="text-sm text-[#64748B] mb-1 truncate">{label}</p>
+          <p className="text-xl font-bold text-[#0D4035] truncate">{value}</p>
+          <p className="text-xs text-[#64748B] mt-1">{sub}</p>
+        </div>
+        <div className={`w-10 h-10 rounded-xl ${color} flex items-center justify-center shrink-0 ml-3`}>
+          {icon}
+        </div>
+      </div>
+    </div>
+  </Link>
+);
