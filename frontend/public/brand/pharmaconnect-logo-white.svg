@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 48" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#2A9478"/>
+      <stop offset="100%" stop-color="#0D4035"/>
+    </linearGradient>
+  </defs>
+  <rect width="48" height="48" rx="10" fill="url(#bg)"/>
+  <rect x="20.8" y="3.2" width="6.4" height="41.6" rx="0.8" fill="white"/>
+  <rect x="3.2" y="20.8" width="41.6" height="6.4" rx="0.8" fill="white"/>
+  <circle cx="24" cy="6.4"  r="3.2" fill="white"/>
+  <circle cx="24" cy="41.6" r="3.2" fill="white"/>
+  <circle cx="6.4"  cy="24" r="3.2" fill="white"/>
+  <circle cx="41.6" cy="24" r="3.2" fill="white"/>
+  <circle cx="24" cy="24" r="4.4" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="1"/>
+  <text x="60" y="31"
+    font-family="'DM Sans', 'Segoe UI', system-ui, sans-serif"
+    font-size="24" font-weight="600" letter-spacing="-0.5">
+    <tspan fill="white">Pharma</tspan><tspan fill="#9FD8C4">Connect</tspan>
+  </text>
+</svg>

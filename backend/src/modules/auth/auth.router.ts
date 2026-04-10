@@ -1,0 +1,84 @@
+import { Router } from 'express';
+import { z } from 'zod';
+import { authenticate } from '../../middleware/auth.js';
+import {
+  loginService,
+  registerService,
+  refreshTokenService,
+  logoutService,
+} from './auth.service.js';
+import type { AuthRequest } from '../../middleware/auth.js';
+
+export const authRouter = Router();
+
+const loginSchema = z.object({
+  email:    z.string().email(),
+  password: z.string().min(1),
+});
+
+const registerSchema = z.object({
+  pharmacyName:  z.string().min(2),
+  licenceNumber: z.string().min(1),
+  address:       z.string().min(5),
+  region:        z.string().min(1),
+  pharmacyType:  z.enum(['RETAIL', 'ADDO', 'WHOLESALE']),
+  firstName:     z.string().min(1),
+  lastName:      z.string().min(1),
+  email:         z.string().email(),
+  password:      z.string().min(8),
+});
+
+authRouter.post('/login', async (req, res, next) => {
+  try {
+    const { email, password } = loginSchema.parse(req.body);
+    const result = await loginService(email, password);
+    res.json({ data: result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+authRouter.post('/register', async (req, res, next) => {
+  try {
+    const payload = registerSchema.parse(req.body);
+    const result = await registerService(payload);
+    res.status(201).json({ data: result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+authRouter.post('/refresh', async (req, res, next) => {
+  try {
+    const { refreshToken } = z.object({ refreshToken: z.string() }).parse(req.body);
+    const tokens = await refreshTokenService(refreshToken);
+    res.json({ data: tokens });
+  } catch (err) {
+    next(err);
+  }
+});
+
+authRouter.post('/logout', authenticate, async (req: AuthRequest, res, next) => {
+  try {
+    const { refreshToken } = z.object({ refreshToken: z.string().optional() }).parse(req.body);
+    if (refreshToken) await logoutService(refreshToken);
+    res.json({ data: { message: 'Logged out' } });
+  } catch (err) {
+    next(err);
+  }
+});
+
+authRouter.get('/me', authenticate, async (req: AuthRequest, res, next) => {
+  try {
+    const { prisma } = await import('../../lib/prisma.js');
+    const user = await prisma.user.findUnique({
+      where: { id: req.user!.userId },
+      include: { pharmacy: true },
+    });
+    if (!user) { res.status(404).json({ error: 'User not found' }); return; }
+    const { password: _pw, ...safe } = user;
+    res.json({ data: safe });
+  } catch (err) {
+    next(err);
+  }
+});

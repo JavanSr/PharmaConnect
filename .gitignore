@@ -1,3 +1,4 @@
+
 # Dependencies
 node_modules/
 .pnp
@@ -35,3 +36,21 @@ Thumbs.db
 # TypeScript
 *.tsbuildinfo
 next-env.d.ts
+
+# Passwords (never commit)
+passwords/
+
+# Backend dist and uploads
+backend/dist/
+backend/uploads/
+backend/logs/
+
+# Frontend dist
+frontend/dist/
+
+# Prisma generated client (regenerated on deploy)
+backend/node_modules/.prisma/
+
+# Website build
+website/.next/
+website/build-output/

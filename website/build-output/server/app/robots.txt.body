@@ -1,6 +1,0 @@
-User-Agent: *
-Allow: /
-Disallow: /investors
-Disallow: /api/
-
-Sitemap: https://pharmaconnect.tz/sitemap.xml

@@ -1,0 +1,460 @@
+// PharmaConnect — Prisma Schema
+// Database: PostgreSQL (Railway or Supabase)
+// Generated: 2026-04
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  SUPER_ADMIN
+  OWNER
+  PHARMACIST_IN_CHARGE
+  DISPENSER
+  DATA_ENTRY_CLERK
+  WHOLESALE_SELLER
+}
+
+enum PharmacyType {
+  RETAIL
+  ADDO
+  WHOLESALE
+}
+
+enum DrugClass {
+  OTC
+  PRESCRIPTION
+  CONTROLLED
+  NARCOTIC
+}
+
+enum DosageForm {
+  TABLET
+  CAPSULE
+  SYRUP
+  INJECTION
+  CREAM
+  OINTMENT
+  DROPS
+  INHALER
+  SUPPOSITORY
+  POWDER
+  SOLUTION
+  OTHER
+}
+
+enum MovementType {
+  RECEIVED
+  DISPENSED
+  ADJUSTED
+  DAMAGED
+  EXPIRED_REMOVED
+  RETURNED
+  TRANSFERRED
+}
+
+enum ComplianceCategory {
+  LICENCE
+  INSURANCE
+  EQUIPMENT
+  STAFF_CREDENTIAL
+  SAFETY
+  RECORD_KEEPING
+  OTHER
+}
+
+enum ComplianceStatus {
+  COMPLIANT
+  DUE_SOON
+  OVERDUE
+  NOT_APPLICABLE
+}
+
+enum NhifClaimStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  PAID
+}
+
+enum CpdActivityType {
+  READING
+  WORKSHOP
+  CONFERENCE
+  ONLINE_COURSE
+  MENTORING
+  AUDIT
+  OTHER
+}
+
+enum ArticleCategory {
+  DRUG_SAFETY
+  REGULATORY
+  CLINICAL
+  BUSINESS
+  TECHNOLOGY
+  CPD
+  GENERAL
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum PaymentMethod {
+  CASH
+  MPESA
+  TIGOPESA
+  AIRTEL_MONEY
+  HALOPESA
+  INSURANCE
+}
+
+// ─── Core Models ─────────────────────────────────────────────────────────────
+
+model Pharmacy {
+  id             String       @id @default(uuid())
+  name           String
+  licenceNumber  String       @unique
+  address        String
+  region         String
+  pharmacyType   PharmacyType @default(RETAIL)
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  users           User[]
+  products        Product[]
+  batches         Batch[]
+  suppliers       Supplier[]
+  stockMovements  StockMovement[]
+  complianceItems ComplianceItem[]
+  patients        Patient[]
+  dispensings     Dispensing[]
+  nhifClaims      NhifClaim[]
+
+  @@map("pharmacies")
+}
+
+model User {
+  id         String   @id @default(uuid())
+  pharmacyId String?
+  email      String   @unique
+  password   String
+  firstName  String
+  lastName   String
+  role       UserRole @default(DISPENSER)
+  isActive   Boolean  @default(true)
+  lastLogin  DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  pharmacy      Pharmacy?      @relation(fields: [pharmacyId], references: [id])
+  stockMovements StockMovement[]
+  dispensings   Dispensing[]
+  cpdActivities CpdActivity[]
+  articles      Article[]      @relation("AuthoredArticles")
+  refreshTokens RefreshToken[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+// ─── Inventory ────────────────────────────────────────────────────────────────
+
+model Product {
+  id            String     @id @default(uuid())
+  pharmacyId    String
+  name          String
+  genericName   String?
+  brandName     String?
+  barcode       String?
+  dosageForm    DosageForm @default(TABLET)
+  strength      String?
+  unitOfMeasure String     @default("unit")
+  drugClass     DrugClass  @default(OTC)
+  description   String?
+  reorderLevel  Int        @default(10)
+  sellingPrice  Decimal?   @db.Decimal(12, 2)
+  tmda          String?
+  isActive      Boolean    @default(true)
+  drugMasterId  String?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  pharmacy       Pharmacy        @relation(fields: [pharmacyId], references: [id])
+  drugMaster     DrugMaster?     @relation(fields: [drugMasterId], references: [id])
+  batches        Batch[]
+  stockMovements StockMovement[]
+  dispensingItems DispensingItem[]
+
+  @@map("products")
+}
+
+model Batch {
+  id                 String   @id @default(uuid())
+  productId          String
+  pharmacyId         String
+  batchNumber        String
+  expiryDate         DateTime
+  quantityRemaining  Int
+  purchasePrice      Decimal  @db.Decimal(12, 2)
+  supplierId         String?
+  receivedAt         DateTime @default(now())
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  product        Product         @relation(fields: [productId], references: [id])
+  pharmacy       Pharmacy        @relation(fields: [pharmacyId], references: [id])
+  supplier       Supplier?       @relation(fields: [supplierId], references: [id])
+  stockMovements StockMovement[]
+  dispensingItems DispensingItem[]
+
+  @@map("batches")
+}
+
+model Supplier {
+  id          String   @id @default(uuid())
+  pharmacyId  String
+  name        String
+  contactName String?
+  phone       String?
+  email       String?
+  address     String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id])
+  batches  Batch[]
+
+  @@map("suppliers")
+}
+
+model StockMovement {
+  id         String       @id @default(uuid())
+  pharmacyId String
+  productId  String
+  batchId    String?
+  userId     String
+  type       MovementType
+  quantity   Int
+  notes      String?
+  createdAt  DateTime     @default(now())
+
+  pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id])
+  product  Product  @relation(fields: [productId], references: [id])
+  batch    Batch?   @relation(fields: [batchId], references: [id])
+  user     User     @relation(fields: [userId], references: [id])
+
+  @@map("stock_movements")
+}
+
+model DrugMaster {
+  id          String  @id @default(uuid())
+  msdCode     String  @unique
+  name        String
+  genericName String?
+  dosageForm  String?
+  strength    String?
+  unitPrice   Decimal? @db.Decimal(12, 2)
+  category    String?
+  isActive    Boolean @default(true)
+
+  products Product[]
+
+  @@map("drug_master")
+}
+
+// ─── Compliance ───────────────────────────────────────────────────────────────
+
+model ComplianceItem {
+  id           String             @id @default(uuid())
+  pharmacyId   String
+  title        String
+  category     ComplianceCategory @default(OTHER)
+  description  String?
+  dueDate      DateTime?
+  renewalDate  DateTime?
+  documentRef  String?
+  isNotApplicable Boolean        @default(false)
+  status       ComplianceStatus   @default(COMPLIANT)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id])
+
+  @@map("compliance_items")
+}
+
+// ─── Patient Safety ───────────────────────────────────────────────────────────
+
+model Patient {
+  id                String   @id @default(uuid())
+  pharmacyId        String
+  firstName         String
+  lastName          String
+  dateOfBirth       DateTime?
+  gender            Gender?
+  phone             String?
+  nhifNumber        String?
+  allergies         String[] @default([])
+  chronicConditions String[] @default([])
+  notes             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  pharmacy    Pharmacy     @relation(fields: [pharmacyId], references: [id])
+  dispensings Dispensing[]
+  nhifClaims  NhifClaim[]
+
+  @@map("patients")
+}
+
+model Dispensing {
+  id              String        @id @default(uuid())
+  pharmacyId      String
+  patientId       String?
+  dispensedById   String
+  referenceNumber String        @unique
+  paymentMethod   PaymentMethod @default(CASH)
+  totalAmount     Decimal       @db.Decimal(12, 2)
+  notes           String?
+  createdAt       DateTime      @default(now())
+
+  pharmacy    Pharmacy         @relation(fields: [pharmacyId], references: [id])
+  patient     Patient?         @relation(fields: [patientId], references: [id])
+  dispensedBy User             @relation(fields: [dispensedById], references: [id])
+  items       DispensingItem[]
+
+  @@map("dispensings")
+}
+
+model DispensingItem {
+  id               String   @id @default(uuid())
+  dispensingId     String
+  productId        String
+  batchId          String?
+  quantity         Int
+  unitPrice        Decimal  @db.Decimal(12, 2)
+  lineTotal        Decimal  @db.Decimal(12, 2)
+  dose             String?
+  icdCode          String?
+  icdDescription   String?
+  counsellingNotes String?
+
+  dispensing Dispensing @relation(fields: [dispensingId], references: [id], onDelete: Cascade)
+  product    Product    @relation(fields: [productId], references: [id])
+  batch      Batch?     @relation(fields: [batchId], references: [id])
+
+  @@map("dispensing_items")
+}
+
+// ─── NHIF ─────────────────────────────────────────────────────────────────────
+
+model NhifClaim {
+  id                  String          @id @default(uuid())
+  pharmacyId          String
+  patientId           String?
+  claimNumber         String          @unique
+  patientNhifNumber   String
+  patientName         String
+  serviceDate         DateTime
+  totalAmount         Decimal         @db.Decimal(12, 2)
+  status              NhifClaimStatus @default(DRAFT)
+  submittedAt         DateTime?
+  processedAt         DateTime?
+  rejectionReason     String?
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  pharmacy Pharmacy       @relation(fields: [pharmacyId], references: [id])
+  patient  Patient?       @relation(fields: [patientId], references: [id])
+  items    NhifClaimItem[]
+
+  @@map("nhif_claims")
+}
+
+model NhifClaimItem {
+  id          String  @id @default(uuid())
+  claimId     String
+  description String
+  quantity    Int
+  unitCost    Decimal @db.Decimal(12, 2)
+  totalCost   Decimal @db.Decimal(12, 2)
+  icdCode     String?
+
+  claim NhifClaim @relation(fields: [claimId], references: [id], onDelete: Cascade)
+
+  @@map("nhif_claim_items")
+}
+
+// ─── CPD ──────────────────────────────────────────────────────────────────────
+
+model CpdActivity {
+  id              String          @id @default(uuid())
+  userId          String
+  activityType    CpdActivityType @default(READING)
+  title           String
+  provider        String?
+  activityDate    DateTime
+  pointsClaimed   Int             @default(1)
+  pointsApproved  Int?
+  certificate     String?
+  sourceArticleId String?
+  notes           String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  user    User     @relation(fields: [userId], references: [id])
+  article Article? @relation(fields: [sourceArticleId], references: [id])
+
+  @@map("cpd_activities")
+}
+
+// ─── Knowledge Hub ────────────────────────────────────────────────────────────
+
+model Article {
+  id                   String          @id @default(uuid())
+  slug                 String          @unique
+  title                String
+  summary              String?
+  body                 Json            @default("{}")
+  category             ArticleCategory @default(GENERAL)
+  tags                 String[]        @default([])
+  authorId             String?
+  readingTimeMinutes   Int             @default(5)
+  viewCount            Int             @default(0)
+  isPublished          Boolean         @default(false)
+  isSponsored          Boolean         @default(false)
+  sponsorName          String?
+  publishedAt          DateTime?
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+
+  author        User?         @relation("AuthoredArticles", fields: [authorId], references: [id])
+  cpdActivities CpdActivity[]
+
+  @@map("articles")
+}
