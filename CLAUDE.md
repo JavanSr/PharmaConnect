@@ -123,6 +123,72 @@ All three are loaded via Google Fonts in `frontend/index.html`.
 
 ---
 
+## User roles and permissions
+
+| Role | Tier availability | Primary function |
+|------|------------------|-----------------|
+| OWNER | All tiers | Remote oversight, billing, user management |
+| PHARMACIST_IN_CHARGE | All tiers | Full clinical + operational control |
+| DISPENSER | STANDARD, PREMIUM, ENTERPRISE | Retail dispensing + patient safety tools |
+| CASHIER | STANDARD, PREMIUM, ENTERPRISE | Complete payment on a prepared sale |
+| DATA_ENTRY_CLERK | All tiers | Stock intake and supplier management only |
+| WHOLESALE_MANAGER | WHOLESALE, ENTERPRISE | Full wholesale operations management |
+| WHOLESALE_COUNTER_STAFF | WHOLESALE, ENTERPRISE | Order picking, goods handling, intake |
+| DELIVERY_STAFF | WHOLESALE, ENTERPRISE | Delivery status updates only |
+
+### WHOLESALE_COUNTER_STAFF — detailed permissions
+
+CAN:
+- View wholesale catalogue (read only — cannot edit prices)
+- View orders assigned to them for picking
+- Mark order line items as picked and packed
+- Confirm outgoing delivery quantities against the order
+- Record incoming stock from manufacturers (intake form)
+- View current stock levels (read only — for picking purposes)
+- Barcode scan on incoming and outgoing goods
+
+CANNOT:
+- Set or view client credit limits
+- Edit product pricing or catalogue
+- View financial reports or revenue data
+- Access client pharmacy management
+- Access the retail dispensing screen
+- View patient safety tools
+- Create or cancel orders
+- Generate or view VAT invoices
+
+### Tier feature matrix (key rules)
+
+- Patient safety tools (drug interaction checker, dose calculator, contraindication
+  alerts, NCD hints): STANDARD, PREMIUM, ENTERPRISE only. Never gated higher.
+  ADDO and WHOLESALE do not include them — that is correct by design.
+- ADDO tier gets basic sale recording only — not the full dispensing workflow
+  with clinical tools, discounts, or voids.
+- WHOLESALE tier gets Knowledge Hub read access (articles, bulletins) but no
+  CPD features — wholesale staff benefit from clinical articles.
+- Inventory A15 (multi-outlet visibility) and A16 (inter-branch transfer):
+  ENTERPRISE only.
+- Barcode scanning (A7): available to WHOLESALE_COUNTER_STAFF role.
+- WHOLESALE_COUNTER_STAFF B2B: can view and pick assigned orders, cannot create
+  or cancel, cannot see client credit data or financial reports.
+- WHOLESALE_COUNTER_STAFF operational reports only: own picking history, delivery
+  confirmations, and intake records. All financial reports return 403.
+
+### Subscription tiers — fixed pricing (do not change without explicit instruction)
+
+| Tier | Price | Users |
+|------|-------|-------|
+| ADDO | TZS 20,000/month | 2 |
+| STANDARD | TZS 55,000/month | 4 |
+| PREMIUM | TZS 95,000/month | 6 |
+| WHOLESALE | TZS 180,000/month | 8 + delivery |
+| ENTERPRISE | Negotiated | Unlimited |
+| HYBRID ADD-ON | TZS 230,000/month total | — |
+
+Annual billing: 10 × monthly (2 months free).
+
+---
+
 ## Module architecture
 
 | Phase | Module             | Status      |
@@ -184,6 +250,28 @@ These are the target standards for new code:
 - `src/` at repo root is the old Next.js prototype. Do not modify it.
 - Demo accounts in `LoginPage.tsx` are intentional for development/demo use.
   Remove before final production launch.
+- Payment gateway (M-Pesa, Flutterwave) is Phase 2. Phase 1 uses manual
+  payment confirmation by the founder after receiving M-Pesa or bank transfer.
+  Do not build payment gateway integration until explicitly instructed.
+- Patient safety module is session-based only. No patient table. No patient UUID.
+  No persistent patient data of any kind.
+- The override_log table must have a database-level trigger preventing DELETE
+  from any role including superadmin. This is a permanent medical record.
+- The B2B ordering network is closed. Retail pharmacies can only order from
+  wholesale pharmacies registered on PharmaConnect. Enforce at API level.
+
+## Deferred features — placeholder pages only
+
+The following must NOT be built. Render a "coming soon" placeholder only:
+
+| Feature | Dependency blocking it |
+|---------|----------------------|
+| NHIF Claims Module | NHIF Breeze API accreditation |
+| Prescription Management | PC + TMDA digital framework |
+| Clinical OTC Symptom Tool | PC written position statement |
+| Persistent Patient Data Storage | PDPC registration + MOH MOU |
+| PC-Accredited CPD | Pharmacy Council MOU |
+| Controlled Substances TMDA Reporting | TMDA notification |
 
 ---
 
