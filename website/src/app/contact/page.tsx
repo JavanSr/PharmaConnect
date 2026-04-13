@@ -2,7 +2,7 @@ import ContactTabs from "@/components/ContactTabs";
 
 export const metadata = {
   title: "Contact - PharmaConnect",
-  description: "Contact PharmaConnect for pilot, investor, or partner inquiries.",
+  description: "Get in touch with PharmaConnect — early access requests, investor inquiries, and institutional partnerships.",
 };
 
 export default function ContactPage() {

@@ -1,3 +1,4 @@
+import { Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ReactNode } from "react";
 
@@ -41,7 +42,7 @@ export default function Badge({
         className,
       )}
     >
-      {variant === "sponsored" ? "LOCK " : null}
+      {variant === "sponsored" ? <Lock className="mr-1 flex-shrink-0" size={10} /> : null}
       {children}
     </span>
   );

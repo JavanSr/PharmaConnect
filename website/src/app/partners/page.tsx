@@ -18,7 +18,7 @@ export default function PartnersPage() {
           {[
             ["Regulatory partners", "Inspection readiness, compliance education, and safe reporting pathways."],
             ["Professional bodies", "Training, CPD, patient safety standards, and member engagement."],
-            ["Implementation partners", "Pilot rollout, low-resource deployment support, and pharmacy onboarding."],
+            ["Implementation partners", "Deployment support, low-resource implementation, and pharmacy onboarding across Tanzania."],
           ].map(([title, body]) => (
             <article className="rounded-lg bg-mist p-6" key={title}>
               <h2 className="text-xl font-semibold text-slate">{title}</h2>

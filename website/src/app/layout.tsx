@@ -6,12 +6,13 @@ import { dmSans, dmSerif, jetbrainsMono } from "@/lib/fonts";
 import "./globals.css";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://pharmaconnect.tz"),
   title: {
-    default: "PharmaConnect — Better Pharmaceutical Services for Tanzania",
-    template: "%s — PharmaConnect",
+    default: "PharmaConnect - Better Pharmaceutical Services for Tanzania",
+    template: "%s - PharmaConnect",
   },
   description:
-    "The pharmacy-side platform for Tanzania's 14,000+ pharmacies and ADDOs. NHIF claims, patient safety, compliance, and CPD — live in Arusha.",
+    "The pharmacy-side platform for Tanzania's 14,000+ pharmacies and ADDOs. NHIF claims, patient safety, compliance, and CPD - live in Arusha.",
   keywords:
     "Tanzania pharmacy software, NHIF claims, UHI, pharmaceutical management, Arusha",
   openGraph: {

@@ -17,8 +17,8 @@ export default function PlatformPage() {
           Pharmacy operations, built around real availability
         </h1>
         <p className="mt-5 max-w-3xl text-slate/70">
-          Core pharmacy workflows are shown as available now. Other modules are
-          visible for future availability and are not active product functionality yet.
+          Seven modules live in Arusha today. More coming soon as PharmaConnect
+          expands across Tanzania.
         </p>
         <div className="mt-10">
           <PlatformGrid modules={MODULES} />

@@ -22,7 +22,7 @@ export async function POST(request: Request) {
 
   if (!password) {
     return NextResponse.json(
-      { error: "Investor access is not configured" },
+      { error: "Investor access is temporarily unavailable" },
       { status: 503 },
     );
   }

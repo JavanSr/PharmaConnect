@@ -40,8 +40,8 @@ export default function ModulePage({ params }: ModulePageProps) {
       <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
         <p className="text-sm text-slate/50">Platform / {currentModule.name}</p>
         <div className="mt-6 flex flex-wrap items-center gap-3">
-          <Badge variant={currentModule.phase === 1 ? "primary" : "coming-soon"}>
-            {currentModule.phase === 1 ? "Available now" : "Future availability"}
+          <Badge variant={currentModule.available ? "primary" : "coming-soon"}>
+            {currentModule.available ? "Available now" : "Coming soon"}
           </Badge>
           <span className="font-mono text-sm text-slate/50">{currentModule.id}</span>
         </div>
@@ -52,10 +52,10 @@ export default function ModulePage({ params }: ModulePageProps) {
           {currentModule.description}
         </p>
 
-        {currentModule.phase > 1 ? (
+        {!currentModule.available ? (
           <div className="mt-8 rounded-lg border border-amber/30 bg-amber/10 p-5 text-sm text-slate">
-            This module is planned for future availability and is not active in the
-            current product.
+            This feature is coming soon. Join early access to be among the first pharmacies
+            to receive it.
           </div>
         ) : null}
 
@@ -101,7 +101,7 @@ export default function ModulePage({ params }: ModulePageProps) {
         </section>
 
         <div className="mt-10">
-          <Button href="/contact#waitlist">Join the pilot</Button>
+          <Button href="/contact#waitlist">Get early access</Button>
         </div>
       </div>
     </main>

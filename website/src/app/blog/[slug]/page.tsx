@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
@@ -50,9 +51,9 @@ export default function BlogArticlePage({ params }: BlogArticlePageProps) {
           <h2 className="text-lg font-semibold text-slate">Related articles</h2>
           <div className="mt-5 grid gap-4">
             {related.map((item) => (
-              <a className="rounded-lg bg-white p-4 text-sm font-semibold text-slate" href={`/blog/${item.slug}`} key={item.slug}>
+              <Link className="rounded-lg bg-white p-4 text-sm font-semibold text-slate" href={`/blog/${item.slug}`} key={item.slug}>
                 {item.title}
-              </a>
+              </Link>
             ))}
           </div>
         </aside>

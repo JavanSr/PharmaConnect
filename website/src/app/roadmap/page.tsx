@@ -9,13 +9,13 @@ export const metadata = {
 const groups = [
   {
     title: "Available now",
-    description: "Core pharmacy workflows already positioned for the current product.",
-    modules: MODULES.filter((module) => module.phase === 1),
+    description: "Seven modules available now — Dashboard, Inventory, Dispensing, Compliance Tracker, Knowledge Hub, CPD Tracker, and Analytics.",
+    modules: MODULES.filter((module) => module.available),
   },
   {
-    title: "Available in the future",
-    description: "Roadmap modules that should not be treated as active product functionality yet.",
-    modules: MODULES.filter((module) => module.phase > 1),
+    title: "Coming soon",
+    description: "More modules are coming soon — analytics, supply chain, and government system integration are all on the way.",
+    modules: MODULES.filter((module) => !module.available),
   },
 ];
 

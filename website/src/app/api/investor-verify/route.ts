@@ -5,7 +5,7 @@ export async function POST(request: Request) {
   const expected = process.env.INVESTOR_PAGE_PASSWORD;
 
   if (!expected) {
-    return NextResponse.json({ error: "Investor access is not configured" }, { status: 503 });
+    return NextResponse.json({ error: "Investor access is temporarily unavailable" }, { status: 503 });
   }
 
   if (!body || body.code !== expected) {

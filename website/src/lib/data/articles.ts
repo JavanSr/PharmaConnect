@@ -23,9 +23,9 @@ export const ARTICLES: Article[] = [
     body: [
       "Tanzania's universal health insurance launch changes pharmacy operations from a mostly retail workflow into a more formal care, claim, and compliance workflow. Pharmacy owners need reliable stock records, clean claim data, and evidence that dispensing decisions were made responsibly.",
       "The immediate operational challenge is not a sophisticated analytics dashboard. It is daily readiness: identify the member, dispense the right product, capture required claim information, keep stock accurate, and preserve the audit trail.",
-      "A safe current product should reduce paperwork, not add a new burden. It should make NHIF claim readiness, expiry awareness, and compliance status visible in the normal dispensing flow.",
+      "PharmaConnect reduces paperwork without adding new burden. It makes NHIF claim readiness, expiry awareness, and compliance status visible in the normal dispensing flow.",
       "Preparation starts with workflow discipline. Pharmacy owners should know who verifies membership, who reviews claim readiness, who handles rejected claims, and how stock changes are recorded.",
-      "Inventory hygiene matters because claim readiness is weakened when products are not tracked by batch and expiry. FEFO handling protects patients, reduces waste, and supports later review.",
+      "Tracking stock by batch and expiry strengthens NHIF claim readiness and protects patients through FEFO dispensing.",
       "The practical goal is not digitization for its own sake. The goal is fewer rejected claims, safer dispensing, better stock reliability, and clearer evidence when a pharmacy needs to explain what happened.",
     ],
   },
@@ -76,8 +76,7 @@ export const ARTICLES: Article[] = [
       "Inspection readiness starts with disciplined records, not last-minute document chasing.",
     body: [
       "Inspection readiness is a habit. Stock records, expiry tracking, staff CPD evidence, and compliance reminders should be maintained continuously rather than assembled under pressure.",
-      "The current product should keep this simple: show green, amber, and red status, keep a non-editable record of important actions, and make the next compliance step obvious.",
-      "Future regulator integrations should be approached carefully and only after pharmacy workflows are stable.",
+      "PharmaConnect keeps compliance visible at all times: green, amber, and red status, non-editable records of important actions, and the next compliance step in clear view.",
       "Expiry monitoring is one of the simplest examples. If near-expiry stock is visible at 90, 60, 30, 7, and 1 day windows, the team can act early.",
       "CPD evidence is another practical area. A simple record gives owners and professionals a clearer view of what is complete and what needs attention.",
       "The safer current priority is to help pharmacies become internally ready first: accurate stock, visible alerts, clear compliance tasks, and reviewable evidence.",
@@ -95,7 +94,7 @@ export const ARTICLES: Article[] = [
     body: [
       "PharmaConnect is not trying to turn a pharmacy into a hospital system. It is designed to make common pharmacy work safer, clearer, and easier to audit.",
       "The founder's view is simple: preventable harm should not be accepted as a cost of busy dispensing. The system should help pharmacists see risk earlier without slowing down every transaction.",
-      "That is why the current product keeps patient safety basic but present: allergy flags, active medication context, interaction alerts, and pharmacist override trails.",
+      "That is why PharmaConnect builds patient safety into every dispensing event from day one: allergy flags, active medication context, interaction alerts, and pharmacist override trails.",
       "A community pharmacy does not need a hospital-grade electronic medical record to reduce common dispensing risk. It needs the right signal at the right moment.",
       "The privacy model is part of the safety model. If patient identity is mishandled, the system creates a new risk while trying to solve another.",
       "The founder's vision is practical: make the safer action easier to take, preserve the override trail, and help the patient receive safer care.",

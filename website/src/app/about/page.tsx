@@ -1,6 +1,6 @@
 export const metadata = {
   title: "About - PharmaConnect",
-  description: "About PharmaConnect and its founder.",
+  description: "Elihaki M. Y. Javan — Pharmaceutical Technologist and founder of PharmaConnect, the pharmacy-side platform built for Tanzania's 14,000+ pharmacies and ADDOs.",
 };
 
 export default function AboutPage() {
@@ -46,7 +46,7 @@ export default function AboutPage() {
             <tbody>
               {[
                 ["Technical co-founder / senior engineer", "Equity discussion", "elihaki.yusuph@gmail.com"],
-                ["Clinical/regulatory advisor", "Advisor equity or pilot terms", "elihaki.yusuph@gmail.com"],
+                ["Clinical/regulatory advisor", "Advisor equity or early-stage partnership terms", "elihaki.yusuph@gmail.com"],
               ].map(([role, terms, contact]) => (
                 <tr className="border-b border-slate/10" key={role}>
                   <td className="py-3 font-semibold text-slate">{role}</td>
@@ -61,10 +61,10 @@ export default function AboutPage() {
         <section className="mt-12 rounded-lg border border-slate/10 p-8">
           <h2 className="text-2xl font-semibold text-slate">Company legal details</h2>
           <div className="mt-5 grid gap-3 text-sm text-slate/70">
-            <p>Registered under Tanzania Companies Act Cap 212: in progress.</p>
+            <p>Registered under Tanzania Companies Act Cap 212: registration underway.</p>
             <p>PDPC registration: pending - April 2026.</p>
-            <p>BRELA status: in progress.</p>
-            <p>TRA VFD integration: in progress for compliant dispensing workflows.</p>
+            <p>BRELA status: registration underway.</p>
+            <p>TRA VFD integration: underway for compliant digital dispensing.</p>
           </div>
         </section>
       </div>

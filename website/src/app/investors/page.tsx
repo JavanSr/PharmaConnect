@@ -7,7 +7,7 @@ export const metadata = {
 };
 
 const fundingTargets = [
-  ["FUNGUO", "Grant", "Pilot support and validation"],
+  ["FUNGUO", "Grant", "Launch support and adoption acceleration"],
   ["TEF", "Entrepreneurship support", "Founder development and rollout readiness"],
   ["i3", "Health innovation", "Digital health acceleration"],
   ["HTHA", "Health tech", "Clinical and operational validation"],
@@ -54,7 +54,7 @@ export default function InvestorsPage() {
 
         <section className="mt-12 grid gap-5 md:grid-cols-3">
           {[
-            ["Current focus", "Pilot validation and pharmacy adoption"],
+            ["Current focus", "Arusha launch and pharmacy adoption"],
             ["Revenue", "Subscription tiers from ADDO to wholesale"],
             ["Moat", "Healthcare-specific workflows and compliance trust"],
           ].map(([label, value]) => (
@@ -88,7 +88,7 @@ export default function InvestorsPage() {
             <div className="mt-6 grid gap-3">
               {[
                 ["Product engineering", "40%"],
-                ["Pilot implementation", "25%"],
+                ["Launch implementation", "25%"],
                 ["Regulatory and security", "15%"],
                 ["Go-to-market", "15%"],
                 ["Operations", "5%"],
@@ -109,8 +109,8 @@ export default function InvestorsPage() {
             <h2 className="text-2xl font-semibold text-slate">Equity structure</h2>
             <p className="mt-4 text-slate/70">
               Founder-led with early-stage equity reserved for strategic capital,
-              technical execution, and high-trust healthcare partnerships. Detailed
-              cap table documents will be added to `/public/docs/` when ready.
+              technical execution, and high-trust healthcare partnerships. Cap table and equity documents are available to verified investors on request.
+              Contact: elihaki.yusuph@gmail.com
             </p>
             <p className="mt-6 text-sm font-semibold text-primary">
               Founder contact: elihaki.yusuph@gmail.com / +255 764 591 374

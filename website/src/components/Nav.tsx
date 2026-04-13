@@ -17,7 +17,7 @@ const links = [
 ];
 
 export default function Nav() {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
 
