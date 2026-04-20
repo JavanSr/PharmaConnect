@@ -7,11 +7,14 @@ import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { api } from '@/lib/api';
+import { usePharmacyStore } from '@/stores/pharmacyStore';
 
 export const InventoryDashboardPage: React.FC = () => {
+  const pharmacy = usePharmacyStore((state) => state.pharmacy);
   const { data: stockData } = useQuery({ queryKey: ['stock-on-hand'], queryFn: () => api.get('/inventory/reports/stock-on-hand').then(r => r.data) });
   const { data: expiryData } = useQuery({ queryKey: ['expiry-30'], queryFn: () => api.get('/inventory/reports/expiry?days=30').then(r => r.data) });
   const { data: lowStockData } = useQuery({ queryKey: ['low-stock'], queryFn: () => api.get('/inventory/reports/low-stock').then(r => r.data) });
+  const isEnterprise = pharmacy?.subscriptionTier === 'ENTERPRISE';
 
   const products = useMemo(() => stockData?.data || [], [stockData?.data]);
   const expiryBatches = useMemo(() => expiryData?.data || [], [expiryData?.data]);
@@ -40,6 +43,7 @@ export const InventoryDashboardPage: React.FC = () => {
           <Link to="/inventory/products"><Button variant="secondary">Products</Button></Link>
           <Link to="/inventory/drug-master"><Button variant="secondary">Drug Catalogue</Button></Link>
           <Link to="/inventory/batches"><Button variant="secondary">Batches</Button></Link>
+          <Link to="/inventory/conflicts"><Button variant="secondary">Conflicts</Button></Link>
         </div>
       </div>
 
@@ -112,6 +116,24 @@ export const InventoryDashboardPage: React.FC = () => {
           )}
         </Card>
       </div>
+
+      <Card>
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold text-[#0D4035]">Enterprise logistics</p>
+            <p className="text-sm text-[#64748B] mt-1">
+              Multi-outlet visibility and inter-branch transfers are reserved for Enterprise pharmacies.
+            </p>
+          </div>
+          {isEnterprise ? (
+            <Badge variant="success" size="sm">Enterprise unlocked</Badge>
+          ) : (
+            <Link to="/settings/subscription">
+              <Button>Upgrade to Enterprise</Button>
+            </Link>
+          )}
+        </div>
+      </Card>
     </div>
   );
 };

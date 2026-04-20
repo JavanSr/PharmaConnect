@@ -291,14 +291,26 @@ export const InspectionChecklistPage: React.FC = () => {
 
           {/* Export report */}
           <div className="flex justify-end no-print">
-            <Button
-              className="no-print"
-              variant="secondary"
-              leftIcon={<Download size={16} />}
-              onClick={() => window.print()}
-            >
-              Export PDF Report
-            </Button>
+            {checklist.pdfUrl ? (
+              <a href={checklist.pdfUrl} target="_blank" rel="noopener noreferrer">
+                <Button
+                  className="no-print"
+                  variant="secondary"
+                  leftIcon={<Download size={16} />}
+                >
+                  Download PDF Report
+                </Button>
+              </a>
+            ) : (
+              <Button
+                className="no-print"
+                variant="secondary"
+                leftIcon={<Download size={16} />}
+                onClick={() => window.print()}
+              >
+                Print Checklist
+              </Button>
+            )}
           </div>
         </>
       )}

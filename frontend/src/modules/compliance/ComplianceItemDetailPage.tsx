@@ -176,7 +176,7 @@ export const ComplianceItemDetailPage: React.FC = () => {
         ) : (
           <div className="divide-y divide-[#D6F0E8]">
             {docs.map((doc: any) => {
-              const fileUrl = doc.fileUrl.startsWith('uploads')
+              const fileUrl = doc.fileUrl.startsWith('uploads') || doc.fileUrl.startsWith('/uploads')
                 ? `${BACKEND}/${doc.fileUrl.replace(/\\/g, '/')}`
                 : doc.fileUrl;
               const isPdf = doc.filename?.toLowerCase().endsWith('.pdf');

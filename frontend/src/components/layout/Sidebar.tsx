@@ -3,6 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, BookOpen, Package, Shield, Pill, FileCheck, GraduationCap,
   Lock, ChevronLeft, ChevronRight, Settings, LogOut, BarChart3, Repeat2,
+  AlertTriangle, ClipboardList, Users,
   Building2, Smartphone, Brain, Database, X
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
@@ -23,19 +24,24 @@ const phase1Nav: NavItem[] = [
   { label: 'Dashboard', path: '/dashboard', icon: <LayoutDashboard size={18} /> },
   { label: 'Knowledge Hub', path: '/knowledge', icon: <BookOpen size={18} /> },
   { label: 'Inventory', path: '/inventory', icon: <Package size={18} /> },
-  { label: 'Compliance', path: '/compliance', icon: <Shield size={18} />, roles: ['OWNER','PHARMACIST_IN_CHARGE','DISPENSER','SUPER_ADMIN'] },
+  { label: 'Compliance', path: '/compliance', icon: <Shield size={18} />, roles: ['OWNER','PHARMACIST_IN_CHARGE','DISPENSER','DATA_ENTRY_CLERK','WHOLESALE_MANAGER','WHOLESALE_COUNTER_STAFF','SUPER_ADMIN'] },
   { label: 'Analytics', path: '/analytics', icon: <BarChart3 size={18} /> },
-  { label: 'Dispensing', path: '/dispensing', icon: <Pill size={18} />, roles: ['PHARMACIST_IN_CHARGE','DISPENSER','WHOLESALE_SELLER','SUPER_ADMIN'] },
-  { label: 'CPD Tracker', path: '/cpd', icon: <GraduationCap size={18} />, roles: ['PHARMACIST_IN_CHARGE','DISPENSER','WHOLESALE_SELLER','SUPER_ADMIN'] },
+  { label: 'Dispensing', path: '/dispensing', icon: <Pill size={18} />, roles: ['OWNER','PHARMACIST_IN_CHARGE','DISPENSER','CASHIER','SUPER_ADMIN'] },
+  { label: 'CPD Tracker', path: '/cpd', icon: <GraduationCap size={18} />, roles: ['OWNER','PHARMACIST_IN_CHARGE','DISPENSER','SUPER_ADMIN'] },
+  { label: 'Wholesale', path: '/wholesale', icon: <Building2 size={18} />, roles: ['OWNER','WHOLESALE_MANAGER','WHOLESALE_COUNTER_STAFF','DELIVERY_STAFF','SUPER_ADMIN'] },
+  { label: 'Orders', path: '/orders', icon: <ClipboardList size={18} /> },
+  { label: 'Reports', path: '/reports', icon: <BarChart3 size={18} />, roles: ['OWNER','PHARMACIST_IN_CHARGE','WHOLESALE_MANAGER','SUPER_ADMIN'] },
+  { label: 'Attendance', path: '/attendance', icon: <Users size={18} /> },
 ];
 
 const phase2Nav: NavItem[] = [
-  { label: 'NHIF Claims', path: '/nhif', icon: <FileCheck size={18} />, locked: true, phase: 2 },
+  { label: 'NHIF Claims', path: '/nhif-claims', icon: <FileCheck size={18} />, locked: true, phase: 2 },
+  { label: 'PC-Accredited CPD', path: '/accredited-cpd', icon: <GraduationCap size={18} />, locked: true, phase: 2 },
   { label: 'Stock Exchange', path: '/stock-exchange', icon: <Repeat2 size={18} />, locked: true, phase: 2 },
+  { label: 'Sync Conflicts', path: '/inventory/conflicts', icon: <AlertTriangle size={18} /> },
 ];
 
 const phase3Nav: NavItem[] = [
-  { label: 'B2B Platform', path: '/b2b', icon: <Building2 size={18} />, locked: true, phase: 3 },
   { label: 'Patient App', path: '/patient-app', icon: <Smartphone size={18} />, locked: true, phase: 3 },
 ];
 
@@ -113,9 +119,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, collapsed, on
     );
   };
 
-  const visiblePhase1Nav = phase1Nav.filter(item =>
-    !item.roles || (user?.role && item.roles.includes(user.role as UserRole))
-  );
+  const visiblePhase1Nav = phase1Nav.filter((item) => {
+    const roleAllowed = !item.roles || (user?.role && item.roles.includes(user.role as UserRole));
+    if (!roleAllowed) {
+      return false;
+    }
+
+    if (item.path === '/cpd') {
+      return pharmacy?.subscriptionTier !== 'WHOLESALE' && pharmacy?.subscriptionTier !== 'ADDO';
+    }
+
+    return true;
+  });
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">

@@ -1,11 +1,15 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { authenticate } from '../../middleware/auth.js';
-import type { AuthRequest } from '../../middleware/auth.js';
-import { prisma } from '../../lib/prisma.js';
+import { authenticate } from '../../middleware/auth';
+import type { AuthRequest } from '../../middleware/auth';
+import { requirePermission } from '../../middleware/permissions';
+import { enforceTrialRestrictions } from '../../middleware/trial';
+import { prisma } from '../../lib/prisma';
 
 export const analyticsRouter = Router();
 analyticsRouter.use(authenticate);
+analyticsRouter.use(enforceTrialRestrictions);
+analyticsRouter.use(requirePermission('analytics.view_dashboard'));
 
 const pid = (req: AuthRequest) => req.user!.pharmacyId!;
 

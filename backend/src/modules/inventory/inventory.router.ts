@@ -1,8 +1,44 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { authenticate } from '../../middleware/auth.js';
-import type { AuthRequest } from '../../middleware/auth.js';
-import * as svc from './inventory.service.js';
+import { authenticate } from '../../middleware/auth';
+import type { AuthRequest } from '../../middleware/auth';
+import { requirePermission } from '../../middleware/permissions';
+import { requireTier } from '../../middleware/tier';
+import { enforceTrialRestrictions } from '../../middleware/trial';
+import * as svc from './inventory.service';
+
+const productSchema = z.object({
+  name: z.string().min(1),
+  genericName: z.string().optional(),
+  brandName: z.string().optional(),
+  sku: z.string().optional(),
+  barcode: z.string().optional(),
+  dosageForm: z.enum(['TABLET', 'CAPSULE', 'SYRUP', 'INJECTION', 'CREAM', 'OINTMENT', 'DROPS', 'INHALER', 'SUPPOSITORY', 'POWDER', 'SOLUTION', 'OTHER']).optional(),
+  strength: z.string().optional(),
+  unitOfMeasure: z.string().optional(),
+  drugClass: z.enum(['OTC', 'PRESCRIPTION', 'CONTROLLED', 'NARCOTIC']).optional(),
+  description: z.string().optional(),
+  reorderLevel: z.coerce.number().int().min(0).optional(),
+  sellingPrice: z.coerce.number().min(0).optional(),
+  tmda: z.string().optional(),
+  tmdaRegistrationNumber: z.string().optional(),
+  coldChainRequired: z.boolean().optional(),
+  storageCondition: z.string().optional(),
+  retailStock: z.boolean().optional(),
+  wholesaleStock: z.boolean().optional(),
+  wholesaleSellingPrice: z.coerce.number().min(0).optional(),
+  manufacturer: z.string().optional(),
+  therapeuticCategory: z.string().optional(),
+  drugMasterId: z.string().optional(),
+});
+
+const supplierSchema = z.object({
+  name: z.string().min(1),
+  contactName: z.string().optional(),
+  phone: z.string().optional(),
+  email: z.string().email().optional().or(z.literal('')),
+  address: z.string().optional(),
+});
 
 export const inventoryRouter = Router();
 inventoryRouter.use(authenticate);
@@ -10,137 +46,255 @@ inventoryRouter.use(authenticate);
 const pid = (req: AuthRequest) => req.user!.pharmacyId!;
 const uid = (req: AuthRequest) => req.user!.userId;
 
-// ── Products ─────────────────────────────────────────────────────────────────
-inventoryRouter.get('/products', async (req: AuthRequest, res, next) => {
+inventoryRouter.get('/products', requirePermission('inventory.view_products'), async (req: AuthRequest, res, next) => {
   try {
-    const params = z.object({
-      search: z.string().optional(),
-      page: z.coerce.number().optional(),
-      limit: z.coerce.number().optional(),
-    }).parse(req.query);
+    const params = z
+      .object({
+        search: z.string().optional(),
+        barcode: z.string().optional(),
+        sku: z.string().optional(),
+        page: z.coerce.number().optional(),
+        limit: z.coerce.number().optional(),
+      })
+      .parse(req.query);
     res.json(await svc.listProducts(pid(req), params));
-  } catch (e) { next(e); }
+  } catch (e) {
+    next(e);
+  }
 });
 
-inventoryRouter.get('/products/:id', async (req: AuthRequest, res, next) => {
+inventoryRouter.get('/products/:id', requirePermission('inventory.view_products'), async (req: AuthRequest, res, next) => {
   try {
     res.json({ data: await svc.getProduct(req.params.id, pid(req)) });
-  } catch (e) { next(e); }
+  } catch (e) {
+    next(e);
+  }
 });
 
-inventoryRouter.post('/products', async (req: AuthRequest, res, next) => {
+inventoryRouter.get('/products/:id/fefo', requirePermission('inventory.view_products'), async (req: AuthRequest, res, next) => {
   try {
-    const schema = z.object({
-      name: z.string().min(1),
-      genericName: z.string().optional(),
-      brandName: z.string().optional(),
-      barcode: z.string().optional(),
-      dosageForm: z.string().optional(),
-      strength: z.string().optional(),
-      unitOfMeasure: z.string().optional(),
-      drugClass: z.string().optional(),
-      description: z.string().optional(),
-      reorderLevel: z.coerce.number().optional(),
-      sellingPrice: z.coerce.number().optional(),
-      tmda: z.string().optional(),
-      drugMasterId: z.string().optional(),
-    });
-    const data = schema.parse(req.body);
-    res.status(201).json({ data: await svc.createProduct(pid(req), data as any) });
-  } catch (e) { next(e); }
+    const { quantity = 1 } = z.object({ quantity: z.coerce.number().int().positive().optional() }).parse(req.query);
+    res.json({ data: await svc.fefoQuery(pid(req), req.params.id, quantity) });
+  } catch (e) {
+    next(e);
+  }
 });
 
-inventoryRouter.put('/products/:id', async (req: AuthRequest, res, next) => {
+inventoryRouter.use(enforceTrialRestrictions);
+
+inventoryRouter.post('/products', requirePermission('inventory.manage_products'), async (req: AuthRequest, res, next) => {
   try {
-    res.json({ data: await svc.updateProduct(req.params.id, pid(req), req.body) });
-  } catch (e) { next(e); }
+    const data = productSchema.parse(req.body);
+    res.status(201).json({ data: await svc.createProduct(pid(req), data) });
+  } catch (e) {
+    next(e);
+  }
 });
 
-// ── Batches ──────────────────────────────────────────────────────────────────
-inventoryRouter.get('/batches', async (req: AuthRequest, res, next) => {
+inventoryRouter.put('/products/:id', requirePermission('inventory.manage_products'), async (req: AuthRequest, res, next) => {
   try {
-    const params = z.object({
-      productId: z.string().optional(),
-      expiringDays: z.coerce.number().optional(),
-      page: z.coerce.number().optional(),
-      limit: z.coerce.number().optional(),
-    }).parse(req.query);
+    const data = productSchema.partial().parse(req.body);
+    res.json({ data: await svc.updateProduct(req.params.id, pid(req), data) });
+  } catch (e) {
+    next(e);
+  }
+});
+
+inventoryRouter.post('/products/import/csv', requirePermission('inventory.manage_products'), async (req: AuthRequest, res, next) => {
+  try {
+    const { csv } = z.object({ csv: z.string().min(1) }).parse(req.body);
+    const result = await svc.importProductsFromCsv(pid(req), csv);
+    if (result.errors.length > 0) {
+      res.status(422).json({ error: 'CSV_IMPORT_VALIDATION_FAILED', details: result });
+      return;
+    }
+    res.status(201).json({ data: result });
+  } catch (e) {
+    next(e);
+  }
+});
+
+inventoryRouter.get('/batches', requirePermission('inventory.view_products'), async (req: AuthRequest, res, next) => {
+  try {
+    const params = z
+      .object({
+        productId: z.string().optional(),
+        expiringDays: z.coerce.number().optional(),
+        page: z.coerce.number().optional(),
+        limit: z.coerce.number().optional(),
+      })
+      .parse(req.query);
     res.json(await svc.listBatches(pid(req), params));
-  } catch (e) { next(e); }
+  } catch (e) {
+    next(e);
+  }
 });
 
-inventoryRouter.post('/batches', async (req: AuthRequest, res, next) => {
+inventoryRouter.post('/batches', requirePermission('inventory.manage_stock'), async (req: AuthRequest, res, next) => {
   try {
-    const schema = z.object({
-      productId: z.string(),
-      batchNumber: z.string().min(1),
-      expiryDate: z.string(),
-      quantityRemaining: z.coerce.number().int().positive(),
-      purchasePrice: z.coerce.number().positive(),
-      supplierId: z.string().optional(),
-    });
-    const data = schema.parse(req.body);
+    const data = z
+      .object({
+        productId: z.string(),
+        batchNumber: z.string().min(1),
+        expiryDate: z.string(),
+        quantityRemaining: z.coerce.number().int().positive(),
+        purchasePrice: z.coerce.number().positive(),
+        supplierId: z.string().optional(),
+      })
+      .parse(req.body);
     res.status(201).json({ data: await svc.receiveBatch(pid(req), uid(req), data) });
-  } catch (e) { next(e); }
+  } catch (e) {
+    next(e);
+  }
 });
 
-// ── Movements ────────────────────────────────────────────────────────────────
-inventoryRouter.get('/movements', async (req: AuthRequest, res, next) => {
+inventoryRouter.get('/movements', requirePermission('inventory.manage_stock'), async (req: AuthRequest, res, next) => {
   try {
-    const params = z.object({
-      productId: z.string().optional(),
-      type: z.string().optional(),
-      dateFrom: z.string().optional(),
-      dateTo: z.string().optional(),
-      page: z.coerce.number().optional(),
-      limit: z.coerce.number().optional(),
-    }).parse(req.query);
+    const params = z
+      .object({
+        productId: z.string().optional(),
+        type: z.string().optional(),
+        dateFrom: z.string().optional(),
+        dateTo: z.string().optional(),
+        page: z.coerce.number().optional(),
+        limit: z.coerce.number().optional(),
+      })
+      .parse(req.query);
     res.json(await svc.listMovements(pid(req), params));
-  } catch (e) { next(e); }
+  } catch (e) {
+    next(e);
+  }
 });
 
-inventoryRouter.post('/movements/adjust', async (req: AuthRequest, res, next) => {
+inventoryRouter.post('/movements/adjust', requirePermission('inventory.manage_stock'), async (req: AuthRequest, res, next) => {
   try {
-    const schema = z.object({
-      productId: z.string(),
-      batchId: z.string().optional(),
-      type: z.enum(['ADJUSTED', 'DAMAGED', 'EXPIRED_REMOVED', 'RETURNED']),
-      quantity: z.coerce.number().int().positive(),
-      notes: z.string().optional(),
-    });
-    const data = schema.parse(req.body);
+    const data = z
+      .object({
+        productId: z.string(),
+        batchId: z.string().optional(),
+        type: z.enum(['ADJUSTED', 'DAMAGED', 'EXPIRED_REMOVED', 'RETURNED']),
+        quantity: z.coerce.number().int().positive(),
+        notes: z.string().optional(),
+      })
+      .parse(req.body);
+
+    if (req.user?.normalizedRole === 'WHOLESALE_COUNTER_STAFF' && data.type === 'EXPIRED_REMOVED') {
+      res.status(403).json({ error: 'ROLE_INSUFFICIENT', message: 'WHOLESALE_COUNTER_STAFF cannot write off expired stock' });
+      return;
+    }
+
     res.status(201).json({ data: await svc.adjustStock(pid(req), uid(req), data) });
-  } catch (e) { next(e); }
+  } catch (e) {
+    next(e);
+  }
 });
 
-// ── Suppliers ────────────────────────────────────────────────────────────────
-inventoryRouter.get('/suppliers', async (req: AuthRequest, res, next) => {
+inventoryRouter.get('/suppliers', requirePermission('inventory.manage_stock'), async (req: AuthRequest, res, next) => {
   try {
     res.json({ data: await svc.listSuppliers(pid(req)) });
-  } catch (e) { next(e); }
+  } catch (e) {
+    next(e);
+  }
 });
 
-// ── Reports ──────────────────────────────────────────────────────────────────
-inventoryRouter.get('/reports/stock-on-hand', async (req: AuthRequest, res, next) => {
+inventoryRouter.post('/suppliers', requirePermission('inventory.manage_stock'), async (req: AuthRequest, res, next) => {
+  try {
+    const data = supplierSchema.parse(req.body);
+    res.status(201).json({ data: await svc.createSupplier(pid(req), data) });
+  } catch (e) {
+    next(e);
+  }
+});
+
+inventoryRouter.put('/suppliers/:id', requirePermission('inventory.manage_stock'), async (req: AuthRequest, res, next) => {
+  try {
+    const data = supplierSchema.parse(req.body);
+    res.json({ data: await svc.updateSupplier(pid(req), req.params.id, data) });
+  } catch (e) {
+    next(e);
+  }
+});
+
+inventoryRouter.delete('/suppliers/:id', requirePermission('inventory.manage_stock'), async (req: AuthRequest, res, next) => {
+  try {
+    res.json({ data: await svc.deactivateSupplier(pid(req), req.params.id) });
+  } catch (e) {
+    next(e);
+  }
+});
+
+inventoryRouter.get('/reports/stock-on-hand', requirePermission('inventory.view_reports'), async (req: AuthRequest, res, next) => {
   try {
     res.json({ data: await svc.stockOnHand(pid(req)) });
-  } catch (e) { next(e); }
+  } catch (e) {
+    next(e);
+  }
 });
 
-inventoryRouter.get('/reports/expiry', async (req: AuthRequest, res, next) => {
+inventoryRouter.get('/reports/expiry', requirePermission('inventory.view_reports'), async (req: AuthRequest, res, next) => {
   try {
     const { days } = z.object({ days: z.coerce.number().optional() }).parse(req.query);
     res.json({ data: await svc.expiryReport(pid(req), days) });
-  } catch (e) { next(e); }
+  } catch (e) {
+    next(e);
+  }
 });
 
-// ── Drug master ───────────────────────────────────────────────────────────────
-inventoryRouter.get('/drug-master', async (req: AuthRequest, res, next) => {
+inventoryRouter.get('/reports/low-stock', requirePermission('inventory.view_reports'), async (req: AuthRequest, res, next) => {
   try {
-    const { q, limit } = z.object({
-      q: z.string().optional(),
-      limit: z.coerce.number().optional(),
-    }).parse(req.query);
+    res.json({ data: await svc.lowStockReport(pid(req)) });
+  } catch (e) {
+    next(e);
+  }
+});
+
+inventoryRouter.get('/conflicts', requirePermission('inventory.manage_stock'), async (req: AuthRequest, res, next) => {
+  try {
+    const { status } = z.object({ status: z.enum(['OPEN', 'RESOLVED']).optional() }).parse(req.query);
+    res.json({ data: await svc.listSyncConflicts(pid(req), status) });
+  } catch (e) {
+    next(e);
+  }
+});
+
+inventoryRouter.post('/conflicts', requirePermission('inventory.manage_stock'), async (req: AuthRequest, res, next) => {
+  try {
+    const payload = z
+      .object({
+        entityType: z.string().min(1),
+        entityId: z.string().min(1),
+        conflictType: z.string().min(1),
+        localPayload: z.record(z.any()).optional(),
+        serverPayload: z.record(z.any()).optional(),
+      })
+      .parse(req.body);
+    res.status(201).json({ data: await svc.createSyncConflict(pid(req), payload) });
+  } catch (e) {
+    next(e);
+  }
+});
+
+inventoryRouter.patch('/conflicts/:id/resolve', requirePermission('inventory.manage_stock'), async (req: AuthRequest, res, next) => {
+  try {
+    res.json({ data: await svc.resolveSyncConflict(pid(req), req.params.id, uid(req)) });
+  } catch (e) {
+    next(e);
+  }
+});
+
+inventoryRouter.get('/enterprise/multi-outlet', requireTier('ENTERPRISE'), async (_req: AuthRequest, res) => {
+  res.json({ data: { enabled: true } });
+});
+
+inventoryRouter.post('/enterprise/transfers', requireTier('ENTERPRISE'), async (_req: AuthRequest, res) => {
+  res.status(501).json({ error: 'NOT_IMPLEMENTED_YET', message: 'Inter-branch transfer workflow will be completed in a later Task 3 pass.' });
+});
+
+inventoryRouter.get('/drug-master', requirePermission('inventory.view_products'), async (req: AuthRequest, res, next) => {
+  try {
+    const { q, limit } = z.object({ q: z.string().optional(), limit: z.coerce.number().optional() }).parse(req.query);
     res.json({ data: await svc.searchDrugMaster(q || '', limit) });
-  } catch (e) { next(e); }
+  } catch (e) {
+    next(e);
+  }
 });

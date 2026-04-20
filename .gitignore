@@ -44,9 +44,12 @@ passwords/
 backend/dist/
 backend/uploads/
 backend/logs/
+backend/coverage/
 
 # Frontend dist
 frontend/dist/
+frontend/playwright-report/
+frontend/test-results/
 
 # Prisma generated client (regenerated on deploy)
 backend/node_modules/.prisma/
@@ -54,3 +57,8 @@ backend/node_modules/.prisma/
 # Website build
 website/.next/
 website/build-output/
+
+# Codex task artifacts (test output, not code)
+backend/task*.json
+backend/task*.md
+frontend/task*.json

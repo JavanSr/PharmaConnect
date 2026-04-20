@@ -1,13 +1,26 @@
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
-import { prisma } from '../../lib/prisma.js';
-import { signAccess, signRefresh, verifyRefresh } from '../../lib/jwt.js';
+import { prisma } from '../../lib/prisma';
+import { withPrismaRetry } from '../../lib/prisma-retry';
+import { signAccess, signRefresh, verifyRefresh } from '../../lib/jwt';
+
+function initialSubscriptionTier(pharmacyType: 'RETAIL' | 'ADDO' | 'WHOLESALE') {
+  if (pharmacyType === 'ADDO') {
+    return 'ADDO' as const;
+  }
+
+  if (pharmacyType === 'WHOLESALE') {
+    return 'WHOLESALE' as const;
+  }
+
+  return 'STANDARD' as const;
+}
 
 export async function loginService(email: string, password: string) {
-  const user = await prisma.user.findUnique({
+  const user = await withPrismaRetry(() => prisma.user.findUnique({
     where: { email: email.toLowerCase() },
     include: { pharmacy: true },
-  });
+  }));
 
   if (!user || !user.isActive) {
     throw Object.assign(new Error('Invalid email or password'), { status: 401 });
@@ -18,24 +31,24 @@ export async function loginService(email: string, password: string) {
     throw Object.assign(new Error('Invalid email or password'), { status: 401 });
   }
 
-  await prisma.user.update({
+  await withPrismaRetry(() => prisma.user.update({
     where: { id: user.id },
     data: { lastLogin: new Date() },
-  });
+  }));
 
   const payload = { userId: user.id, role: user.role, pharmacyId: user.pharmacyId };
   const accessToken  = signAccess(payload);
   const refreshToken = signRefresh(payload);
 
   // Store refresh token
-  await prisma.refreshToken.create({
+  await withPrismaRetry(() => prisma.refreshToken.create({
     data: {
       id: uuidv4(),
       userId: user.id,
       token: refreshToken,
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     },
-  });
+  }));
 
   const { password: _pw, ...safeUser } = user;
   return { user: safeUser, accessToken, refreshToken, pharmacy: user.pharmacy };
@@ -69,6 +82,9 @@ export async function registerService(payload: {
         address: payload.address,
         region: payload.region,
         pharmacyType: payload.pharmacyType,
+        subscriptionTier: initialSubscriptionTier(payload.pharmacyType),
+        status: 'TRIAL',
+        trialActive: true,
       },
     });
 
@@ -80,6 +96,7 @@ export async function registerService(payload: {
         lastName: payload.lastName,
         role: 'OWNER',
         pharmacyId: pharmacy.id,
+        lastPasswordChangeAt: new Date(),
       },
     });
 
@@ -94,14 +111,14 @@ export async function registerService(payload: {
   const accessToken  = signAccess(jwtPayload);
   const refreshToken = signRefresh(jwtPayload);
 
-  await prisma.refreshToken.create({
+  await withPrismaRetry(() => prisma.refreshToken.create({
     data: {
       id: uuidv4(),
       userId: result.user.id,
       token: refreshToken,
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     },
-  });
+  }));
 
   const { password: _pw, ...safeUser } = result.user;
   return { user: safeUser, accessToken, refreshToken, pharmacy: result.pharmacy };
@@ -110,29 +127,29 @@ export async function registerService(payload: {
 export async function refreshTokenService(token: string) {
   const payload = verifyRefresh(token);
 
-  const stored = await prisma.refreshToken.findUnique({ where: { token } });
+  const stored = await withPrismaRetry(() => prisma.refreshToken.findUnique({ where: { token } }));
   if (!stored || stored.expiresAt < new Date()) {
     throw Object.assign(new Error('Invalid refresh token'), { status: 401 });
   }
 
   // Rotate: delete old, issue new
-  await prisma.refreshToken.delete({ where: { token } });
+  await withPrismaRetry(() => prisma.refreshToken.delete({ where: { token } }));
 
   const newAccess  = signAccess(payload);
   const newRefresh = signRefresh(payload);
 
-  await prisma.refreshToken.create({
+  await withPrismaRetry(() => prisma.refreshToken.create({
     data: {
       id: uuidv4(),
       userId: payload.userId,
       token: newRefresh,
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     },
-  });
+  }));
 
   return { accessToken: newAccess, refreshToken: newRefresh };
 }
 
 export async function logoutService(token: string) {
-  await prisma.refreshToken.deleteMany({ where: { token } });
+  await withPrismaRetry(() => prisma.refreshToken.deleteMany({ where: { token } }));
 }

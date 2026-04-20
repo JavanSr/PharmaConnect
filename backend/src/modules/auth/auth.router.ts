@@ -1,13 +1,14 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { authenticate } from '../../middleware/auth.js';
+import { authenticate } from '../../middleware/auth';
+import { prisma } from '../../lib/prisma';
 import {
   loginService,
   registerService,
   refreshTokenService,
   logoutService,
-} from './auth.service.js';
-import type { AuthRequest } from '../../middleware/auth.js';
+} from './auth.service';
+import type { AuthRequest } from '../../middleware/auth';
 
 export const authRouter = Router();
 
@@ -70,7 +71,6 @@ authRouter.post('/logout', authenticate, async (req: AuthRequest, res, next) => 
 
 authRouter.get('/me', authenticate, async (req: AuthRequest, res, next) => {
   try {
-    const { prisma } = await import('../../lib/prisma.js');
     const user = await prisma.user.findUnique({
       where: { id: req.user!.userId },
       include: { pharmacy: true },

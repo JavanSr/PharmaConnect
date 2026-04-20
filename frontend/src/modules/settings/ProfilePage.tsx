@@ -1,6 +1,7 @@
 import React from 'react';
 import { useForm } from 'react-hook-form';
 import { useMutation } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
@@ -20,7 +21,7 @@ export const ProfilePage: React.FC = () => {
   });
 
   const pwMutation = useMutation({
-    mutationFn: (data: any) => api.put('/auth/password', data),
+    mutationFn: (data: any) => api.post('/settings/change-password', data),
     onSuccess: () => toast.success('Password updated'),
     onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to update password'),
   });
@@ -54,6 +55,22 @@ export const ProfilePage: React.FC = () => {
               <p className="text-sm font-medium text-[#0D4035]">{f.value}</p>
             </div>
           ))}
+        </div>
+      </Card>
+
+      <Card header={<span className="text-sm font-semibold text-[#0D4035]">Subscription</span>}>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-medium text-[#0D4035]">
+              {pharmacy?.subscriptionTier || 'STANDARD'} plan
+            </p>
+            <p className="text-sm text-[#64748B]">
+              Review trial status, pricing, and upgrade options.
+            </p>
+          </div>
+          <Link to="/settings/subscription">
+            <Button variant="secondary">Manage subscription</Button>
+          </Link>
         </div>
       </Card>
 

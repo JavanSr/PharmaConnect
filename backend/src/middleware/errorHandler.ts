@@ -27,6 +27,20 @@ export function errorHandler(
       return;
     }
 
+    const status = typeof (err as any).status === 'number' ? (err as any).status : null;
+    const errorCode = typeof (err as any).code === 'string' ? (err as any).code : null;
+    if (status) {
+      console.error('[HandledError]', err.message);
+      res.status(status).json({
+        error: errorCode || err.message,
+        message: err.message,
+        ...(process.env.NODE_ENV === 'production' ? {} : Object.fromEntries(
+          Object.entries(err as any).filter(([key]) => !['name', 'message', 'stack'].includes(key)),
+        )),
+      });
+      return;
+    }
+
     console.error('[Error]', err.message, err.stack);
     res.status(500).json({
       error: process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message,

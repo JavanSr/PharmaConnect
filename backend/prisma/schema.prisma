@@ -19,7 +19,33 @@ enum UserRole {
   PHARMACIST_IN_CHARGE
   DISPENSER
   DATA_ENTRY_CLERK
+  CASHIER
+  WHOLESALE_MANAGER
+  WHOLESALE_COUNTER_STAFF
+  DELIVERY_STAFF
   WHOLESALE_SELLER
+}
+
+enum SubscriptionTier {
+  FREE
+  ADDO
+  ADDO_PLUS
+  STANDARD
+  PREMIUM
+  WHOLESALE
+  ENTERPRISE
+}
+
+enum BillingCycle {
+  MONTHLY
+  ANNUAL
+}
+
+enum PharmacyAccountStatus {
+  TRIAL
+  ACTIVE
+  SUSPENDED
+  CANCELLED
 }
 
 enum PharmacyType {
@@ -71,10 +97,10 @@ enum ComplianceCategory {
 }
 
 enum ComplianceStatus {
-  COMPLIANT
-  DUE_SOON
-  OVERDUE
-  NOT_APPLICABLE
+  GREEN
+  AMBER
+  RED
+  EXPIRED
 }
 
 enum NhifClaimStatus {
@@ -120,44 +146,80 @@ enum PaymentMethod {
   INSURANCE
 }
 
+enum NotificationChannel {
+  IN_APP
+  SMS
+  EMAIL
+  WHATSAPP
+}
+
+enum SyncConflictStatus {
+  OPEN
+  RESOLVED
+}
+
 // ─── Core Models ─────────────────────────────────────────────────────────────
 
 model Pharmacy {
-  id             String       @id @default(uuid())
-  name           String
-  licenceNumber  String       @unique
-  address        String
-  region         String
-  pharmacyType   PharmacyType @default(RETAIL)
-  isActive       Boolean      @default(true)
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  id                    String                @id @default(uuid())
+  name                  String
+  licenceNumber         String                @unique
+  address               String
+  region                String
+  pharmacyType          PharmacyType          @default(RETAIL)
+  isActive              Boolean               @default(true)
+  subscriptionTier      SubscriptionTier      @default(STANDARD) @map("subscription_tier")
+  billingCycle          BillingCycle          @default(MONTHLY) @map("billing_cycle")
+  status                PharmacyAccountStatus @default(TRIAL)
+  trialActive           Boolean               @default(true) @map("trial_active")
+  trialStartsAt         DateTime              @default(now()) @map("trial_starts_at")
+  trialEndsAt           DateTime              @default(now()) @map("trial_ends_at")
+  isHybrid              Boolean               @default(false) @map("is_hybrid")
+  hybridAddonActive     Boolean               @default(false) @map("hybrid_addon_active")
+  hybridEnabledAt       DateTime?             @map("hybrid_enabled_at")
+  renewalYear           Int                   @default(2026) @map("renewal_year")
+  vfdEnabled            Boolean               @default(false) @map("vfd_enabled")
+  timezone              String                @default("Africa/Nairobi")
+  userLimit             Int                   @default(4) @map("user_limit")
+  subscriptionUpdatedAt DateTime              @default(now()) @map("subscription_updated_at")
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
 
   users           User[]
   products        Product[]
   batches         Batch[]
   suppliers       Supplier[]
   stockMovements  StockMovement[]
+  syncConflicts   SyncConflict[]
   complianceItems ComplianceItem[]
+  complianceAlerts ComplianceAlert[]
+  staffCredentials StaffCredential[]
+  inspectionChecklists InspectionChecklist[]
+  overrideLogs     OverrideLog[]
   patients        Patient[]
   dispensings     Dispensing[]
   nhifClaims      NhifClaim[]
+  notifications   Notification[]
 
   @@map("pharmacies")
 }
 
 model User {
-  id         String   @id @default(uuid())
-  pharmacyId String?
-  email      String   @unique
-  password   String
-  firstName  String
-  lastName   String
-  role       UserRole @default(DISPENSER)
-  isActive   Boolean  @default(true)
-  lastLogin  DateTime?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id                   String   @id @default(uuid())
+  pharmacyId           String?
+  email                String   @unique
+  password             String
+  firstName            String
+  lastName             String
+  role                 UserRole @default(DISPENSER)
+  phone                String?
+  picPinHash           String?  @map("pic_pin_hash")
+  lastPasswordChangeAt DateTime? @map("last_password_change_at")
+  mustChangePassword   Boolean  @default(false) @map("must_change_password")
+  isActive             Boolean  @default(true)
+  lastLogin            DateTime?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
   pharmacy      Pharmacy?      @relation(fields: [pharmacyId], references: [id])
   stockMovements StockMovement[]
@@ -165,6 +227,14 @@ model User {
   cpdActivities CpdActivity[]
   articles      Article[]      @relation("AuthoredArticles")
   refreshTokens RefreshToken[]
+  resolvedSyncConflicts SyncConflict[] @relation("ResolvedSyncConflicts")
+  uploadedComplianceDocuments ComplianceDocument[] @relation("UploadedComplianceDocuments")
+  complianceAlertRecipients ComplianceAlert[] @relation("ComplianceAlertRecipients")
+  staffCredentials StaffCredential[]
+  generatedInspectionChecklists InspectionChecklist[] @relation("GeneratedInspectionChecklists")
+  notifications Notification[]
+  overrideLogs OverrideLog[] @relation("OverrideLogUser")
+  approvedOverrides OverrideLog[] @relation("OverrideLogPicUser")
 
   @@map("users")
 }
@@ -189,6 +259,7 @@ model Product {
   name          String
   genericName   String?
   brandName     String?
+  sku           String?
   barcode       String?
   dosageForm    DosageForm @default(TABLET)
   strength      String?
@@ -198,6 +269,14 @@ model Product {
   reorderLevel  Int        @default(10)
   sellingPrice  Decimal?   @db.Decimal(12, 2)
   tmda          String?
+  tmdaRegistrationNumber String?  @map("tmda_registration_number")
+  coldChainRequired      Boolean  @default(false) @map("cold_chain_required")
+  storageCondition       String   @default("AMBIENT") @map("storage_condition")
+  retailStock            Boolean  @default(true) @map("retail_stock")
+  wholesaleStock         Boolean  @default(false) @map("wholesale_stock")
+  wholesaleSellingPrice  Decimal? @db.Decimal(12, 2) @map("wholesale_selling_price")
+  manufacturer           String?
+  therapeuticCategory    String?  @map("therapeutic_category")
   isActive      Boolean    @default(true)
   drugMasterId  String?
   createdAt     DateTime   @default(now())
@@ -209,6 +288,8 @@ model Product {
   stockMovements StockMovement[]
   dispensingItems DispensingItem[]
 
+  @@index([pharmacyId, barcode], map: "products_pharmacy_barcode_idx")
+  @@index([pharmacyId, sku], map: "products_pharmacy_sku_idx")
   @@map("products")
 }
 
@@ -252,6 +333,42 @@ model Supplier {
   @@map("suppliers")
 }
 
+model SyncConflict {
+  id           String             @id @default(uuid())
+  pharmacyId   String             @map("pharmacy_id")
+  entityType   String             @map("entity_type")
+  entityId     String             @map("entity_id")
+  conflictType String             @map("conflict_type")
+  localPayload Json               @default("{}") @map("local_payload")
+  serverPayload Json              @default("{}") @map("server_payload")
+  status       SyncConflictStatus @default(OPEN)
+  resolvedBy   String?            @map("resolved_by")
+  resolvedAt   DateTime?          @map("resolved_at")
+  createdAt    DateTime           @default(now()) @map("created_at")
+
+  pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id])
+  resolver User?    @relation("ResolvedSyncConflicts", fields: [resolvedBy], references: [id])
+
+  @@map("sync_conflicts")
+}
+
+model AlertLog {
+  id           String              @id @default(uuid())
+  pharmacyId    String              @map("pharmacy_id")
+  referenceId   String              @map("reference_id")
+  referenceType String              @map("reference_type")
+  alertType     String              @map("alert_type")
+  channel       NotificationChannel
+  recipient     String?
+  status        String
+  errorMessage  String?             @map("error_message")
+  metadata      Json                @default("{}")
+  sentAt        DateTime?           @map("sent_at")
+  createdAt     DateTime            @default(now()) @map("created_at")
+
+  @@map("alert_log")
+}
+
 model StockMovement {
   id         String       @id @default(uuid())
   pharmacyId String
@@ -290,25 +407,227 @@ model DrugMaster {
 // ─── Compliance ───────────────────────────────────────────────────────────────
 
 model ComplianceItem {
-  id           String             @id @default(uuid())
-  pharmacyId   String
-  title        String
-  category     ComplianceCategory @default(OTHER)
-  description  String?
-  dueDate      DateTime?
-  renewalDate  DateTime?
-  documentRef  String?
-  isNotApplicable Boolean        @default(false)
-  status       ComplianceStatus   @default(COMPLIANT)
-  createdAt    DateTime           @default(now())
-  updatedAt    DateTime           @updatedAt
+  id              String             @id @default(uuid())
+  pharmacyId      String
+  title           String
+  category        ComplianceCategory @default(OTHER)
+  description     String?
+  dueDate         DateTime?
+  renewalDate     DateTime?
+  documentRef     String?
+  isNotApplicable Boolean            @default(false)
+  status          ComplianceStatus   @default(GREEN)
+  licenceType     String?            @map("licence_type")
+  issuingBody     String?            @map("issuing_body")
+  referenceNumber String?            @map("reference_number")
+  closedAt        DateTime?          @map("closed_at")
+  roleScope       String[]           @default([]) @map("role_scope")
+  lastAlertSentAt DateTime?          @map("last_alert_sent_at")
+  notes           String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
 
-  pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id])
+  pharmacy  Pharmacy             @relation(fields: [pharmacyId], references: [id])
+  documents ComplianceDocument[]
+  alerts    ComplianceAlert[]
 
   @@map("compliance_items")
 }
 
+model ComplianceDocument {
+  id                 String   @id @default(uuid())
+  complianceItemId   String   @map("compliance_item_id")
+  uploadedBy         String?  @map("uploaded_by")
+  fileName           String   @map("file_name")
+  filePath           String   @map("file_path")
+  storageBucket      String   @default("compliance-documents") @map("storage_bucket")
+  mimeType           String?  @map("mime_type")
+  fileSizeBytes      Int?     @map("file_size_bytes")
+  signedUrlExpiresAt DateTime? @map("signed_url_expires_at")
+  uploadedAt         DateTime @default(now()) @map("uploaded_at")
+
+  complianceItem ComplianceItem @relation(fields: [complianceItemId], references: [id], onDelete: Cascade)
+  uploader       User?          @relation("UploadedComplianceDocuments", fields: [uploadedBy], references: [id], onDelete: SetNull)
+
+  @@map("compliance_documents")
+}
+
+model ComplianceAlert {
+  id               String              @id @default(uuid())
+  pharmacyId        String              @map("pharmacy_id")
+  complianceItemId  String              @map("compliance_item_id")
+  recipientUserId   String?             @map("recipient_user_id")
+  channel           NotificationChannel
+  daysBeforeExpiry  Int?                @map("days_before_expiry")
+  status            String              @default("QUEUED")
+  errorMessage      String?             @map("error_message")
+  sentAt            DateTime?           @map("sent_at")
+  createdAt         DateTime            @default(now()) @map("created_at")
+
+  pharmacy       Pharmacy       @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  complianceItem ComplianceItem @relation(fields: [complianceItemId], references: [id], onDelete: Cascade)
+  recipient      User?          @relation("ComplianceAlertRecipients", fields: [recipientUserId], references: [id], onDelete: SetNull)
+
+  @@map("compliance_alerts")
+}
+
+model StaffCredential {
+  id               String   @id @default(uuid())
+  pharmacyId        String   @map("pharmacy_id")
+  userId            String?  @map("user_id")
+  credentialName    String   @map("credential_name")
+  credentialNumber  String?  @map("credential_number")
+  issuingBody       String?  @map("issuing_body")
+  issuedAt          DateTime? @map("issued_at")
+  expiresAt         DateTime? @map("expires_at")
+  status            String   @default("ACTIVE")
+  notes             String?
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at")
+
+  pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  user     User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("staff_credentials")
+}
+
+model InspectionChecklist {
+  id              String   @id @default(uuid())
+  pharmacyId       String   @map("pharmacy_id")
+  generatedBy      String?  @map("generated_by")
+  checklistType    String   @default("TMDA_STANDARD") @map("checklist_type")
+  scorePercentage  Int      @default(0) @map("score_percentage")
+  status           String   @default("DRAFT")
+  items            Json     @default("[]")
+  pdfPath          String?  @map("pdf_path")
+  generatedAt      DateTime @default(now()) @map("generated_at")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at")
+
+  pharmacy  Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  generator User?    @relation("GeneratedInspectionChecklists", fields: [generatedBy], references: [id], onDelete: SetNull)
+
+  @@map("inspection_checklists")
+}
+
+model InspectionChecklistTemplate {
+  id            String   @id @default(uuid())
+  checklistType String   @default("TMDA_STANDARD") @map("checklist_type")
+  category      String
+  item          String
+  sortOrder     Int      @default(0) @map("sort_order")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@unique([checklistType, category, item], map: "inspection_checklist_templates_unique_item")
+  @@map("inspection_checklist_templates")
+}
+
+model Notification {
+  id         String   @id @default(uuid())
+  pharmacyId  String   @map("pharmacy_id")
+  userId      String?  @map("user_id")
+  type        String
+  title       String
+  body        String
+  metadata    Json     @default("{}")
+  isRead      Boolean  @default(false) @map("is_read")
+  readAt      DateTime? @map("read_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  user     User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("notifications")
+}
+
 // ─── Patient Safety ───────────────────────────────────────────────────────────
+
+model DrugDatabase {
+  id                    String   @id @default(uuid())
+  genericName           String   @map("generic_name")
+  brandNames            String[] @default([]) @map("brand_names")
+  drugClass             String?  @map("drug_class")
+  therapeuticCategory   String?  @map("therapeutic_category")
+  standardAdultDose     String?  @map("standard_adult_dose")
+  frequency             String?
+  route                 String?
+  paediatricDoseFormula String?  @map("paediatric_dose_formula")
+  elderlyDoseNotes      String?  @map("elderly_dose_notes")
+  pregnancyCategory     String   @default("NA") @map("pregnancy_category")
+  breastfeedingSafety   String?  @map("breastfeeding_safety")
+  elderlyCaution        Boolean  @default(false) @map("elderly_caution")
+  renalCaution          Boolean  @default(false) @map("renal_caution")
+  hepaticCaution        Boolean  @default(false) @map("hepatic_caution")
+  ncdHints              String[] @default([]) @map("ncd_hints")
+  clinicianReviewed     Boolean  @default(false) @map("clinician_reviewed")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @default(now()) @updatedAt @map("updated_at")
+
+  interactionsAsDrugA DrugInteraction[] @relation("DrugInteractionDrugA")
+  interactionsAsDrugB DrugInteraction[] @relation("DrugInteractionDrugB")
+  contraindications   DrugContraindication[]
+
+  @@index([genericName], map: "drug_database_generic_name_idx")
+  @@index([therapeuticCategory], map: "drug_database_therapeutic_category_idx")
+  @@map("drug_database")
+}
+
+model DrugInteraction {
+  id             String   @id @default(uuid())
+  drugAId        String   @map("drug_a_id")
+  drugBId        String   @map("drug_b_id")
+  severity       String
+  effectSummary  String   @map("effect_summary")
+  management     String?
+  requiresPicPin Boolean  @default(false) @map("requires_pic_pin")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  drugA        DrugDatabase @relation("DrugInteractionDrugA", fields: [drugAId], references: [id], onDelete: Cascade)
+  drugB        DrugDatabase @relation("DrugInteractionDrugB", fields: [drugBId], references: [id], onDelete: Cascade)
+  overrideLogs OverrideLog[]
+
+  @@unique([drugAId, drugBId], map: "drug_interactions_pair_unique")
+  @@map("drug_interactions")
+}
+
+model DrugContraindication {
+  id             String   @id @default(uuid())
+  drugId         String   @map("drug_id")
+  conditionType  String   @map("condition_type")
+  conditionValue String   @map("condition_value")
+  severity       String
+  message        String
+  requiresPicPin Boolean  @default(false) @map("requires_pic_pin")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  drug         DrugDatabase @relation(fields: [drugId], references: [id], onDelete: Cascade)
+  overrideLogs OverrideLog[]
+
+  @@index([drugId, conditionType], map: "drug_contraindications_drug_condition_idx")
+  @@map("drug_contraindications")
+}
+
+model OverrideLog {
+  id                 String   @id @default(uuid())
+  pharmacyId         String   @map("pharmacy_id")
+  userId             String   @map("user_id")
+  picUserId          String   @map("pic_user_id")
+  alertType          String   @map("alert_type")
+  reason             String
+  interactionId      String?  @map("interaction_id")
+  contraindicationId String?  @map("contraindication_id")
+  payload            Json     @default("{}")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  pharmacy         Pharmacy              @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  user             User                  @relation("OverrideLogUser", fields: [userId], references: [id], onDelete: Restrict)
+  picUser          User                  @relation("OverrideLogPicUser", fields: [picUserId], references: [id], onDelete: Restrict)
+  interaction      DrugInteraction?      @relation(fields: [interactionId], references: [id], onDelete: SetNull)
+  contraindication DrugContraindication? @relation(fields: [contraindicationId], references: [id], onDelete: SetNull)
+
+  @@index([pharmacyId, createdAt], map: "override_log_pharmacy_created_at_idx")
+  @@map("override_log")
+}
 
 model Patient {
   id                String   @id @default(uuid())

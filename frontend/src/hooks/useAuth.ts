@@ -3,11 +3,12 @@ import type { UserRole } from '@/types';
 
 // Roles that can access each feature area
 const ACCESS_MAP: Record<string, UserRole[]> = {
-  cpd:        ['PHARMACIST_IN_CHARGE', 'DISPENSER', 'WHOLESALE_SELLER', 'SUPER_ADMIN'],
-  dispensing: ['PHARMACIST_IN_CHARGE', 'DISPENSER', 'WHOLESALE_SELLER', 'SUPER_ADMIN'],
-  compliance: ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'SUPER_ADMIN'],
+  dispensing: ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'CASHIER', 'SUPER_ADMIN'],
+  compliance: ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'DATA_ENTRY_CLERK', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF', 'SUPER_ADMIN'],
   team:       ['OWNER', 'PHARMACIST_IN_CHARGE', 'SUPER_ADMIN'],
   analytics:  ['OWNER', 'PHARMACIST_IN_CHARGE', 'SUPER_ADMIN'],
+  wholesale:  ['OWNER', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF', 'DELIVERY_STAFF', 'SUPER_ADMIN'],
+  reports:    ['OWNER', 'PHARMACIST_IN_CHARGE', 'WHOLESALE_MANAGER', 'SUPER_ADMIN'],
 };
 
 export function useAuth() {
@@ -22,8 +23,9 @@ export function useAuth() {
     return allowed.includes(role);
   };
 
-  const hasRole = (...roles: UserRole[]): boolean => {
+  const hasRole = (...rolesOrGroups: Array<UserRole | UserRole[]>): boolean => {
     if (!role) return false;
+    const roles = rolesOrGroups.flat();
     return roles.includes(role);
   };
 

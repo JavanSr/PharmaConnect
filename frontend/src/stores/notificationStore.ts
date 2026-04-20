@@ -15,6 +15,8 @@ export interface Notification {
   message: string;
   readStatus: boolean;
   createdAt: string;
+  type?: string;
+  metadata?: Record<string, unknown>;
 }
 
 interface NotificationState {
@@ -31,7 +33,9 @@ interface NotificationState {
   };
 
   removeToast: (id: string) => void;
+  setNotifications: (notifications: Notification[]) => void;
   addNotification: (notification: Omit<Notification, 'id' | 'readStatus' | 'createdAt'>) => void;
+  markAsRead: (id: string) => void;
   markAllAsRead: () => void;
 }
 
@@ -59,6 +63,12 @@ export const useNotificationStore = create<NotificationState>((set) => {
     removeToast: (id) =>
       set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
 
+    setNotifications: (notifications) =>
+      set(() => ({
+        notifications,
+        unreadCount: notifications.filter((notification) => !notification.readStatus).length,
+      })),
+
     addNotification: (n) =>
       set((s) => ({
         notifications: [
@@ -71,6 +81,17 @@ export const useNotificationStore = create<NotificationState>((set) => {
           ...s.notifications,
         ],
         unreadCount: s.unreadCount + 1,
+      })),
+
+    markAsRead: (id) =>
+      set((s) => ({
+        notifications: s.notifications.map((notification) =>
+          notification.id === id ? { ...notification, readStatus: true } : notification,
+        ),
+        unreadCount: Math.max(
+          0,
+          s.notifications.filter((notification) => !notification.readStatus && notification.id !== id).length,
+        ),
       })),
 
     markAllAsRead: () =>

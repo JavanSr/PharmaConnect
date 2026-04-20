@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Menu, Bell, Plus, WifiOff, Clock } from 'lucide-react';
+import { Menu, Plus, WifiOff, Clock } from 'lucide-react';
 import { useConnectivityStore } from '@/stores/connectivityStore';
-import { useNotificationStore } from '@/stores/notificationStore';
 import { Button } from '@/components/ui/Button';
+import { NotificationBell } from '@/components/NotificationBell';
 
 interface TopBarProps {
   onMenuClick: () => void;
@@ -11,10 +11,8 @@ interface TopBarProps {
 }
 
 export const TopBar: React.FC<TopBarProps> = ({ onMenuClick, title }) => {
-  const [showNotifications, setShowNotifications] = useState(false);
   const isOnline = useConnectivityStore(state => state.isOnline);
   const pendingSyncCount = useConnectivityStore(state => state.pendingSyncCount);
-  const { notifications, unreadCount, markAllAsRead } = useNotificationStore();
   const navigate = useNavigate();
 
   const ConnectivityDot = () => {
@@ -63,44 +61,7 @@ export const TopBar: React.FC<TopBarProps> = ({ onMenuClick, title }) => {
         </div>
 
         {/* Notifications */}
-        <div className="relative">
-          <button
-            onClick={() => setShowNotifications(!showNotifications)}
-            className="relative p-2 rounded-xl hover:bg-[#EDF7F3] text-[#64748B] transition-colors"
-          >
-            <Bell size={20} />
-            {unreadCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-[#DC2626] text-white text-xs rounded-full flex items-center justify-center">
-                {unreadCount > 9 ? '9+' : unreadCount}
-              </span>
-            )}
-          </button>
-
-          {showNotifications && (
-            <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-2xl border border-[#D6F0E8] shadow-lg z-50">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-[#D6F0E8]">
-                <span className="text-sm font-semibold text-[#0D4035]">Notifications</span>
-                {unreadCount > 0 && (
-                  <button onClick={markAllAsRead} className="text-xs text-[#1A6B5C] hover:underline">
-                    Mark all read
-                  </button>
-                )}
-              </div>
-              <div className="max-h-80 overflow-y-auto">
-                {notifications.length === 0 ? (
-                  <p className="text-sm text-[#64748B] text-center py-8">No notifications</p>
-                ) : (
-                  notifications.slice(0, 10).map(n => (
-                    <div key={n.id} className={`px-4 py-3 border-b border-[#D6F0E8] last:border-0 ${!n.readStatus ? 'bg-[#EDF7F3]' : ''}`}>
-                      <p className="text-sm font-medium text-[#0D4035]">{n.title}</p>
-                      <p className="text-xs text-[#64748B] mt-0.5">{n.message}</p>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          )}
-        </div>
+        <NotificationBell />
       </div>
     </header>
   );

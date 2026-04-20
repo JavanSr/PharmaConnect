@@ -11,17 +11,11 @@ import { api } from '@/lib/api';
 import { useDebounce } from '@/hooks/useDebounce';
 
 const DOSAGE_FORMS = [
-  'Tablet', 'Capsule', 'Syrup', 'Suspension', 'Injection', 'Infusion', 'Cream',
-  'Ointment', 'Gel', 'Drops', 'Nasal Spray', 'Inhaler', 'Suppository', 'Patch',
-  'Lozenge', 'Powder', 'Solution', 'Other',
+  'TABLET', 'CAPSULE', 'SYRUP', 'INJECTION', 'CREAM', 'OINTMENT', 'DROPS', 'INHALER', 'SUPPOSITORY', 'POWDER', 'SOLUTION', 'OTHER',
 ];
 
 const DRUG_CLASSES = [
-  'Analgesic / Antipyretic', 'Antibiotic', 'Antifungal', 'Antiviral', 'Antiparasitic',
-  'Antimalaria', 'Antihypertensive', 'Antidiabetic', 'Antiretroviral', 'Antihistamine',
-  'Anti-inflammatory (NSAID)', 'Corticosteroid', 'Bronchodilator', 'Antacid / GI',
-  'Vitamin / Supplement', 'Contraceptive', 'Vaccine', 'Diagnostic Agent',
-  'Controlled Substance', 'Other',
+  'OTC', 'PRESCRIPTION', 'CONTROLLED', 'NARCOTIC',
 ];
 
 const UNITS_OF_MEASURE = ['Tablets', 'Capsules', 'ml', 'mg', 'g', 'Units', 'Vials', 'Ampoules', 'Sachets', 'Patches', 'Other'];
@@ -71,8 +65,8 @@ interface DrugMaster {
 
 const empty: FormState = {
   name: '', genericName: '', brandName: '', drugClass: '', description: '',
-  sku: '', barcode: '', dosageForm: 'Tablet', strength: '',
-  unitOfMeasure: 'Tablets', packSize: '1',
+  sku: '', barcode: '', dosageForm: 'TABLET', strength: '',
+  unitOfMeasure: 'unit', packSize: '1',
   storageCondition: 'AMBIENT', isColdChain: false,
   tmdaRegistrationNumber: '', sellingPrice: '',
   purchasePriceDefault: '', reorderLevel: '10', minStock: '5',
@@ -95,7 +89,7 @@ export const ProductFormPage: React.FC = () => {
   const { data: drugResults } = useQuery({
     queryKey: ['drug-master-search', debouncedSearch],
     queryFn: () =>
-      api.get('/inventory/drug-master/search', { params: { q: debouncedSearch } }).then(r => r.data),
+      api.get('/inventory/drug-master', { params: { q: debouncedSearch } }).then(r => r.data),
     enabled: debouncedSearch.trim().length >= 2 && !selectedDrug,
   });
 
@@ -116,12 +110,12 @@ export const ProductFormPage: React.FC = () => {
         description: p.description || '',
         sku: p.sku || '',
         barcode: p.barcode || '',
-        dosageForm: p.dosageForm || 'Tablet',
+        dosageForm: p.dosageForm || 'TABLET',
         strength: p.strength || '',
-        unitOfMeasure: p.unitOfMeasure || 'Tablets',
+        unitOfMeasure: p.unitOfMeasure || 'unit',
         packSize: String(p.packSize ?? 1),
         storageCondition: p.storageCondition || 'AMBIENT',
-        isColdChain: p.isColdChain || false,
+        isColdChain: p.coldChainRequired || p.isColdChain || false,
         tmdaRegistrationNumber: p.tmdaRegistrationNumber || '',
         sellingPrice: p.sellingPrice != null ? String(p.sellingPrice) : '',
         purchasePriceDefault: p.purchasePriceDefault != null ? String(p.purchasePriceDefault) : '',
@@ -143,9 +137,9 @@ export const ProductFormPage: React.FC = () => {
       genericName: drug.genericName,
       brandName: drug.brandName || '',
       drugClass: drug.drugClass || '',
-      dosageForm: drug.dosageForm || 'Tablet',
+      dosageForm: drug.dosageForm || 'TABLET',
       strength: drug.strength || '',
-      unitOfMeasure: drug.unitOfMeasure || 'Tablets',
+      unitOfMeasure: drug.unitOfMeasure || 'unit',
       packSize: String(drug.packSize ?? 1),
       storageCondition: drug.storageCondition || 'AMBIENT',
       isColdChain: Boolean(drug.isColdChain),
@@ -168,7 +162,7 @@ export const ProductFormPage: React.FC = () => {
         unitOfMeasure: form.unitOfMeasure,
         packSize: parseInt(form.packSize, 10) || 1,
         storageCondition: form.storageCondition,
-        isColdChain: form.isColdChain,
+        coldChainRequired: form.isColdChain,
         tmdaRegistrationNumber: form.tmdaRegistrationNumber || undefined,
         drugMasterId: selectedDrug?.id ?? undefined,
         sellingPrice: form.sellingPrice ? parseFloat(form.sellingPrice) : undefined,

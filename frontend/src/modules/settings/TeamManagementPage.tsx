@@ -16,18 +16,22 @@ const ROLE_VARIANT: Record<string, any> = {
   OWNER: 'warning',
   PHARMACIST_IN_CHARGE: 'success',
   DISPENSER: 'info',
+  CASHIER: 'info',
   DATA_ENTRY_CLERK: 'muted',
-  WHOLESALE_ADMIN: 'purple',
-  WHOLESALE_SELLER: 'info',
+  WHOLESALE_MANAGER: 'warning',
+  WHOLESALE_COUNTER_STAFF: 'info',
+  DELIVERY_STAFF: 'muted',
   SUPER_ADMIN: 'danger',
 };
 
 const INVITE_ROLES = [
   { value: 'PHARMACIST_IN_CHARGE', label: 'Pharmacist In-Charge' },
   { value: 'DISPENSER', label: 'Dispenser' },
+  { value: 'CASHIER', label: 'Cashier' },
   { value: 'DATA_ENTRY_CLERK', label: 'Data Entry Clerk' },
-  { value: 'WHOLESALE_ADMIN', label: 'Wholesale Admin' },
-  { value: 'WHOLESALE_SELLER', label: 'Wholesale Seller' },
+  { value: 'WHOLESALE_MANAGER', label: 'Wholesale Manager' },
+  { value: 'WHOLESALE_COUNTER_STAFF', label: 'Wholesale Counter Staff' },
+  { value: 'DELIVERY_STAFF', label: 'Delivery Staff' },
 ];
 
 export const TeamManagementPage: React.FC = () => {

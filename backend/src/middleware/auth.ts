@@ -1,15 +1,48 @@
 import type { Request, Response, NextFunction } from 'express';
-import { verifyAccess } from '../lib/jwt.js';
+import { verifyAccess } from '../lib/jwt';
+import { prisma } from '../lib/prisma';
+import { withPrismaRetry } from '../lib/prisma-retry';
+import { normalizeRole, type AppRole, type KnownRole, type PharmacyAccessSnapshot } from '../types/roles';
 
-export interface AuthRequest extends Request {
-  user?: {
-    userId: string;
-    role: string;
-    pharmacyId: string | null;
-  };
+export interface VerifiedPicUser {
+  userId: string;
+  role: string;
+  firstName: string;
+  lastName: string;
 }
 
-export function authenticate(req: AuthRequest, res: Response, next: NextFunction): void {
+export interface AuthenticatedUserContext {
+  userId: string;
+  role: KnownRole;
+  normalizedRole: AppRole;
+  pharmacyId: string | null;
+  pharmacy: (PharmacyAccessSnapshot & { id: string; name: string }) | null;
+  email: string;
+  picPinHash: string | null;
+}
+
+export interface AuthRequest extends Request {
+  user?: AuthenticatedUserContext;
+  orderScope?: {
+    assignedPickerUserId?: string;
+  };
+  picVerifiedUser?: VerifiedPicUser;
+}
+
+export function hasRoleAccess(role: string | null | undefined, allowedRoles: string[]): boolean {
+  const normalizedRole = normalizeRole(role);
+  if (!normalizedRole) {
+    return false;
+  }
+
+  if (normalizedRole === 'SUPER_ADMIN') {
+    return true;
+  }
+
+  return allowedRoles.some((allowedRole) => normalizeRole(allowedRole) === normalizedRole);
+}
+
+export async function authenticate(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   const header = req.headers.authorization;
   if (!header?.startsWith('Bearer ')) {
     res.status(401).json({ error: 'Authentication required' });
@@ -17,11 +50,66 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
   }
 
   const token = header.slice(7);
+  let payload: ReturnType<typeof verifyAccess>;
+
   try {
-    req.user = verifyAccess(token);
-    next();
+    payload = verifyAccess(token);
   } catch {
     res.status(401).json({ error: 'Invalid or expired token' });
+    return;
+  }
+
+  try {
+    const user = await withPrismaRetry(() => prisma.user.findUnique({
+      where: { id: payload.userId },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        pharmacyId: true,
+        isActive: true,
+        picPinHash: true,
+        pharmacy: {
+          select: {
+            id: true,
+            name: true,
+            pharmacyType: true,
+            subscriptionTier: true,
+            billingCycle: true,
+            status: true,
+            trialActive: true,
+            trialEndsAt: true,
+            isHybrid: true,
+            hybridAddonActive: true,
+          },
+        },
+      },
+    }));
+
+    if (!user || !user.isActive) {
+      res.status(401).json({ error: 'Invalid or expired token' });
+      return;
+    }
+
+    const normalizedRole = normalizeRole(user.role);
+    if (!normalizedRole) {
+      res.status(401).json({ error: 'Invalid or expired token' });
+      return;
+    }
+
+    req.user = {
+      userId: user.id,
+      role: user.role as KnownRole,
+      normalizedRole,
+      pharmacyId: user.pharmacyId,
+      pharmacy: user.pharmacy,
+      email: user.email,
+      picPinHash: user.picPinHash,
+    };
+
+    next();
+  } catch (error) {
+    next(error);
   }
 }
 
@@ -31,8 +119,8 @@ export function requireRole(...roles: string[]) {
       res.status(401).json({ error: 'Authentication required' });
       return;
     }
-    if (!roles.includes(req.user.role)) {
-      res.status(403).json({ error: 'Insufficient permissions' });
+    if (!hasRoleAccess(req.user.role, roles)) {
+      res.status(403).json({ error: 'ROLE_INSUFFICIENT', allowedRoles: roles });
       return;
     }
     next();
@@ -44,7 +132,7 @@ export function requireSamePharmacy(req: AuthRequest, res: Response, next: NextF
     res.status(401).json({ error: 'Authentication required' });
     return;
   }
-  if (req.user.role === 'SUPER_ADMIN') {
+  if (req.user.normalizedRole === 'SUPER_ADMIN') {
     next();
     return;
   }

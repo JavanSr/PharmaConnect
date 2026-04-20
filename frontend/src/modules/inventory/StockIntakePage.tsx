@@ -8,6 +8,9 @@ import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { BarcodeScanner } from '@/components/BarcodeScanner';
+import { useOfflineSync } from '@/hooks/useOfflineSync';
+import { enqueueOfflineWrite, registerOfflineSync } from '@/lib/offlineSync';
 import { useNotificationStore } from '@/stores/notificationStore';
 import { api } from '@/lib/api';
 import { useDebounce } from '@/hooks/useDebounce';
@@ -21,13 +24,23 @@ const schema = z.object({
   supplierId: z.string().optional(),
 });
 type FormData = z.infer<typeof schema>;
+type ProductOption = {
+  id: string;
+  name: string;
+  genericName?: string | null;
+  brandName?: string | null;
+  barcode?: string | null;
+  dosageForm?: string | null;
+  strength?: string | null;
+};
 
 export const StockIntakePage: React.FC = () => {
   const [productSearch, setProductSearch] = useState('');
-  const [selectedProduct, setSelectedProduct] = useState<any>(null);
+  const [selectedProduct, setSelectedProduct] = useState<ProductOption | null>(null);
   const [success, setSuccess] = useState(false);
   const debouncedSearch = useDebounce(productSearch, 300);
   const toast = useNotificationStore(s => s.toast);
+  const { isOnline, pendingWrites, isSyncing, flush } = useOfflineSync(false);
 
   const { data: productsData } = useQuery({
     queryKey: ['products-search', debouncedSearch],
@@ -44,17 +57,52 @@ export const StockIntakePage: React.FC = () => {
     resolver: zodResolver(schema),
   });
 
+  const queueStockIntake = async (data: FormData) => {
+    await enqueueOfflineWrite({
+      feature: 'inventory',
+      entityType: 'BATCH',
+      entityId: `${data.productId}:${data.batchNumber}`,
+      url: '/inventory/batches',
+      method: 'POST',
+      body: {
+        ...data,
+        pharmacyId: undefined,
+      },
+    });
+    await registerOfflineSync();
+  };
+
   const mutation = useMutation({
-    mutationFn: (data: FormData) => api.post('/inventory/batches', {
-      ...data,
-      pharmacyId: undefined,
-    }),
-    onSuccess: () => {
+    networkMode: 'always',
+    mutationFn: async (data: FormData) => {
+      const payload = {
+        ...data,
+        pharmacyId: undefined,
+      };
+
+      if (!navigator.onLine) {
+        await queueStockIntake(data);
+        return { queuedOffline: true };
+      }
+
+      try {
+        await api.post('/inventory/batches', payload);
+        return { queuedOffline: false };
+      } catch (error: any) {
+        if (!error.response) {
+          await queueStockIntake(data);
+          return { queuedOffline: true };
+        }
+
+        throw error;
+      }
+    },
+    onSuccess: (result) => {
       setSuccess(true);
       reset();
       setSelectedProduct(null);
       setProductSearch('');
-      toast.success('Stock received successfully');
+      toast.success(result.queuedOffline ? 'Stock queued offline and will sync when connection returns' : 'Stock received successfully');
       setTimeout(() => setSuccess(false), 3000);
     },
     onError: (err: any) => {
@@ -62,8 +110,32 @@ export const StockIntakePage: React.FC = () => {
     },
   });
 
-  const products = productsData?.data || [];
+  const products: ProductOption[] = productsData?.data || [];
   const suppliers = suppliersData?.data || [];
+
+  const handleBarcodeDetected = async (barcode: string) => {
+    setProductSearch(barcode);
+
+    try {
+      const response = await api.get('/inventory/products', {
+        params: { barcode, limit: 10 },
+      });
+
+      const matches: ProductOption[] = response.data?.data || [];
+      const exactMatch = matches.find((product) => product.barcode === barcode) || matches[0];
+
+      if (!exactMatch) {
+        toast.error(`No product found for barcode ${barcode}`);
+        return;
+      }
+
+      setSelectedProduct(exactMatch);
+      setProductSearch(exactMatch.genericName || exactMatch.name);
+      toast.success(`Scanned ${exactMatch.genericName || exactMatch.name}`);
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Barcode scan lookup failed');
+    }
+  };
 
   return (
     <div className="space-y-5 max-w-2xl">
@@ -72,12 +144,42 @@ export const StockIntakePage: React.FC = () => {
       {success && (
         <div className="flex items-center gap-3 p-4 bg-[#D6F0E8] rounded-xl border border-[#1A6B5C]/20">
           <CheckCircle size={20} className="text-[#1A6B5C]" />
-          <p className="text-sm text-[#1A6B5C] font-medium">Stock received successfully!</p>
+          <p className="text-sm text-[#1A6B5C] font-medium">
+            {isOnline ? 'Stock received successfully!' : 'Stock saved locally and queued for sync!'}
+          </p>
         </div>
       )}
 
       <Card>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-[#0D4035]">
+              {isOnline ? 'Online sync active' : 'Offline mode active'}
+            </p>
+            <p className="text-xs text-[#64748B] mt-1">
+              {pendingWrites} pending write{pendingWrites === 1 ? '' : 's'} waiting in the local queue.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => void flush()}
+            loading={isSyncing}
+            disabled={!isOnline || pendingWrites === 0}
+          >
+            Sync pending writes
+          </Button>
+        </div>
+      </Card>
+
+      <Card>
         <form onSubmit={handleSubmit(d => mutation.mutate(d))} className="space-y-5">
+          <BarcodeScanner
+            label="Barcode intake scanner"
+            placeholder="Scan with camera or enter barcode manually"
+            onDetected={handleBarcodeDetected}
+          />
+
           {/* Product search */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-[#0D4035]">Product <span className="text-[#DC2626]">*</span></label>
@@ -97,7 +199,7 @@ export const StockIntakePage: React.FC = () => {
             />
             {products.length > 0 && !selectedProduct && (
               <div className="border border-[#D6F0E8] rounded-xl overflow-hidden">
-                {products.map((p: any) => (
+                {products.map((p) => (
                   <button
                     key={p.id}
                     type="button"

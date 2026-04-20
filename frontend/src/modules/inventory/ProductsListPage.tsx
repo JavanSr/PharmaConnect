@@ -34,6 +34,7 @@ const ProductsListRow = React.memo(function ProductsListRow({
   const stock = product.currentStock ?? 0;
   const isLow = stock <= product.reorderLevel;
   const isOut = stock === 0;
+  const storageCondition = product.storageCondition || 'AMBIENT';
 
   return (
     <tr
@@ -73,11 +74,11 @@ const ProductsListRow = React.memo(function ProductsListRow({
 
       <td className="px-4 py-3">
         <div className="flex items-center gap-1.5">
-          {STORAGE_ICON[product.storageCondition] ?? null}
+          {STORAGE_ICON[storageCondition] ?? null}
           <span className="text-xs text-[#64748B]">
-            {STORAGE_LABEL[product.storageCondition] ?? product.storageCondition}
+            {STORAGE_LABEL[storageCondition] ?? storageCondition}
           </span>
-          {product.isColdChain && (
+          {(product.coldChainRequired || product.isColdChain) && (
             <span className="text-xs px-1.5 py-0.5 bg-[#EDE9FE] text-[#6D28D9] rounded-full font-medium">CC</span>
           )}
         </div>

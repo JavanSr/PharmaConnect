@@ -1,5 +1,11 @@
 import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { differenceInCalendarDays } from 'date-fns';
 import { Outlet, useLocation } from 'react-router-dom';
+import { api } from '@/lib/api';
+import { usePharmacyStore } from '@/stores/pharmacyStore';
+import { TrialBanner } from '@/components/TrialBanner';
+import { TrialPaywall } from '@/components/TrialPaywall';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { ToastContainer } from '@/components/ui/Toast';
@@ -20,21 +26,51 @@ const routeTitles: Record<string, string> = {
   '/compliance/staff': 'Staff Credentials',
   '/compliance/inspection': 'Inspection Checklist',
   '/dispensing': 'Dispensing',
-  '/nhif': 'NHIF Claims',
-  '/nhif/claims': 'Claims',
-  '/nhif/batches': 'Batch Manager',
+  '/dispensing/daily-close': 'Daily Close',
+  '/wholesale': 'Wholesale',
+  '/orders': 'Orders',
+  '/reports': 'Reports',
+  '/attendance': 'Attendance',
   '/cpd': 'CPD Tracker',
   '/cpd/log': 'Log Activity',
   '/settings/profile': 'Profile',
   '/settings/team': 'Team Management',
+  '/settings/subscription': 'Subscription',
 };
 
 export const Layout: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const location = useLocation();
+  const pharmacy = usePharmacyStore((state) => state.pharmacy);
+  const setPharmacy = usePharmacyStore((state) => state.setPharmacy);
 
   const title = routeTitles[location.pathname] || '';
+  const subscriptionQuery = useQuery({
+    queryKey: ['layout-subscription-status'],
+    queryFn: () => api.get('/settings/subscription').then((response) => response.data),
+  });
+
+  const subscription = subscriptionQuery.data?.data;
+  React.useEffect(() => {
+    if (!subscription) {
+      return;
+    }
+
+    const changed =
+      !pharmacy ||
+      Object.entries(subscription).some(([key, value]) => ((pharmacy as unknown as Record<string, unknown>)[key] !== value));
+
+    if (changed) {
+      setPharmacy({ ...(pharmacy ?? {}), ...subscription });
+    }
+  }, [pharmacy, setPharmacy, subscription]);
+
+  const daysRemaining =
+    subscription?.trialEndsAt
+      ? Math.max(0, differenceInCalendarDays(new Date(subscription.trialEndsAt), new Date()))
+      : null;
+  const isTrialExpired = subscription?.status === 'TRIAL' && subscription?.trialActive === false;
 
   return (
     <div className="flex h-screen bg-[#EDF7F3] overflow-hidden print:block print:h-auto print:overflow-visible print:bg-white">
@@ -49,12 +85,18 @@ export const Layout: React.FC = () => {
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden print:block print:overflow-visible">
         <TopBar onMenuClick={() => setSidebarOpen(true)} title={title} />
+        {daysRemaining != null && daysRemaining >= 0 && subscription?.status === 'TRIAL' && subscription?.trialActive && daysRemaining < 7 && (
+          <TrialBanner daysRemaining={daysRemaining} />
+        )}
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 print:block print:overflow-visible print:p-0">
           <Outlet />
         </main>
       </div>
 
       <ToastContainer />
+      {isTrialExpired && location.pathname !== '/settings/subscription' && (
+        <TrialPaywall currentTier={subscription?.subscriptionTier} />
+      )}
     </div>
   );
 };
