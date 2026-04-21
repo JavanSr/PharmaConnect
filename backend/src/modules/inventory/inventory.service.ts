@@ -1,3 +1,6 @@
+import { randomUUID } from 'node:crypto';
+import { mkdir, writeFile } from 'node:fs/promises';
+import path from 'node:path';
 import { prisma } from '../../lib/prisma';
 import { withPrismaRetry } from '../../lib/prisma-retry';
 import type { Prisma, SyncConflictStatus } from '@prisma/client';
@@ -38,6 +41,12 @@ type SupplierWriteInput = {
 type CsvImportResult = {
   inserted: number;
   errors: Array<{ row: number; field: string; message: string }>;
+};
+
+type StockAdjustmentSuggestionPhoto = {
+  originalname: string;
+  mimetype: string;
+  buffer: Buffer;
 };
 
 function productInclude() {
@@ -468,6 +477,102 @@ export async function adjustStock(
         notes: data.notes,
       },
     });
+  });
+}
+
+async function storeStockAdjustmentSuggestionPhoto(photo: StockAdjustmentSuggestionPhoto) {
+  const uploadsRoot = path.resolve(process.cwd(), process.env.UPLOAD_DIR ?? './uploads');
+  const suggestionDir = path.join(uploadsRoot, 'stock-adjustment-suggestions');
+  await mkdir(suggestionDir, { recursive: true });
+
+  const extension = path.extname(photo.originalname || '').toLowerCase();
+  const safeExtension = extension && extension.length <= 10 ? extension : '.jpg';
+  const filename = `${randomUUID()}${safeExtension}`;
+  const absolutePath = path.join(suggestionDir, filename);
+  await writeFile(absolutePath, photo.buffer);
+
+  return path.join('uploads', 'stock-adjustment-suggestions', filename).replace(/\\/g, '/');
+}
+
+export async function createStockAdjustmentSuggestion(
+  pharmacyId: string,
+  userId: string,
+  data: {
+    productId: string;
+    batchId?: string;
+    quantityDelta: number;
+    reason: string;
+    note?: string;
+    photo?: StockAdjustmentSuggestionPhoto;
+  },
+) {
+  const product = await prisma.product.findFirst({
+    where: {
+      id: data.productId,
+      pharmacyId,
+    },
+    select: {
+      id: true,
+      name: true,
+      genericName: true,
+    },
+  });
+
+  if (!product) {
+    throw Object.assign(new Error('Product not found'), { status: 404 });
+  }
+
+  if (data.batchId) {
+    const batch = await prisma.batch.findFirst({
+      where: {
+        id: data.batchId,
+        pharmacyId,
+        productId: data.productId,
+      },
+      select: { id: true },
+    });
+
+    if (!batch) {
+      throw Object.assign(new Error('Batch not found'), { status: 404 });
+    }
+  }
+
+  const photoPath = data.photo ? await storeStockAdjustmentSuggestionPhoto(data.photo) : undefined;
+
+  return prisma.stockAdjustmentSuggestion.create({
+    data: {
+      pharmacyId,
+      productId: data.productId,
+      batchId: data.batchId,
+      quantityDelta: data.quantityDelta,
+      reason: data.reason,
+      note: data.note,
+      photoPath,
+      createdBy: userId,
+    },
+    include: {
+      product: {
+        select: {
+          id: true,
+          name: true,
+          genericName: true,
+        },
+      },
+      batch: {
+        select: {
+          id: true,
+          batchNumber: true,
+          expiryDate: true,
+        },
+      },
+      creator: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+        },
+      },
+    },
   });
 }
 

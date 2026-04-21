@@ -370,6 +370,66 @@ test('dispensing loads configured payment methods and uses cached options offlin
   await expect(page.getByText(/Using the last cached payment settings while offline/)).toBeVisible();
 });
 
+test('dispenser submits a stock adjustment suggestion without direct adjustment controls', async ({ page }) => {
+  const product = {
+    id: 'product-stock-suggestion',
+    name: 'Paracetamol 500',
+    genericName: 'Paracetamol',
+    brandName: 'Panadol',
+    currentStock: 42,
+    unitOfMeasure: 'packs',
+  };
+
+  await bootstrapSession(page, {
+    user: browserUsers.activeDispenser,
+    pharmacy: pharmacies.active,
+  });
+  await mockShell(page, { subscription: pharmacies.active });
+
+  await page.route('**/api/v1/inventory/products?*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ data: [product], total: 1, page: 1, limit: 8, totalPages: 1 }),
+    });
+  });
+
+  await page.route('**/api/v1/inventory/products/product-stock-suggestion', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ data: { ...product, batches: [] } }),
+    });
+  });
+
+  await page.route('**/api/v1/inventory/adjustment-suggestions', async (route) => {
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: {
+          id: 'suggestion-1',
+          status: 'PENDING',
+        },
+      }),
+    });
+  });
+
+  await expectProtectedRoute(page, '/inventory/adjust');
+
+  await expect(page.getByRole('heading', { name: 'Stock Adjustment Suggestion' })).toBeVisible();
+  await expect(page.getByLabel('Movement Type *')).toHaveCount(0);
+
+  await page.getByLabel('Product *').fill('para');
+  await page.getByRole('button', { name: /Paracetamol/i }).click();
+  await page.getByLabel('Quantity delta *').fill('-2');
+  await page.getByLabel('Reason *').selectOption('OTHER');
+  await page.getByLabel('Note *').fill('Damaged strip identified during shelf count.');
+  await page.getByRole('button', { name: 'Submit Suggestion' }).click();
+
+  await expect(page.getByText('Stock adjustment suggestion submitted')).toBeVisible();
+});
+
 test('offline stock intake queues locally and flushes to live batches when back online', async ({ page, context }) => {
   const batchNumber = `PW-E2E-${Date.now()}`;
   const syncedBatches: Array<Record<string, unknown>> = [];

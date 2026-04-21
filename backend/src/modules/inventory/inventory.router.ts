@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import multer from 'multer';
 import { z } from 'zod';
 import { authenticate } from '../../middleware/auth';
 import type { AuthRequest } from '../../middleware/auth';
@@ -42,6 +43,10 @@ const supplierSchema = z.object({
 
 export const inventoryRouter = Router();
 inventoryRouter.use(authenticate);
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+});
 
 const pid = (req: AuthRequest) => req.user!.pharmacyId!;
 const uid = (req: AuthRequest) => req.user!.userId;
@@ -188,6 +193,53 @@ inventoryRouter.post('/movements/adjust', requirePermission('inventory.manage_st
     next(e);
   }
 });
+
+inventoryRouter.post(
+  '/adjustment-suggestions',
+  requirePermission('inventory.manage_stock'),
+  upload.single('photo'),
+  async (req: AuthRequest, res, next) => {
+    try {
+      const data = z
+        .object({
+          productId: z.string().min(1),
+          batchId: z.string().optional(),
+          quantityDelta: z.coerce.number().int().refine((value) => value !== 0, 'Quantity delta must not be zero'),
+          reason: z.enum(['COUNT_VARIANCE', 'DAMAGED', 'EXPIRED', 'RETURN_TO_SUPPLIER', 'FOUND_STOCK', 'OTHER']),
+          note: z.string().trim().max(500).optional(),
+        })
+        .parse(req.body);
+
+      if (data.reason === 'OTHER' && !data.note?.trim()) {
+        res.status(400).json({ error: 'NOTE_REQUIRED_FOR_OTHER_REASON' });
+        return;
+      }
+
+      const allowedPhotoTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
+      if (req.file && !allowedPhotoTypes.has(req.file.mimetype)) {
+        res.status(400).json({ error: 'INVALID_PHOTO_TYPE', message: 'Photo must be JPG, PNG, or WEBP' });
+        return;
+      }
+
+      res.status(201).json({
+        data: await svc.createStockAdjustmentSuggestion(pid(req), uid(req), {
+          ...data,
+          batchId: data.batchId || undefined,
+          note: data.note?.trim() || undefined,
+          photo: req.file
+            ? {
+                originalname: req.file.originalname,
+                mimetype: req.file.mimetype,
+                buffer: req.file.buffer,
+              }
+            : undefined,
+        }),
+      });
+    } catch (e) {
+      next(e);
+    }
+  },
+);
 
 inventoryRouter.get('/suppliers', requirePermission('inventory.manage_stock'), async (req: AuthRequest, res, next) => {
   try {

@@ -201,6 +201,7 @@ model Pharmacy {
   nhifClaims      NhifClaim[]
   notifications   Notification[]
   settings        PharmacySetting[]
+  stockAdjustmentSuggestions StockAdjustmentSuggestion[]
 
   @@map("pharmacies")
 }
@@ -237,6 +238,8 @@ model User {
   overrideLogs OverrideLog[] @relation("OverrideLogUser")
   approvedOverrides OverrideLog[] @relation("OverrideLogPicUser")
   createdSettings PharmacySetting[] @relation("PharmacySettingCreatedBy")
+  createdStockAdjustmentSuggestions StockAdjustmentSuggestion[] @relation("StockAdjustmentSuggestionCreatedBy")
+  reviewedStockAdjustmentSuggestions StockAdjustmentSuggestion[] @relation("StockAdjustmentSuggestionReviewedBy")
 
   @@map("users")
 }
@@ -306,6 +309,7 @@ model Product {
   batches        Batch[]
   stockMovements StockMovement[]
   dispensingItems DispensingItem[]
+  stockAdjustmentSuggestions StockAdjustmentSuggestion[]
 
   @@index([pharmacyId, barcode], map: "products_pharmacy_barcode_idx")
   @@index([pharmacyId, sku], map: "products_pharmacy_sku_idx")
@@ -330,8 +334,38 @@ model Batch {
   supplier       Supplier?       @relation(fields: [supplierId], references: [id])
   stockMovements StockMovement[]
   dispensingItems DispensingItem[]
+  stockAdjustmentSuggestions StockAdjustmentSuggestion[]
 
   @@map("batches")
+}
+
+model StockAdjustmentSuggestion {
+  id                    String   @id @default(uuid())
+  pharmacyId            String   @map("pharmacy_id")
+  productId             String   @map("product_id")
+  batchId               String?  @map("batch_id")
+  quantityDelta         Int      @map("quantity_delta")
+  reason                String
+  note                  String?
+  photoPath             String?  @map("photo_path")
+  status                String   @default("PENDING")
+  createdBy             String   @map("created_by")
+  reviewedBy            String?  @map("reviewed_by")
+  approvedQuantityDelta Int?     @map("approved_quantity_delta")
+  reviewNote            String?  @map("review_note")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+  reviewedAt            DateTime? @map("reviewed_at")
+
+  pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  batch    Batch?   @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  creator  User     @relation("StockAdjustmentSuggestionCreatedBy", fields: [createdBy], references: [id], onDelete: Restrict)
+  reviewer User?    @relation("StockAdjustmentSuggestionReviewedBy", fields: [reviewedBy], references: [id], onDelete: SetNull)
+
+  @@index([pharmacyId, status], map: "stock_adjustment_suggestions_pharmacy_status_idx")
+  @@index([productId, createdAt], map: "stock_adjustment_suggestions_product_created_at_idx")
+  @@map("stock_adjustment_suggestions")
 }
 
 model Supplier {
