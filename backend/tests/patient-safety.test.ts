@@ -3,7 +3,9 @@ import app from '../src/index';
 import {
   calculateDose,
   deriveRequiredPatientInputs,
+  parseMgPerKgRecommendation,
 } from '../src/modules/patient-safety/patient-safety.service';
+import { DRUG_DATABASE_SEED } from '../src/data/drug-database-seed';
 import { createPharmacy, createUser, disconnectTestDb, latestOverrideLogCount, login } from './helpers';
 
 describe('patient safety business logic', () => {
@@ -22,6 +24,53 @@ describe('patient safety business logic', () => {
     const clark = results.find((item) => item.method === "Clark's rule");
     expect(clark?.valueMg).toBe(200);
     expect(clark?.working).toContain('(28 kg / 70 kg) x 500 mg = 200 mg');
+  });
+
+  it('parses paracetamol paediatric guidance at 15 mg/kg per dose', () => {
+    const paracetamol = DRUG_DATABASE_SEED.find((drug) => drug.genericName === 'paracetamol');
+    const parsed = parseMgPerKgRecommendation(paracetamol?.paediatricDoseFormula ?? null);
+    const results = calculateDose({
+      adultDoseMg: 1000,
+      weightKg: 20,
+      recommendedMgPerKg: paracetamol?.paediatricDoseFormula,
+    });
+
+    expect(parsed).toEqual({
+      minMgPerKg: 15,
+      maxMgPerKg: 15,
+      qualifier: 'dose',
+    });
+    expect(results.find((item) => item.method === 'Weight-based')?.displayValue).toBe('300 mg/dose');
+  });
+
+  it('parses amoxicillin paediatric guidance at 25-50 mg/kg per day', () => {
+    const amoxicillin = DRUG_DATABASE_SEED.find((drug) => drug.genericName === 'amoxicillin');
+    const parsed = parseMgPerKgRecommendation(amoxicillin?.paediatricDoseFormula ?? null);
+    const results = calculateDose({
+      adultDoseMg: 500,
+      weightKg: 20,
+      recommendedMgPerKg: amoxicillin?.paediatricDoseFormula,
+    });
+
+    expect(parsed).toEqual({
+      minMgPerKg: 25,
+      maxMgPerKg: 50,
+      qualifier: 'day',
+    });
+    expect(results.find((item) => item.method === 'Weight-based')?.displayValue).toBe('500-1000 mg/day');
+  });
+
+  it('keeps the adult reference dose visible for adult cases', () => {
+    const results = calculateDose({
+      adultDoseMg: 500,
+      ageYears: 32,
+    });
+
+    expect(results.find((item) => item.method === 'Adult reference')).toMatchObject({
+      valueMg: 500,
+      displayValue: '500 mg',
+      supported: true,
+    });
   });
 
   it('derives only the patient inputs triggered by the selected basket', () => {

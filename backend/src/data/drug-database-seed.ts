@@ -37,6 +37,19 @@ export type ContraindicationSeed = {
 
 export const DRUG_DATABASE_SEED: DrugSeed[] = [
   {
+    genericName: 'paracetamol',
+    brandNames: ['panadol'],
+    drugClass: 'ANALGESIC',
+    therapeuticCategory: 'PAIN',
+    standardAdultDose: '1000 mg',
+    frequency: 'Every 6 hours when needed',
+    route: 'ORAL',
+    paediatricDoseFormula: '15 mg/kg/dose every 6 hours',
+    pregnancyCategory: 'B',
+    breastfeedingSafety: 'Compatible',
+    clinicianReviewed: true,
+  },
+  {
     genericName: 'amoxicillin',
     brandNames: ['amoxil'],
     drugClass: 'ANTIBIOTIC',
@@ -44,7 +57,7 @@ export const DRUG_DATABASE_SEED: DrugSeed[] = [
     standardAdultDose: '500 mg',
     frequency: 'Every 8 hours',
     route: 'ORAL',
-    paediatricDoseFormula: '25 mg/kg/day divided every 8 hours',
+    paediatricDoseFormula: '25-50 mg/kg/day divided every 8 hours',
     pregnancyCategory: 'B',
     breastfeedingSafety: 'Compatible',
     ncdHints: ['Review penicillin allergy history before dispensing'],

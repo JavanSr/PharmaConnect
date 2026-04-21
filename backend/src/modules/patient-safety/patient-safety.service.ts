@@ -406,16 +406,32 @@ export function calculateDose(input: {
   adultDoseMg: number;
   ageYears?: number;
   weightKg?: number;
-  recommendedMgPerKg?: number;
+  recommendedMgPerKg?: number | string;
 }) {
-  const outputs: Array<{ method: string; valueMg: number | null; working: string; supported: boolean }> = [];
+  const outputs: Array<{
+    method: string;
+    valueMg: number | null;
+    displayValue?: string;
+    working: string;
+    supported: boolean;
+  }> = [];
   const adultDose = input.adultDoseMg;
+  const recommendation = parseMgPerKgRecommendation(input.recommendedMgPerKg);
+
+  outputs.push({
+    method: 'Adult reference',
+    valueMg: Math.round(adultDose * 100) / 100,
+    displayValue: `${Math.round(adultDose * 100) / 100} mg`,
+    working: `Adult reference dose = ${Math.round(adultDose * 100) / 100} mg`,
+    supported: true,
+  });
 
   if (input.weightKg && input.weightKg > 0) {
     const value = (input.weightKg / 70) * adultDose;
     outputs.push({
       method: "Clark's rule",
       valueMg: Math.round(value * 100) / 100,
+      displayValue: `${Math.round(value * 100) / 100} mg`,
       working: `(${input.weightKg} kg / 70 kg) x ${adultDose} mg = ${Math.round(value * 100) / 100} mg`,
       supported: true,
     });
@@ -433,6 +449,7 @@ export function calculateDose(input: {
     outputs.push({
       method: "Young's rule",
       valueMg: Math.round(value * 100) / 100,
+      displayValue: `${Math.round(value * 100) / 100} mg`,
       working: `(${input.ageYears} / (${input.ageYears} + 12)) x ${adultDose} mg = ${Math.round(value * 100) / 100} mg`,
       supported: true,
     });
@@ -445,12 +462,23 @@ export function calculateDose(input: {
     });
   }
 
-  if (input.weightKg && input.recommendedMgPerKg) {
-    const value = input.weightKg * input.recommendedMgPerKg;
+  if (input.weightKg && recommendation) {
+    const minValue = Math.round(input.weightKg * recommendation.minMgPerKg * 100) / 100;
+    const maxValue = Math.round(input.weightKg * recommendation.maxMgPerKg * 100) / 100;
+    const valueSuffix = recommendation.qualifier ? `/${recommendation.qualifier}` : '';
+    const displayValue =
+      minValue === maxValue
+        ? `${minValue} mg${valueSuffix}`
+        : `${minValue}-${maxValue} mg${valueSuffix}`;
+
     outputs.push({
       method: 'Weight-based',
-      valueMg: Math.round(value * 100) / 100,
-      working: `${input.weightKg} kg x ${input.recommendedMgPerKg} mg/kg = ${Math.round(value * 100) / 100} mg`,
+      valueMg: minValue === maxValue ? minValue : null,
+      displayValue,
+      working:
+        minValue === maxValue
+          ? `${input.weightKg} kg x ${recommendation.minMgPerKg} mg/kg${valueSuffix} = ${minValue} mg${valueSuffix}`
+          : `${input.weightKg} kg x ${recommendation.minMgPerKg}-${recommendation.maxMgPerKg} mg/kg${valueSuffix} = ${minValue}-${maxValue} mg${valueSuffix}`,
       supported: true,
     });
   } else {
@@ -463,6 +491,45 @@ export function calculateDose(input: {
   }
 
   return outputs;
+}
+
+export function parseMgPerKgRecommendation(input?: number | string | null) {
+  if (typeof input === 'number' && input > 0) {
+    return {
+      minMgPerKg: input,
+      maxMgPerKg: input,
+      qualifier: null as 'day' | 'dose' | null,
+    };
+  }
+
+  const normalized = normalizeText(typeof input === 'string' ? input.replace(/[–—]/g, '-') : '');
+  if (!normalized) {
+    return null;
+  }
+
+  const rangeMatch = normalized.match(
+    /(\d+(?:\.\d+)?)\s*(?:-|to)\s*(\d+(?:\.\d+)?)\s*mg\s*\/\s*kg(?:\s*\/\s*(day|dose))?/i,
+  );
+  if (rangeMatch) {
+    return {
+      minMgPerKg: Number(rangeMatch[1]),
+      maxMgPerKg: Number(rangeMatch[2]),
+      qualifier: (rangeMatch[3] as 'day' | 'dose' | undefined) ?? null,
+    };
+  }
+
+  const singleMatch = normalized.match(
+    /(\d+(?:\.\d+)?)\s*mg\s*\/\s*kg(?:\s*\/\s*(day|dose))?/i,
+  );
+  if (singleMatch) {
+    return {
+      minMgPerKg: Number(singleMatch[1]),
+      maxMgPerKg: Number(singleMatch[1]),
+      qualifier: (singleMatch[2] as 'day' | 'dose' | undefined) ?? null,
+    };
+  }
+
+  return null;
 }
 
 export async function matchDiagnosis(input: { diagnosis: string; limit?: number }) {

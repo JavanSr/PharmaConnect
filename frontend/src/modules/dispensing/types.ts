@@ -83,6 +83,7 @@ export interface SafetyReviewResponse {
 export interface DoseMethodResult {
   method: string;
   valueMg: number | null;
+  displayValue?: string;
   working: string;
   supported: boolean;
 }

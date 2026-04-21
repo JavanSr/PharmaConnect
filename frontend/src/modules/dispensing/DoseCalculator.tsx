@@ -37,7 +37,7 @@ export const DoseCalculator: React.FC<{
           adultDoseMg: Number(adultDoseMg),
           ageYears: ageYears ? Number(ageYears) : undefined,
           weightKg: weightKg ? Number(weightKg) : undefined,
-          recommendedMgPerKg: recommendedMgPerKg ? Number(recommendedMgPerKg) : undefined,
+          recommendedMgPerKg: recommendedMgPerKg.trim() || undefined,
         })
         .then((response) => response.data),
     onSuccess: (response) => {
@@ -141,11 +141,9 @@ export const DoseCalculator: React.FC<{
         />
         <Input
           label="Recommended mg/kg"
-          type="number"
-          min="0"
           value={recommendedMgPerKg}
           onChange={(event) => setRecommendedMgPerKg(event.target.value)}
-          placeholder="10"
+          placeholder="e.g. 15 mg/kg/dose or 25-50 mg/kg/day"
         />
       </div>
 
@@ -169,7 +167,7 @@ export const DoseCalculator: React.FC<{
               <div className="flex items-center justify-between gap-3">
                 <p className="text-sm font-semibold text-[#0D4035]">{result.method}</p>
                 <p className="text-sm font-bold text-[#1A6B5C]">
-                  {result.valueMg != null ? `${result.valueMg} mg` : 'Not supported'}
+                  {result.displayValue ?? (result.valueMg != null ? `${result.valueMg} mg` : 'Not supported')}
                 </p>
               </div>
               <p className="mt-2 text-xs text-[#475569]">{result.working}</p>

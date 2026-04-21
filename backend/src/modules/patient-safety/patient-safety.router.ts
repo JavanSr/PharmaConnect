@@ -113,7 +113,7 @@ patientSafetyRouter.post('/calculate-dose', async (req, res, next) => {
       adultDoseMg: z.number().positive(),
       ageYears: z.number().nonnegative().optional(),
       weightKg: z.number().positive().optional(),
-      recommendedMgPerKg: z.number().positive().optional(),
+      recommendedMgPerKg: z.union([z.number().positive(), z.string().trim().min(1)]).optional(),
     }).parse(req.body);
     res.json({ data: calculateDose(payload) });
   } catch (error) {
