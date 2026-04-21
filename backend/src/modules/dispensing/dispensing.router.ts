@@ -8,9 +8,9 @@ import { verifyPicPinForPharmacy } from '../../middleware/pic-pin';
 import { prisma } from '../../lib/prisma';
 import { resolveFefoBatch } from '../inventory/inventory.service';
 import { sessionReview } from '../patient-safety/patient-safety.service';
+import { ensurePaymentMethodConfig } from '../settings/payment-method-config';
 
 const paymentMethods = Object.values(PaymentMethod) as [PaymentMethod, ...PaymentMethod[]];
-const PAYMENT_METHOD_CONFIG_KEY = 'payment.methods';
 const LEGACY_PAYMENT_METHOD_OPTIONS = [
   { code: PaymentMethod.CASH, label: 'Cash', phoneNumber: '', note: 'Always enabled for offline fallback.', requiresReference: false, source: 'legacy' },
   { code: PaymentMethod.MPESA, label: 'M-Pesa', phoneNumber: '', note: '', requiresReference: true, source: 'legacy' },
@@ -195,18 +195,7 @@ dispensingRouter.use(enforceTrialRestrictions);
 
 dispensingRouter.get('/payment-methods', requirePermission('dispensing.access'), async (req: AuthRequest, res, next) => {
   try {
-    const setting = await prisma.pharmacySetting.findUnique({
-      where: {
-        pharmacyId_key: {
-          pharmacyId: getPharmacyId(req),
-          key: PAYMENT_METHOD_CONFIG_KEY,
-        },
-      },
-      select: {
-        value: true,
-        updatedAt: true,
-      },
-    });
+    const setting = await ensurePaymentMethodConfig(getPharmacyId(req), getUserId(req));
 
     const methods = setting
       ? normalizeDispensingPaymentMethods(setting.value)

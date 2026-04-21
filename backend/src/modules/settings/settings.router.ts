@@ -9,6 +9,7 @@ import { enforceTrialRestrictions } from '../../middleware/trial';
 import { prisma } from '../../lib/prisma';
 import { withPrismaRetry } from '../../lib/prisma-retry';
 import { APP_ROLES } from '../../types/roles';
+import { ensurePaymentMethodConfig, PAYMENT_METHOD_CONFIG_KEY } from './payment-method-config';
 
 export const settingsRouter = Router();
 settingsRouter.use(authenticate);
@@ -86,22 +87,24 @@ const pharmacySettingKeySchema = z.string().trim().min(1).max(100).regex(/^[a-z0
 settingsRouter.get('/config/:key', requirePermission('settings.manage_subscription'), async (req: AuthRequest, res, next) => {
   try {
     const key = pharmacySettingKeySchema.parse(req.params.key);
-    const setting = await prisma.pharmacySetting.findUnique({
-      where: {
-        pharmacyId_key: {
-          pharmacyId: pid(req),
-          key,
-        },
-      },
-      select: {
-        id: true,
-        key: true,
-        value: true,
-        createdBy: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
+    const setting = key === PAYMENT_METHOD_CONFIG_KEY
+      ? await ensurePaymentMethodConfig(pid(req), uid(req))
+      : await prisma.pharmacySetting.findUnique({
+          where: {
+            pharmacyId_key: {
+              pharmacyId: pid(req),
+              key,
+            },
+          },
+          select: {
+            id: true,
+            key: true,
+            value: true,
+            createdBy: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        });
 
     res.json({
       data: setting ?? {

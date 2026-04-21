@@ -8,7 +8,7 @@ describe('dispensing payment methods', () => {
     await disconnectTestDb();
   });
 
-  it('falls back to the legacy dispensing methods when no owner config exists', async () => {
+  it('backfills legacy payment methods into config when no owner config exists', async () => {
     const pharmacy = await createPharmacy({ subscriptionTier: 'PREMIUM' });
     const dispenser = await createUser({ pharmacyId: pharmacy.id, role: 'DISPENSER' });
     const auth = await login(dispenser.user.email, dispenser.password);
@@ -18,7 +18,7 @@ describe('dispensing payment methods', () => {
       .set('Authorization', `Bearer ${auth.body.data.accessToken}`);
 
     expect(response.status).toBe(200);
-    expect(response.body.data.source).toBe('legacy');
+    expect(response.body.data.source).toBe('config');
     expect(response.body.data.methods).toEqual([
       {
         code: 'CASH',
@@ -26,7 +26,7 @@ describe('dispensing payment methods', () => {
         phoneNumber: '',
         note: 'Always enabled for offline fallback.',
         requiresReference: false,
-        source: 'legacy',
+        source: 'config',
       },
       {
         code: 'MPESA',
@@ -34,7 +34,7 @@ describe('dispensing payment methods', () => {
         phoneNumber: '',
         note: '',
         requiresReference: true,
-        source: 'legacy',
+        source: 'config',
       },
       {
         code: 'TIGOPESA',
@@ -42,9 +42,28 @@ describe('dispensing payment methods', () => {
         phoneNumber: '',
         note: '',
         requiresReference: true,
-        source: 'legacy',
+        source: 'config',
+      },
+      {
+        code: 'AIRTEL_MONEY',
+        label: 'Airtel Money',
+        phoneNumber: '',
+        note: '',
+        requiresReference: true,
+        source: 'config',
       },
     ]);
+
+    const storedSetting = await prisma.pharmacySetting.findUnique({
+      where: {
+        pharmacyId_key: {
+          pharmacyId: pharmacy.id,
+          key: 'payment.methods',
+        },
+      },
+    });
+
+    expect(storedSetting?.createdBy).toBe(dispenser.user.id);
   });
 
   it('returns only active checkout-safe config methods for dispensing users', async () => {

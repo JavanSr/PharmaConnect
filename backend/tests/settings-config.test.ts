@@ -7,6 +7,28 @@ describe('settings config base', () => {
     await disconnectTestDb();
   });
 
+  it('backfills the legacy payment methods into pharmacy settings on first owner read', async () => {
+    const pharmacy = await createPharmacy({ subscriptionTier: 'PREMIUM' });
+    const owner = await createUser({ pharmacyId: pharmacy.id, role: 'OWNER' });
+    const auth = await login(owner.user.email, owner.password);
+
+    const readResponse = await request(app)
+      .get('/api/v1/settings/config/payment.methods')
+      .set('Authorization', `Bearer ${auth.body.data.accessToken}`);
+
+    expect(readResponse.status).toBe(200);
+    expect(readResponse.body.data.key).toBe('payment.methods');
+    expect(readResponse.body.data.value).toEqual({
+      version: 1,
+      methods: [
+        { code: 'CASH', type: 'CASH', label: 'Cash', phoneNumber: '', active: true, note: 'Always enabled for offline fallback.' },
+        { code: 'MPESA', type: 'MOBILE_MONEY', label: 'M-Pesa', phoneNumber: '', active: true, note: '' },
+        { code: 'TIGOPESA', type: 'MOBILE_MONEY', label: 'Tigo Pesa', phoneNumber: '', active: true, note: '' },
+        { code: 'AIRTEL_MONEY', type: 'MOBILE_MONEY', label: 'Airtel Money', phoneNumber: '', active: true, note: '' },
+      ],
+    });
+  });
+
   it('lets an owner upsert and read a reusable pharmacy config entry', async () => {
     const pharmacy = await createPharmacy({ subscriptionTier: 'PREMIUM' });
     const owner = await createUser({ pharmacyId: pharmacy.id, role: 'OWNER' });
