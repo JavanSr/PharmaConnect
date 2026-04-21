@@ -63,6 +63,87 @@ test('expired trial shows paywall but still allows subscription page', async ({ 
   await expect(page.getByRole('heading', { name: 'Your 30-day trial has ended' })).toHaveCount(0);
 });
 
+test('owner can configure dispensing payment methods from settings', async ({ page }) => {
+  let savedConfig: Record<string, unknown> | null = null;
+
+  await bootstrapSession(page, {
+    user: browserUsers.activeOwner,
+    pharmacy: pharmacies.active,
+  });
+  await mockShell(page, { subscription: pharmacies.active });
+
+  await page.route('**/api/v1/settings/config/payment.methods', async (route) => {
+    if (route.request().method() === 'PUT') {
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      savedConfig = body;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          data: {
+            key: 'payment.methods',
+            value: body.value,
+          },
+        }),
+      });
+      return;
+    }
+
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: {
+          key: 'payment.methods',
+          value: {
+            version: 1,
+            methods: [
+              { code: 'CASH', type: 'CASH', label: 'Cash', active: true, note: '' },
+            ],
+          },
+        },
+      }),
+    });
+  });
+
+  await expectProtectedRoute(page, '/settings/subscription');
+
+  await expect(page.getByText('Dispensing payment methods')).toBeVisible();
+  await expect(page.getByText('Cash always stays enabled for offline fallback.')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Add mobile money' }).click();
+  await page.getByLabel('Mobile money name').fill('Airtel Money');
+  await page.getByLabel('Mobile money number').fill('+255755000111');
+  await page.getByLabel('Cashier note').fill('Use owner till when the network is stable.');
+  await page.getByRole('button', { name: 'Active' }).click();
+  await page.getByRole('button', { name: 'Save payment methods' }).click();
+
+  await expect(page.getByText('Payment methods saved')).toBeVisible();
+  expect(savedConfig).toEqual({
+    value: {
+      version: 1,
+      methods: [
+        {
+          code: 'CASH',
+          type: 'CASH',
+          label: 'Cash',
+          active: true,
+          phoneNumber: '',
+          note: 'Always enabled for offline fallback.',
+        },
+        {
+          code: 'AIRTEL_MONEY',
+          type: 'MOBILE_MONEY',
+          label: 'Airtel Money',
+          phoneNumber: '+255755000111',
+          active: false,
+          note: 'Use owner till when the network is stable.',
+        },
+      ],
+    },
+  });
+});
+
 test('dispenser is denied on wholesale dashboard in browser flow', async ({ page }) => {
   await bootstrapSession(page, {
     user: browserUsers.activeDispenser,
