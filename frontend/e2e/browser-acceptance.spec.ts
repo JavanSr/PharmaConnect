@@ -430,6 +430,93 @@ test('dispenser submits a stock adjustment suggestion without direct adjustment 
   await expect(page.getByText('Stock adjustment suggestion submitted')).toBeVisible();
 });
 
+test('owner reviews a pending stock adjustment suggestion from the queue', async ({ page }) => {
+  let reviewPayload: Record<string, unknown> | null = null;
+
+  await bootstrapSession(page, {
+    user: browserUsers.activeOwner,
+    pharmacy: pharmacies.active,
+  });
+  await mockShell(page, { subscription: pharmacies.active });
+
+  await page.route('**/api/v1/inventory/adjustment-suggestions?*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: [
+          {
+            id: 'suggestion-owner-review-1',
+            pharmacyId: pharmacies.active.id,
+            productId: 'product-stock-suggestion',
+            quantityDelta: -3,
+            approvedQuantityDelta: null,
+            reason: 'COUNT_VARIANCE',
+            note: 'Short by three packs after drawer count.',
+            photoPath: null,
+            status: 'PENDING',
+            createdBy: browserUsers.activeDispenser.id,
+            reviewedBy: null,
+            reviewNote: null,
+            createdAt: '2026-04-22T08:00:00.000Z',
+            updatedAt: '2026-04-22T08:00:00.000Z',
+            reviewedAt: null,
+            product: {
+              id: 'product-stock-suggestion',
+              name: 'Paracetamol 500',
+              genericName: 'Paracetamol',
+            },
+            batch: {
+              id: 'batch-stock-suggestion',
+              batchNumber: 'PC-0422',
+              expiryDate: '2027-01-10T00:00:00.000Z',
+            },
+            creator: {
+              id: browserUsers.activeDispenser.id,
+              firstName: browserUsers.activeDispenser.firstName,
+              lastName: browserUsers.activeDispenser.lastName,
+            },
+            reviewer: null,
+          },
+        ],
+      }),
+    });
+  });
+
+  await page.route('**/api/v1/inventory/adjustment-suggestions/suggestion-owner-review-1/review', async (route) => {
+    reviewPayload = route.request().postDataJSON() as Record<string, unknown>;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: {
+          id: 'suggestion-owner-review-1',
+          status: 'PARTIAL',
+          approvedQuantityDelta: -1,
+          reviewedBy: browserUsers.activeOwner.id,
+          reviewedAt: '2026-04-22T08:05:00.000Z',
+        },
+      }),
+    });
+  });
+
+  await expectProtectedRoute(page, '/inventory/adjust');
+
+  await expect(page.getByRole('heading', { name: 'Pending owner review' })).toBeVisible();
+  await expect(page.getByText('Short by three packs after drawer count.')).toBeVisible();
+
+  await page.getByLabel('Partial approved delta').fill('-1');
+  await page.getByLabel('Review note (optional)').fill('Approve only the confirmed missing pack.');
+  await page.getByRole('button', { name: 'Save partial' }).click();
+
+  await expect(page.getByText('Suggestion review saved')).toBeVisible();
+  expect(reviewPayload).toEqual({
+    status: 'PARTIAL',
+    approvedQuantityDelta: -1,
+    reviewNote: 'Approve only the confirmed missing pack.',
+  });
+});
+
 test('offline stock intake queues locally and flushes to live batches when back online', async ({ page, context }) => {
   const batchNumber = `PW-E2E-${Date.now()}`;
   const syncedBatches: Array<Record<string, unknown>> = [];

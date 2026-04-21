@@ -50,6 +50,8 @@ const upload = multer({
 
 const pid = (req: AuthRequest) => req.user!.pharmacyId!;
 const uid = (req: AuthRequest) => req.user!.userId;
+const canReviewStockAdjustmentSuggestions = (req: AuthRequest) =>
+  ['OWNER', 'PHARMACIST_IN_CHARGE', 'SUPER_ADMIN'].includes(req.user?.normalizedRole ?? '');
 
 inventoryRouter.get('/products', requirePermission('inventory.view_products'), async (req: AuthRequest, res, next) => {
   try {
@@ -248,6 +250,60 @@ inventoryRouter.post(
     }
   },
 );
+
+inventoryRouter.get('/adjustment-suggestions', requirePermission('inventory.manage_stock'), async (req: AuthRequest, res, next) => {
+  try {
+    if (!canReviewStockAdjustmentSuggestions(req)) {
+      res.status(403).json({
+        error: 'ROLE_INSUFFICIENT',
+        message: 'Only owner-level users can review stock adjustment suggestions',
+      });
+      return;
+    }
+
+    const params = z
+      .object({
+        status: z.enum(['PENDING', 'APPROVED', 'REJECTED', 'PARTIAL']).optional(),
+        limit: z.coerce.number().int().positive().max(100).optional(),
+      })
+      .parse(req.query);
+
+    res.json({
+      data: await svc.listStockAdjustmentSuggestions(pid(req), params),
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+inventoryRouter.patch('/adjustment-suggestions/:id/review', requirePermission('inventory.manage_stock'), async (req: AuthRequest, res, next) => {
+  try {
+    if (!canReviewStockAdjustmentSuggestions(req)) {
+      res.status(403).json({
+        error: 'ROLE_INSUFFICIENT',
+        message: 'Only owner-level users can review stock adjustment suggestions',
+      });
+      return;
+    }
+
+    const data = z
+      .object({
+        status: z.enum(['APPROVED', 'REJECTED', 'PARTIAL']),
+        approvedQuantityDelta: z.coerce.number().int().optional(),
+        reviewNote: z.string().trim().max(500).optional(),
+      })
+      .parse(req.body);
+
+    res.json({
+      data: await svc.reviewStockAdjustmentSuggestion(pid(req), uid(req), req.params.id, {
+        ...data,
+        reviewNote: data.reviewNote?.trim() || undefined,
+      }),
+    });
+  } catch (e) {
+    next(e);
+  }
+});
 
 inventoryRouter.get('/suppliers', requirePermission('inventory.manage_stock'), async (req: AuthRequest, res, next) => {
   try {

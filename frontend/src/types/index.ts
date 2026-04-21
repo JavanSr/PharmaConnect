@@ -235,6 +235,31 @@ export interface SyncConflict {
   createdAt: string;
 }
 
+export type StockAdjustmentSuggestionStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'PARTIAL';
+
+export interface StockAdjustmentSuggestion {
+  id: string;
+  pharmacyId: string;
+  productId: string;
+  product?: Pick<Product, 'id' | 'name' | 'genericName'>;
+  batchId: string | null;
+  batch?: Pick<Batch, 'id' | 'batchNumber' | 'expiryDate'> | null;
+  quantityDelta: number;
+  approvedQuantityDelta: number | null;
+  reason: string;
+  note: string | null;
+  photoPath: string | null;
+  status: StockAdjustmentSuggestionStatus;
+  createdBy: string;
+  creator?: Pick<User, 'id' | 'firstName' | 'lastName'>;
+  reviewedBy: string | null;
+  reviewer?: Pick<User, 'id' | 'firstName' | 'lastName'> | null;
+  reviewNote: string | null;
+  createdAt: string;
+  updatedAt: string;
+  reviewedAt: string | null;
+}
+
 // ─── Compliance ───────────────────────────────────────────────────────────────
 
 export type ComplianceCategory =

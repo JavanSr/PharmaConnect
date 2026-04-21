@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
+import type { StockAdjustmentSuggestion, UserRole } from '@/types';
 import { useNotificationStore } from '@/stores/notificationStore';
 import { useAuthStore } from '@/stores/authStore';
 import { useDebounce } from '@/hooks/useDebounce';
@@ -28,6 +29,7 @@ const SUGGESTION_REASONS = [
   { value: 'FOUND_STOCK', label: 'Found stock / increase' },
   { value: 'OTHER', label: 'Other' },
 ];
+const OWNER_REVIEW_ROLES: UserRole[] = ['OWNER', 'PHARMACIST_IN_CHARGE', 'SUPER_ADMIN'];
 
 export const StockAdjustPage: React.FC = () => {
   const navigate = useNavigate();
@@ -35,6 +37,7 @@ export const StockAdjustPage: React.FC = () => {
   const toast = useNotificationStore((state) => state.toast);
   const user = useAuthStore((state) => state.user);
   const isSuggestionMode = user?.role === 'DISPENSER';
+  const canReviewSuggestions = Boolean(user?.role && OWNER_REVIEW_ROLES.includes(user.role));
 
   const [productSearch, setProductSearch] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
@@ -48,6 +51,8 @@ export const StockAdjustPage: React.FC = () => {
   const [referenceNumber, setReferenceNumber] = useState('');
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [partialQuantityBySuggestion, setPartialQuantityBySuggestion] = useState<Record<string, string>>({});
+  const [reviewNoteBySuggestion, setReviewNoteBySuggestion] = useState<Record<string, string>>({});
 
   const debouncedSearch = useDebounce(productSearch, 300);
 
@@ -62,9 +67,15 @@ export const StockAdjustPage: React.FC = () => {
     queryFn: () => api.get(`/inventory/products/${selectedProduct.id}`).then((response) => response.data),
     enabled: Boolean(selectedProduct?.id),
   });
+  const { data: suggestionQueueData, isLoading: isSuggestionQueueLoading } = useQuery({
+    queryKey: ['stock-adjustment-suggestions', 'PENDING'],
+    queryFn: () => api.get('/inventory/adjustment-suggestions', { params: { status: 'PENDING' } }).then((response) => response.data),
+    enabled: canReviewSuggestions,
+  });
 
   const products = searchData?.data || [];
   const batches = productDetail?.data?.batches || [];
+  const pendingSuggestions = (suggestionQueueData?.data || []) as StockAdjustmentSuggestion[];
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -106,6 +117,24 @@ export const StockAdjustPage: React.FC = () => {
     },
     onError: (error: any) => toast.error(error.response?.data?.error || 'Failed to save stock adjustment'),
   });
+  const reviewMutation = useMutation({
+    mutationFn: async (payload: {
+      suggestionId: string;
+      status: 'APPROVED' | 'REJECTED' | 'PARTIAL';
+      approvedQuantityDelta?: number;
+      reviewNote?: string;
+    }) =>
+      api.patch(`/inventory/adjustment-suggestions/${payload.suggestionId}/review`, {
+        status: payload.status,
+        approvedQuantityDelta: payload.approvedQuantityDelta,
+        reviewNote: payload.reviewNote,
+      }),
+    onSuccess: (_response, payload) => {
+      toast.success(payload.status === 'REJECTED' ? 'Suggestion rejected' : 'Suggestion review saved');
+      qc.invalidateQueries({ queryKey: ['stock-adjustment-suggestions', 'PENDING'] });
+    },
+    onError: (error: any) => toast.error(error.response?.data?.error || 'Failed to review suggestion'),
+  });
 
   const needsReason = ['ADJUSTED', 'DAMAGED', 'EXPIRED_REMOVED', 'DONATED', 'TRANSFERRED'].includes(movementType);
   const noteRequiredForSuggestion = suggestionReason === 'OTHER';
@@ -121,8 +150,44 @@ export const StockAdjustPage: React.FC = () => {
     parsedQuantityDelta !== 0 &&
     (!noteRequiredForSuggestion || notes.trim().length > 0);
 
+  const submitSuggestionReview = (suggestion: StockAdjustmentSuggestion, status: 'APPROVED' | 'REJECTED' | 'PARTIAL') => {
+    const reviewNote = reviewNoteBySuggestion[suggestion.id]?.trim() || undefined;
+
+    if (status === 'APPROVED') {
+      reviewMutation.mutate({
+        suggestionId: suggestion.id,
+        status,
+        approvedQuantityDelta: suggestion.quantityDelta,
+        reviewNote,
+      });
+      return;
+    }
+
+    if (status === 'REJECTED') {
+      reviewMutation.mutate({
+        suggestionId: suggestion.id,
+        status,
+        reviewNote,
+      });
+      return;
+    }
+
+    const partialQuantity = parseInt(partialQuantityBySuggestion[suggestion.id] || '', 10);
+    if (!Number.isInteger(partialQuantity) || partialQuantity === 0) {
+      toast.error('Enter a partial approved quantity delta before saving');
+      return;
+    }
+
+    reviewMutation.mutate({
+      suggestionId: suggestion.id,
+      status,
+      approvedQuantityDelta: partialQuantity,
+      reviewNote,
+    });
+  };
+
   return (
-    <div className="max-w-2xl space-y-5">
+    <div className="max-w-4xl space-y-5">
       <div className="flex items-center gap-3">
         <Link to="/inventory" className="rounded-xl p-2 text-[#64748B] transition-colors hover:bg-[#D6F0E8]">
           <ArrowLeft size={18} />
@@ -329,6 +394,115 @@ export const StockAdjustPage: React.FC = () => {
           {isSuggestionMode ? 'Submit Suggestion' : 'Record Movement'}
         </Button>
       </div>
+
+      {canReviewSuggestions && (
+        <Card>
+          <div className="space-y-4">
+            <div>
+              <h2 className="text-lg font-semibold text-[#0D4035]">Pending owner review</h2>
+              <p className="mt-1 text-sm text-[#64748B]">
+                Review dispenser suggestions here. This step records the decision only and keeps stock unchanged until the approval action is enforced.
+              </p>
+            </div>
+
+            {isSuggestionQueueLoading ? (
+              <p className="text-sm text-[#64748B]">Loading pending suggestions...</p>
+            ) : pendingSuggestions.length === 0 ? (
+              <p className="text-sm text-[#64748B]">No pending stock adjustment suggestions right now.</p>
+            ) : (
+              <div className="space-y-4">
+                {pendingSuggestions.map((suggestion) => {
+                  const isReviewingCurrentSuggestion =
+                    reviewMutation.isPending && reviewMutation.variables?.suggestionId === suggestion.id;
+
+                  return (
+                    <div key={suggestion.id} className="rounded-2xl border border-[#D6F0E8] bg-[#F8FCFA] p-4">
+                      <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                        <div>
+                          <p className="text-sm font-semibold text-[#0D4035]">
+                            {suggestion.product?.genericName || suggestion.product?.name || 'Unknown product'}
+                          </p>
+                          <p className="text-xs text-[#64748B]">
+                            Requested delta: {suggestion.quantityDelta > 0 ? '+' : ''}
+                            {suggestion.quantityDelta} | Reason: {suggestion.reason.split('_').join(' ')}
+                          </p>
+                          <p className="text-xs text-[#64748B]">
+                            Submitted by {suggestion.creator?.firstName} {suggestion.creator?.lastName} on{' '}
+                            {new Date(suggestion.createdAt).toLocaleString()}
+                          </p>
+                          {suggestion.batch?.batchNumber && (
+                            <p className="text-xs text-[#64748B]">Batch: {suggestion.batch.batchNumber}</p>
+                          )}
+                        </div>
+                        <span className="inline-flex w-fit rounded-full bg-[#D6F0E8] px-2.5 py-1 text-xs font-medium text-[#0D4035]">
+                          {suggestion.status}
+                        </span>
+                      </div>
+
+                      {suggestion.note && <p className="mt-3 text-sm text-[#0D4035]">{suggestion.note}</p>}
+
+                      <div className="mt-4 grid gap-3 md:grid-cols-2">
+                        <Input
+                          label="Partial approved delta"
+                          type="number"
+                          value={partialQuantityBySuggestion[suggestion.id] || ''}
+                          onChange={(event) =>
+                            setPartialQuantityBySuggestion((current) => ({
+                              ...current,
+                              [suggestion.id]: event.target.value,
+                            }))
+                          }
+                          placeholder="Use -1 or 2"
+                        />
+                        <Input
+                          label="Review note (optional)"
+                          value={reviewNoteBySuggestion[suggestion.id] || ''}
+                          onChange={(event) =>
+                            setReviewNoteBySuggestion((current) => ({
+                              ...current,
+                              [suggestion.id]: event.target.value,
+                            }))
+                          }
+                          placeholder="Add audit context for this decision"
+                        />
+                      </div>
+
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          loading={isReviewingCurrentSuggestion}
+                          disabled={reviewMutation.isPending}
+                          onClick={() => submitSuggestionReview(suggestion, 'APPROVED')}
+                        >
+                          Approve full
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          loading={isReviewingCurrentSuggestion && reviewMutation.variables?.status === 'PARTIAL'}
+                          disabled={reviewMutation.isPending}
+                          onClick={() => submitSuggestionReview(suggestion, 'PARTIAL')}
+                        >
+                          Save partial
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          loading={isReviewingCurrentSuggestion && reviewMutation.variables?.status === 'REJECTED'}
+                          disabled={reviewMutation.isPending}
+                          onClick={() => submitSuggestionReview(suggestion, 'REJECTED')}
+                        >
+                          Reject
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
     </div>
   );
 };

@@ -49,6 +49,39 @@ type StockAdjustmentSuggestionPhoto = {
   buffer: Buffer;
 };
 
+function stockAdjustmentSuggestionInclude() {
+  return {
+    product: {
+      select: {
+        id: true,
+        name: true,
+        genericName: true,
+      },
+    },
+    batch: {
+      select: {
+        id: true,
+        batchNumber: true,
+        expiryDate: true,
+      },
+    },
+    creator: {
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+      },
+    },
+    reviewer: {
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+      },
+    },
+  };
+}
+
 function productInclude() {
   return {
     batches: {
@@ -550,29 +583,87 @@ export async function createStockAdjustmentSuggestion(
       photoPath,
       createdBy: userId,
     },
-    include: {
-      product: {
-        select: {
-          id: true,
-          name: true,
-          genericName: true,
-        },
-      },
-      batch: {
-        select: {
-          id: true,
-          batchNumber: true,
-          expiryDate: true,
-        },
-      },
-      creator: {
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-        },
-      },
+    include: stockAdjustmentSuggestionInclude(),
+  });
+}
+
+export async function listStockAdjustmentSuggestions(
+  pharmacyId: string,
+  params: { status?: string; limit?: number } = {},
+) {
+  const limit = Math.min(Math.max(params.limit ?? 50, 1), 100);
+
+  return prisma.stockAdjustmentSuggestion.findMany({
+    where: {
+      pharmacyId,
+      ...(params.status ? { status: params.status } : {}),
     },
+    include: stockAdjustmentSuggestionInclude(),
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    take: limit,
+  });
+}
+
+export async function reviewStockAdjustmentSuggestion(
+  pharmacyId: string,
+  reviewerUserId: string,
+  suggestionId: string,
+  data: {
+    status: 'APPROVED' | 'REJECTED' | 'PARTIAL';
+    approvedQuantityDelta?: number;
+    reviewNote?: string;
+  },
+) {
+  const suggestion = await prisma.stockAdjustmentSuggestion.findFirst({
+    where: {
+      id: suggestionId,
+      pharmacyId,
+    },
+  });
+
+  if (!suggestion) {
+    throw Object.assign(new Error('Stock adjustment suggestion not found'), { status: 404 });
+  }
+
+  if (suggestion.status !== 'PENDING') {
+    throw Object.assign(new Error('Stock adjustment suggestion has already been reviewed'), { status: 409 });
+  }
+
+  let approvedQuantityDelta: number | null = null;
+  if (data.status === 'APPROVED') {
+    approvedQuantityDelta = data.approvedQuantityDelta ?? suggestion.quantityDelta;
+  }
+
+  if (data.status === 'PARTIAL') {
+    approvedQuantityDelta = data.approvedQuantityDelta ?? null;
+    if (!approvedQuantityDelta || approvedQuantityDelta === 0) {
+      throw Object.assign(new Error('Approved quantity delta is required for partial review'), { status: 400 });
+    }
+
+    const requestedDirection = Math.sign(suggestion.quantityDelta);
+    if (Math.sign(approvedQuantityDelta) !== requestedDirection) {
+      throw Object.assign(new Error('Approved quantity delta must keep the same direction as the request'), { status: 400 });
+    }
+
+    if (Math.abs(approvedQuantityDelta) >= Math.abs(suggestion.quantityDelta)) {
+      throw Object.assign(new Error('Partial quantity delta must be smaller than the requested quantity delta'), { status: 400 });
+    }
+  }
+
+  if (data.status === 'APPROVED' && approvedQuantityDelta !== null && Math.sign(approvedQuantityDelta) !== Math.sign(suggestion.quantityDelta)) {
+    throw Object.assign(new Error('Approved quantity delta must keep the same direction as the request'), { status: 400 });
+  }
+
+  return prisma.stockAdjustmentSuggestion.update({
+    where: { id: suggestion.id },
+    data: {
+      status: data.status,
+      approvedQuantityDelta,
+      reviewNote: data.reviewNote?.trim() || null,
+      reviewedBy: reviewerUserId,
+      reviewedAt: new Date(),
+    },
+    include: stockAdjustmentSuggestionInclude(),
   });
 }
 

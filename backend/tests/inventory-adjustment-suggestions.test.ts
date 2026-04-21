@@ -121,4 +121,95 @@ describe('inventory adjustment suggestions', () => {
     const updatedBatch = await prisma.batch.findUnique({ where: { id: batch.id } });
     expect(updatedBatch?.quantityRemaining).toBe(10);
   });
+
+  it('lets an owner review pending suggestions without changing stock yet', async () => {
+    const pharmacy = await createPharmacy({ subscriptionTier: 'PREMIUM' });
+    const owner = await createUser({ pharmacyId: pharmacy.id, role: 'OWNER' });
+    const dispenser = await createUser({ pharmacyId: pharmacy.id, role: 'DISPENSER' });
+    const ownerAuth = await login(owner.user.email, owner.password);
+    const dispenserAuth = await login(dispenser.user.email, dispenser.password);
+    const { product, batch } = await createProductAndBatch({
+      pharmacyId: pharmacy.id,
+      userId: owner.user.id,
+      quantity: 18,
+    });
+
+    const suggestionResponse = await request(app)
+      .post('/api/v1/inventory/adjustment-suggestions')
+      .set('Authorization', `Bearer ${dispenserAuth.body.data.accessToken}`)
+      .field('productId', product.id)
+      .field('batchId', batch.id)
+      .field('quantityDelta', '-6')
+      .field('reason', 'COUNT_VARIANCE')
+      .field('note', 'Shelf count is short by six packs.');
+
+    expect(suggestionResponse.status).toBe(201);
+
+    const listResponse = await request(app)
+      .get('/api/v1/inventory/adjustment-suggestions')
+      .query({ status: 'PENDING' })
+      .set('Authorization', `Bearer ${ownerAuth.body.data.accessToken}`);
+
+    expect(listResponse.status).toBe(200);
+    expect(listResponse.body.data).toHaveLength(1);
+    expect(listResponse.body.data[0].id).toBe(suggestionResponse.body.data.id);
+
+    const reviewResponse = await request(app)
+      .patch(`/api/v1/inventory/adjustment-suggestions/${suggestionResponse.body.data.id}/review`)
+      .set('Authorization', `Bearer ${ownerAuth.body.data.accessToken}`)
+      .send({
+        status: 'PARTIAL',
+        approvedQuantityDelta: -2,
+        reviewNote: 'Approve only the visibly damaged packs.',
+      });
+
+    expect(reviewResponse.status).toBe(200);
+    expect(reviewResponse.body.data.status).toBe('PARTIAL');
+    expect(reviewResponse.body.data.approvedQuantityDelta).toBe(-2);
+    expect(reviewResponse.body.data.reviewedBy).toBe(owner.user.id);
+    expect(reviewResponse.body.data.reviewedAt).toBeTruthy();
+
+    const unchangedBatch = await prisma.batch.findUnique({ where: { id: batch.id } });
+    expect(unchangedBatch?.quantityRemaining).toBe(18);
+  });
+
+  it('blocks a dispenser from the owner review queue endpoints', async () => {
+    const pharmacy = await createPharmacy({ subscriptionTier: 'PREMIUM' });
+    const owner = await createUser({ pharmacyId: pharmacy.id, role: 'OWNER' });
+    const dispenser = await createUser({ pharmacyId: pharmacy.id, role: 'DISPENSER' });
+    const dispenserAuth = await login(dispenser.user.email, dispenser.password);
+    const { product } = await createProductAndBatch({
+      pharmacyId: pharmacy.id,
+      userId: owner.user.id,
+      quantity: 9,
+    });
+
+    const suggestion = await prisma.stockAdjustmentSuggestion.create({
+      data: {
+        pharmacyId: pharmacy.id,
+        productId: product.id,
+        quantityDelta: -1,
+        reason: 'DAMAGED',
+        createdBy: dispenser.user.id,
+      },
+    });
+
+    const listResponse = await request(app)
+      .get('/api/v1/inventory/adjustment-suggestions')
+      .query({ status: 'PENDING' })
+      .set('Authorization', `Bearer ${dispenserAuth.body.data.accessToken}`);
+
+    expect(listResponse.status).toBe(403);
+    expect(listResponse.body.error).toBe('ROLE_INSUFFICIENT');
+
+    const reviewResponse = await request(app)
+      .patch(`/api/v1/inventory/adjustment-suggestions/${suggestion.id}/review`)
+      .set('Authorization', `Bearer ${dispenserAuth.body.data.accessToken}`)
+      .send({
+        status: 'APPROVED',
+      });
+
+    expect(reviewResponse.status).toBe(403);
+    expect(reviewResponse.body.error).toBe('ROLE_INSUFFICIENT');
+  });
 });
