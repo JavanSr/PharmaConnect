@@ -173,6 +173,14 @@ inventoryRouter.get('/movements', requirePermission('inventory.manage_stock'), a
 
 inventoryRouter.post('/movements/adjust', requirePermission('inventory.manage_stock'), async (req: AuthRequest, res, next) => {
   try {
+    if (req.user?.normalizedRole === 'DISPENSER') {
+      res.status(403).json({
+        error: 'ROLE_INSUFFICIENT',
+        message: 'DISPENSER must submit a stock adjustment suggestion for owner review',
+      });
+      return;
+    }
+
     const data = z
       .object({
         productId: z.string(),
