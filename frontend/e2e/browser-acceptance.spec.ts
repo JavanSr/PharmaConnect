@@ -105,6 +105,67 @@ test('dispensing defaults to walk-in and can search/register patients while offl
   await expect(page.getByLabel('Patient name / label')).toHaveValue('Amina Juma');
 });
 
+test('dispensing hides patient checks until medicine rules trigger them and removes dose prompt', async ({ page }) => {
+  const product = {
+    id: 'product-amoxicillin',
+    name: 'Amoxicillin 500',
+    genericName: 'Amoxicillin',
+    strength: '500mg',
+    dosageForm: 'CAPSULE',
+    currentStock: 24,
+    sellingPrice: 1500,
+  };
+
+  await bootstrapSession(page, {
+    user: browserUsers.activeOwner,
+    pharmacy: pharmacies.active,
+  });
+  await mockShell(page, { subscription: pharmacies.active });
+
+  await page.route('**/api/v1/inventory/products**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ data: [product], total: 1, page: 1, limit: 10, totalPages: 1 }),
+    });
+  });
+
+  await page.route('**/api/v1/patient-safety/session-review', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: {
+          resolvedDrugs: [{ id: 'drug-amoxicillin', genericName: 'amoxicillin', source: product.id, sourceType: 'product' }],
+          interactions: [],
+          contraindications: [],
+          diagnosisMatches: [],
+          ncdHints: [],
+          dosageSuggestions: [],
+          requiredPatientInputs: [
+            { key: 'allergies', label: 'Allergy history', reason: 'amoxicillin needs allergy history.' },
+            { key: 'pregnant', label: 'Pregnancy status', reason: 'amoxicillin needs pregnancy screening.' },
+          ],
+          requiresPicPin: false,
+        },
+      }),
+    });
+  });
+
+  await expectProtectedRoute(page, '/dispensing');
+
+  await expect(page.getByLabel('Dose / directions')).toHaveCount(0);
+  await expect(page.getByText('Rule-triggered patient checks')).toHaveCount(0);
+
+  await page.getByLabel('Medicine').fill('amox');
+  await page.getByRole('button', { name: /Amoxicillin/i }).first().click();
+  await page.getByRole('button', { name: 'Add to basket' }).click();
+
+  await expect(page.getByText('Rule-triggered patient checks')).toBeVisible();
+  await expect(page.getByText('Allergies')).toBeVisible();
+  await expect(page.getByText('Pregnant')).toBeVisible();
+});
+
 test('offline stock intake queues locally and flushes to live batches when back online', async ({ page, context }) => {
   const batchNumber = `PW-E2E-${Date.now()}`;
   const syncedBatches: Array<Record<string, unknown>> = [];

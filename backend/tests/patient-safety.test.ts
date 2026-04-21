@@ -1,6 +1,9 @@
 import request from 'supertest';
 import app from '../src/index';
-import { calculateDose } from '../src/modules/patient-safety/patient-safety.service';
+import {
+  calculateDose,
+  deriveRequiredPatientInputs,
+} from '../src/modules/patient-safety/patient-safety.service';
 import { createPharmacy, createUser, disconnectTestDb, latestOverrideLogCount, login } from './helpers';
 
 describe('patient safety business logic', () => {
@@ -19,6 +22,41 @@ describe('patient safety business logic', () => {
     const clark = results.find((item) => item.method === "Clark's rule");
     expect(clark?.valueMg).toBe(200);
     expect(clark?.working).toContain('(28 kg / 70 kg) x 500 mg = 200 mg');
+  });
+
+  it('derives only the patient inputs triggered by the selected basket', () => {
+    const required = deriveRequiredPatientInputs({
+      resolvedDrugs: [
+        {
+          genericName: 'warfarin',
+          pregnancyCategory: 'X',
+          breastfeedingSafety: 'Compatible',
+          renalCaution: false,
+          hepaticCaution: true,
+        } as any,
+        {
+          genericName: 'amoxicillin',
+          pregnancyCategory: 'B',
+          breastfeedingSafety: 'Compatible',
+          renalCaution: false,
+          hepaticCaution: false,
+        } as any,
+      ],
+      contraindications: [
+        {
+          conditionType: 'ALLERGY_CLASS',
+          drug: { genericName: 'amoxicillin' },
+        } as any,
+      ],
+    });
+
+    expect(required.map((item) => item.key)).toEqual([
+      'allergies',
+      'pregnant',
+      'hepaticImpairment',
+    ]);
+    expect(required[0]?.reason).toContain('amoxicillin');
+    expect(required[1]?.reason).toContain('warfarin');
   });
 
   it.skip('excludes clinician_reviewed=false drugs from search', async () => {

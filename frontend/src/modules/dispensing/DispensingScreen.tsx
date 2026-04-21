@@ -80,7 +80,6 @@ export const DispensingScreen: React.FC = () => {
   const [showDrugDropdown, setShowDrugDropdown] = useState(false);
   const [selectedDrug, setSelectedDrug] = useState<Product | null>(null);
   const [quantity, setQuantity] = useState(1);
-  const [dose, setDose] = useState('');
   const [counsellingNotes, setCounsellingNotes] = useState('');
   const [cartItems, setCartItems] = useState<DispensingCartItem[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CASH');
@@ -172,6 +171,18 @@ export const DispensingScreen: React.FC = () => {
     { label: 'Renal impairment', value: renalImpairment, setValue: setRenalImpairment },
     { label: 'Hepatic impairment', value: hepaticImpairment, setValue: setHepaticImpairment },
   ];
+  const requiredPatientInputKeys = useMemo(
+    () => new Set((safetyStatus.review?.requiredPatientInputs ?? []).map((item) => item.key)),
+    [safetyStatus.review?.requiredPatientInputs],
+  );
+  const showPatientChecks =
+    cartItems.length > 0 &&
+    (requiredPatientInputKeys.has('diagnoses') ||
+      requiredPatientInputKeys.has('allergies') ||
+      requiredPatientInputKeys.has('pregnant') ||
+      requiredPatientInputKeys.has('breastfeeding') ||
+      requiredPatientInputKeys.has('renalImpairment') ||
+      requiredPatientInputKeys.has('hepaticImpairment'));
 
   const resetPatientProfile = () => {
     setPatientLabel(WALK_IN_LABEL);
@@ -228,7 +239,6 @@ export const DispensingScreen: React.FC = () => {
             productId: item.product.id,
             quantity: item.quantity,
             unitPrice: item.unitPrice,
-            dose: item.dose,
             counsellingNotes: item.counsellingNotes,
           })),
         })
@@ -277,7 +287,7 @@ export const DispensingScreen: React.FC = () => {
 
     const unitPrice = Number(selectedDrug.sellingPrice ?? 0);
     const lineTotal = Number((unitPrice * quantity).toFixed(2));
-    const lineId = `${selectedDrug.id}:${dose.trim().toLowerCase()}:${counsellingNotes.trim().toLowerCase()}`;
+    const lineId = `${selectedDrug.id}:${counsellingNotes.trim().toLowerCase()}`;
 
     setCartItems((items) => {
       const existing = items.find((item) => item.id === lineId);
@@ -288,7 +298,6 @@ export const DispensingScreen: React.FC = () => {
             id: lineId,
             product: selectedDrug,
             quantity,
-            dose: dose.trim() || undefined,
             counsellingNotes: counsellingNotes.trim() || undefined,
             unitPrice,
             lineTotal,
@@ -311,7 +320,6 @@ export const DispensingScreen: React.FC = () => {
     setSelectedDrug(null);
     setDrugSearch('');
     setQuantity(1);
-    setDose('');
     setCounsellingNotes('');
     toast.success('Medicine added to cart');
   };
@@ -524,85 +532,44 @@ export const DispensingScreen: React.FC = () => {
                 onChange={(event) => setAgeYears(event.target.value)}
                 placeholder="Optional"
               />
-              <Input
-                label="Weight (kg)"
-                type="number"
+                <Input
+                  label="Weight (kg)"
+                  type="number"
                 min="0"
                 value={weightKg}
                 onChange={(event) => setWeightKg(event.target.value)}
-                placeholder="Optional"
-              />
-            </div>
+                  placeholder="Optional"
+                />
+              </div>
 
-            {phoneMatches.length > 0 && (
-              <div className="mt-4 rounded-2xl border border-[#D6F0E8] bg-[#F8FAFC] p-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-[#64748B]">
-                  Cached patients for this pharmacy
-                </p>
-                <div className="mt-2 space-y-2">
-                  {phoneMatches.map((profile) => (
-                    <button
-                      key={profile.normalizedPhone}
-                      type="button"
-                      onClick={() =>
-                        applyPatientProfile({
-                          ...profile,
-                          phone: profile.phone,
-                        })
-                      }
-                      className="flex w-full items-center justify-between rounded-2xl border border-[#D6F0E8] bg-white px-4 py-3 text-left hover:bg-[#EDF7F3]"
-                    >
-                      <span>
-                        <span className="block text-sm font-semibold text-[#0D4035]">{profile.name}</span>
-                        <span className="mt-1 block text-xs text-[#64748B]">{profile.phone}</span>
-                      </span>
-                      <Badge variant="info" size="sm">Load</Badge>
-                    </button>
-                  ))}
+              {phoneMatches.length > 0 && (
+                <div className="mt-4 rounded-2xl border border-[#D6F0E8] bg-[#F8FAFC] p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-[#64748B]">
+                    Cached patients for this pharmacy
+                  </p>
+                  <div className="mt-2 space-y-2">
+                    {phoneMatches.map((profile) => (
+                      <button
+                        key={profile.normalizedPhone}
+                        type="button"
+                        onClick={() =>
+                          applyPatientProfile({
+                            ...profile,
+                            phone: profile.phone,
+                          })
+                        }
+                        className="flex w-full items-center justify-between rounded-2xl border border-[#D6F0E8] bg-white px-4 py-3 text-left hover:bg-[#EDF7F3]"
+                      >
+                        <span>
+                          <span className="block text-sm font-semibold text-[#0D4035]">{profile.name}</span>
+                          <span className="mt-1 block text-xs text-[#64748B]">{profile.phone}</span>
+                        </span>
+                        <Badge variant="info" size="sm">Load</Badge>
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
-
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <div>
-                <label className="mb-1 block text-sm font-medium text-[#0D4035]">Diagnoses</label>
-                <textarea
-                  value={diagnosesText}
-                  onChange={(event) => setDiagnosesText(event.target.value)}
-                  rows={3}
-                  className="w-full rounded-2xl border border-[#D6F0E8] px-3 py-2.5 text-sm text-[#0D4035] outline-none transition-colors focus:border-[#1A6B5C] focus:ring-2 focus:ring-[#1A6B5C]/20"
-                  placeholder="Comma separated, e.g. epilepsy, hypertension in pregnancy"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium text-[#0D4035]">Allergies</label>
-                <textarea
-                  value={allergiesText}
-                  onChange={(event) => setAllergiesText(event.target.value)}
-                  rows={3}
-                  className="w-full rounded-2xl border border-[#D6F0E8] px-3 py-2.5 text-sm text-[#0D4035] outline-none transition-colors focus:border-[#1A6B5C] focus:ring-2 focus:ring-[#1A6B5C]/20"
-                  placeholder="Comma separated, e.g. penicillin, NSAID"
-                />
-              </div>
-            </div>
-
-            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              {sessionFlagOptions.map(({ label, value, setValue }) => (
-                <button
-                  key={label}
-                  type="button"
-                  onClick={() => setValue(!value)}
-                  className={`rounded-2xl border px-4 py-3 text-left transition-colors ${
-                    value
-                      ? 'border-[#1A6B5C] bg-[#EDF7F3] text-[#0D4035]'
-                      : 'border-[#D6F0E8] bg-white text-[#64748B]'
-                  }`}
-                >
-                  <p className="text-xs uppercase tracking-wide">{label}</p>
-                  <p className="mt-1 text-sm font-semibold">{value ? 'Yes' : 'No'}</p>
-                </button>
-              ))}
-            </div>
+              )}
           </Card>
 
           <Card
@@ -670,19 +637,13 @@ export const DispensingScreen: React.FC = () => {
               </div>
             )}
 
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <div className="mt-4">
               <Input
                 label="Quantity"
                 type="number"
                 min="1"
                 value={String(quantity)}
                 onChange={(event) => setQuantity(Math.max(1, Number(event.target.value) || 1))}
-              />
-              <Input
-                label="Dose / directions"
-                value={dose}
-                onChange={(event) => setDose(event.target.value)}
-                placeholder="e.g. 1 tablet twice daily"
               />
             </div>
 
@@ -707,7 +668,6 @@ export const DispensingScreen: React.FC = () => {
                   setSelectedDrug(null);
                   setDrugSearch('');
                   setQuantity(1);
-                  setDose('');
                   setCounsellingNotes('');
                 }}
               >
@@ -715,6 +675,85 @@ export const DispensingScreen: React.FC = () => {
               </Button>
             </div>
           </Card>
+
+          {showPatientChecks && (
+            <Card
+              header={
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <UserRoundSearch size={16} className="text-[#1A6B5C]" />
+                    <span className="text-sm font-semibold text-[#0D4035]">Rule-triggered patient checks</span>
+                  </div>
+                  <Badge variant="warning" size="sm">
+                    After medicine selection
+                  </Badge>
+                </div>
+              }
+            >
+              <div className="rounded-2xl bg-[#F8FAFC] px-4 py-3 text-xs text-[#64748B]">
+                {(safetyStatus.review?.requiredPatientInputs ?? []).map((item) => item.reason).join(' ')}
+              </div>
+
+              {(requiredPatientInputKeys.has('diagnoses') || requiredPatientInputKeys.has('allergies')) && (
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  {requiredPatientInputKeys.has('diagnoses') && (
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-[#0D4035]">Diagnoses</label>
+                      <textarea
+                        value={diagnosesText}
+                        onChange={(event) => setDiagnosesText(event.target.value)}
+                        rows={3}
+                        className="w-full rounded-2xl border border-[#D6F0E8] px-3 py-2.5 text-sm text-[#0D4035] outline-none transition-colors focus:border-[#1A6B5C] focus:ring-2 focus:ring-[#1A6B5C]/20"
+                        placeholder="Comma separated, e.g. epilepsy, hypertension in pregnancy"
+                      />
+                    </div>
+                  )}
+                  {requiredPatientInputKeys.has('allergies') && (
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-[#0D4035]">Allergies</label>
+                      <textarea
+                        value={allergiesText}
+                        onChange={(event) => setAllergiesText(event.target.value)}
+                        rows={3}
+                        className="w-full rounded-2xl border border-[#D6F0E8] px-3 py-2.5 text-sm text-[#0D4035] outline-none transition-colors focus:border-[#1A6B5C] focus:ring-2 focus:ring-[#1A6B5C]/20"
+                        placeholder="Comma separated, e.g. penicillin, NSAID"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                {sessionFlagOptions
+                  .filter(({ label }) => {
+                    const key =
+                      label === 'Pregnant'
+                        ? 'pregnant'
+                        : label === 'Breastfeeding'
+                          ? 'breastfeeding'
+                          : label === 'Renal impairment'
+                            ? 'renalImpairment'
+                            : 'hepaticImpairment';
+                    return requiredPatientInputKeys.has(key);
+                  })
+                  .map(({ label, value, setValue }) => (
+                    <button
+                      key={label}
+                      type="button"
+                      onClick={() => setValue(!value)}
+                      className={`rounded-2xl border px-4 py-3 text-left transition-colors ${
+                        value
+                          ? 'border-[#1A6B5C] bg-[#EDF7F3] text-[#0D4035]'
+                          : 'border-[#D6F0E8] bg-white text-[#64748B]'
+                      }`}
+                    >
+                      <p className="text-xs uppercase tracking-wide">{label}</p>
+                      <p className="mt-1 text-sm font-semibold">{value ? 'Yes' : 'No'}</p>
+                    </button>
+                  ))}
+              </div>
+            </Card>
+          )}
 
           <DoseCalculator />
         </div>
@@ -754,9 +793,7 @@ export const DispensingScreen: React.FC = () => {
                         <p className="text-sm font-semibold text-[#0D4035]">
                           {item.product.genericName || item.product.name}
                         </p>
-                        <p className="mt-1 text-xs text-[#64748B]">
-                          {item.quantity} x {money(item.unitPrice)} {item.dose ? `| ${item.dose}` : ''}
-                        </p>
+                        <p className="mt-1 text-xs text-[#64748B]">{item.quantity} x {money(item.unitPrice)}</p>
                       </div>
                       <div className="text-right">
                         <p className="text-sm font-bold text-[#0D4035]">{money(item.lineTotal)}</p>

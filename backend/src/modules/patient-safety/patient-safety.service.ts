@@ -54,6 +54,29 @@ export type SafetySessionContext = {
   hepaticImpairment?: boolean;
 };
 
+export type RequiredPatientInputKey =
+  | 'pregnant'
+  | 'breastfeeding'
+  | 'diagnoses'
+  | 'allergies'
+  | 'renalImpairment'
+  | 'hepaticImpairment';
+
+export type RequiredPatientInput = {
+  key: RequiredPatientInputKey;
+  label: string;
+  reason: string;
+};
+
+const REQUIRED_PATIENT_INPUT_META: Record<RequiredPatientInputKey, { label: string }> = {
+  pregnant: { label: 'Pregnancy status' },
+  breastfeeding: { label: 'Breastfeeding status' },
+  diagnoses: { label: 'Relevant diagnoses' },
+  allergies: { label: 'Allergy history' },
+  renalImpairment: { label: 'Renal impairment' },
+  hepaticImpairment: { label: 'Hepatic impairment' },
+};
+
 function normalizeText(value: string | null | undefined): string {
   return (value ?? '').trim().toLowerCase();
 }
@@ -185,6 +208,77 @@ async function resolveDrugsFromContext(context: SafetySessionContext): Promise<R
 
 function pairKey(a: string, b: string): string {
   return [a, b].sort().join(':');
+}
+
+export function deriveRequiredPatientInputs(input: {
+  resolvedDrugs: Array<
+    Pick<
+      ResolvedDrug,
+      | 'genericName'
+      | 'pregnancyCategory'
+      | 'breastfeedingSafety'
+      | 'renalCaution'
+      | 'hepaticCaution'
+    >
+  >;
+  contraindications: Array<
+    Pick<DrugContraindication, 'conditionType'> & {
+      drug: Pick<DrugDatabase, 'genericName'>;
+    }
+  >;
+}): RequiredPatientInput[] {
+  const required = new Map<RequiredPatientInputKey, RequiredPatientInput>();
+  const addInput = (key: RequiredPatientInputKey, reason: string) => {
+    if (!required.has(key)) {
+      required.set(key, {
+        key,
+        label: REQUIRED_PATIENT_INPUT_META[key].label,
+        reason,
+      });
+    }
+  };
+
+  for (const row of input.contraindications) {
+    switch (row.conditionType) {
+      case 'PREGNANCY':
+        addInput('pregnant', `${row.drug.genericName} needs pregnancy screening.`);
+        break;
+      case 'ALLERGY_CLASS':
+        addInput('allergies', `${row.drug.genericName} needs allergy history.`);
+        break;
+      case 'DIAGNOSIS':
+        addInput('diagnoses', `${row.drug.genericName} needs diagnosis review.`);
+        break;
+      case 'RENAL':
+        addInput('renalImpairment', `${row.drug.genericName} needs renal status.`);
+        break;
+      case 'HEPATIC':
+        addInput('hepaticImpairment', `${row.drug.genericName} needs hepatic status.`);
+        break;
+      default:
+        break;
+    }
+  }
+
+  for (const drug of input.resolvedDrugs) {
+    if (['D', 'X'].includes(drug.pregnancyCategory)) {
+      addInput('pregnant', `${drug.genericName} has pregnancy risk guidance.`);
+    }
+
+    if (drug.breastfeedingSafety && normalizeText(drug.breastfeedingSafety) !== 'compatible') {
+      addInput('breastfeeding', `${drug.genericName} has breastfeeding caution.`);
+    }
+
+    if (drug.renalCaution) {
+      addInput('renalImpairment', `${drug.genericName} has renal caution.`);
+    }
+
+    if (drug.hepaticCaution) {
+      addInput('hepaticImpairment', `${drug.genericName} has hepatic caution.`);
+    }
+  }
+
+  return [...required.values()];
 }
 
 export async function getDrugDetails(query: string) {
@@ -426,6 +520,13 @@ export async function sessionReview(context: SafetySessionContext) {
   }
 
   const resolvedDrugs = [...resolvedDrugMap.values()];
+  const contraindicationCatalogue = await getContraindicationCatalogue();
+  const requiredPatientInputs = deriveRequiredPatientInputs({
+    resolvedDrugs,
+    contraindications: contraindicationCatalogue.filter((row) =>
+      resolvedDrugs.some((drug) => drug.id === row.drugId),
+    ),
+  });
   const diagnoses = uniqueStrings(context.diagnoses ?? []).join(' ');
   const diagnosisMatches = diagnoses ? await matchDiagnosis({ diagnosis: diagnoses }) : [];
   const ncdHints = resolvedDrugs.flatMap((drug) => drug.ncdHints ?? []);
@@ -452,6 +553,7 @@ export async function sessionReview(context: SafetySessionContext) {
     diagnosisMatches,
     ncdHints: [...new Set(ncdHints)],
     dosageSuggestions,
+    requiredPatientInputs,
     requiresPicPin:
       interactionResult.interactions.some((item) => item.requiresPicPin) ||
       contraindicationResult.contraindications.some((item) => item.requiresPicPin),

@@ -66,6 +66,17 @@ export interface SafetyReviewResponse {
   diagnosisMatches: DiagnosisMatch[];
   ncdHints: string[];
   dosageSuggestions: DosageSuggestion[];
+  requiredPatientInputs: Array<{
+    key:
+      | 'pregnant'
+      | 'breastfeeding'
+      | 'diagnoses'
+      | 'allergies'
+      | 'renalImpairment'
+      | 'hepaticImpairment';
+    label: string;
+    reason: string;
+  }>;
   requiresPicPin: boolean;
 }
 
