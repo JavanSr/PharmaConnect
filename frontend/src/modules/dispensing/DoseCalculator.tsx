@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { Calculator } from 'lucide-react';
+import { AlertTriangle, Calculator } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
@@ -8,13 +8,27 @@ import { api } from '@/lib/api';
 import { useNotificationStore } from '@/stores/notificationStore';
 import type { DoseMethodResult } from './types';
 
-export const DoseCalculator: React.FC = () => {
+export const DoseCalculator: React.FC<{
+  patientAgeYears?: string;
+  patientWeightKg?: string;
+  pediatricWeightRequired?: boolean;
+  onRequestWeight?: () => void;
+}> = ({ patientAgeYears, patientWeightKg, pediatricWeightRequired = false, onRequestWeight }) => {
   const toast = useNotificationStore((state) => state.toast);
+  const [enabled, setEnabled] = useState(false);
   const [adultDoseMg, setAdultDoseMg] = useState('');
   const [ageYears, setAgeYears] = useState('');
   const [weightKg, setWeightKg] = useState('');
   const [recommendedMgPerKg, setRecommendedMgPerKg] = useState('');
   const [results, setResults] = useState<DoseMethodResult[]>([]);
+
+  useEffect(() => {
+    setAgeYears(patientAgeYears ?? '');
+  }, [patientAgeYears]);
+
+  useEffect(() => {
+    setWeightKg(patientWeightKg ?? '');
+  }, [patientWeightKg]);
 
   const calculateMutation = useMutation({
     mutationFn: () =>
@@ -34,15 +48,72 @@ export const DoseCalculator: React.FC = () => {
     },
   });
 
+  if (!enabled) {
+    return (
+      <Card
+        header={
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Calculator size={16} className="text-[#1A6B5C]" />
+              <span className="text-sm font-semibold text-[#0D4035]">Dose calculator</span>
+            </div>
+            <Button variant="secondary" size="sm" onClick={() => setEnabled(true)}>
+              Enable dose calculator
+            </Button>
+          </div>
+        }
+      >
+        {pediatricWeightRequired ? (
+          <div className="rounded-2xl border border-[#FDE68A] bg-[#FFFBEB] px-4 py-4">
+            <div className="flex items-start gap-2">
+              <AlertTriangle size={16} className="mt-0.5 text-[#D97706]" />
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-[#92400E]">
+                  Pediatric patient detected without recorded weight.
+                </p>
+                <p className="mt-1 text-xs text-[#92400E]">
+                  Add weight before using dose support for safer pediatric calculations.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button size="sm" onClick={onRequestWeight}>
+                    Add weight
+                  </Button>
+                  <Button variant="secondary" size="sm" onClick={() => setEnabled(true)}>
+                    Open calculator
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-[#64748B]">
+            Dose calculator is off by default. Turn it on when you need Clark&apos;s, Young&apos;s, or weight-based working.
+          </p>
+        )}
+      </Card>
+    );
+  }
+
   return (
     <Card
       header={
-        <div className="flex items-center gap-2">
-          <Calculator size={16} className="text-[#1A6B5C]" />
-          <span className="text-sm font-semibold text-[#0D4035]">Dose calculator</span>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Calculator size={16} className="text-[#1A6B5C]" />
+            <span className="text-sm font-semibold text-[#0D4035]">Dose calculator</span>
+          </div>
+          <Button variant="ghost" size="sm" onClick={() => setEnabled(false)}>
+            Hide
+          </Button>
         </div>
       }
     >
+      {pediatricWeightRequired && (
+        <div className="mb-4 rounded-2xl border border-[#FDE68A] bg-[#FFFBEB] px-4 py-3 text-xs text-[#92400E]">
+          Weight is required for pediatric dose support.
+        </div>
+      )}
+
       <div className="grid gap-3 md:grid-cols-2">
         <Input
           label="Adult dose (mg)"

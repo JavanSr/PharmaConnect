@@ -166,6 +166,68 @@ test('dispensing hides patient checks until medicine rules trigger them and remo
   await expect(page.getByText('Pregnant')).toBeVisible();
 });
 
+test('dose calculator stays off by default and prompts for pediatric weight', async ({ page }) => {
+  const product = {
+    id: 'product-ibuprofen',
+    name: 'Ibuprofen 200',
+    genericName: 'Ibuprofen',
+    strength: '200mg',
+    dosageForm: 'TABLET',
+    currentStock: 30,
+    sellingPrice: 800,
+  };
+
+  await bootstrapSession(page, {
+    user: browserUsers.activeOwner,
+    pharmacy: pharmacies.active,
+  });
+  await mockShell(page, { subscription: pharmacies.active });
+
+  await page.route('**/api/v1/inventory/products**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ data: [product], total: 1, page: 1, limit: 10, totalPages: 1 }),
+    });
+  });
+
+  await page.route('**/api/v1/patient-safety/session-review', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: {
+          resolvedDrugs: [{ id: 'drug-ibuprofen', genericName: 'ibuprofen', source: product.id, sourceType: 'product' }],
+          interactions: [],
+          contraindications: [],
+          diagnosisMatches: [],
+          ncdHints: [],
+          dosageSuggestions: [],
+          requiredPatientInputs: [],
+          requiresPicPin: false,
+        },
+      }),
+    });
+  });
+
+  await expectProtectedRoute(page, '/dispensing');
+
+  await expect(page.getByRole('button', { name: 'Enable dose calculator' })).toBeVisible();
+  await expect(page.getByLabel('Adult dose (mg)')).toHaveCount(0);
+
+  await page.getByLabel('Age (years)').fill('8');
+  await page.getByLabel('Medicine').fill('ibu');
+  await page.getByRole('button', { name: /Ibuprofen/i }).first().click();
+  await page.getByRole('button', { name: 'Add to basket' }).click();
+
+  await expect(page.getByText('Pediatric patient detected without recorded weight.')).toBeVisible();
+  await page.getByRole('button', { name: 'Add weight' }).click();
+  await expect(page.getByLabel('Weight (kg)')).toBeFocused();
+
+  await page.getByRole('button', { name: 'Enable dose calculator' }).click();
+  await expect(page.getByLabel('Adult dose (mg)')).toBeVisible();
+});
+
 test('offline stock intake queues locally and flushes to live batches when back online', async ({ page, context }) => {
   const batchNumber = `PW-E2E-${Date.now()}`;
   const syncedBatches: Array<Record<string, unknown>> = [];

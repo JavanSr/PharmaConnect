@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import {
@@ -71,6 +71,7 @@ export const DispensingScreen: React.FC = () => {
   const toast = useNotificationStore((state) => state.toast);
   const pharmacy = usePharmacyStore((state) => state.pharmacy);
   const user = useAuthStore((state) => state.user);
+  const weightInputRef = useRef<HTMLInputElement>(null);
   const pharmacyPatientProfiles = useDispensingPatientStore(
     (state) => state.profilesByPharmacy[pharmacy?.id ?? 'default'] ?? [],
   );
@@ -175,6 +176,10 @@ export const DispensingScreen: React.FC = () => {
     () => new Set((safetyStatus.review?.requiredPatientInputs ?? []).map((item) => item.key)),
     [safetyStatus.review?.requiredPatientInputs],
   );
+  const numericAgeYears = ageYears ? Number(ageYears) : undefined;
+  const numericWeightKg = weightKg ? Number(weightKg) : undefined;
+  const isPaediatricPatient = typeof numericAgeYears === 'number' && numericAgeYears >= 0 && numericAgeYears < 12;
+  const paediatricWeightRequired = cartItems.length > 0 && isPaediatricPatient && !numericWeightKg;
   const showPatientChecks =
     cartItems.length > 0 &&
     (requiredPatientInputKeys.has('diagnoses') ||
@@ -533,6 +538,7 @@ export const DispensingScreen: React.FC = () => {
                 placeholder="Optional"
               />
                 <Input
+                  ref={weightInputRef}
                   label="Weight (kg)"
                   type="number"
                 min="0"
@@ -755,7 +761,12 @@ export const DispensingScreen: React.FC = () => {
             </Card>
           )}
 
-          <DoseCalculator />
+          <DoseCalculator
+            patientAgeYears={ageYears}
+            patientWeightKg={weightKg}
+            pediatricWeightRequired={paediatricWeightRequired}
+            onRequestWeight={() => weightInputRef.current?.focus()}
+          />
         </div>
 
         <div className="space-y-5">
