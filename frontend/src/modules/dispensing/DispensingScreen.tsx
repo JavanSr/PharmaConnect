@@ -21,6 +21,10 @@ import { useDebounce } from '@/hooks/useDebounce';
 import { api } from '@/lib/api';
 import { downloadReceiptPdf } from '@/lib/receiptPdf';
 import { useAuthStore } from '@/stores/authStore';
+import {
+  normalizePatientPhone,
+  useDispensingPatientStore,
+} from '@/stores/dispensingPatientStore';
 import { useNotificationStore } from '@/stores/notificationStore';
 import { usePharmacyStore } from '@/stores/pharmacyStore';
 import type { PaymentMethod, Product } from '@/types';
@@ -60,12 +64,17 @@ type SessionFlagOption = {
 };
 
 const isRetailSafetyTier = (tier?: string | null) => ['STANDARD', 'PREMIUM', 'ENTERPRISE'].includes(tier || '');
+const WALK_IN_LABEL = 'Walk-in customer';
 
 export const DispensingScreen: React.FC = () => {
   const queryClient = useQueryClient();
   const toast = useNotificationStore((state) => state.toast);
   const pharmacy = usePharmacyStore((state) => state.pharmacy);
   const user = useAuthStore((state) => state.user);
+  const pharmacyPatientProfiles = useDispensingPatientStore(
+    (state) => state.profilesByPharmacy[pharmacy?.id ?? 'default'] ?? [],
+  );
+  const upsertPatientProfile = useDispensingPatientStore((state) => state.upsertProfile);
 
   const [drugSearch, setDrugSearch] = useState('');
   const [showDrugDropdown, setShowDrugDropdown] = useState(false);
@@ -80,7 +89,8 @@ export const DispensingScreen: React.FC = () => {
   const [discountReason, setDiscountReason] = useState('');
   const [receipt, setReceipt] = useState<DispensingReceipt | null>(null);
 
-  const [patientLabel, setPatientLabel] = useState('');
+  const [patientLabel, setPatientLabel] = useState(WALK_IN_LABEL);
+  const [patientPhone, setPatientPhone] = useState('');
   const [ageYears, setAgeYears] = useState('');
   const [weightKg, setWeightKg] = useState('');
   const [diagnosesText, setDiagnosesText] = useState('');
@@ -101,6 +111,7 @@ export const DispensingScreen: React.FC = () => {
   const parsedDiscount = Number(discountAmount || 0);
   const totalDue = Math.max(0, cartTotal - (Number.isFinite(parsedDiscount) ? parsedDiscount : 0));
   const canApplyDiscount = ['OWNER', 'PHARMACIST_IN_CHARGE', 'SUPER_ADMIN'].includes(user?.role || '');
+  const normalizedPatientPhone = useMemo(() => normalizePatientPhone(patientPhone), [patientPhone]);
   const safetyEnabled =
     isRetailSafetyTier(pharmacy?.subscriptionTier) &&
     pharmacy?.pharmacyType !== 'ADDO' &&
@@ -148,12 +159,56 @@ export const DispensingScreen: React.FC = () => {
           ),
     [patientLabel, sessionShortcuts],
   );
+  const phoneMatches = useMemo(
+    () =>
+      normalizedPatientPhone.length < 3
+        ? []
+        : pharmacyPatientProfiles.filter((profile) => profile.normalizedPhone.includes(normalizedPatientPhone)),
+    [normalizedPatientPhone, pharmacyPatientProfiles],
+  );
   const sessionFlagOptions: SessionFlagOption[] = [
     { label: 'Pregnant', value: pregnant, setValue: setPregnant },
     { label: 'Breastfeeding', value: breastfeeding, setValue: setBreastfeeding },
     { label: 'Renal impairment', value: renalImpairment, setValue: setRenalImpairment },
     { label: 'Hepatic impairment', value: hepaticImpairment, setValue: setHepaticImpairment },
   ];
+
+  const resetPatientProfile = () => {
+    setPatientLabel(WALK_IN_LABEL);
+    setPatientPhone('');
+    setAgeYears('');
+    setWeightKg('');
+    setDiagnosesText('');
+    setAllergiesText('');
+    setPregnant(false);
+    setBreastfeeding(false);
+    setRenalImpairment(false);
+    setHepaticImpairment(false);
+  };
+
+  const applyPatientProfile = (profile: {
+    phone?: string;
+    name: string;
+    ageYears?: number;
+    weightKg?: number;
+    diagnoses: string[];
+    allergies: string[];
+    pregnant: boolean;
+    breastfeeding: boolean;
+    renalImpairment: boolean;
+    hepaticImpairment: boolean;
+  }) => {
+    setPatientLabel(profile.name);
+    setPatientPhone(profile.phone ?? '');
+    setAgeYears(profile.ageYears ? String(profile.ageYears) : '');
+    setWeightKg(profile.weightKg ? String(profile.weightKg) : '');
+    setDiagnosesText(profile.diagnoses.join(', '));
+    setAllergiesText(profile.allergies.join(', '));
+    setPregnant(profile.pregnant);
+    setBreastfeeding(profile.breastfeeding);
+    setRenalImpairment(profile.renalImpairment);
+    setHepaticImpairment(profile.hepaticImpairment);
+  };
 
   useEffect(() => {
     setReceipt(null);
@@ -186,6 +241,7 @@ export const DispensingScreen: React.FC = () => {
       setDiscountReason('');
       setSelectedDrug(null);
       setDrugSearch('');
+      resetPatientProfile();
       toast.success('Dispensing completed');
       queryClient.invalidateQueries({ queryKey: ['dashboard-stock'] });
       queryClient.invalidateQueries({ queryKey: ['products'] });
@@ -286,15 +342,53 @@ export const DispensingScreen: React.FC = () => {
   };
 
   const applySessionShortcut = (shortcut: SessionShortcut) => {
-    setPatientLabel(shortcut.label);
-    setAgeYears(shortcut.ageYears ? String(shortcut.ageYears) : '');
-    setWeightKg(shortcut.weightKg ? String(shortcut.weightKg) : '');
-    setDiagnosesText(shortcut.diagnoses.join(', '));
-    setAllergiesText(shortcut.allergies.join(', '));
-    setPregnant(shortcut.pregnant);
-    setBreastfeeding(shortcut.breastfeeding);
-    setRenalImpairment(shortcut.renalImpairment);
-    setHepaticImpairment(shortcut.hepaticImpairment);
+    applyPatientProfile({
+      ...shortcut,
+      name: shortcut.label,
+    });
+  };
+
+  const handleSearchOrRegister = () => {
+    if (!normalizedPatientPhone) {
+      toast.error('Enter a phone number first');
+      return;
+    }
+
+    const existingProfile = pharmacyPatientProfiles.find(
+      (profile) => profile.normalizedPhone === normalizedPatientPhone,
+    );
+
+    if (existingProfile) {
+      applyPatientProfile({
+        ...existingProfile,
+        phone: existingProfile.phone,
+      });
+      toast.success(`Loaded ${existingProfile.name} from local patient cache`);
+      return;
+    }
+
+    const trimmedName = patientLabel.trim();
+    if (!trimmedName || trimmedName === WALK_IN_LABEL) {
+      toast.error('Enter a patient name to register this phone number');
+      return;
+    }
+
+    const pharmacyId = pharmacy?.id ?? 'default';
+    upsertPatientProfile(pharmacyId, {
+      phone: patientPhone.trim(),
+      normalizedPhone: normalizedPatientPhone,
+      name: trimmedName,
+      ageYears: ageYears ? Number(ageYears) : undefined,
+      weightKg: weightKg ? Number(weightKg) : undefined,
+      diagnoses: sessionPayload.diagnoses || [],
+      allergies: sessionPayload.allergies || [],
+      pregnant,
+      breastfeeding,
+      renalImpairment,
+      hepaticImpairment,
+      updatedAt: new Date().toISOString(),
+    });
+    toast.success('Patient saved locally for this pharmacy');
   };
 
   return (
@@ -371,17 +465,36 @@ export const DispensingScreen: React.FC = () => {
                   <UserRoundSearch size={16} className="text-[#1A6B5C]" />
                   <span className="text-sm font-semibold text-[#0D4035]">Session patient profile</span>
                 </div>
-                <Badge variant="info" size="sm">No data saved</Badge>
+                <Badge variant={patientPhone ? 'info' : 'muted'} size="sm">
+                  {patientPhone ? 'Local patient cache' : 'Walk-in default'}
+                </Badge>
               </div>
             }
           >
             <div className="grid gap-4 md:grid-cols-2">
+              <div className="md:col-span-2 flex flex-wrap gap-3">
+                <Button variant="secondary" onClick={resetPatientProfile}>
+                  Use walk-in
+                </Button>
+                <Input
+                  label="Phone number"
+                  value={patientPhone}
+                  onChange={(event) => setPatientPhone(event.target.value)}
+                  placeholder="Search or register by phone"
+                />
+                <div className="flex items-end">
+                  <Button onClick={handleSearchOrRegister}>
+                    Search/Register
+                  </Button>
+                </div>
+              </div>
               <div className="relative">
                 <Input
-                  label="Session label"
+                  label="Patient name / label"
                   value={patientLabel}
                   onChange={(event) => setPatientLabel(event.target.value)}
-                  placeholder="e.g. walk-in child, repeat customer"
+                  placeholder="Walk-in customer or registered patient name"
+                  hint="Search by phone to load a local patient, or enter a name before registering a new one."
                 />
                 {sessionMatches.length > 0 && (
                   <div className="absolute left-0 right-0 top-full z-20 mt-1 rounded-2xl border border-[#D6F0E8] bg-white shadow-lg">
@@ -420,6 +533,35 @@ export const DispensingScreen: React.FC = () => {
                 placeholder="Optional"
               />
             </div>
+
+            {phoneMatches.length > 0 && (
+              <div className="mt-4 rounded-2xl border border-[#D6F0E8] bg-[#F8FAFC] p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[#64748B]">
+                  Cached patients for this pharmacy
+                </p>
+                <div className="mt-2 space-y-2">
+                  {phoneMatches.map((profile) => (
+                    <button
+                      key={profile.normalizedPhone}
+                      type="button"
+                      onClick={() =>
+                        applyPatientProfile({
+                          ...profile,
+                          phone: profile.phone,
+                        })
+                      }
+                      className="flex w-full items-center justify-between rounded-2xl border border-[#D6F0E8] bg-white px-4 py-3 text-left hover:bg-[#EDF7F3]"
+                    >
+                      <span>
+                        <span className="block text-sm font-semibold text-[#0D4035]">{profile.name}</span>
+                        <span className="mt-1 block text-xs text-[#64748B]">{profile.phone}</span>
+                      </span>
+                      <Badge variant="info" size="sm">Load</Badge>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <div>

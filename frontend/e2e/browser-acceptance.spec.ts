@@ -75,6 +75,36 @@ test('dispenser is denied on wholesale dashboard in browser flow', async ({ page
   await expect(page.getByRole('heading', { name: 'Wholesale access is restricted' })).toBeVisible();
 });
 
+test('dispensing defaults to walk-in and can search/register patients while offline', async ({ page, context }) => {
+  await bootstrapSession(page, {
+    user: browserUsers.activeOwner,
+    pharmacy: pharmacies.active,
+  });
+  await mockShell(page, { subscription: pharmacies.active });
+
+  await expectProtectedRoute(page, '/dispensing');
+
+  await expect(page.getByLabel('Patient name / label')).toHaveValue('Walk-in customer');
+  await expect(page.getByText('Walk-in default')).toBeVisible();
+
+  await context.setOffline(true);
+
+  await page.getByLabel('Phone number').fill('0712 345 678');
+  await page.getByLabel('Patient name / label').fill('Amina Juma');
+  await page.getByRole('button', { name: 'Search/Register' }).click();
+
+  await expect(page.getByText('Patient saved locally for this pharmacy')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Use walk-in' }).click();
+  await expect(page.getByLabel('Patient name / label')).toHaveValue('Walk-in customer');
+
+  await page.getByLabel('Phone number').fill('0712345678');
+  await page.getByRole('button', { name: 'Search/Register' }).click();
+
+  await expect(page.getByText('Loaded Amina Juma from local patient cache')).toBeVisible();
+  await expect(page.getByLabel('Patient name / label')).toHaveValue('Amina Juma');
+});
+
 test('offline stock intake queues locally and flushes to live batches when back online', async ({ page, context }) => {
   const batchNumber = `PW-E2E-${Date.now()}`;
   const syncedBatches: Array<Record<string, unknown>> = [];
