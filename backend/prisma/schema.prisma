@@ -200,6 +200,7 @@ model Pharmacy {
   dispensings     Dispensing[]
   nhifClaims      NhifClaim[]
   notifications   Notification[]
+  settings        PharmacySetting[]
 
   @@map("pharmacies")
 }
@@ -235,8 +236,26 @@ model User {
   notifications Notification[]
   overrideLogs OverrideLog[] @relation("OverrideLogUser")
   approvedOverrides OverrideLog[] @relation("OverrideLogPicUser")
+  createdSettings PharmacySetting[] @relation("PharmacySettingCreatedBy")
 
   @@map("users")
+}
+
+model PharmacySetting {
+  id         String   @id @default(uuid())
+  pharmacyId String   @map("pharmacy_id")
+  key        String
+  value      Json
+  createdBy  String   @map("created_by")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  creator  User     @relation("PharmacySettingCreatedBy", fields: [createdBy], references: [id], onDelete: Restrict)
+
+  @@unique([pharmacyId, key], map: "pharmacy_settings_pharmacy_key_key")
+  @@index([pharmacyId], map: "pharmacy_settings_pharmacy_id_idx")
+  @@map("pharmacy_settings")
 }
 
 model RefreshToken {

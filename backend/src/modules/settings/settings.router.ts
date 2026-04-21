@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { Router } from 'express';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
@@ -14,6 +15,15 @@ settingsRouter.use(authenticate);
 
 const uid = (req: AuthRequest) => req.user!.userId;
 const pid = (req: AuthRequest) => req.user!.pharmacyId!;
+const jsonValueSchema: z.ZodType = z.lazy(() => z.union([
+  z.string(),
+  z.number(),
+  z.boolean(),
+  z.null(),
+  z.array(jsonValueSchema),
+  z.record(jsonValueSchema),
+]));
+const pharmacySettingValueSchema = z.record(jsonValueSchema);
 
 settingsRouter.get('/subscription', async (req: AuthRequest, res, next) => {
   try {
@@ -66,6 +76,79 @@ settingsRouter.patch('/subscription/vfd', requireRole('OWNER', 'PHARMACIST_IN_CH
       },
     });
     res.json({ data: updated });
+  } catch (e) {
+    next(e);
+  }
+});
+
+const pharmacySettingKeySchema = z.string().trim().min(1).max(100).regex(/^[a-z0-9._-]+$/i);
+
+settingsRouter.get('/config/:key', requirePermission('settings.manage_subscription'), async (req: AuthRequest, res, next) => {
+  try {
+    const key = pharmacySettingKeySchema.parse(req.params.key);
+    const setting = await prisma.pharmacySetting.findUnique({
+      where: {
+        pharmacyId_key: {
+          pharmacyId: pid(req),
+          key,
+        },
+      },
+      select: {
+        id: true,
+        key: true,
+        value: true,
+        createdBy: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    res.json({
+      data: setting ?? {
+        key,
+        value: null,
+      },
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+settingsRouter.put('/config/:key', requirePermission('settings.manage_subscription'), async (req: AuthRequest, res, next) => {
+  try {
+    const key = pharmacySettingKeySchema.parse(req.params.key);
+    const payload = z.object({
+      value: pharmacySettingValueSchema,
+    }).parse(req.body);
+    const value = payload.value as Prisma.InputJsonObject;
+
+    const setting = await prisma.pharmacySetting.upsert({
+      where: {
+        pharmacyId_key: {
+          pharmacyId: pid(req),
+          key,
+        },
+      },
+      update: {
+        value,
+      },
+      create: {
+        pharmacyId: pid(req),
+        key,
+        value,
+        createdBy: uid(req),
+      },
+      select: {
+        id: true,
+        key: true,
+        value: true,
+        createdBy: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    res.json({ data: setting });
   } catch (e) {
     next(e);
   }
