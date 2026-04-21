@@ -119,6 +119,7 @@ export async function mockShell(page: Page, options: {
   subscription: Record<string, unknown>;
   profile?: Record<string, unknown>;
   notifications?: Array<Record<string, unknown>>;
+  paymentMethods?: Array<Record<string, unknown>>;
 }) {
   await page.route('**/api/v1/settings/subscription', async (route) => {
     await route.fulfill({
@@ -150,6 +151,43 @@ export async function mockShell(page: Page, options: {
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({ data: options.notifications ?? [] }),
+    });
+  });
+
+  await page.route('**/api/v1/dispensing/payment-methods', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: {
+          methods: options.paymentMethods ?? [
+            {
+              code: 'CASH',
+              label: 'Cash',
+              phoneNumber: '',
+              note: 'Always enabled for offline fallback.',
+              requiresReference: false,
+              source: 'legacy',
+            },
+            {
+              code: 'MPESA',
+              label: 'M-Pesa',
+              phoneNumber: '',
+              note: '',
+              requiresReference: true,
+              source: 'legacy',
+            },
+            {
+              code: 'TIGOPESA',
+              label: 'Tigo Pesa',
+              phoneNumber: '',
+              note: '',
+              requiresReference: true,
+              source: 'legacy',
+            },
+          ],
+        },
+      }),
     });
   });
 }

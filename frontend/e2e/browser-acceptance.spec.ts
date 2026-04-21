@@ -309,6 +309,67 @@ test('dose calculator stays off by default and prompts for pediatric weight', as
   await expect(page.getByLabel('Adult dose (mg)')).toBeVisible();
 });
 
+test('dispensing loads configured payment methods and uses cached options offline', async ({ page }) => {
+  let paymentMethodReads = 0;
+
+  await bootstrapSession(page, {
+    user: browserUsers.activeDispenser,
+    pharmacy: pharmacies.active,
+  });
+  await mockShell(page, { subscription: pharmacies.active });
+
+  await page.route('**/api/v1/dispensing/payment-methods', async (route) => {
+    paymentMethodReads += 1;
+
+    if (paymentMethodReads === 1) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          data: {
+            methods: [
+              {
+                code: 'CASH',
+                label: 'Cash',
+                phoneNumber: '',
+                note: 'Always enabled for offline fallback.',
+                requiresReference: false,
+                source: 'config',
+              },
+              {
+                code: 'AIRTEL_MONEY',
+                label: 'Airtel Money',
+                phoneNumber: '+255755000111',
+                note: 'Use owner till when mobile money is selected.',
+                requiresReference: true,
+                source: 'config',
+              },
+            ],
+          },
+        }),
+      });
+      return;
+    }
+
+    await route.abort('internetdisconnected');
+  });
+
+  await expectProtectedRoute(page, '/dispensing');
+
+  await page.getByLabel('Payment method').selectOption('AIRTEL_MONEY');
+  await expect(page.getByText('Pay to: +255755000111')).toBeVisible();
+  await expect(page.getByText('Use owner till when mobile money is selected.')).toBeVisible();
+  await expect(page.getByLabel('Payment reference')).toBeVisible();
+
+  await page.goto('/settings/profile');
+  await expect(page.getByRole('main').getByRole('heading', { name: 'Profile' })).toBeVisible();
+  await page.goto('/dispensing');
+
+  await page.getByLabel('Payment method').selectOption('AIRTEL_MONEY');
+  await expect(page.getByText('Pay to: +255755000111')).toBeVisible();
+  await expect(page.getByText(/Using the last cached payment settings while offline/)).toBeVisible();
+});
+
 test('offline stock intake queues locally and flushes to live batches when back online', async ({ page, context }) => {
   const batchNumber = `PW-E2E-${Date.now()}`;
   const syncedBatches: Array<Record<string, unknown>> = [];

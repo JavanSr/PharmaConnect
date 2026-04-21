@@ -1,3 +1,5 @@
+import type { PaymentMethod } from '@/types';
+
 export const PAYMENT_METHOD_CONFIG_KEY = 'payment.methods';
 
 export type PaymentMethodSettingType = 'CASH' | 'MOBILE_MONEY';
@@ -14,6 +16,15 @@ export interface PaymentMethodSetting {
 export interface PaymentMethodConfig {
   version: 1;
   methods: PaymentMethodSetting[];
+}
+
+export interface DispensingPaymentMethodOption {
+  code: PaymentMethod;
+  label: string;
+  phoneNumber: string;
+  note: string;
+  requiresReference: boolean;
+  source: 'legacy' | 'config';
 }
 
 const CASH_METHOD: PaymentMethodSetting = {
@@ -38,8 +49,31 @@ const KNOWN_MOBILE_MONEY_CODES: Record<string, string> = {
   'halo pesa': 'HALOPESA',
 };
 
+const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  CASH: 'Cash',
+  MPESA: 'M-Pesa',
+  TIGOPESA: 'Tigo Pesa',
+  AIRTEL_MONEY: 'Airtel Money',
+  HALOPESA: 'Halo Pesa',
+  INSURANCE: 'Insurance',
+};
+
+const SUPPORTED_PAYMENT_METHODS: PaymentMethod[] = [
+  'CASH',
+  'MPESA',
+  'TIGOPESA',
+  'AIRTEL_MONEY',
+  'HALOPESA',
+  'INSURANCE',
+];
+
 const sanitizeString = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
 const isPaymentMethodSetting = (value: PaymentMethodSetting | null): value is PaymentMethodSetting => Boolean(value);
+const isSupportedPaymentMethod = (value: string): value is PaymentMethod =>
+  SUPPORTED_PAYMENT_METHODS.includes(value as PaymentMethod);
+const hasSupportedPaymentCode = (
+  method: PaymentMethodSetting,
+): method is PaymentMethodSetting & { code: PaymentMethod } => isSupportedPaymentMethod(method.code);
 
 const sanitizeCode = (value: string) =>
   value
@@ -142,4 +176,51 @@ export const serializePaymentMethodConfig = (methods: PaymentMethodSetting[]): P
       };
     }),
   };
+};
+
+export const LEGACY_DISPENSING_PAYMENT_METHODS: DispensingPaymentMethodOption[] = [
+  {
+    code: 'CASH',
+    label: 'Cash',
+    phoneNumber: '',
+    note: 'Always enabled for offline fallback.',
+    requiresReference: false,
+    source: 'legacy',
+  },
+  {
+    code: 'MPESA',
+    label: 'M-Pesa',
+    phoneNumber: '',
+    note: '',
+    requiresReference: true,
+    source: 'legacy',
+  },
+  {
+    code: 'TIGOPESA',
+    label: 'Tigo Pesa',
+    phoneNumber: '',
+    note: '',
+    requiresReference: true,
+    source: 'legacy',
+  },
+];
+
+export const toDispensingPaymentMethodOptions = (
+  value: unknown,
+  source: 'legacy' | 'config' = 'config',
+): DispensingPaymentMethodOption[] => {
+  const normalized = normalizePaymentMethodConfig(value);
+  const options = normalized.methods
+    .filter((method) => method.type === 'CASH' || method.active)
+    .filter(hasSupportedPaymentCode)
+    .map((method) => ({
+      code: method.code,
+      label: method.label.trim() || PAYMENT_METHOD_LABELS[method.code],
+      phoneNumber: method.phoneNumber.trim(),
+      note: method.note.trim(),
+      requiresReference: method.code !== 'CASH',
+      source,
+    }));
+
+  return options.length > 0 ? options : LEGACY_DISPENSING_PAYMENT_METHODS;
 };

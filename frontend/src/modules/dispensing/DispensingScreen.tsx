@@ -20,23 +20,22 @@ import { Select } from '@/components/ui/Select';
 import { useDebounce } from '@/hooks/useDebounce';
 import { api } from '@/lib/api';
 import { downloadReceiptPdf } from '@/lib/receiptPdf';
+import {
+  LEGACY_DISPENSING_PAYMENT_METHODS,
+  type DispensingPaymentMethodOption,
+} from '@/modules/settings/paymentMethodConfig';
 import { useAuthStore } from '@/stores/authStore';
 import {
   normalizePatientPhone,
   useDispensingPatientStore,
 } from '@/stores/dispensingPatientStore';
 import { useNotificationStore } from '@/stores/notificationStore';
+import { usePaymentMethodStore } from '@/stores/paymentMethodStore';
 import { usePharmacyStore } from '@/stores/pharmacyStore';
 import type { PaymentMethod, Product } from '@/types';
 import { DoseCalculator } from './DoseCalculator';
 import { PatientSafetyPanel } from './PatientSafetyPanel';
 import type { DispensingCartItem, DispensingReceipt, SafetyReviewResponse, SafetySessionPayload } from './types';
-
-const paymentOptions = [
-  { value: 'CASH', label: 'Cash' },
-  { value: 'MPESA', label: 'M-Pesa' },
-  { value: 'TIGOPESA', label: 'Tigo Pesa' },
-];
 
 const money = (value: number) =>
   new Intl.NumberFormat('en-TZ', {
@@ -76,6 +75,10 @@ export const DispensingScreen: React.FC = () => {
     (state) => state.profilesByPharmacy[pharmacy?.id ?? 'default'] ?? [],
   );
   const upsertPatientProfile = useDispensingPatientStore((state) => state.upsertProfile);
+  const cachedPaymentMethods = usePaymentMethodStore(
+    (state) => state.methodsByPharmacy[pharmacy?.id ?? 'default'] ?? LEGACY_DISPENSING_PAYMENT_METHODS,
+  );
+  const cachePaymentMethods = usePaymentMethodStore((state) => state.setMethods);
 
   const [drugSearch, setDrugSearch] = useState('');
   const [showDrugDropdown, setShowDrugDropdown] = useState(false);
@@ -148,8 +151,26 @@ export const DispensingScreen: React.FC = () => {
         .then((response) => response.data),
     enabled: debouncedDrugSearch.trim().length > 1,
   });
+  const paymentMethodsQuery = useQuery({
+    queryKey: ['dispensing-payment-methods', pharmacy?.id],
+    queryFn: () => api.get('/dispensing/payment-methods').then((response) => response.data),
+    enabled: Boolean(pharmacy?.id && user),
+    staleTime: 60_000,
+  });
 
   const products: Product[] = productResults?.data || [];
+  const serverPaymentMethods = (paymentMethodsQuery.data?.data?.methods ?? []) as DispensingPaymentMethodOption[];
+  const availablePaymentMethods =
+    serverPaymentMethods.length > 0
+      ? serverPaymentMethods
+      : cachedPaymentMethods.length > 0
+        ? cachedPaymentMethods
+        : LEGACY_DISPENSING_PAYMENT_METHODS;
+  const paymentOptions = availablePaymentMethods.map((method) => ({
+    value: method.code,
+    label: method.label,
+  }));
+  const selectedPaymentOption = availablePaymentMethods.find((method) => method.code === paymentMethod) ?? availablePaymentMethods[0];
   const sessionMatches = useMemo(
     () =>
       patientLabel.trim().length < 2
@@ -229,6 +250,16 @@ export const DispensingScreen: React.FC = () => {
   useEffect(() => {
     setReceipt(null);
   }, [cartItems, paymentMethod, paymentRef]);
+  useEffect(() => {
+    if (pharmacy?.id && serverPaymentMethods.length > 0) {
+      cachePaymentMethods(pharmacy.id, serverPaymentMethods);
+    }
+  }, [cachePaymentMethods, pharmacy?.id, serverPaymentMethods]);
+  useEffect(() => {
+    if (!availablePaymentMethods.some((method) => method.code === paymentMethod)) {
+      setPaymentMethod('CASH');
+    }
+  }, [availablePaymentMethods, paymentMethod]);
 
   const checkoutMutation = useMutation({
     mutationFn: () =>
@@ -855,7 +886,24 @@ export const DispensingScreen: React.FC = () => {
                 options={paymentOptions}
               />
 
-              {paymentMethod !== 'CASH' && (
+              {selectedPaymentOption && selectedPaymentOption.code !== 'CASH' && (
+                <div className="rounded-2xl border border-[#D6F0E8] bg-white px-4 py-3 text-sm text-[#475569]">
+                  <p className="font-semibold text-[#0D4035]">{selectedPaymentOption.label}</p>
+                  {selectedPaymentOption.phoneNumber && (
+                    <p className="mt-1">Pay to: {selectedPaymentOption.phoneNumber}</p>
+                  )}
+                  {selectedPaymentOption.note && (
+                    <p className="mt-1">{selectedPaymentOption.note}</p>
+                  )}
+                  {paymentMethodsQuery.isError && selectedPaymentOption.source !== 'legacy' && (
+                    <p className="mt-1 text-xs text-[#92400E]">
+                      Using the last cached payment settings while offline or when the server is unavailable.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {selectedPaymentOption?.requiresReference && (
                 <Input
                   label="Payment reference"
                   value={paymentRef}

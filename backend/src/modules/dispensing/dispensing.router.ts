@@ -10,6 +10,29 @@ import { resolveFefoBatch } from '../inventory/inventory.service';
 import { sessionReview } from '../patient-safety/patient-safety.service';
 
 const paymentMethods = Object.values(PaymentMethod) as [PaymentMethod, ...PaymentMethod[]];
+const PAYMENT_METHOD_CONFIG_KEY = 'payment.methods';
+const LEGACY_PAYMENT_METHOD_OPTIONS = [
+  { code: PaymentMethod.CASH, label: 'Cash', phoneNumber: '', note: 'Always enabled for offline fallback.', requiresReference: false, source: 'legacy' },
+  { code: PaymentMethod.MPESA, label: 'M-Pesa', phoneNumber: '', note: '', requiresReference: true, source: 'legacy' },
+  { code: PaymentMethod.TIGOPESA, label: 'Tigo Pesa', phoneNumber: '', note: '', requiresReference: true, source: 'legacy' },
+] as const;
+const paymentMethodLabels: Record<PaymentMethod, string> = {
+  CASH: 'Cash',
+  MPESA: 'M-Pesa',
+  TIGOPESA: 'Tigo Pesa',
+  AIRTEL_MONEY: 'Airtel Money',
+  HALOPESA: 'Halo Pesa',
+  INSURANCE: 'Insurance',
+};
+
+type DispensingPaymentMethodOption = {
+  code: PaymentMethod;
+  label: string;
+  phoneNumber: string;
+  note: string;
+  requiresReference: boolean;
+  source: 'legacy' | 'config';
+};
 
 const lineItemSchema = z.object({
   productId: z.string().min(1),
@@ -114,9 +137,92 @@ function formatReceiptResponse(event: DispensingEventRow, lines: DispensingEvent
   };
 }
 
+function isPaymentMethod(value: string): value is PaymentMethod {
+  return paymentMethods.includes(value as PaymentMethod);
+}
+
+function normalizeDispensingPaymentMethods(value: Prisma.JsonValue | null | undefined): DispensingPaymentMethodOption[] {
+  if (!value || typeof value !== 'object' || !Array.isArray((value as Prisma.JsonObject).methods)) {
+    return [...LEGACY_PAYMENT_METHOD_OPTIONS];
+  }
+
+  const methods = (value as Prisma.JsonObject).methods as Prisma.JsonArray;
+  const seen = new Set<PaymentMethod>([PaymentMethod.CASH]);
+  const normalized: DispensingPaymentMethodOption[] = [
+    {
+      code: PaymentMethod.CASH,
+      label: 'Cash',
+      phoneNumber: '',
+      note: 'Always enabled for offline fallback.',
+      requiresReference: false,
+      source: 'config',
+    },
+  ];
+
+  for (const entry of methods) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+      continue;
+    }
+
+    const record = entry as Prisma.JsonObject;
+    const code = typeof record.code === 'string' ? record.code.trim().toUpperCase() : '';
+    if (!code || code === PaymentMethod.CASH || !isPaymentMethod(code) || seen.has(code)) {
+      continue;
+    }
+
+    const active = record.active !== false;
+    if (!active) {
+      continue;
+    }
+
+    normalized.push({
+      code,
+      label: typeof record.label === 'string' && record.label.trim() ? record.label.trim() : paymentMethodLabels[code],
+      phoneNumber: typeof record.phoneNumber === 'string' ? record.phoneNumber.trim() : '',
+      note: typeof record.note === 'string' ? record.note.trim() : '',
+      requiresReference: code !== PaymentMethod.CASH,
+      source: 'config',
+    });
+    seen.add(code);
+  }
+
+  return normalized;
+}
+
 export const dispensingRouter = Router();
 dispensingRouter.use(authenticate);
 dispensingRouter.use(enforceTrialRestrictions);
+
+dispensingRouter.get('/payment-methods', requirePermission('dispensing.access'), async (req: AuthRequest, res, next) => {
+  try {
+    const setting = await prisma.pharmacySetting.findUnique({
+      where: {
+        pharmacyId_key: {
+          pharmacyId: getPharmacyId(req),
+          key: PAYMENT_METHOD_CONFIG_KEY,
+        },
+      },
+      select: {
+        value: true,
+        updatedAt: true,
+      },
+    });
+
+    const methods = setting
+      ? normalizeDispensingPaymentMethods(setting.value)
+      : [...LEGACY_PAYMENT_METHOD_OPTIONS];
+
+    res.json({
+      data: {
+        methods,
+        source: setting ? 'config' : 'legacy',
+        updatedAt: setting?.updatedAt ?? null,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
 
 dispensingRouter.post('/checkout', requirePermission('dispensing.access'), async (req: AuthRequest, res, next) => {
   try {

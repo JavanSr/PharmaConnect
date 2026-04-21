@@ -9,12 +9,14 @@ import { Input } from '@/components/ui/Input';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/stores/authStore';
 import { useNotificationStore } from '@/stores/notificationStore';
+import { usePaymentMethodStore } from '@/stores/paymentMethodStore';
 import { usePharmacyStore } from '@/stores/pharmacyStore';
 import {
   createMobileMoneyDraft,
   normalizePaymentMethodConfig,
   PAYMENT_METHOD_CONFIG_KEY,
   serializePaymentMethodConfig,
+  toDispensingPaymentMethodOptions,
   type PaymentMethodSetting,
 } from './paymentMethodConfig';
 
@@ -32,6 +34,7 @@ export const SubscriptionPage: React.FC = () => {
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
   const toast = useNotificationStore((state) => state.toast);
+  const cachePaymentMethods = usePaymentMethodStore((state) => state.setMethods);
   const setPharmacy = usePharmacyStore((state) => state.setPharmacy);
   const pharmacy = usePharmacyStore((state) => state.pharmacy);
   const canManagePaymentSettings = ['OWNER', 'SUPER_ADMIN'].includes(user?.role || '');
@@ -75,7 +78,10 @@ export const SubscriptionPage: React.FC = () => {
     }
 
     setPaymentMethodsDraft(paymentMethodConfig.methods);
-  }, [paymentMethodConfig.methods, paymentMethodsDirty]);
+    if (pharmacy?.id) {
+      cachePaymentMethods(pharmacy.id, toDispensingPaymentMethodOptions(paymentMethodConfig, 'config'));
+    }
+  }, [cachePaymentMethods, paymentMethodConfig, paymentMethodConfig.methods, paymentMethodsDirty, pharmacy?.id]);
 
   const daysRemaining =
     subscription?.trialEndsAt
@@ -98,6 +104,9 @@ export const SubscriptionPage: React.FC = () => {
       setPaymentMethodsDraft(normalized.methods);
       setPaymentMethodsDirty(false);
       queryClient.setQueryData(['settings-config', PAYMENT_METHOD_CONFIG_KEY], response);
+      if (pharmacy?.id) {
+        cachePaymentMethods(pharmacy.id, toDispensingPaymentMethodOptions(normalized, 'config'));
+      }
       toast.success('Payment methods saved');
     },
     onError: (error: any) => {
