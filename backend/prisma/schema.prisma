@@ -216,6 +216,7 @@ model Pharmacy {
   barcodeScanTelemetry BarcodeScanTelemetry[]
   memberships     PharmacyMembership[]
   aiCounsellingCache AiCounsellingCache[]
+  featureTelemetry FeatureTelemetry[]
 
   @@map("pharmacies")
 }
@@ -259,6 +260,7 @@ model User {
   memberships PharmacyMembership[] @relation("UserPharmacyMemberships")
   createdMemberships PharmacyMembership[] @relation("PharmacyMembershipCreatedBy")
   createdAiCounsellingCache AiCounsellingCache[] @relation("AiCounsellingCacheCreatedBy")
+  createdFeatureTelemetry FeatureTelemetry[] @relation("FeatureTelemetryCreatedBy")
 
   @@map("users")
 }
@@ -420,6 +422,24 @@ model AiCounsellingCache {
   @@unique([pharmacyId, ruleKey, severity, drugName, flagsHash], map: "ai_counselling_cache_unique_rule")
   @@index([pharmacyId, createdAt], map: "ai_counselling_cache_pharmacy_created_at_idx")
   @@map("ai_counselling_cache")
+}
+
+model FeatureTelemetry {
+  id         String   @id @default(uuid())
+  pharmacyId String   @map("pharmacy_id")
+  featureKey String   @map("feature_key")
+  eventType  String   @map("event_type")
+  metadata   Json?
+  createdBy  String   @map("created_by")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  creator  User     @relation("FeatureTelemetryCreatedBy", fields: [createdBy], references: [id], onDelete: Restrict)
+
+  @@index([pharmacyId, createdAt], map: "feature_telemetry_pharmacy_created_at_idx")
+  @@index([featureKey, eventType], map: "feature_telemetry_feature_event_idx")
+  @@map("feature_telemetry")
 }
 
 model Batch {

@@ -16,6 +16,7 @@ import {
   checkContraindications,
 } from './patient-safety.service';
 import { getCounsellingSuggestions } from './ai-counselling.service';
+import { trackFeatureTelemetry } from '../telemetry/feature-telemetry.service';
 
 const ACCESS_TIERS = new Set(['STANDARD', 'PREMIUM', 'ENTERPRISE']);
 const ACCESS_ROLES = ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'SUPER_ADMIN'];
@@ -159,6 +160,16 @@ patientSafetyRouter.post('/counselling-suggestions', async (req: AuthRequest, re
       pharmacyId: req.user!.pharmacyId!,
       userId: req.user!.userId,
       triggers: payload.triggers,
+    });
+
+    await trackFeatureTelemetry({
+      pharmacyId: req.user!.pharmacyId!,
+      userId: req.user!.userId,
+      featureKey: 'ai_counselling',
+      eventType: 'USED',
+      metadata: {
+        triggerCount: payload.triggers.length,
+      },
     });
 
     res.json({ data });

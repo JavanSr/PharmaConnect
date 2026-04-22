@@ -11,6 +11,7 @@ import { withPrismaRetry } from '../../lib/prisma-retry';
 import { APP_ROLES } from '../../types/roles';
 import { ensurePaymentMethodConfig, PAYMENT_METHOD_CONFIG_KEY } from './payment-method-config';
 import { mapUserRoleToMembershipRole } from '../auth/pharmacy-membership.service';
+import { trackFeatureTelemetry } from '../telemetry/feature-telemetry.service';
 
 export const settingsRouter = Router();
 settingsRouter.use(authenticate);
@@ -151,6 +152,21 @@ settingsRouter.put('/config/:key', requirePermission('settings.manage_subscripti
         updatedAt: true,
       },
     });
+
+    if (key === PAYMENT_METHOD_CONFIG_KEY) {
+      const methods = Array.isArray((payload.value as Record<string, unknown>).methods)
+        ? ((payload.value as Record<string, unknown>).methods as unknown[])
+        : [];
+      await trackFeatureTelemetry({
+        pharmacyId: pid(req),
+        userId: uid(req),
+        featureKey: 'payment_methods',
+        eventType: 'ACTIVATED',
+        metadata: {
+          methodCount: methods.length,
+        },
+      });
+    }
 
     res.json({ data: setting });
   } catch (e) {

@@ -10,6 +10,7 @@ import {
   getSeasonalitySeries,
   getStockoutForecast,
 } from './forecasting.service';
+import { trackFeatureTelemetry } from '../telemetry/feature-telemetry.service';
 
 export const forecastingRouter = Router();
 forecastingRouter.use(authenticate);
@@ -26,6 +27,18 @@ forecastingRouter.get('/stockout', requireTier('STANDARD'), async (req: AuthRequ
       limit: z.coerce.number().int().min(1).max(100).optional(),
     }).parse(req.query);
 
+    await trackFeatureTelemetry({
+      pharmacyId: pid(req),
+      userId: req.user!.userId,
+      featureKey: 'forecasting',
+      eventType: 'USED',
+      metadata: {
+        report: 'stockout',
+        lookbackDays: query.lookbackDays ?? null,
+        leadTimeDays: query.leadTimeDays ?? null,
+      },
+    });
+
     res.json({
       data: await getStockoutForecast({
         pharmacyId: pid(req),
@@ -41,6 +54,15 @@ forecastingRouter.get('/stockout', requireTier('STANDARD'), async (req: AuthRequ
 
 forecastingRouter.get('/seasonality', requireTier('PREMIUM'), async (req: AuthRequest, res, next) => {
   try {
+    await trackFeatureTelemetry({
+      pharmacyId: pid(req),
+      userId: req.user!.userId,
+      featureKey: 'forecasting',
+      eventType: 'USED',
+      metadata: {
+        report: 'seasonality',
+      },
+    });
     res.json({ data: await getSeasonalitySeries(pid(req)) });
   } catch (error) {
     next(error);
@@ -52,6 +74,17 @@ forecastingRouter.get('/dead-stock', requireTier('PREMIUM'), async (req: AuthReq
     const { limit } = z.object({
       limit: z.coerce.number().int().min(1).max(100).optional(),
     }).parse(req.query);
+
+    await trackFeatureTelemetry({
+      pharmacyId: pid(req),
+      userId: req.user!.userId,
+      featureKey: 'forecasting',
+      eventType: 'USED',
+      metadata: {
+        report: 'dead_stock',
+        limit: limit ?? null,
+      },
+    });
 
     res.json({ data: await getDeadStock(pid(req), limit) });
   } catch (error) {

@@ -4,6 +4,7 @@ import { authenticate, type AuthRequest } from '../../middleware/auth';
 import { prisma } from '../../lib/prisma';
 import { withPrismaRetry } from '../../lib/prisma-retry';
 import { issueAuthTokens, listAccessiblePharmacies } from '../auth/pharmacy-membership.service';
+import { trackFeatureTelemetry } from '../telemetry/feature-telemetry.service';
 
 export const meRouter = Router();
 meRouter.use(authenticate);
@@ -86,6 +87,16 @@ meRouter.post('/pharmacies/:id/select', async (req: AuthRequest, res, next) => {
       userId: req.user!.userId,
       role: req.user!.role,
       pharmacyId,
+    });
+
+    await trackFeatureTelemetry({
+      pharmacyId,
+      userId: req.user!.userId,
+      featureKey: 'multi_pharmacy_selector',
+      eventType: 'USED',
+      metadata: {
+        selectedPharmacyId: pharmacyId,
+      },
     });
 
     res.json({
