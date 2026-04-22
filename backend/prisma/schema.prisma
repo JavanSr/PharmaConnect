@@ -215,6 +215,7 @@ model Pharmacy {
   productBarcodeMappings ProductBarcodeMapping[]
   barcodeScanTelemetry BarcodeScanTelemetry[]
   memberships     PharmacyMembership[]
+  aiCounsellingCache AiCounsellingCache[]
 
   @@map("pharmacies")
 }
@@ -257,6 +258,7 @@ model User {
   createdBarcodeScanTelemetry BarcodeScanTelemetry[] @relation("BarcodeScanTelemetryCreatedBy")
   memberships PharmacyMembership[] @relation("UserPharmacyMemberships")
   createdMemberships PharmacyMembership[] @relation("PharmacyMembershipCreatedBy")
+  createdAiCounsellingCache AiCounsellingCache[] @relation("AiCounsellingCacheCreatedBy")
 
   @@map("users")
 }
@@ -396,6 +398,28 @@ model BarcodeScanTelemetry {
   @@index([pharmacyId, createdAt], map: "barcode_scan_telemetry_pharmacy_created_at_idx")
   @@index([source, result], map: "barcode_scan_telemetry_source_result_idx")
   @@map("barcode_scan_telemetry")
+}
+
+model AiCounsellingCache {
+  id             String   @id @default(uuid())
+  pharmacyId      String   @map("pharmacy_id")
+  ruleKey         String   @map("rule_key")
+  severity        String
+  drugName        String   @map("drug_name")
+  flagsHash       String   @map("flags_hash")
+  flags           Json
+  suggestionText  String   @map("suggestion_text")
+  source          String   @default("RULE_TEMPLATE")
+  createdBy       String   @map("created_by")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  creator  User     @relation("AiCounsellingCacheCreatedBy", fields: [createdBy], references: [id], onDelete: Restrict)
+
+  @@unique([pharmacyId, ruleKey, severity, drugName, flagsHash], map: "ai_counselling_cache_unique_rule")
+  @@index([pharmacyId, createdAt], map: "ai_counselling_cache_pharmacy_created_at_idx")
+  @@map("ai_counselling_cache")
 }
 
 model Batch {

@@ -15,6 +15,7 @@ import {
   checkInteractions,
   checkContraindications,
 } from './patient-safety.service';
+import { getCounsellingSuggestions } from './ai-counselling.service';
 
 const ACCESS_TIERS = new Set(['STANDARD', 'PREMIUM', 'ENTERPRISE']);
 const ACCESS_ROLES = ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'SUPER_ADMIN'];
@@ -137,6 +138,29 @@ patientSafetyRouter.post('/match-diagnosis', async (req, res, next) => {
 patientSafetyRouter.post('/session-review', async (req, res, next) => {
   try {
     const data = await sessionReview(sessionSchema.parse(req.body));
+    res.json({ data });
+  } catch (error) {
+    next(error);
+  }
+});
+
+patientSafetyRouter.post('/counselling-suggestions', async (req: AuthRequest, res, next) => {
+  try {
+    const payload = z.object({
+      triggers: z.array(z.object({
+        rule: z.string().min(1),
+        severity: z.string().min(1),
+        drug: z.string().min(1),
+        flags: z.array(z.string()).default([]),
+      })).min(1),
+    }).parse(req.body);
+
+    const data = await getCounsellingSuggestions({
+      pharmacyId: req.user!.pharmacyId!,
+      userId: req.user!.userId,
+      triggers: payload.triggers,
+    });
+
     res.json({ data });
   } catch (error) {
     next(error);
