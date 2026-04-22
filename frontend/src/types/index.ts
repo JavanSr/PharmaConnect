@@ -80,6 +80,8 @@ export interface WholesaleCatalogueItem {
   genericName: string | null;
   barcode: string | null;
   price: number;
+  tierPrices?: Partial<Record<SubscriptionTier, number>>;
+  effectivePrice?: number;
   minOrderQuantity: number;
   maxOrderQuantity: number | null;
 }
@@ -116,6 +118,9 @@ export interface WholesaleOrder {
   completedAt?: string | null;
   disputedAt?: string | null;
   cancelledAt?: string | null;
+  scheduledDeliveryAt?: string | null;
+  deliveryWindowLabel?: string | null;
+  deliveryNote?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -128,7 +133,68 @@ export interface VatInvoice {
   subtotalAmount: number;
   vatAmount: number;
   totalAmount: number;
+  efdmsStatus?: string;
+  efdmsReference?: string | null;
+  efdmsPayload?: Record<string, unknown> | null;
+  efdmsSyncedAt?: string | null;
   issuedAt: string;
+}
+
+export interface WholesaleCreditLimit {
+  id: string;
+  sellerPharmacyId: string;
+  clientPharmacyId: string;
+  clientName?: string;
+  creditLimit: number;
+  outstandingBalance: number;
+  paymentTermsDays: number;
+  isActive: boolean;
+  blockNewOrders: boolean;
+  blockReason: string | null;
+}
+
+export interface WholesaleReceivableInvoice {
+  invoiceId: string;
+  invoiceNumber: string;
+  orderId: string;
+  buyerPharmacyId: string;
+  buyerName: string;
+  openAmount: number;
+  daysOutstanding: number;
+  issuedAt: string;
+}
+
+export interface WholesaleReceivablesAging {
+  totalOpenAmount: number;
+  buckets: {
+    current: number;
+    days31To60: number;
+    days61To90: number;
+    over90: number;
+  };
+  invoices: WholesaleReceivableInvoice[];
+}
+
+export interface WholesaleDemandInsightProduct {
+  productId: string;
+  productName: string;
+  units: number;
+  revenueTzs: number;
+  activeBuyers: number;
+}
+
+export interface WholesaleDemandInsights {
+  windows: {
+    current30d: {
+      units: number;
+      revenueTzs: number;
+    };
+    previous30d: {
+      units: number;
+      revenueTzs: number;
+    };
+  };
+  topProducts: WholesaleDemandInsightProduct[];
 }
 
 export interface AttendanceRecord {

@@ -668,14 +668,18 @@ export async function upsertCreditLimit(input: {
 }
 
 export async function listCreditLimits(sellerPharmacyId: string) {
-  const rows = await prisma.$queryRaw<CreditLimitRow[]>(Prisma.sql`
-    SELECT *
-    FROM "client_credit_limits"
-    WHERE "seller_pharmacy_id" = ${sellerPharmacyId}
-    ORDER BY "created_at" DESC
+  const rows = await prisma.$queryRaw<Array<CreditLimitRow & { client_name: string }>>(Prisma.sql`
+    SELECT ccl.*, p."name" AS client_name
+    FROM "client_credit_limits" ccl
+    INNER JOIN "pharmacies" p ON p."id" = ccl."client_pharmacy_id"
+    WHERE ccl."seller_pharmacy_id" = ${sellerPharmacyId}
+    ORDER BY ccl."created_at" DESC
   `);
 
-  return rows.map(mapCreditLimit);
+  return rows.map((row) => ({
+    ...mapCreditLimit(row),
+    clientName: row.client_name,
+  }));
 }
 
 export async function updateOrderStatus(input: {

@@ -137,6 +137,13 @@ export async function mockShell(page: Page, options: {
   memberships?: Array<Record<string, unknown>>;
   analyticsFeatures?: Record<string, unknown>;
   analyticsSummary?: Record<string, unknown>;
+  wholesaleCatalogue?: Array<Record<string, unknown>>;
+  wholesaleOrders?: Array<Record<string, unknown>>;
+  wholesaleInvoices?: Array<Record<string, unknown>>;
+  wholesaleCreditLimits?: Array<Record<string, unknown>>;
+  wholesaleReceivablesAging?: Record<string, unknown>;
+  wholesaleDemandInsights?: Record<string, unknown>;
+  inventoryProducts?: Array<Record<string, unknown>>;
 }) {
   await page.route('**/api/v1/me/pharmacies', async (route) => {
     await route.fulfill({
@@ -367,6 +374,101 @@ export async function mockShell(page: Page, options: {
           status: 'disabled',
           message: 'Regional forecasting is disabled.',
         },
+      }),
+    });
+  });
+
+  await page.route('**/api/v1/b2b/catalogue', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ data: options.wholesaleCatalogue ?? [] }),
+    });
+  });
+
+  await page.route('**/api/v1/b2b/orders', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ data: options.wholesaleOrders ?? [] }),
+    });
+  });
+
+  await page.route('**/api/v1/b2b/invoices', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ data: options.wholesaleInvoices ?? [] }),
+    });
+  });
+
+  await page.route('**/api/v1/b2b/credit-limits', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ data: options.wholesaleCreditLimits ?? [] }),
+    });
+  });
+
+  await page.route('**/api/v1/b2b/receivables-aging', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: options.wholesaleReceivablesAging ?? {
+          totalOpenAmount: 64000,
+          buckets: {
+            current: 32000,
+            days31To60: 20000,
+            days61To90: 12000,
+            over90: 0,
+          },
+          invoices: [
+            {
+              invoiceId: 'invoice-1',
+              invoiceNumber: 'PC-INV-2026-000001',
+              orderId: 'order-1',
+              buyerPharmacyId: 'client-1',
+              buyerName: 'Mwanga Clinic',
+              openAmount: 32000,
+              daysOutstanding: 14,
+              issuedAt: '2026-04-08T08:00:00.000Z',
+            },
+          ],
+        },
+      }),
+    });
+  });
+
+  await page.route('**/api/v1/b2b/demand-insights', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: options.wholesaleDemandInsights ?? {
+          windows: {
+            current30d: { units: 120, revenueTzs: 240000 },
+            previous30d: { units: 90, revenueTzs: 180000 },
+          },
+          topProducts: [
+            { productId: 'product-1', productName: 'Paracetamol 500mg', units: 80, revenueTzs: 120000, activeBuyers: 3 },
+            { productId: 'product-2', productName: 'Amoxicillin 500mg', units: 40, revenueTzs: 120000, activeBuyers: 2 },
+          ],
+        },
+      }),
+    });
+  });
+
+  await page.route('**/api/v1/inventory/products**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: options.inventoryProducts ?? [],
+        total: (options.inventoryProducts ?? []).length,
+        page: 1,
+        limit: 50,
+        totalPages: 1,
       }),
     });
   });

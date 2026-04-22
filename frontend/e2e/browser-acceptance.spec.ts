@@ -369,16 +369,12 @@ test('wholesale workspace has its own nav and keeps the legacy orders route work
     },
     pharmacy: wholesalePharmacy,
   });
-  await mockShell(page, { subscription: wholesalePharmacy });
-
-  await page.route('**/api/v1/b2b/catalogue', async (route) => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: [] }) });
-  });
-  await page.route('**/api/v1/b2b/orders', async (route) => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: [] }) });
-  });
-  await page.route('**/api/v1/b2b/invoices', async (route) => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: [] }) });
+  await mockShell(page, {
+    subscription: wholesalePharmacy,
+    wholesaleCatalogue: [],
+    wholesaleOrders: [],
+    wholesaleInvoices: [],
+    wholesaleCreditLimits: [],
   });
 
   await expectProtectedRoute(page, '/wholesale');
@@ -395,6 +391,218 @@ test('wholesale workspace has its own nav and keeps the legacy orders route work
   await page.goto('/orders');
   await expect(page).toHaveURL(/\/wholesale\/orders/);
   await expect(page.getByRole('main').getByRole('heading', { name: 'Wholesale orders' })).toBeVisible();
+});
+
+test('wholesale dashboard shows receivables, demand insights, and EFDMS invoice status', async ({ page }) => {
+  const wholesalePharmacy = {
+    ...pharmacies.active,
+    id: 'pharmacy-wholesale-dashboard',
+    name: 'Browser E2E Wholesale Dashboard',
+    pharmacyType: 'WHOLESALE',
+    subscriptionTier: 'WHOLESALE',
+    isHybrid: true,
+    hybridAddonActive: true,
+  };
+
+  await bootstrapSession(page, {
+    user: {
+      ...browserUsers.activeOwner,
+      role: 'WHOLESALE_MANAGER',
+      pharmacyId: wholesalePharmacy.id,
+    },
+    pharmacy: wholesalePharmacy,
+  });
+  await mockShell(page, {
+    subscription: wholesalePharmacy,
+    wholesaleCatalogue: [
+      {
+        catalogueId: 'catalogue-1',
+        title: 'Starter catalogue',
+        description: 'Main wholesale line',
+        sellerPharmacyId: wholesalePharmacy.id,
+        productId: 'product-1',
+        productName: 'Paracetamol 500mg',
+        genericName: 'Paracetamol',
+        barcode: '111',
+        price: 1000,
+        effectivePrice: 950,
+        tierPrices: { PREMIUM: 950, ENTERPRISE: 900 },
+        minOrderQuantity: 1,
+        maxOrderQuantity: null,
+      },
+    ],
+    wholesaleOrders: [
+      {
+        id: 'order-1',
+        orderNumber: 'PC-ORD-2026-0001',
+        buyerPharmacyId: 'client-1',
+        sellerPharmacyId: wholesalePharmacy.id,
+        status: 'CONFIRMED',
+        items: [{ productId: 'product-1', productName: 'Paracetamol 500mg', genericName: 'Paracetamol', barcode: '111', quantity: 10, unitPrice: 950, lineTotal: 9500 }],
+        subtotalAmount: 9500,
+        totalAmount: 9500,
+        scheduledDeliveryAt: '2026-04-24T09:00:00.000Z',
+        deliveryWindowLabel: 'Morning route',
+        deliveryNote: 'Deliver before lunch',
+        createdAt: '2026-04-22T08:00:00.000Z',
+        updatedAt: '2026-04-22T08:00:00.000Z',
+      },
+    ],
+    wholesaleInvoices: [
+      {
+        id: 'invoice-1',
+        orderId: 'order-1',
+        invoiceNumber: 'PC-INV-2026-000001',
+        pdfPath: '/uploads/vat.pdf',
+        subtotalAmount: 9500,
+        vatAmount: 1710,
+        totalAmount: 11210,
+        efdmsStatus: 'STUBBED',
+        issuedAt: '2026-04-22T08:30:00.000Z',
+      },
+    ],
+    wholesaleCreditLimits: [
+      {
+        id: 'credit-1',
+        sellerPharmacyId: wholesalePharmacy.id,
+        clientPharmacyId: 'client-1',
+        clientName: 'Mwanga Clinic',
+        creditLimit: 150000,
+        outstandingBalance: 64000,
+        paymentTermsDays: 21,
+        isActive: true,
+        blockNewOrders: false,
+        blockReason: null,
+      },
+    ],
+  });
+
+  await expectProtectedRoute(page, '/wholesale');
+
+  await expect(page.getByRole('main').getByText('Open receivables', { exact: true })).toBeVisible();
+  await expect(page.getByRole('main').getByText('Receivables aging', { exact: true })).toBeVisible();
+  await expect(page.getByRole('main').getByText('Demand insights', { exact: true })).toBeVisible();
+  await expect(page.getByRole('main').getByText('Paracetamol 500mg', { exact: true })).toBeVisible();
+  await expect(page.getByRole('main').getByText('EFDMS invoice queue', { exact: true })).toBeVisible();
+  await expect(page.getByRole('main').getByText('STUBBED', { exact: true })).toBeVisible();
+});
+
+test('wholesale settings can save tier pricing and update a credit block', async ({ page }) => {
+  const wholesalePharmacy = {
+    ...pharmacies.active,
+    id: 'pharmacy-wholesale-settings',
+    name: 'Browser E2E Wholesale Settings',
+    pharmacyType: 'WHOLESALE',
+    subscriptionTier: 'WHOLESALE',
+    isHybrid: true,
+    hybridAddonActive: true,
+  };
+  let savedCataloguePayload: Record<string, unknown> | null = null;
+  let savedCreditPayload: Record<string, unknown> | null = null;
+
+  await bootstrapSession(page, {
+    user: {
+      ...browserUsers.activeOwner,
+      role: 'WHOLESALE_MANAGER',
+      pharmacyId: wholesalePharmacy.id,
+    },
+    pharmacy: wholesalePharmacy,
+  });
+  await mockShell(page, {
+    subscription: wholesalePharmacy,
+    inventoryProducts: [
+      {
+        id: 'product-1',
+        pharmacyId: wholesalePharmacy.id,
+        name: 'Paracetamol 500mg',
+        genericName: 'Paracetamol 500mg',
+        barcode: '111',
+        dosageForm: 'TABLET',
+        unitOfMeasure: 'pack',
+        drugClass: 'OTC',
+        reorderLevel: 1,
+        isActive: true,
+        createdAt: '2026-04-01T00:00:00.000Z',
+      },
+    ],
+    wholesaleCatalogue: [],
+    wholesaleCreditLimits: [
+      {
+        id: 'credit-1',
+        sellerPharmacyId: wholesalePharmacy.id,
+        clientPharmacyId: 'client-1',
+        clientName: 'Mwanga Clinic',
+        creditLimit: 150000,
+        outstandingBalance: 64000,
+        paymentTermsDays: 21,
+        isActive: true,
+        blockNewOrders: false,
+        blockReason: null,
+      },
+    ],
+  });
+
+  await page.route('**/api/v1/b2b/catalogues', async (route) => {
+    savedCataloguePayload = route.request().postDataJSON() as Record<string, unknown>;
+    await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ data: { catalogueId: 'catalogue-2' } }) });
+  });
+  await page.route('**/api/v1/b2b/credit-limits/client-1', async (route) => {
+    savedCreditPayload = route.request().postDataJSON() as Record<string, unknown>;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: {
+          id: 'credit-1',
+          sellerPharmacyId: wholesalePharmacy.id,
+          clientPharmacyId: 'client-1',
+          clientName: 'Mwanga Clinic',
+          creditLimit: 160000,
+          outstandingBalance: 64000,
+          paymentTermsDays: 30,
+          isActive: true,
+          blockNewOrders: true,
+          blockReason: 'Temporarily paused',
+        },
+      }),
+    });
+  });
+
+  await expectProtectedRoute(page, '/wholesale/settings');
+
+  await page.getByLabel('Product').selectOption('product-1');
+  await page.getByLabel('Base price').fill('1000');
+  await page.getByLabel('Premium price').fill('950');
+  await page.getByLabel('Enterprise price').fill('900');
+  await page.getByRole('button', { name: 'Save price line' }).click();
+
+  expect(savedCataloguePayload).toEqual({
+    title: 'Paracetamol 500mg pricing',
+    items: [
+      {
+        productId: 'product-1',
+        price: 1000,
+        tierPrices: {
+          PREMIUM: 950,
+          ENTERPRISE: 900,
+        },
+      },
+    ],
+  });
+
+  await page.getByLabel('Credit limit').fill('160000');
+  await page.getByLabel('Payment terms (days)').fill('30');
+  await page.getByLabel('Block reason').fill('Temporarily paused');
+  await page.getByRole('button', { name: 'Allow orders' }).click();
+  await page.getByRole('button', { name: 'Save credit rule' }).click();
+
+  expect(savedCreditPayload).toEqual({
+    creditLimit: 160000,
+    outstandingBalance: 64000,
+    paymentTermsDays: 30,
+    blockNewOrders: true,
+    blockReason: 'Temporarily paused',
+  });
 });
 
 test('dispensing defaults to walk-in and can search/register patients while offline', async ({ page, context }) => {
