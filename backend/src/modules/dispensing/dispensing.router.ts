@@ -542,6 +542,7 @@ dispensingRouter.post(
         actualCashCounted: z.number().nonnegative(),
         notes: z.string().trim().max(255).optional(),
       }).parse(req.body);
+      const normalizedNotes = notes?.trim() || null;
 
       const pharmacyId = getPharmacyId(req);
       const currentUserId = getUserId(req);
@@ -557,6 +558,10 @@ dispensingRouter.post(
 
       const expectedCash = Number(rows[0]?.expected_cash ?? 0);
       const discrepancy = Number((actualCashCounted - expectedCash).toFixed(2));
+      if (Math.abs(discrepancy) > 5000 && !normalizedNotes) {
+        res.status(400).json({ error: 'VARIANCE_NOTE_REQUIRED' });
+        return;
+      }
 
       const result = await prisma.$queryRaw<
         Array<{
@@ -585,7 +590,7 @@ dispensingRouter.post(
           ${expectedCash},
           ${actualCashCounted},
           ${discrepancy},
-          ${notes || null}
+          ${normalizedNotes}
         )
         ON CONFLICT ("pharmacy_id", "closing_date")
         DO UPDATE SET

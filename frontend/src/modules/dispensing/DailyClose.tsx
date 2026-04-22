@@ -30,7 +30,8 @@ export const DailyClose: React.FC = () => {
       toast.success('Daily close recorded');
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.error || 'Daily close failed');
+      const code = error.response?.data?.error;
+      toast.error(code === 'VARIANCE_NOTE_REQUIRED' ? 'Add a note when the cash variance is above TZS 5,000.' : (code || 'Daily close failed'));
     },
   });
 
@@ -64,7 +65,8 @@ export const DailyClose: React.FC = () => {
             label="Notes"
             value={notes}
             onChange={(event) => setNotes(event.target.value)}
-            placeholder="Optional notes for discrepancy"
+            placeholder="Required above TZS 5,000 variance"
+            hint="Notes become mandatory if the reconciliation variance is above TZS 5,000."
           />
         </div>
 

@@ -635,6 +635,50 @@ test('dispensing defaults to walk-in and can search/register patients while offl
   await expect(page.getByLabel('Patient name / label')).toHaveValue('Amina Juma');
 });
 
+test('daily close requires a note when variance is above TZS 5000', async ({ page }) => {
+  await bootstrapSession(page, {
+    user: browserUsers.activeOwner,
+    pharmacy: pharmacies.active,
+  });
+  await mockShell(page, { subscription: pharmacies.active });
+
+  let attempt = 0;
+  await page.route('**/api/v1/dispensing/daily-close', async (route) => {
+    attempt += 1;
+    if (attempt === 1) {
+      await route.fulfill({
+        status: 400,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'VARIANCE_NOTE_REQUIRED' }),
+      });
+      return;
+    }
+
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: {
+          id: 'daily-close-1',
+          expectedCash: 10000,
+          actualCashCounted: 2000,
+          discrepancy: -8000,
+        },
+      }),
+    });
+  });
+
+  await expectProtectedRoute(page, '/dispensing/daily-close');
+
+  await page.getByLabel('Actual cash counted').fill('2000');
+  await page.getByRole('button', { name: 'Record daily close' }).click();
+  await expect(page.getByText('Add a note when the cash variance is above TZS 5,000.')).toBeVisible();
+
+  await page.getByLabel('Notes').fill('Till was short after recount.');
+  await page.getByRole('button', { name: 'Record daily close' }).click();
+  await expect(page.getByText('Daily close recorded')).toBeVisible();
+});
+
 test('dispensing hides patient checks until medicine rules trigger them and removes dose prompt', async ({ page }) => {
   const product = {
     id: 'product-amoxicillin',
