@@ -441,6 +441,93 @@ test('dispensing hides patient checks until medicine rules trigger them and remo
   await expect(page.getByText('Pregnant')).toBeVisible();
 });
 
+test('dispensing shows cached AI counselling suggestions when safety rules trigger', async ({ page }) => {
+  const product = {
+    id: 'product-counselling',
+    name: 'Warfarin 5',
+    genericName: 'Warfarin',
+    strength: '5mg',
+    dosageForm: 'TABLET',
+    currentStock: 12,
+    sellingPrice: 2200,
+  };
+
+  await bootstrapSession(page, {
+    user: browserUsers.activeOwner,
+    pharmacy: pharmacies.active,
+  });
+  await mockShell(page, { subscription: pharmacies.active });
+
+  await page.route('**/api/v1/inventory/products**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ data: [product], total: 1, page: 1, limit: 10, totalPages: 1 }),
+    });
+  });
+
+  await page.route('**/api/v1/patient-safety/session-review', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: {
+          resolvedDrugs: [{ id: 'drug-warfarin', genericName: 'warfarin', source: product.id, sourceType: 'product' }],
+          interactions: [],
+          contraindications: [
+            {
+              id: 'contra-pregnancy',
+              drug: 'warfarin',
+              severity: 'MAJOR',
+              message: 'Pregnancy category D requires caution.',
+              conditionType: 'PREGNANCY',
+              conditionValue: 'D',
+              requiresPicPin: false,
+            },
+          ],
+          diagnosisMatches: [],
+          ncdHints: [],
+          dosageSuggestions: [],
+          requiredPatientInputs: [
+            { key: 'pregnant', label: 'Pregnancy status', reason: 'warfarin needs pregnancy screening.' },
+          ],
+          requiresPicPin: false,
+        },
+      }),
+    });
+  });
+
+  await page.route('**/api/v1/patient-safety/counselling-suggestions', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: [
+          {
+            id: 'counselling-1',
+            rule: 'Pregnancy category D requires caution.',
+            severity: 'MAJOR',
+            drug: 'warfarin',
+            flags: ['pregnant'],
+            suggestionText: 'Severity remains MAJOR. Explain that warfarin has a high-risk rule trigger and advise pharmacist review before continuing.',
+            source: 'RULE_TEMPLATE',
+            cached: true,
+          },
+        ],
+      }),
+    });
+  });
+
+  await expectProtectedRoute(page, '/dispensing');
+
+  await page.getByLabel('Medicine').fill('warf');
+  await page.getByRole('button', { name: /Warfarin/i }).first().click();
+  await page.getByRole('button', { name: 'Add to basket' }).click();
+
+  await expect(page.getByText('AI counselling suggestions')).toBeVisible();
+  await expect(page.getByText('Severity remains MAJOR. Explain that warfarin has a high-risk rule trigger')).toBeVisible();
+});
+
 test('dose calculator stays off by default and prompts for pediatric weight', async ({ page }) => {
   const product = {
     id: 'product-ibuprofen',

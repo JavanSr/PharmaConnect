@@ -14,6 +14,28 @@ type OverrideDraft = {
   pic_pin: string;
 };
 
+type CounsellingSuggestion = {
+  id: string;
+  rule: string;
+  severity: string;
+  drug: string;
+  flags: string[];
+  suggestionText: string;
+  source: string;
+  cached: boolean;
+};
+
+function buildCounsellingFlags(sessionPayload: SafetySessionPayload) {
+  const flags: string[] = [];
+  if (sessionPayload.pregnant) flags.push('pregnant');
+  if (sessionPayload.breastfeeding) flags.push('breastfeeding');
+  if (sessionPayload.renalImpairment) flags.push('renal impairment');
+  if (sessionPayload.hepaticImpairment) flags.push('hepatic impairment');
+  if ((sessionPayload.allergies ?? []).length > 0) flags.push(`allergies: ${(sessionPayload.allergies ?? []).join(', ')}`);
+  if ((sessionPayload.diagnoses ?? []).length > 0) flags.push(`diagnoses: ${(sessionPayload.diagnoses ?? []).join(', ')}`);
+  return flags;
+}
+
 export const PatientSafetyPanel: React.FC<{
   enabled: boolean;
   cartItems: DispensingCartItem[];
@@ -42,6 +64,36 @@ export const PatientSafetyPanel: React.FC<{
   });
 
   const review = (reviewQuery.data?.data ?? null) as SafetyReviewResponse | null;
+  const counsellingTriggers = useMemo(() => {
+    if (!review) {
+      return [];
+    }
+
+    const flags = buildCounsellingFlags(sessionPayload);
+    return [
+      ...review.interactions.map((alert) => ({
+        rule: alert.effectSummary || alert.management || 'Interaction rule triggered.',
+        severity: alert.severity,
+        drug: [alert.drugA, alert.drugB].filter(Boolean).join(' + '),
+        flags,
+      })),
+      ...review.contraindications.map((alert) => ({
+        rule: alert.message || `${alert.conditionType || 'Contraindication'} rule triggered.`,
+        severity: alert.severity,
+        drug: alert.drug || 'Unknown drug',
+        flags,
+      })),
+    ].filter((trigger) => trigger.drug.trim() && trigger.rule.trim());
+  }, [review, sessionPayload]);
+  const counsellingQuery = useQuery({
+    queryKey: ['patient-safety-counselling', counsellingTriggers],
+    queryFn: () =>
+      api
+        .post('/patient-safety/counselling-suggestions', { triggers: counsellingTriggers })
+        .then((response) => response.data),
+    enabled: enabled && counsellingTriggers.length > 0,
+    staleTime: 60_000,
+  });
   const riskSignature = useMemo(() => {
     if (!review) {
       return 'none';
@@ -52,6 +104,25 @@ export const PatientSafetyPanel: React.FC<{
       contraindications: review.contraindications.filter((item) => item.requiresPicPin).map((item) => item.id).sort(),
     });
   }, [review]);
+  const counsellingSuggestions = (counsellingQuery.data?.data ?? []) as CounsellingSuggestion[];
+  const fallbackCounsellingSuggestions = useMemo<CounsellingSuggestion[]>(
+    () =>
+      counsellingTriggers.map((trigger, index) => ({
+        id: `fallback-${index}`,
+        rule: trigger.rule,
+        severity: trigger.severity,
+        drug: trigger.drug,
+        flags: trigger.flags,
+        suggestionText: `Severity remains ${trigger.severity}. Use the triggered rule as the counselling source of truth: ${trigger.rule}`,
+        source: 'RULE_ONLY',
+        cached: false,
+      })),
+    [counsellingTriggers],
+  );
+  const displayedCounsellingSuggestions =
+    counsellingQuery.isError || counsellingSuggestions.length === 0
+      ? fallbackCounsellingSuggestions
+      : counsellingSuggestions;
 
   useEffect(() => {
     setOverrideReason('');
@@ -226,6 +297,34 @@ export const PatientSafetyPanel: React.FC<{
           )}
 
           <NCDHints hints={review.ncdHints} />
+
+          {displayedCounsellingSuggestions.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-sm font-semibold text-[#0D4035]">AI counselling suggestions</h3>
+                {counsellingQuery.isError && (
+                  <Badge variant="warning" size="sm">Rule-only fallback</Badge>
+                )}
+              </div>
+              {displayedCounsellingSuggestions.map((suggestion) => (
+                <div key={suggestion.id} className="rounded-2xl border border-[#D6F0E8] bg-[#F8FAFC] px-4 py-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-[#0D4035]">{suggestion.drug}</p>
+                      <p className="mt-1 text-xs text-[#64748B]">{suggestion.rule}</p>
+                    </div>
+                    <Badge variant={suggestion.severity === 'MAJOR' || suggestion.severity === 'CONTRAINDICATED' ? 'warning' : 'info'} size="sm">
+                      {suggestion.severity}
+                    </Badge>
+                  </div>
+                  <p className="mt-3 text-sm text-[#475569]">{suggestion.suggestionText}</p>
+                  {suggestion.flags.length > 0 && (
+                    <p className="mt-2 text-xs text-[#64748B]">Flags: {suggestion.flags.join(' • ')}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </Card>
