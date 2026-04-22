@@ -1,8 +1,9 @@
 import bcrypt from 'bcryptjs';
-import { v4 as uuidv4 } from 'uuid';
 import { prisma } from '../../lib/prisma';
 import { withPrismaRetry } from '../../lib/prisma-retry';
-import { signAccess, signRefresh, verifyRefresh } from '../../lib/jwt';
+import { verifyRefresh } from '../../lib/jwt';
+import { normalizeRole, type KnownRole } from '../../types/roles';
+import { issueAuthTokens, resolveActiveMembership } from './pharmacy-membership.service';
 
 function initialSubscriptionTier(pharmacyType: 'RETAIL' | 'ADDO' | 'WHOLESALE') {
   if (pharmacyType === 'ADDO') {
@@ -36,22 +37,23 @@ export async function loginService(email: string, password: string) {
     data: { lastLogin: new Date() },
   }));
 
-  const payload = { userId: user.id, role: user.role, pharmacyId: user.pharmacyId };
-  const accessToken  = signAccess(payload);
-  const refreshToken = signRefresh(payload);
+  const normalizedRole = normalizeRole(user.role);
+  const membership = normalizedRole === 'SUPER_ADMIN'
+    ? null
+    : await resolveActiveMembership(user.id, user.pharmacyId);
 
-  // Store refresh token
-  await withPrismaRetry(() => prisma.refreshToken.create({
-    data: {
-      id: uuidv4(),
-      userId: user.id,
-      token: refreshToken,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-    },
-  }));
+  if (!membership && normalizedRole !== 'SUPER_ADMIN') {
+    throw Object.assign(new Error('No active pharmacy membership found'), { status: 403 });
+  }
+
+  const { accessToken, refreshToken } = await issueAuthTokens({
+    userId: user.id,
+    role: user.role,
+    pharmacyId: membership?.pharmacyId ?? user.pharmacyId,
+  });
 
   const { password: _pw, ...safeUser } = user;
-  return { user: safeUser, accessToken, refreshToken, pharmacy: user.pharmacy };
+  return { user: safeUser, accessToken, refreshToken, pharmacy: membership?.pharmacy ?? user.pharmacy };
 }
 
 export async function registerService(payload: {
@@ -100,6 +102,17 @@ export async function registerService(payload: {
       },
     });
 
+    await tx.pharmacyMembership.create({
+      data: {
+        userId: user.id,
+        pharmacyId: pharmacy.id,
+        role: 'OWNER',
+        active: true,
+        validFrom: new Date(),
+        createdBy: user.id,
+      },
+    });
+
     return { user, pharmacy };
   });
 
@@ -108,17 +121,7 @@ export async function registerService(payload: {
     role: result.user.role,
     pharmacyId: result.user.pharmacyId,
   };
-  const accessToken  = signAccess(jwtPayload);
-  const refreshToken = signRefresh(jwtPayload);
-
-  await withPrismaRetry(() => prisma.refreshToken.create({
-    data: {
-      id: uuidv4(),
-      userId: result.user.id,
-      token: refreshToken,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-    },
-  }));
+  const { accessToken, refreshToken } = await issueAuthTokens(jwtPayload);
 
   const { password: _pw, ...safeUser } = result.user;
   return { user: safeUser, accessToken, refreshToken, pharmacy: result.pharmacy };
@@ -135,19 +138,35 @@ export async function refreshTokenService(token: string) {
   // Rotate: delete old, issue new
   await withPrismaRetry(() => prisma.refreshToken.delete({ where: { token } }));
 
-  const newAccess  = signAccess(payload);
-  const newRefresh = signRefresh(payload);
-
-  await withPrismaRetry(() => prisma.refreshToken.create({
-    data: {
-      id: uuidv4(),
-      userId: payload.userId,
-      token: newRefresh,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+  const user = await withPrismaRetry(() => prisma.user.findUnique({
+    where: { id: payload.userId },
+    select: {
+      id: true,
+      role: true,
+      pharmacyId: true,
+      isActive: true,
     },
   }));
 
-  return { accessToken: newAccess, refreshToken: newRefresh };
+  if (!user || !user.isActive) {
+    throw Object.assign(new Error('Invalid refresh token'), { status: 401 });
+  }
+
+  const membership = normalizeRole(user.role) === 'SUPER_ADMIN'
+    ? null
+    : await resolveActiveMembership(user.id, payload.pharmacyId ?? user.pharmacyId);
+
+  if (!membership && normalizeRole(user.role) !== 'SUPER_ADMIN') {
+    throw Object.assign(new Error('No active pharmacy membership found'), { status: 403 });
+  }
+
+  const tokens = await issueAuthTokens({
+    userId: user.id,
+    role: user.role as KnownRole,
+    pharmacyId: membership?.pharmacyId ?? user.pharmacyId,
+  });
+
+  return tokens;
 }
 
 export async function logoutService(token: string) {

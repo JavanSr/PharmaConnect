@@ -4,6 +4,7 @@ import request from 'supertest';
 import { PharmacyAccountStatus, PharmacyType, SubscriptionTier, UserRole } from '@prisma/client';
 import app from '../src/index';
 import { prisma } from '../src/lib/prisma';
+import { mapUserRoleToMembershipRole } from '../src/modules/auth/pharmacy-membership.service';
 
 export function uniqueTag(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -59,6 +60,17 @@ export async function createUser(input: {
       mustChangePassword: false,
       lastPasswordChangeAt: new Date(),
       picPinHash,
+    },
+  });
+
+  await prisma.pharmacyMembership.create({
+    data: {
+      userId: user.id,
+      pharmacyId: input.pharmacyId,
+      role: mapUserRoleToMembershipRole(input.role),
+      active: true,
+      validFrom: new Date(),
+      createdBy: user.id,
     },
   });
 

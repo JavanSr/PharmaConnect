@@ -9,6 +9,7 @@ import path from 'node:path';
 
 import { errorHandler, notFound } from './middleware/errorHandler';
 import { authRouter } from './modules/auth/auth.router';
+import { meRouter } from './modules/me/me.router';
 import { inventoryRouter } from './modules/inventory/inventory.router';
 import { complianceRouter } from './modules/compliance/compliance.router';
 import { patientsRouter } from './modules/patients/patients.router';
@@ -77,6 +78,7 @@ app.get('/health', (_req, res) => {
 // ── Routes ────────────────────────────────────────────────────────────────────
 const v1 = '/api/v1';
 app.use(`${v1}/auth`,       authRouter);
+app.use(`${v1}/me`,         meRouter);
 app.use(`${v1}/waitlist`,   waitlistRouter);
 app.use(`${v1}/inventory`,  inventoryRouter);
 app.use(`${v1}/compliance`, complianceRouter);

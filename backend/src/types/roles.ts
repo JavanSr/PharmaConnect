@@ -1,5 +1,6 @@
 import type {
   BillingCycle,
+  PharmacyMembershipRole,
   PharmacyAccountStatus,
   PharmacyType,
   SubscriptionTier,
@@ -11,6 +12,8 @@ export const APP_ROLES = [
   'OWNER',
   'PHARMACIST_IN_CHARGE',
   'DISPENSER',
+  'LOCUM',
+  'ACCOUNTANT',
   'DATA_ENTRY_CLERK',
   'CASHIER',
   'WHOLESALE_MANAGER',
@@ -21,6 +24,15 @@ export const APP_ROLES = [
 export type AppRole = (typeof APP_ROLES)[number];
 export type LegacyRole = 'WHOLESALE_SELLER';
 export type KnownRole = AppRole | LegacyRole;
+export type ScopedMembershipRole = PharmacyMembershipRole;
+
+export const MEMBERSHIP_ROLES = [
+  'OWNER',
+  'PHARMACIST_IN_CHARGE',
+  'DISPENSER',
+  'LOCUM',
+  'ACCOUNTANT',
+] as const satisfies readonly PharmacyMembershipRole[];
 
 export const WCS: AppRole = 'WHOLESALE_COUNTER_STAFF';
 export const WM: AppRole = 'WHOLESALE_MANAGER';
@@ -30,6 +42,8 @@ export const ROLE_NORMALIZATION: Record<KnownRole, AppRole> = {
   OWNER: 'OWNER',
   PHARMACIST_IN_CHARGE: 'PHARMACIST_IN_CHARGE',
   DISPENSER: 'DISPENSER',
+  LOCUM: 'LOCUM',
+  ACCOUNTANT: 'ACCOUNTANT',
   DATA_ENTRY_CLERK: 'DATA_ENTRY_CLERK',
   CASHIER: 'CASHIER',
   WHOLESALE_MANAGER: 'WHOLESALE_MANAGER',
@@ -72,6 +86,10 @@ export function normalizeRole(role: string | null | undefined): AppRole | null {
   }
 
   return ROLE_NORMALIZATION[role as KnownRole] ?? null;
+}
+
+export function isMembershipScopedRole(role: string | null | undefined): role is PharmacyMembershipRole {
+  return Boolean(role && MEMBERSHIP_ROLES.includes(role as PharmacyMembershipRole));
 }
 
 export function normalizeTier(tier: string | null | undefined): SupportedTier | null {

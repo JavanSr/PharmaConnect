@@ -10,6 +10,7 @@ import { prisma } from '../../lib/prisma';
 import { withPrismaRetry } from '../../lib/prisma-retry';
 import { APP_ROLES } from '../../types/roles';
 import { ensurePaymentMethodConfig, PAYMENT_METHOD_CONFIG_KEY } from './payment-method-config';
+import { mapUserRoleToMembershipRole } from '../auth/pharmacy-membership.service';
 
 export const settingsRouter = Router();
 settingsRouter.use(authenticate);
@@ -224,23 +225,35 @@ settingsRouter.post('/change-password', async (req: AuthRequest, res, next) => {
 
 settingsRouter.get('/team', requirePermission('settings.manage_team'), async (req: AuthRequest, res, next) => {
   try {
-    const users = await prisma.user.findMany({
-      where: { pharmacyId: pid(req) },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        email: true,
-        phone: true,
-        role: true,
-        isActive: true,
-        mustChangePassword: true,
-        lastLogin: true,
-        createdAt: true,
+    const memberships = await prisma.pharmacyMembership.findMany({
+      where: {
+        pharmacyId: pid(req),
+        active: true,
       },
-      orderBy: { firstName: 'asc' },
+      select: {
+        role: true,
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+            isActive: true,
+            mustChangePassword: true,
+            lastLogin: true,
+            createdAt: true,
+          },
+        },
+      },
+      orderBy: { user: { firstName: 'asc' } },
     });
-    res.json({ data: users });
+    res.json({
+      data: memberships.map((membership) => ({
+        ...membership.user,
+        role: membership.role,
+      })),
+    });
   } catch (e) {
     next(e);
   }
@@ -277,8 +290,18 @@ settingsRouter.post('/team/invite', requirePermission('settings.manage_team'), a
         lastPasswordChangeAt: new Date(),
       },
     });
+    await prisma.pharmacyMembership.create({
+      data: {
+        userId: user.id,
+        pharmacyId: pid(req),
+        role: mapUserRoleToMembershipRole(data.role),
+        active: true,
+        validFrom: new Date(),
+        createdBy: uid(req),
+      },
+    });
     const { password: _pw, ...safe } = user;
-    res.status(201).json({ data: safe });
+    res.status(201).json({ data: { ...safe, role: mapUserRoleToMembershipRole(data.role) } });
   } catch (e) {
     next(e);
   }
@@ -287,14 +310,24 @@ settingsRouter.post('/team/invite', requirePermission('settings.manage_team'), a
 settingsRouter.patch('/team/:id/role', requirePermission('settings.manage_team'), async (req: AuthRequest, res, next) => {
   try {
     const { role } = z.object({ role: z.enum(APP_ROLES) }).parse(req.body);
-    const user = await prisma.user.findFirst({ where: { id: req.params.id, pharmacyId: pid(req) } });
-    if (!user) {
+    const membership = await prisma.pharmacyMembership.findFirst({
+      where: {
+        userId: req.params.id,
+        pharmacyId: pid(req),
+      },
+    });
+    const user = await prisma.user.findUnique({ where: { id: req.params.id } });
+    if (!user || !membership) {
       res.status(404).json({ error: 'User not found' });
       return;
     }
     const updated = await prisma.user.update({ where: { id: req.params.id }, data: { role } });
+    await prisma.pharmacyMembership.update({
+      where: { userId_pharmacyId: { userId: req.params.id, pharmacyId: pid(req) } },
+      data: { role: mapUserRoleToMembershipRole(role) },
+    });
     const { password: _pw, ...safe } = updated;
-    res.json({ data: safe });
+    res.json({ data: { ...safe, role: mapUserRoleToMembershipRole(role) } });
   } catch (e) {
     next(e);
   }
@@ -306,12 +339,21 @@ settingsRouter.patch('/team/:id/deactivate', requireRole('OWNER', 'SUPER_ADMIN')
       res.status(400).json({ error: 'Cannot deactivate your own account' });
       return;
     }
-    const user = await prisma.user.findFirst({ where: { id: req.params.id, pharmacyId: pid(req) } });
-    if (!user) {
+    const membership = await prisma.pharmacyMembership.findFirst({
+      where: {
+        userId: req.params.id,
+        pharmacyId: pid(req),
+      },
+    });
+    if (!membership) {
       res.status(404).json({ error: 'User not found' });
       return;
     }
     await prisma.user.update({ where: { id: req.params.id }, data: { isActive: false } });
+    await prisma.pharmacyMembership.update({
+      where: { userId_pharmacyId: { userId: req.params.id, pharmacyId: pid(req) } },
+      data: { active: false },
+    });
     res.json({ data: { message: 'User deactivated' } });
   } catch (e) {
     next(e);

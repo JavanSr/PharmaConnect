@@ -3,6 +3,7 @@ import { verifyAccess } from '../lib/jwt';
 import { prisma } from '../lib/prisma';
 import { withPrismaRetry } from '../lib/prisma-retry';
 import { normalizeRole, type AppRole, type KnownRole, type PharmacyAccessSnapshot } from '../types/roles';
+import { resolveActiveMembership, resolveEffectiveScopedRole } from '../modules/auth/pharmacy-membership.service';
 
 export interface VerifiedPicUser {
   userId: string;
@@ -69,20 +70,6 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
         pharmacyId: true,
         isActive: true,
         picPinHash: true,
-        pharmacy: {
-          select: {
-            id: true,
-            name: true,
-            pharmacyType: true,
-            subscriptionTier: true,
-            billingCycle: true,
-            status: true,
-            trialActive: true,
-            trialEndsAt: true,
-            isHybrid: true,
-            hybridAddonActive: true,
-          },
-        },
       },
     }));
 
@@ -91,7 +78,26 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
       return;
     }
 
-    const normalizedRole = normalizeRole(user.role);
+    const userRole = user.role as KnownRole;
+    const baseRole = normalizeRole(userRole);
+    if (!baseRole) {
+      res.status(401).json({ error: 'Invalid or expired token' });
+      return;
+    }
+
+    const membership = baseRole === 'SUPER_ADMIN'
+      ? null
+      : await resolveActiveMembership(user.id, payload.pharmacyId ?? user.pharmacyId, Boolean(payload.pharmacyId));
+
+    if (!membership && baseRole !== 'SUPER_ADMIN') {
+      res.status(403).json({ error: 'PHARMACY_MEMBERSHIP_REQUIRED' });
+      return;
+    }
+
+    const effectiveRole = membership
+      ? resolveEffectiveScopedRole(userRole, membership.role)
+      : userRole;
+    const normalizedRole = normalizeRole(effectiveRole);
     if (!normalizedRole) {
       res.status(401).json({ error: 'Invalid or expired token' });
       return;
@@ -99,10 +105,10 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
 
     req.user = {
       userId: user.id,
-      role: user.role as KnownRole,
+      role: effectiveRole,
       normalizedRole,
-      pharmacyId: user.pharmacyId,
-      pharmacy: user.pharmacy,
+      pharmacyId: membership?.pharmacyId ?? user.pharmacyId,
+      pharmacy: membership?.pharmacy ?? null,
       email: user.email,
       picPinHash: user.picPinHash,
     };

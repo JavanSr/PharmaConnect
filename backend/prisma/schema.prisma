@@ -18,12 +18,22 @@ enum UserRole {
   OWNER
   PHARMACIST_IN_CHARGE
   DISPENSER
+  LOCUM
+  ACCOUNTANT
   DATA_ENTRY_CLERK
   CASHIER
   WHOLESALE_MANAGER
   WHOLESALE_COUNTER_STAFF
   DELIVERY_STAFF
   WHOLESALE_SELLER
+}
+
+enum PharmacyMembershipRole {
+  OWNER
+  PHARMACIST_IN_CHARGE
+  DISPENSER
+  LOCUM
+  ACCOUNTANT
 }
 
 enum SubscriptionTier {
@@ -204,13 +214,14 @@ model Pharmacy {
   stockAdjustmentSuggestions StockAdjustmentSuggestion[]
   productBarcodeMappings ProductBarcodeMapping[]
   barcodeScanTelemetry BarcodeScanTelemetry[]
+  memberships     PharmacyMembership[]
 
   @@map("pharmacies")
 }
 
 model User {
   id                   String   @id @default(uuid())
-  pharmacyId           String?
+  pharmacyId           String?  @map("last_pharmacy_id")
   email                String   @unique
   password             String
   firstName            String
@@ -244,8 +255,32 @@ model User {
   reviewedStockAdjustmentSuggestions StockAdjustmentSuggestion[] @relation("StockAdjustmentSuggestionReviewedBy")
   createdProductBarcodeMappings ProductBarcodeMapping[] @relation("ProductBarcodeMappingCreatedBy")
   createdBarcodeScanTelemetry BarcodeScanTelemetry[] @relation("BarcodeScanTelemetryCreatedBy")
+  memberships PharmacyMembership[] @relation("UserPharmacyMemberships")
+  createdMemberships PharmacyMembership[] @relation("PharmacyMembershipCreatedBy")
 
   @@map("users")
+}
+
+model PharmacyMembership {
+  id         String                 @id @default(uuid())
+  userId     String                 @map("user_id")
+  pharmacyId String                 @map("pharmacy_id")
+  role       PharmacyMembershipRole
+  active     Boolean                @default(true)
+  validFrom  DateTime?              @map("valid_from")
+  validUntil DateTime?              @map("valid_until")
+  createdBy  String?                @map("created_by")
+  createdAt  DateTime               @default(now()) @map("created_at")
+  updatedAt  DateTime               @updatedAt @map("updated_at")
+
+  user     User     @relation("UserPharmacyMemberships", fields: [userId], references: [id], onDelete: Cascade)
+  pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  creator  User?    @relation("PharmacyMembershipCreatedBy", fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@unique([userId, pharmacyId], map: "pharmacy_memberships_user_pharmacy_key")
+  @@index([pharmacyId, active, validUntil], map: "pharmacy_memberships_pharmacy_active_valid_until_idx")
+  @@index([userId, active, validUntil], map: "pharmacy_memberships_user_active_valid_until_idx")
+  @@map("pharmacy_memberships")
 }
 
 model PharmacySetting {
