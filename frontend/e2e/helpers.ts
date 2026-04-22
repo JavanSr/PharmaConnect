@@ -89,6 +89,16 @@ export async function bootstrapSession(
   options: {
     user: typeof browserUsers.activeOwner;
     pharmacy: typeof pharmacies.active;
+    memberships?: Array<{
+      id: string;
+      pharmacyId: string;
+      role: string;
+      active: boolean;
+      validFrom: string | null;
+      validUntil: string | null;
+      selected: boolean;
+      pharmacy: typeof pharmacies.active;
+    }>;
   },
 ) {
   await page.addInitScript(({ user, pharmacy }) => {
@@ -108,7 +118,11 @@ export async function bootstrapSession(
     window.localStorage.setItem(
       'pc-pharmacy',
       JSON.stringify({
-        state: { pharmacy },
+        state: {
+          pharmacy,
+          memberships: [],
+          deviceSelectedPharmacyId: pharmacy.id,
+        },
         version: 0,
       }),
     );
@@ -120,7 +134,29 @@ export async function mockShell(page: Page, options: {
   profile?: Record<string, unknown>;
   notifications?: Array<Record<string, unknown>>;
   paymentMethods?: Array<Record<string, unknown>>;
+  memberships?: Array<Record<string, unknown>>;
 }) {
+  await page.route('**/api/v1/me/pharmacies', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: options.memberships ?? [
+          {
+            id: 'membership-active',
+            pharmacyId: String(options.subscription.id ?? 'pharmacy-active'),
+            role: 'OWNER',
+            active: true,
+            validFrom: '2026-01-01T00:00:00.000Z',
+            validUntil: null,
+            selected: true,
+            pharmacy: options.subscription,
+          },
+        ],
+      }),
+    });
+  });
+
   await page.route('**/api/v1/settings/subscription', async (route) => {
     await route.fulfill({
       status: 200,

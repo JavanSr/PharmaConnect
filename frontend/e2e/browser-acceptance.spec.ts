@@ -63,6 +63,65 @@ test('expired trial shows paywall but still allows subscription page', async ({ 
   await expect(page.getByRole('heading', { name: 'Your 30-day trial has ended' })).toHaveCount(0);
 });
 
+test('multi-outlet users can pick a pharmacy and persist the device selection', async ({ page }) => {
+  const memberships = [
+    {
+      id: 'membership-active',
+      pharmacyId: pharmacies.active.id,
+      role: 'OWNER',
+      active: true,
+      validFrom: '2026-01-01T00:00:00.000Z',
+      validUntil: null,
+      selected: true,
+      pharmacy: pharmacies.active,
+    },
+    {
+      id: 'membership-near-trial',
+      pharmacyId: pharmacies.nearTrial.id,
+      role: 'OWNER',
+      active: true,
+      validFrom: '2026-01-01T00:00:00.000Z',
+      validUntil: null,
+      selected: false,
+      pharmacy: pharmacies.nearTrial,
+    },
+  ];
+
+  await bootstrapSession(page, {
+    user: browserUsers.activeOwner,
+    pharmacy: pharmacies.active,
+  });
+  await mockShell(page, {
+    subscription: pharmacies.active,
+    memberships,
+  });
+
+  await page.route(`**/api/v1/me/pharmacies/${pharmacies.nearTrial.id}/select`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: {
+          accessToken: 'playwright-access-token-2',
+          refreshToken: 'playwright-refresh-token-2',
+          pharmacy: pharmacies.nearTrial,
+        },
+      }),
+    });
+  });
+
+  await page.goto('/select-pharmacy');
+
+  await expect(page.getByRole('heading', { name: 'Choose the pharmacy you want to work in' })).toBeVisible();
+  await expect(page.getByText(pharmacies.nearTrial.name)).toBeVisible();
+  await page.getByRole('button', { name: 'Work in this outlet' }).click();
+
+  await expect(page).toHaveURL(/\/dashboard/);
+
+  const persistedState = await page.evaluate(() => window.localStorage.getItem('pc-pharmacy'));
+  expect(persistedState).toContain(pharmacies.nearTrial.id);
+});
+
 test('owner can configure dispensing payment methods from settings', async ({ page }) => {
   let savedConfig: Record<string, unknown> | null = null;
 

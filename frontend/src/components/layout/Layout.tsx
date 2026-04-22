@@ -4,6 +4,7 @@ import { differenceInCalendarDays } from 'date-fns';
 import { Outlet, useLocation } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { usePharmacyStore } from '@/stores/pharmacyStore';
+import { loadMemberships } from '@/lib/pharmacySelection';
 import { TrialBanner } from '@/components/TrialBanner';
 import { TrialPaywall } from '@/components/TrialPaywall';
 import { Sidebar } from './Sidebar';
@@ -44,14 +45,33 @@ export const Layout: React.FC = () => {
   const location = useLocation();
   const pharmacy = usePharmacyStore((state) => state.pharmacy);
   const setPharmacy = usePharmacyStore((state) => state.setPharmacy);
+  const setMemberships = usePharmacyStore((state) => state.setMemberships);
 
   const title = routeTitles[location.pathname] || '';
   const subscriptionQuery = useQuery({
     queryKey: ['layout-subscription-status'],
     queryFn: () => api.get('/settings/subscription').then((response) => response.data),
   });
+  const membershipsQuery = useQuery({
+    queryKey: ['me-pharmacies'],
+    queryFn: loadMemberships,
+    staleTime: 60_000,
+  });
 
   const subscription = subscriptionQuery.data?.data;
+  React.useEffect(() => {
+    if (!membershipsQuery.data?.length) {
+      return;
+    }
+
+    setMemberships(membershipsQuery.data);
+
+    const selectedMembership = membershipsQuery.data.find((membership) => membership.selected) ?? membershipsQuery.data[0];
+    if (selectedMembership && selectedMembership.pharmacy.id !== pharmacy?.id) {
+      setPharmacy(selectedMembership.pharmacy);
+    }
+  }, [membershipsQuery.data, pharmacy?.id, setMemberships, setPharmacy]);
+
   React.useEffect(() => {
     if (!subscription) {
       return;

@@ -5,6 +5,7 @@ import { Layout } from '@/components/layout/Layout';
 import { AuthGuard } from '@/components/layout/AuthGuard';
 import { useOfflineSync } from '@/hooks/useOfflineSync';
 import { LoginPage } from '@/modules/auth/LoginPage';
+import { PharmacySelectorPage } from '@/modules/auth/PharmacySelectorPage';
 import { RegisterPage } from '@/modules/auth/RegisterPage';
 
 const queryClient = new QueryClient({
@@ -74,6 +75,7 @@ export const App: React.FC = () => (
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/select-pharmacy" element={<AuthGuard><PharmacySelectorPage /></AuthGuard>} />
         <Route path="/nhif-claims" element={<Suspense fallback={<PageLoader />}><NhifClaimsPage /></Suspense>} />
         <Route path="/prescriptions" element={<Suspense fallback={<PageLoader />}><PrescriptionManagementPage /></Suspense>} />
         <Route path="/symptom-checker" element={<Suspense fallback={<PageLoader />}><SymptomCheckerPage /></Suspense>} />

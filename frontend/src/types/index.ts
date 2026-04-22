@@ -5,6 +5,8 @@ export type UserRole =
   | 'OWNER'
   | 'PHARMACIST_IN_CHARGE'
   | 'DISPENSER'
+  | 'LOCUM'
+  | 'ACCOUNTANT'
   | 'DATA_ENTRY_CLERK'
   | 'CASHIER'
   | 'WHOLESALE_MANAGER'
@@ -233,6 +235,17 @@ export interface SyncConflict {
   resolvedBy?: string | null;
   resolvedAt?: string | null;
   createdAt: string;
+}
+
+export interface PharmacyMembership {
+  id: string;
+  pharmacyId: string;
+  role: UserRole;
+  active: boolean;
+  validFrom: string | null;
+  validUntil: string | null;
+  selected: boolean;
+  pharmacy: Pharmacy;
 }
 
 export type StockAdjustmentSuggestionStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'PARTIAL';

@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/Input';
 import { useAuthStore } from '@/stores/authStore';
 import { usePharmacyStore } from '@/stores/pharmacyStore';
 import { api } from '@/lib/api';
+import { loadMemberships, selectMembershipPharmacy } from '@/lib/pharmacySelection';
 
 const schema = z.object({
   email: z.string().email('Enter a valid email'),
@@ -31,6 +32,8 @@ export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const setAuth = useAuthStore(s => s.setAuth);
   const setPharmacy = usePharmacyStore(s => s.setPharmacy);
+  const setDeviceSelectedPharmacyId = usePharmacyStore(s => s.setDeviceSelectedPharmacyId);
+  const deviceSelectedPharmacyId = usePharmacyStore(s => s.deviceSelectedPharmacyId);
   const [showPw, setShowPw] = React.useState(false);
   const [error, setError] = React.useState('');
 
@@ -44,8 +47,28 @@ export const LoginPage: React.FC = () => {
       const res = await api.post('/auth/login', data);
       const { user, accessToken, refreshToken, pharmacy } = res.data.data;
       setAuth(user, accessToken, refreshToken);
-      if (pharmacy) setPharmacy(pharmacy);
-      navigate('/dashboard');
+      if (pharmacy) {
+        setPharmacy(pharmacy);
+      }
+
+      const memberships = await loadMemberships();
+      if (memberships.length <= 1) {
+        const onlyMembership = memberships[0];
+        if (onlyMembership) {
+          setPharmacy(onlyMembership.pharmacy);
+          setDeviceSelectedPharmacyId(onlyMembership.pharmacyId);
+        }
+        navigate('/dashboard');
+        return;
+      }
+
+      if (deviceSelectedPharmacyId && memberships.some((membership) => membership.pharmacyId === deviceSelectedPharmacyId)) {
+        await selectMembershipPharmacy(deviceSelectedPharmacyId);
+        navigate('/dashboard');
+        return;
+      }
+
+      navigate('/select-pharmacy');
     } catch (err: any) {
       if (!err.response) {
         setError('Cannot reach the backend API. Start the backend server and try again.');

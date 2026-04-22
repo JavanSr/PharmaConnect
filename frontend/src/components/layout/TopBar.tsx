@@ -1,9 +1,13 @@
 import React from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, Link } from 'react-router-dom';
 import { Menu, Plus, WifiOff, Clock } from 'lucide-react';
 import { useConnectivityStore } from '@/stores/connectivityStore';
+import { useNotificationStore } from '@/stores/notificationStore';
+import { usePharmacyStore } from '@/stores/pharmacyStore';
 import { Button } from '@/components/ui/Button';
 import { NotificationBell } from '@/components/NotificationBell';
+import { selectMembershipPharmacy } from '@/lib/pharmacySelection';
 
 interface TopBarProps {
   onMenuClick: () => void;
@@ -13,7 +17,20 @@ interface TopBarProps {
 export const TopBar: React.FC<TopBarProps> = ({ onMenuClick, title }) => {
   const isOnline = useConnectivityStore(state => state.isOnline);
   const pendingSyncCount = useConnectivityStore(state => state.pendingSyncCount);
+  const memberships = usePharmacyStore(state => state.memberships);
+  const pharmacy = usePharmacyStore(state => state.pharmacy);
+  const toast = useNotificationStore(state => state.toast);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const switchMutation = useMutation({
+    mutationFn: (pharmacyId: string) => selectMembershipPharmacy(pharmacyId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries();
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Could not switch pharmacy');
+    },
+  });
 
   const ConnectivityDot = () => {
     if (pendingSyncCount > 0) return (
@@ -48,6 +65,34 @@ export const TopBar: React.FC<TopBarProps> = ({ onMenuClick, title }) => {
       </div>
 
       <div className="flex items-center gap-2">
+        {memberships.length > 1 && (
+          <div className="hidden md:flex items-center gap-2 rounded-full border border-[#D6F0E8] bg-white px-3 py-1.5">
+            <label htmlFor="topbar-pharmacy-select" className="text-xs font-medium text-[#64748B]">
+              Outlet
+            </label>
+            <select
+              id="topbar-pharmacy-select"
+              aria-label="Active pharmacy"
+              className="bg-transparent text-sm font-medium text-[#0D4035] outline-none"
+              disabled={switchMutation.isPending}
+              value={pharmacy?.id ?? ''}
+              onChange={(event) => {
+                const nextId = event.target.value;
+                if (!nextId || nextId === pharmacy?.id) {
+                  return;
+                }
+                switchMutation.mutate(nextId);
+              }}
+            >
+              {memberships.map((membership) => (
+                <option key={membership.id} value={membership.pharmacyId}>
+                  {membership.pharmacy.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         <ConnectivityDot />
 
         {/* Quick actions */}

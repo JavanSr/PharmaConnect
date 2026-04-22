@@ -9,6 +9,7 @@ import { Select } from '@/components/ui/Select';
 import { useAuthStore } from '@/stores/authStore';
 import { usePharmacyStore } from '@/stores/pharmacyStore';
 import { api } from '@/lib/api';
+import { loadMemberships } from '@/lib/pharmacySelection';
 
 const schema = z.object({
   pharmacyName: z.string().min(2, 'Pharmacy name is required'),
@@ -31,6 +32,7 @@ export const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
   const setAuth = useAuthStore(s => s.setAuth);
   const setPharmacy = usePharmacyStore(s => s.setPharmacy);
+  const setDeviceSelectedPharmacyId = usePharmacyStore(s => s.setDeviceSelectedPharmacyId);
   const [error, setError] = React.useState('');
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
@@ -45,7 +47,23 @@ export const RegisterPage: React.FC = () => {
       const res = await api.post('/auth/register', payload);
       const { user, accessToken, refreshToken, pharmacy } = res.data.data;
       setAuth(user, accessToken, refreshToken);
-      if (pharmacy) setPharmacy(pharmacy);
+      if (pharmacy) {
+        setPharmacy(pharmacy);
+      }
+
+      const memberships = await loadMemberships();
+      if (memberships.length > 1) {
+        navigate('/select-pharmacy');
+        return;
+      }
+
+      if (memberships[0]) {
+        setPharmacy(memberships[0].pharmacy);
+        setDeviceSelectedPharmacyId(memberships[0].pharmacyId);
+      } else if (pharmacy) {
+        setDeviceSelectedPharmacyId(pharmacy.id);
+      }
+
       navigate('/dashboard');
     } catch (err: any) {
       setError(err.response?.data?.error || 'Registration failed. Please try again.');
