@@ -29,6 +29,7 @@ const routeTitles: Record<string, string> = {
   '/compliance/staff': 'Staff Credentials',
   '/compliance/inspection': 'Inspection Checklist',
   '/dispensing': 'Dispensing',
+  '/dispensing/returns': 'Dispensing Returns',
   '/dispensing/daily-close': 'Daily Close',
   '/controlled-substances': 'Controlled Register',
   '/wholesale': 'Wholesale',

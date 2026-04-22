@@ -40,6 +40,7 @@ const ComplianceItemFormPage = lazy(() => import('@/modules/compliance/Complianc
 const InspectionChecklistPage = lazy(() => import('@/modules/compliance/InspectionChecklistPage').then(m => ({ default: m.InspectionChecklistPage })));
 const StaffCredentialsPage = lazy(() => import('@/modules/compliance/StaffCredentialsPage').then(m => ({ default: m.StaffCredentialsPage })));
 const DispensingScreen = lazy(() => import('@/modules/dispensing/DispensingScreen').then(m => ({ default: m.DispensingScreen })));
+const DispensingReturnsPage = lazy(() => import('@/modules/dispensing/DispensingReturnsPage').then(m => ({ default: m.DispensingReturnsPage })));
 const DailyClose = lazy(() => import('@/modules/dispensing/DailyClose').then(m => ({ default: m.DailyClose })));
 const NhifClaimsPage = lazy(() => import('@/modules/deferred/NhifClaimsPage').then(m => ({ default: m.NhifClaimsPage })));
 const PrescriptionManagementPage = lazy(() => import('@/modules/deferred/PrescriptionManagementPage').then(m => ({ default: m.PrescriptionManagementPage })));
@@ -112,6 +113,7 @@ export const App: React.FC = () => (
           <Route path="/compliance/staff" element={<Suspense fallback={<PageLoader />}><StaffCredentialsPage /></Suspense>} />
           <Route path="/compliance/inspection" element={<Suspense fallback={<PageLoader />}><InspectionChecklistPage /></Suspense>} />
           <Route path="/dispensing" element={<Suspense fallback={<PageLoader />}><DispensingScreen /></Suspense>} />
+          <Route path="/dispensing/returns" element={<Suspense fallback={<PageLoader />}><DispensingReturnsPage /></Suspense>} />
           <Route path="/dispensing/daily-close" element={<Suspense fallback={<PageLoader />}><DailyClose /></Suspense>} />
           <Route path="/controlled-substances" element={<Suspense fallback={<PageLoader />}><ControlledDrugsRegisterPage /></Suspense>} />
           <Route path="/wholesale" element={<Suspense fallback={<PageLoader />}><WholesaleDashboardPage /></Suspense>} />

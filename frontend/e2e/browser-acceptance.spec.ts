@@ -1130,6 +1130,86 @@ test('dispensing can attach an optional prescription photo from the checkout pan
   expect(checkoutContentType).toContain('multipart/form-data');
 });
 
+test('owner can search a dispensing and process a dedicated return flow', async ({ page }) => {
+  let eventReads = 0;
+  let returnPayload: Record<string, unknown> | null = null;
+
+  await bootstrapSession(page, {
+    user: browserUsers.activeOwner,
+    pharmacy: pharmacies.active,
+  });
+  await mockShell(page, { subscription: pharmacies.active });
+
+  await page.route('**/api/v1/dispensing/events?*', async (route) => {
+    eventReads += 1;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: eventReads === 1
+          ? [
+              {
+                id: 'dispensing-return-1',
+                referenceNumber: 'RX-RET-1',
+                paymentMethod: 'CASH',
+                totalAmount: 5000,
+                status: 'COMPLETED',
+                createdAt: '2026-04-22T11:00:00.000Z',
+                updatedAt: '2026-04-22T11:00:00.000Z',
+                voidReason: null,
+                voidedAt: null,
+                itemCount: 2,
+              },
+            ]
+          : [
+              {
+                id: 'dispensing-return-1',
+                referenceNumber: 'RX-RET-1',
+                paymentMethod: 'CASH',
+                totalAmount: 5000,
+                status: 'VOIDED',
+                createdAt: '2026-04-22T11:00:00.000Z',
+                updatedAt: '2026-04-22T11:06:00.000Z',
+                voidReason: 'Customer returned the unopened sale.',
+                voidedAt: '2026-04-22T11:06:00.000Z',
+                itemCount: 2,
+              },
+            ],
+      }),
+    });
+  });
+
+  await page.route('**/api/v1/dispensing/returns/dispensing-return-1', async (route) => {
+    returnPayload = route.request().postDataJSON() as Record<string, unknown>;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: {
+          id: 'dispensing-return-1',
+          referenceNumber: 'RX-RET-1',
+          status: 'VOIDED',
+          voidReason: 'Customer returned the unopened sale.',
+          source: 'RETURN',
+        },
+      }),
+    });
+  });
+
+  await expectProtectedRoute(page, '/dispensing/returns');
+
+  await expect(page.getByText('RX-RET-1')).toBeVisible();
+  await page.getByRole('button', { name: 'Start return' }).click();
+  await page.getByLabel('Return reason').fill('Customer returned the unopened sale.');
+  await page.getByRole('button', { name: 'Process return' }).click();
+
+  await expect(page.getByText('Return processed and stock restored')).toBeVisible();
+  await expect(page.getByText('Already returned')).toBeVisible();
+  expect(returnPayload).toEqual({
+    reason: 'Customer returned the unopened sale.',
+  });
+});
+
 test('dispenser submits a stock adjustment suggestion without direct adjustment controls', async ({ page }) => {
   const product = {
     id: 'product-stock-suggestion',

@@ -442,6 +442,19 @@ export interface DispensingRecord {
   createdAt: string;
 }
 
+export interface DispensingEventSummary {
+  id: string;
+  referenceNumber: string;
+  paymentMethod: PaymentMethod | string;
+  totalAmount: number;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  voidReason: string | null;
+  voidedAt: string | null;
+  itemCount: number;
+}
+
 export interface ControlledRegisterEntry {
   eventId: string;
   referenceNumber: string;

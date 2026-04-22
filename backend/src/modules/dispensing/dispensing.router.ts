@@ -13,6 +13,7 @@ import { prisma } from '../../lib/prisma';
 import { resolveFefoBatch } from '../inventory/inventory.service';
 import { sessionReview } from '../patient-safety/patient-safety.service';
 import { ensurePaymentMethodConfig } from '../settings/payment-method-config';
+import { trackFeatureTelemetry } from '../telemetry/feature-telemetry.service';
 
 const paymentMethods = Object.values(PaymentMethod) as [PaymentMethod, ...PaymentMethod[]];
 const LEGACY_PAYMENT_METHOD_OPTIONS = [
@@ -114,6 +115,24 @@ type DispensingEventItem = {
   counsellingNotes?: string;
 };
 
+type DispensingEventLookupRow = {
+  id: string;
+  reference_number: string;
+  payment_method: string;
+  payment_reference: string | null;
+  prescription_photo_path: string | null;
+  subtotal_amount: string | number;
+  discount_amount: string | number;
+  total_amount: string | number;
+  status: string;
+  vfd_status: string;
+  created_at: Date;
+  updated_at: Date;
+  void_reason: string | null;
+  voided_at: Date | null;
+  items: Prisma.JsonValue;
+};
+
 function getPharmacyId(req: AuthRequest) {
   return req.user!.pharmacyId!;
 }
@@ -180,6 +199,114 @@ function parseCheckoutPayload(req: AuthRequest) {
   }
 
   return checkoutSchema.parse(req.body);
+}
+
+async function reverseDispensingEvent(input: {
+  pharmacyId: string;
+  eventId: string;
+  currentUserId: string;
+  reason: string;
+  source: 'VOID' | 'RETURN';
+}) {
+  const rows = await prisma.$queryRaw<DispensingEventLookupRow[]>(Prisma.sql`
+    SELECT
+      "id",
+      "reference_number",
+      "payment_method",
+      "payment_reference",
+      "prescription_photo_path",
+      "subtotal_amount",
+      "discount_amount",
+      "total_amount",
+      "status",
+      "vfd_status",
+      "created_at",
+      "updated_at",
+      "void_reason",
+      "voided_at",
+      "items"
+    FROM "dispensing_events"
+    WHERE "id" = ${input.eventId} AND "pharmacy_id" = ${input.pharmacyId}
+    LIMIT 1
+  `);
+
+  const event = rows[0];
+  if (!event) {
+    throw Object.assign(new Error('Dispensing event not found'), { status: 404, code: 'DISPENSING_NOT_FOUND' });
+  }
+  if (event.status === 'VOIDED') {
+    throw Object.assign(new Error('Dispensing event already voided'), { status: 409, code: 'DISPENSING_ALREADY_VOIDED' });
+  }
+
+  const items = Array.isArray(event.items) ? (event.items as DispensingEventItem[]) : [];
+
+  await prisma.$transaction(async (tx) => {
+    for (const item of items) {
+      await tx.batch.update({
+        where: { id: item.batchId },
+        data: { quantityRemaining: { increment: item.quantity } },
+      });
+
+      await tx.stockMovement.create({
+        data: {
+          pharmacyId: input.pharmacyId,
+          productId: item.productId,
+          batchId: item.batchId,
+          userId: input.currentUserId,
+          type: 'RETURNED',
+          quantity: item.quantity,
+          notes: `${input.source === 'RETURN' ? 'Return flow' : 'Void'} reversal for ${input.eventId}: ${input.reason}`,
+        },
+      });
+    }
+
+    await tx.$executeRaw(Prisma.sql`
+      UPDATE "dispensing_events"
+      SET
+        "status" = 'VOIDED',
+        "void_reason" = ${input.reason},
+        "voided_at" = CURRENT_TIMESTAMP,
+        "voided_by" = ${input.currentUserId},
+        "updated_at" = CURRENT_TIMESTAMP
+      WHERE "id" = ${input.eventId}
+    `);
+
+    await tx.$executeRaw(Prisma.sql`
+      INSERT INTO "audit_log" ("pharmacy_id", "table_name", "record_id", "action", "acted_by", "new_data")
+      VALUES (
+        ${input.pharmacyId},
+        'dispensing_events',
+        ${input.eventId},
+        'UPDATE',
+        ${input.currentUserId},
+        ${JSON.stringify({ status: 'VOIDED', reason: input.reason, source: input.source })}::jsonb
+      )
+    `);
+  });
+
+  return {
+    id: event.id,
+    referenceNumber: event.reference_number,
+    status: 'VOIDED',
+    voidReason: input.reason,
+    source: input.source,
+  };
+}
+
+function tryHandleDispensingError(res: any, error: unknown) {
+  if (error && typeof error === 'object' && 'status' in error) {
+    const status = Number((error as { status?: unknown }).status);
+    const rawCode = (error as { code?: unknown }).code;
+    const code = typeof rawCode === 'string'
+      ? rawCode
+      : 'DISPENSING_ERROR';
+    if (Number.isFinite(status) && status >= 400) {
+      res.status(status).json({ error: code });
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function normalizeDispensingPaymentMethods(value: Prisma.JsonValue | null | undefined): DispensingPaymentMethodOption[] {
@@ -509,77 +636,116 @@ dispensingRouter.post('/checkout', requirePermission('dispensing.access'), uploa
   }
 });
 
+dispensingRouter.get('/events', requirePermission('dispensing.void_sale'), async (req: AuthRequest, res, next) => {
+  try {
+    const query = z.object({
+      search: z.string().trim().max(100).optional(),
+      status: z.enum(['COMPLETED', 'VOIDED']).optional(),
+      limit: z.coerce.number().int().min(1).max(50).optional(),
+    }).parse(req.query);
+
+    const pharmacyId = getPharmacyId(req);
+    const searchPattern = query.search?.trim() ? `%${query.search.trim()}%` : null;
+    const rows = await prisma.$queryRaw<Array<{
+      id: string;
+      reference_number: string;
+      payment_method: string;
+      total_amount: string | number;
+      status: string;
+      created_at: Date;
+      updated_at: Date;
+      void_reason: string | null;
+      voided_at: Date | null;
+      item_count: number;
+    }>>(Prisma.sql`
+      SELECT
+        "id",
+        "reference_number",
+        "payment_method"::text AS payment_method,
+        "total_amount",
+        "status",
+        "created_at",
+        "updated_at",
+        "void_reason",
+        "voided_at",
+        jsonb_array_length("items") AS item_count
+      FROM "dispensing_events"
+      WHERE
+        "pharmacy_id" = ${pharmacyId}
+        AND (${query.status ?? null}::text IS NULL OR "status" = ${query.status ?? null})
+        AND (${searchPattern}::text IS NULL OR "reference_number" ILIKE ${searchPattern})
+      ORDER BY "created_at" DESC
+      LIMIT ${query.limit ?? 20}
+    `);
+
+    res.json({
+      data: rows.map((row) => ({
+        id: row.id,
+        referenceNumber: row.reference_number,
+        paymentMethod: row.payment_method,
+        totalAmount: toNumber(row.total_amount),
+        status: row.status,
+        createdAt: row.created_at.toISOString(),
+        updatedAt: row.updated_at.toISOString(),
+        voidReason: row.void_reason,
+        voidedAt: row.voided_at?.toISOString() ?? null,
+        itemCount: Number(row.item_count ?? 0),
+      })),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 dispensingRouter.patch('/:id/void', requirePermission('dispensing.void_sale'), async (req: AuthRequest, res, next) => {
   try {
     const { reason } = z.object({ reason: z.string().trim().min(5).max(255) }).parse(req.body);
-    const pharmacyId = getPharmacyId(req);
-    const currentUserId = getUserId(req);
-
-    const rows = await prisma.$queryRaw<Array<{ id: string; status: string; items: Prisma.JsonValue }>>(Prisma.sql`
-      SELECT "id", "status", "items"
-      FROM "dispensing_events"
-      WHERE "id" = ${req.params.id} AND "pharmacy_id" = ${pharmacyId}
-      LIMIT 1
-    `);
-
-    const event = rows[0];
-    if (!event) {
-      res.status(404).json({ error: 'Dispensing event not found' });
-      return;
-    }
-    if (event.status === 'VOIDED') {
-      res.status(409).json({ error: 'DISPENSING_ALREADY_VOIDED' });
-      return;
-    }
-
-    const items = Array.isArray(event.items) ? (event.items as DispensingEventItem[]) : [];
-
-    await prisma.$transaction(async (tx) => {
-      for (const item of items) {
-        await tx.batch.update({
-          where: { id: item.batchId },
-          data: { quantityRemaining: { increment: item.quantity } },
-        });
-
-        await tx.stockMovement.create({
-          data: {
-            pharmacyId,
-            productId: item.productId,
-            batchId: item.batchId,
-            userId: currentUserId,
-            type: 'RETURNED',
-            quantity: item.quantity,
-            notes: `Void reversal for ${req.params.id}: ${reason}`,
-          },
-        });
-      }
-
-      await tx.$executeRaw(Prisma.sql`
-        UPDATE "dispensing_events"
-        SET
-          "status" = 'VOIDED',
-          "void_reason" = ${reason},
-          "voided_at" = CURRENT_TIMESTAMP,
-          "voided_by" = ${currentUserId},
-          "updated_at" = CURRENT_TIMESTAMP
-        WHERE "id" = ${req.params.id}
-      `);
-
-      await tx.$executeRaw(Prisma.sql`
-        INSERT INTO "audit_log" ("pharmacy_id", "table_name", "record_id", "action", "acted_by", "new_data")
-        VALUES (
-          ${pharmacyId},
-          'dispensing_events',
-          ${req.params.id},
-          'UPDATE',
-          ${currentUserId},
-          ${JSON.stringify({ status: 'VOIDED', reason })}::jsonb
-        )
-      `);
+    const result = await reverseDispensingEvent({
+      pharmacyId: getPharmacyId(req),
+      eventId: req.params.id,
+      currentUserId: getUserId(req),
+      reason,
+      source: 'VOID',
     });
 
-    res.json({ data: { id: req.params.id, status: 'VOIDED' } });
+    res.json({ data: result });
   } catch (error) {
+    if (tryHandleDispensingError(res, error)) {
+      return;
+    }
+    next(error);
+  }
+});
+
+dispensingRouter.post('/returns/:id', requirePermission('dispensing.void_sale'), async (req: AuthRequest, res, next) => {
+  try {
+    const { reason } = z.object({
+      reason: z.string().trim().min(5).max(255),
+    }).parse(req.body);
+
+    const result = await reverseDispensingEvent({
+      pharmacyId: getPharmacyId(req),
+      eventId: req.params.id,
+      currentUserId: getUserId(req),
+      reason,
+      source: 'RETURN',
+    });
+
+    await trackFeatureTelemetry({
+      pharmacyId: getPharmacyId(req),
+      userId: getUserId(req),
+      featureKey: 'dispensing_returns',
+      eventType: 'USED',
+      metadata: {
+        eventId: req.params.id,
+      },
+    });
+
+    res.json({ data: result });
+  } catch (error) {
+    if (tryHandleDispensingError(res, error)) {
+      return;
+    }
     next(error);
   }
 });
