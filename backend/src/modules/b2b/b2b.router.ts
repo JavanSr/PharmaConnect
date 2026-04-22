@@ -13,6 +13,7 @@ import {
   listVatInvoices,
   listWholesaleCatalogue,
   pickOrderItems,
+  scheduleDelivery,
   updateOrderStatus,
   upsertCreditLimit,
   upsertWholesaleCatalogue,
@@ -59,7 +60,7 @@ function canTransition(role: string, nextStatus: z.infer<typeof orderStatusSchem
 b2bRouter.get('/catalogue', async (req: AuthRequest, res, next) => {
   try {
     const { sellerPharmacyId } = z.object({ sellerPharmacyId: z.string().optional() }).parse(req.query);
-    res.json({ data: await listWholesaleCatalogue(sellerPharmacyId) });
+    res.json({ data: await listWholesaleCatalogue(sellerPharmacyId, pid(req)) });
   } catch (error) {
     next(error);
   }
@@ -73,6 +74,7 @@ b2bRouter.post('/catalogues', requirePermission('wholesale.manage_catalogue'), a
       items: z.array(z.object({
         productId: z.string(),
         price: z.coerce.number().positive(),
+        tierPrices: z.record(z.enum(['ADDO', 'ADDO_PLUS', 'STANDARD', 'PREMIUM', 'WHOLESALE', 'ENTERPRISE']), z.coerce.number().nonnegative()).optional(),
         minOrderQuantity: z.coerce.number().int().positive().optional(),
         maxOrderQuantity: z.coerce.number().int().positive().nullable().optional(),
       })).min(1),
@@ -171,6 +173,28 @@ b2bRouter.patch('/orders/:id/status', async (req: AuthRequest, res, next) => {
   }
 });
 
+b2bRouter.patch('/orders/:id/delivery-schedule', requireRole('OWNER', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF', 'SUPER_ADMIN'), async (req: AuthRequest, res, next) => {
+  try {
+    const payload = z.object({
+      scheduledDeliveryAt: z.coerce.date(),
+      deliveryWindowLabel: z.string().min(1).max(120).optional().nullable(),
+      deliveryNote: z.string().max(500).optional().nullable(),
+    }).parse(req.body);
+
+    res.json({
+      data: await scheduleDelivery({
+        orderId: req.params.id,
+        pharmacyId: pid(req),
+        scheduledDeliveryAt: payload.scheduledDeliveryAt,
+        deliveryWindowLabel: payload.deliveryWindowLabel,
+        deliveryNote: payload.deliveryNote,
+      }),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 b2bRouter.patch('/orders/:id/pick-items', requireRole('WHOLESALE_COUNTER_STAFF', 'WHOLESALE_MANAGER', 'SUPER_ADMIN'), async (req: AuthRequest, res, next) => {
   try {
     const payload = z.object({
@@ -233,6 +257,8 @@ b2bRouter.put('/credit-limits/:clientPharmacyId', requirePermission('wholesale.s
       creditLimit: z.coerce.number().nonnegative(),
       outstandingBalance: z.coerce.number().nonnegative().optional(),
       paymentTermsDays: z.coerce.number().int().positive().optional(),
+      blockNewOrders: z.boolean().optional(),
+      blockReason: z.string().max(500).optional().nullable(),
     }).parse(req.body);
 
     res.json({

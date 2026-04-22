@@ -50,6 +50,9 @@ type OrderRow = {
   completed_at: Date | null;
   disputed_at: Date | null;
   cancelled_at: Date | null;
+  scheduled_delivery_at: Date | null;
+  delivery_window_label: string | null;
+  delivery_note: string | null;
   created_at: Date;
   updated_at: Date;
 };
@@ -60,6 +63,7 @@ type CataloguePricingRow = {
   generic_name: string | null;
   barcode: string | null;
   price: Prisma.Decimal | string | number;
+  tier_prices: Prisma.JsonValue;
   min_order_quantity: number;
   max_order_quantity: number | null;
 };
@@ -72,7 +76,43 @@ type CreditLimitRow = {
   outstanding_balance: Prisma.Decimal | string | number;
   payment_terms_days: number;
   is_active: boolean;
+  block_new_orders: boolean;
+  block_reason: string | null;
 };
+
+type TierPriceMap = Partial<Record<'ADDO' | 'ADDO_PLUS' | 'STANDARD' | 'PREMIUM' | 'WHOLESALE' | 'ENTERPRISE', number>>;
+
+function parseTierPrices(value: Prisma.JsonValue): TierPriceMap {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {};
+  }
+
+  return Object.entries(value as Record<string, unknown>).reduce<TierPriceMap>((acc, [key, raw]) => {
+    const numeric = typeof raw === 'number' ? raw : Number(raw);
+    if (!Number.isFinite(numeric) || numeric < 0) {
+      return acc;
+    }
+
+    if (['ADDO', 'ADDO_PLUS', 'STANDARD', 'PREMIUM', 'WHOLESALE', 'ENTERPRISE'].includes(key)) {
+      acc[key as keyof TierPriceMap] = Math.round(numeric);
+    }
+
+    return acc;
+  }, {});
+}
+
+function resolveTierPrice(
+  basePrice: number,
+  tierPrices: TierPriceMap,
+  buyerTier: string | null | undefined,
+): number {
+  if (!buyerTier) {
+    return basePrice;
+  }
+
+  const tierPrice = tierPrices[buyerTier as keyof TierPriceMap];
+  return typeof tierPrice === 'number' ? tierPrice : basePrice;
+}
 
 const STATE_MACHINE: Record<OrderStatus, OrderStatus[]> = {
   DRAFT: ['SUBMITTED'],
@@ -92,6 +132,20 @@ function asNumber(value: Prisma.Decimal | string | number | null | undefined): n
   }
 
   return Number(value);
+}
+
+function mapCreditLimit(row: CreditLimitRow) {
+  return {
+    id: row.id,
+    sellerPharmacyId: row.seller_pharmacy_id,
+    clientPharmacyId: row.client_pharmacy_id,
+    creditLimit: asNumber(row.credit_limit),
+    outstandingBalance: asNumber(row.outstanding_balance),
+    paymentTermsDays: row.payment_terms_days,
+    isActive: row.is_active,
+    blockNewOrders: row.block_new_orders,
+    blockReason: row.block_reason,
+  };
 }
 
 function mapOrder(row: OrderRow) {
@@ -115,6 +169,9 @@ function mapOrder(row: OrderRow) {
     completedAt: row.completed_at?.toISOString() ?? null,
     disputedAt: row.disputed_at?.toISOString() ?? null,
     cancelledAt: row.cancelled_at?.toISOString() ?? null,
+    scheduledDeliveryAt: row.scheduled_delivery_at?.toISOString() ?? null,
+    deliveryWindowLabel: row.delivery_window_label,
+    deliveryNote: row.delivery_note,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };
@@ -167,6 +224,14 @@ async function validateCreditLimit(sellerPharmacyId: string, clientPharmacyId: s
   const creditLimit = await fetchCreditLimit(sellerPharmacyId, clientPharmacyId);
   if (!creditLimit) {
     return null;
+  }
+
+  if (creditLimit.block_new_orders) {
+    throw Object.assign(new Error('CREDIT_BLOCKED'), {
+      status: 403,
+      code: 'CREDIT_BLOCKED',
+      blockReason: creditLimit.block_reason,
+    });
   }
 
   if (asNumber(creditLimit.outstanding_balance) + totalAmount > asNumber(creditLimit.credit_limit)) {
@@ -233,6 +298,14 @@ async function renderInvoicePdf(input: {
 }
 
 async function generateVatInvoice(order: OrderRow) {
+  const efdmsEnabled = process.env.FEATURE_EFDMS_INVOICES === 'true';
+  const efdmsStatus = efdmsEnabled ? 'QUEUED' : 'STUBBED';
+  const efdmsPayload: { provider: string; mode: string; orderId: string; invoiceNumber: string | null } = {
+    provider: 'EFDMS',
+    mode: efdmsEnabled ? 'feature_flagged' : 'stub',
+    orderId: order.id,
+    invoiceNumber: null,
+  };
   const numberRows = await prisma.$queryRaw<Array<{ invoice_number: string }>>(Prisma.sql`
     SELECT 'PC-INV-' || TO_CHAR(CURRENT_DATE, 'YYYY') || '-' || LPAD(nextval('vat_invoice_number_seq')::text, 6, '0') AS invoice_number
   `);
@@ -269,6 +342,7 @@ async function generateVatInvoice(order: OrderRow) {
     contentType: 'application/pdf',
     buffer: pdf,
   });
+  efdmsPayload.invoiceNumber = invoiceNumber;
 
   await prisma.$executeRaw(Prisma.sql`
     INSERT INTO "vat_invoices" (
@@ -278,7 +352,10 @@ async function generateVatInvoice(order: OrderRow) {
       "pdf_path",
       "subtotal_amount",
       "vat_amount",
-      "total_amount"
+      "total_amount",
+      "efdms_status",
+      "efdms_payload",
+      "updated_at"
     )
     VALUES (
       ${randomUUID()},
@@ -287,7 +364,10 @@ async function generateVatInvoice(order: OrderRow) {
       ${stored.filePath},
       ${subtotalAmount},
       ${vatAmount},
-      ${totalAmount}
+      ${totalAmount},
+      ${efdmsStatus},
+      ${JSON.stringify(efdmsPayload)}::jsonb,
+      NOW()
     )
     ON CONFLICT ("order_id") DO NOTHING
   `);
@@ -299,10 +379,20 @@ async function generateVatInvoice(order: OrderRow) {
     subtotalAmount,
     vatAmount,
     totalAmount,
+    efdmsStatus,
+    efdmsReference: null,
+    efdmsPayload,
   };
 }
 
-export async function listWholesaleCatalogue(sellerPharmacyId?: string | null) {
+export async function listWholesaleCatalogue(sellerPharmacyId?: string | null, buyerPharmacyId?: string | null) {
+  const buyerTier = buyerPharmacyId
+    ? (await prisma.pharmacy.findUnique({
+      where: { id: buyerPharmacyId },
+      select: { subscriptionTier: true },
+    }))?.subscriptionTier ?? null
+    : null;
+
   const rows = await prisma.$queryRaw<Array<{
     catalogue_id: string;
     catalogue_title: string;
@@ -313,6 +403,7 @@ export async function listWholesaleCatalogue(sellerPharmacyId?: string | null) {
     generic_name: string | null;
     barcode: string | null;
     price: Prisma.Decimal | string | number;
+    tier_prices: Prisma.JsonValue;
     min_order_quantity: number;
     max_order_quantity: number | null;
   }>>(Prisma.sql`
@@ -326,6 +417,7 @@ export async function listWholesaleCatalogue(sellerPharmacyId?: string | null) {
       p."genericName" AS generic_name,
       p."barcode" AS barcode,
       wcp."price",
+      wcp."tier_prices",
       wcp."min_order_quantity",
       wcp."max_order_quantity"
     FROM "wholesale_catalogues" wc
@@ -337,26 +429,39 @@ export async function listWholesaleCatalogue(sellerPharmacyId?: string | null) {
     ORDER BY wc."created_at" DESC, p."name" ASC
   `);
 
-  return rows.map((row) => ({
-    catalogueId: row.catalogue_id,
-    title: row.catalogue_title,
-    description: row.catalogue_description,
-    sellerPharmacyId: row.seller_pharmacy_id,
-    productId: row.product_id,
-    productName: row.product_name,
-    genericName: row.generic_name,
-    barcode: row.barcode,
-    price: asNumber(row.price),
-    minOrderQuantity: row.min_order_quantity,
-    maxOrderQuantity: row.max_order_quantity,
-  }));
+  return rows.map((row) => {
+    const basePrice = asNumber(row.price);
+    const tierPrices = parseTierPrices(row.tier_prices);
+
+    return {
+      catalogueId: row.catalogue_id,
+      title: row.catalogue_title,
+      description: row.catalogue_description,
+      sellerPharmacyId: row.seller_pharmacy_id,
+      productId: row.product_id,
+      productName: row.product_name,
+      genericName: row.generic_name,
+      barcode: row.barcode,
+      price: basePrice,
+      tierPrices,
+      effectivePrice: resolveTierPrice(basePrice, tierPrices, buyerTier),
+      minOrderQuantity: row.min_order_quantity,
+      maxOrderQuantity: row.max_order_quantity,
+    };
+  });
 }
 
 export async function upsertWholesaleCatalogue(input: {
   sellerPharmacyId: string;
   title: string;
   description?: string;
-  items: Array<{ productId: string; price: number; minOrderQuantity?: number; maxOrderQuantity?: number | null }>;
+  items: Array<{
+    productId: string;
+    price: number;
+    minOrderQuantity?: number;
+    maxOrderQuantity?: number | null;
+    tierPrices?: TierPriceMap;
+  }>;
 }) {
   const rows = await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
     INSERT INTO "wholesale_catalogues" ("id", "pharmacy_id", "title", "description")
@@ -376,6 +481,7 @@ export async function upsertWholesaleCatalogue(input: {
         "catalogue_id",
         "product_id",
         "price",
+        "tier_prices",
         "min_order_quantity",
         "max_order_quantity"
       )
@@ -384,6 +490,7 @@ export async function upsertWholesaleCatalogue(input: {
         ${catalogueId},
         ${item.productId},
         ${item.price},
+        ${JSON.stringify(item.tierPrices ?? {})}::jsonb,
         ${item.minOrderQuantity ?? 1},
         ${item.maxOrderQuantity ?? null}
       )
@@ -400,6 +507,10 @@ export async function createOrder(input: {
   items: Array<{ productId: string; quantity: number }>;
 }) {
   await assertPlatformWholesaleSeller(input.sellerPharmacyId);
+  const buyer = await prisma.pharmacy.findUnique({
+    where: { id: input.buyerPharmacyId },
+    select: { subscriptionTier: true },
+  });
 
   const pricingRows = await prisma.$queryRaw<CataloguePricingRow[]>(Prisma.sql`
     SELECT
@@ -408,6 +519,7 @@ export async function createOrder(input: {
       p."genericName" AS generic_name,
       p."barcode" AS barcode,
       wcp."price",
+      wcp."tier_prices",
       wcp."min_order_quantity",
       wcp."max_order_quantity"
     FROM "wholesale_catalogue_pricing" wcp
@@ -434,7 +546,7 @@ export async function createOrder(input: {
       throw Object.assign(new Error('MAX_ORDER_QUANTITY_EXCEEDED'), { status: 422, code: 'MAX_ORDER_QUANTITY_EXCEEDED' });
     }
 
-    const unitPrice = asNumber(pricing.price);
+    const unitPrice = resolveTierPrice(asNumber(pricing.price), parseTierPrices(pricing.tier_prices), buyer?.subscriptionTier);
     return {
       productId: pricing.product_id,
       productName: pricing.product_name,
@@ -517,6 +629,8 @@ export async function upsertCreditLimit(input: {
   creditLimit: number;
   outstandingBalance?: number;
   paymentTermsDays?: number;
+  blockNewOrders?: boolean;
+  blockReason?: string | null;
 }) {
   await prisma.$executeRaw(Prisma.sql`
     INSERT INTO "client_credit_limits" (
@@ -525,7 +639,9 @@ export async function upsertCreditLimit(input: {
       "client_pharmacy_id",
       "credit_limit",
       "outstanding_balance",
-      "payment_terms_days"
+      "payment_terms_days",
+      "block_new_orders",
+      "block_reason"
     )
     VALUES (
       ${randomUUID()},
@@ -533,17 +649,22 @@ export async function upsertCreditLimit(input: {
       ${input.clientPharmacyId},
       ${input.creditLimit},
       ${input.outstandingBalance ?? 0},
-      ${input.paymentTermsDays ?? 30}
+      ${input.paymentTermsDays ?? 30},
+      ${input.blockNewOrders ?? false},
+      ${input.blockReason ?? null}
     )
     ON CONFLICT ("seller_pharmacy_id", "client_pharmacy_id")
     DO UPDATE SET
       "credit_limit" = EXCLUDED."credit_limit",
       "outstanding_balance" = EXCLUDED."outstanding_balance",
       "payment_terms_days" = EXCLUDED."payment_terms_days",
+      "block_new_orders" = EXCLUDED."block_new_orders",
+      "block_reason" = EXCLUDED."block_reason",
       "updated_at" = NOW()
   `);
 
-  return fetchCreditLimit(input.sellerPharmacyId, input.clientPharmacyId);
+  const saved = await fetchCreditLimit(input.sellerPharmacyId, input.clientPharmacyId);
+  return saved ? mapCreditLimit(saved) : null;
 }
 
 export async function listCreditLimits(sellerPharmacyId: string) {
@@ -554,15 +675,7 @@ export async function listCreditLimits(sellerPharmacyId: string) {
     ORDER BY "created_at" DESC
   `);
 
-  return rows.map((row) => ({
-    id: row.id,
-    sellerPharmacyId: row.seller_pharmacy_id,
-    clientPharmacyId: row.client_pharmacy_id,
-    creditLimit: asNumber(row.credit_limit),
-    outstandingBalance: asNumber(row.outstanding_balance),
-    paymentTermsDays: row.payment_terms_days,
-    isActive: row.is_active,
-  }));
+  return rows.map(mapCreditLimit);
 }
 
 export async function updateOrderStatus(input: {
@@ -719,6 +832,32 @@ export async function confirmDelivery(input: { orderId: string; pharmacyId: stri
   });
 }
 
+export async function scheduleDelivery(input: {
+  orderId: string;
+  pharmacyId: string;
+  scheduledDeliveryAt: Date;
+  deliveryWindowLabel?: string | null;
+  deliveryNote?: string | null;
+}) {
+  const order = await getOrderRow(input.orderId, input.pharmacyId, true);
+  if (!order) {
+    throw Object.assign(new Error('Order not found'), { status: 404 });
+  }
+
+  const rows = await prisma.$queryRaw<OrderRow[]>(Prisma.sql`
+    UPDATE "orders"
+    SET
+      "scheduled_delivery_at" = ${input.scheduledDeliveryAt},
+      "delivery_window_label" = ${input.deliveryWindowLabel ?? null},
+      "delivery_note" = ${input.deliveryNote ?? null},
+      "updated_at" = NOW()
+    WHERE "id" = ${order.id}
+    RETURNING *
+  `);
+
+  return mapOrder(rows[0]);
+}
+
 export async function listVatInvoices(pharmacyId: string) {
   const rows = await prisma.$queryRaw<Array<{
     id: string;
@@ -728,6 +867,10 @@ export async function listVatInvoices(pharmacyId: string) {
     subtotal_amount: Prisma.Decimal | string | number;
     vat_amount: Prisma.Decimal | string | number;
     total_amount: Prisma.Decimal | string | number;
+    efdms_status: string;
+    efdms_reference: string | null;
+    efdms_payload: Prisma.JsonValue;
+    efdms_synced_at: Date | null;
     issued_at: Date;
   }>>(Prisma.sql`
     SELECT vi.*
@@ -745,6 +888,10 @@ export async function listVatInvoices(pharmacyId: string) {
     subtotalAmount: asNumber(row.subtotal_amount),
     vatAmount: asNumber(row.vat_amount),
     totalAmount: asNumber(row.total_amount),
+    efdmsStatus: row.efdms_status,
+    efdmsReference: row.efdms_reference,
+    efdmsPayload: row.efdms_payload,
+    efdmsSyncedAt: row.efdms_synced_at?.toISOString() ?? null,
     issuedAt: row.issued_at.toISOString(),
   }));
 }
