@@ -33,12 +33,22 @@ type ProductOption = {
   dosageForm?: string | null;
   strength?: string | null;
 };
+type BarcodeLookupResult = {
+  barcode: string;
+  source: 'LOCAL' | 'GS1' | 'USER_MAP' | 'MISS';
+  product: ProductOption | null;
+  gs1?: {
+    gtin: string;
+    digitalLink: string;
+  } | null;
+};
 
 export const StockIntakePage: React.FC = () => {
   const [productSearch, setProductSearch] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<ProductOption | null>(null);
   const [success, setSuccess] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
+  const [pendingBarcodeLookup, setPendingBarcodeLookup] = useState<BarcodeLookupResult | null>(null);
   const debouncedSearch = useDebounce(productSearch, 300);
   const toast = useNotificationStore(s => s.toast);
   const { isOnline, pendingWrites, isSyncing, flush } = useOfflineSync(false);
@@ -102,6 +112,7 @@ export const StockIntakePage: React.FC = () => {
       setSuccess(true);
       reset();
       setSelectedProduct(null);
+      setPendingBarcodeLookup(null);
       setProductSearch('');
       toast.success(result.queuedOffline ? 'Stock queued offline and will sync when connection returns' : 'Stock received successfully');
       setTimeout(() => setSuccess(false), 3000);
@@ -110,30 +121,58 @@ export const StockIntakePage: React.FC = () => {
       toast.error(err.response?.data?.error || 'Failed to receive stock');
     },
   });
+  const saveMappingMutation = useMutation({
+    mutationFn: async (payload: { barcode: string; productId: string }) =>
+      api.post('/inventory/barcode-mappings', {
+        ...payload,
+        source: 'USER_MAP',
+      }),
+    onSuccess: async () => {
+      if (!pendingBarcodeLookup || !selectedProduct) {
+        return;
+      }
+
+      setPendingBarcodeLookup({
+        ...pendingBarcodeLookup,
+        source: 'USER_MAP',
+        product: selectedProduct,
+      });
+      toast.success(`Saved barcode mapping for ${selectedProduct.genericName || selectedProduct.name}`);
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Failed to save barcode mapping');
+    },
+  });
 
   const products: ProductOption[] = productsData?.data || [];
   const suppliers = suppliersData?.data || [];
 
   const handleBarcodeDetected = async (barcode: string) => {
-    setProductSearch(barcode);
-
     try {
-      const response = await api.get('/inventory/products', {
-        params: { barcode, limit: 10 },
-      });
+      const response = await api.post('/inventory/barcode-lookup', { barcode });
+      const lookup = response.data?.data as BarcodeLookupResult;
+      setPendingBarcodeLookup(lookup);
 
-      const matches: ProductOption[] = response.data?.data || [];
-      const exactMatch = matches.find((product) => product.barcode === barcode) || matches[0];
-
-      if (!exactMatch) {
-        toast.error(`No product found for barcode ${barcode}`);
+      if (lookup.product) {
+        setSelectedProduct(lookup.product);
+        setProductSearch(lookup.product.genericName || lookup.product.name);
+        setShowScanner(false);
+        toast.success(lookup.source === 'USER_MAP'
+          ? `Loaded saved mapping for ${lookup.product.genericName || lookup.product.name}`
+          : `Matched ${lookup.product.genericName || lookup.product.name} from local stock`);
         return;
       }
 
-      setSelectedProduct(exactMatch);
-      setProductSearch(exactMatch.genericName || exactMatch.name);
+      setSelectedProduct(null);
+      setProductSearch('');
       setShowScanner(false);
-      toast.success(`Scanned ${exactMatch.genericName || exactMatch.name}`);
+
+      if (lookup.source === 'GS1' && lookup.gs1?.gtin) {
+        toast.info(`GS1 barcode detected. Search and map a local product for GTIN ${lookup.gs1.gtin}.`);
+        return;
+      }
+
+      toast.warning(`No local product found for barcode ${lookup.barcode}. Search and map a product manually.`);
     } catch (error: any) {
       toast.error(error.response?.data?.error || 'Barcode scan lookup failed');
     }
@@ -233,6 +272,45 @@ export const StockIntakePage: React.FC = () => {
             {errors.productId && <p className="text-xs text-[#DC2626]">{errors.productId.message}</p>}
           </div>
 
+          {pendingBarcodeLookup && !pendingBarcodeLookup.product && (
+            <div className="rounded-2xl border border-[#D6F0E8] bg-[#F8FCFA] p-4">
+              <p className="text-sm font-semibold text-[#0D4035]">
+                {pendingBarcodeLookup.source === 'GS1' ? 'GS1 barcode captured' : 'No local barcode match'}
+              </p>
+              <p className="mt-1 text-xs text-[#64748B]">
+                Barcode: {pendingBarcodeLookup.barcode}
+                {pendingBarcodeLookup.gs1?.gtin ? ` | GTIN: ${pendingBarcodeLookup.gs1.gtin}` : ''}
+              </p>
+              <p className="mt-2 text-sm text-[#64748B]">
+                Search for the correct local product, select it, then save a barcode mapping for this pharmacy.
+              </p>
+            </div>
+          )}
+
+          {pendingBarcodeLookup && selectedProduct && !pendingBarcodeLookup.product && (
+            <div className="rounded-2xl border border-[#D6F0E8] bg-[#EDF7F3] p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-[#0D4035]">Ready to save barcode mapping</p>
+                  <p className="mt-1 text-xs text-[#64748B]">
+                    {pendingBarcodeLookup.barcode} will map to {selectedProduct.genericName || selectedProduct.name}.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  loading={saveMappingMutation.isPending}
+                  onClick={() => saveMappingMutation.mutate({
+                    barcode: pendingBarcodeLookup.barcode,
+                    productId: selectedProduct.id,
+                  })}
+                >
+                  Save barcode mapping
+                </Button>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input label="Batch Number" placeholder="BATCH-2024-0001" {...register('batchNumber')} error={errors.batchNumber?.message} required />
             <Input label="Expiry Date" type="date" {...register('expiryDate')} error={errors.expiryDate?.message} required />
@@ -249,7 +327,7 @@ export const StockIntakePage: React.FC = () => {
 
           <div className="flex gap-3">
             <Button type="submit" loading={mutation.isPending} className="flex-1">Receive Stock</Button>
-            <Button type="button" variant="ghost" onClick={() => { reset(); setSelectedProduct(null); setProductSearch(''); }}>Clear</Button>
+            <Button type="button" variant="ghost" onClick={() => { reset(); setSelectedProduct(null); setPendingBarcodeLookup(null); setProductSearch(''); }}>Clear</Button>
           </div>
         </form>
       </Card>

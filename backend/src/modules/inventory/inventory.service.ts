@@ -3,7 +3,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { prisma } from '../../lib/prisma';
 import { withPrismaRetry } from '../../lib/prisma-retry';
-import type { Prisma, SyncConflictStatus } from '@prisma/client';
+import { Prisma, type SyncConflictStatus } from '@prisma/client';
 
 type ProductWriteInput = {
   name: string;
@@ -51,6 +51,23 @@ type StockAdjustmentSuggestionPhoto = {
 
 type SuggestionReviewStatus = 'APPROVED' | 'REJECTED' | 'PARTIAL';
 
+type ProductLookupSummary = {
+  id: string;
+  name: string;
+  genericName: string | null;
+  brandName: string | null;
+  barcode: string | null;
+  dosageForm: string;
+  strength: string | null;
+};
+
+type ParsedGs1Barcode = {
+  raw: string;
+  normalizedBarcode: string;
+  gtin: string;
+  digitalLink: string;
+};
+
 function stockAdjustmentSuggestionInclude() {
   return {
     product: {
@@ -82,6 +99,18 @@ function stockAdjustmentSuggestionInclude() {
       },
     },
   };
+}
+
+function receivingBarcodeProductSelect() {
+  return {
+    id: true,
+    name: true,
+    genericName: true,
+    brandName: true,
+    barcode: true,
+    dosageForm: true,
+    strength: true,
+  } satisfies Prisma.ProductSelect;
 }
 
 function productInclude() {
@@ -143,6 +172,41 @@ function parseNumber(value: string | undefined): number | undefined {
 
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function normalizeBarcodeInput(value: string) {
+  return value.trim();
+}
+
+function parseGs1Barcode(value: string): ParsedGs1Barcode | null {
+  const raw = normalizeBarcodeInput(value);
+  if (!raw) {
+    return null;
+  }
+
+  const digitalLinkMatch = raw.match(/\/01\/(\d{8,14})(?:[/?#]|$)/);
+  if (digitalLinkMatch) {
+    const gtin = digitalLinkMatch[1].padStart(14, '0');
+    return {
+      raw,
+      normalizedBarcode: raw,
+      gtin,
+      digitalLink: `https://id.gs1.org/01/${gtin}`,
+    };
+  }
+
+  const digitsOnly = raw.replace(/\s+/g, '');
+  if (!/^\d{8,14}$/.test(digitsOnly)) {
+    return null;
+  }
+
+  const gtin = digitsOnly.padStart(14, '0');
+  return {
+    raw,
+    normalizedBarcode: digitsOnly,
+    gtin,
+    digitalLink: `https://id.gs1.org/01/${gtin}`,
+  };
 }
 
 function parseCsv(csv: string): Array<Record<string, string>> {
@@ -269,6 +333,161 @@ export async function getProduct(id: string, pharmacyId: string) {
   return {
     ...product,
     currentStock: product.batches.reduce((sum, batch) => sum + batch.quantityRemaining, 0),
+  };
+}
+
+export async function lookupBarcodeForReceiving(pharmacyId: string, barcode: string) {
+  const normalizedBarcode = normalizeBarcodeInput(barcode);
+  if (!normalizedBarcode) {
+    throw Object.assign(new Error('Barcode is required'), { status: 400 });
+  }
+
+  const existingMappings = await prisma.$queryRaw<Array<{
+    source: string;
+    gs1Payload: Prisma.JsonValue | null;
+    id: string;
+    name: string;
+    genericName: string | null;
+    brandName: string | null;
+    barcode: string | null;
+    dosageForm: string;
+    strength: string | null;
+  }>>(Prisma.sql`
+    SELECT
+      m."source" AS "source",
+      m."gs1_payload" AS "gs1Payload",
+      p."id" AS "id",
+      p."name" AS "name",
+      p."genericName" AS "genericName",
+      p."brandName" AS "brandName",
+      p."barcode" AS "barcode",
+      p."dosageForm" AS "dosageForm",
+      p."strength" AS "strength"
+    FROM "product_barcode_mappings" m
+    INNER JOIN "products" p ON p."id" = m."product_id"
+    WHERE m."pharmacy_id" = ${pharmacyId}
+      AND m."barcode" = ${normalizedBarcode}
+    LIMIT 1
+  `);
+
+  if (existingMappings[0]) {
+    const existingMapping = existingMappings[0];
+    return {
+      barcode: normalizedBarcode,
+      source: existingMapping.source,
+      product: {
+        id: existingMapping.id,
+        name: existingMapping.name,
+        genericName: existingMapping.genericName,
+        brandName: existingMapping.brandName,
+        barcode: existingMapping.barcode,
+        dosageForm: existingMapping.dosageForm,
+        strength: existingMapping.strength,
+      },
+      gs1: existingMapping.gs1Payload,
+    };
+  }
+
+  const localProduct = await prisma.product.findFirst({
+    where: {
+      pharmacyId,
+      barcode: normalizedBarcode,
+      isActive: true,
+    },
+    select: receivingBarcodeProductSelect(),
+  });
+
+  if (localProduct) {
+    return {
+      barcode: normalizedBarcode,
+      source: 'LOCAL',
+      product: localProduct,
+      gs1: null,
+    };
+  }
+
+  const gs1 = parseGs1Barcode(normalizedBarcode);
+  if (gs1) {
+    return {
+      barcode: normalizedBarcode,
+      source: 'GS1',
+      product: null,
+      gs1,
+    };
+  }
+
+  return {
+    barcode: normalizedBarcode,
+    source: 'MISS',
+    product: null,
+    gs1: null,
+  };
+}
+
+export async function saveProductBarcodeMapping(
+  pharmacyId: string,
+  userId: string,
+  data: {
+    barcode: string;
+    productId: string;
+    source: 'USER_MAP';
+  },
+) {
+  const normalizedBarcode = normalizeBarcodeInput(data.barcode);
+  if (!normalizedBarcode) {
+    throw Object.assign(new Error('Barcode is required'), { status: 400 });
+  }
+
+  const product = await prisma.product.findFirst({
+    where: {
+      id: data.productId,
+      pharmacyId,
+      isActive: true,
+    },
+    select: receivingBarcodeProductSelect(),
+  });
+
+  if (!product) {
+    throw Object.assign(new Error('Product not found'), { status: 404 });
+  }
+
+  const gs1 = parseGs1Barcode(normalizedBarcode);
+  await prisma.$executeRaw(Prisma.sql`
+    INSERT INTO "product_barcode_mappings" (
+      "id",
+      "pharmacy_id",
+      "barcode",
+      "product_id",
+      "source",
+      "gs1_payload",
+      "created_by",
+      "created_at",
+      "updated_at"
+    )
+    VALUES (
+      ${randomUUID()},
+      ${pharmacyId},
+      ${normalizedBarcode},
+      ${product.id},
+      ${data.source},
+      ${gs1 ? (gs1 as Prisma.InputJsonValue) : null},
+      ${userId},
+      CURRENT_TIMESTAMP,
+      CURRENT_TIMESTAMP
+    )
+    ON CONFLICT ("pharmacy_id", "barcode")
+    DO UPDATE SET
+      "product_id" = EXCLUDED."product_id",
+      "source" = EXCLUDED."source",
+      "gs1_payload" = EXCLUDED."gs1_payload",
+      "updated_at" = CURRENT_TIMESTAMP
+  `);
+
+  return {
+    barcode: normalizedBarcode,
+    source: data.source,
+    product,
+    gs1,
   };
 }
 

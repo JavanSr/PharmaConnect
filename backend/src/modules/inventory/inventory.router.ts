@@ -78,6 +78,40 @@ inventoryRouter.get('/products/:id', requirePermission('inventory.view_products'
   }
 });
 
+inventoryRouter.post('/barcode-lookup', requirePermission('inventory.view_products'), async (req: AuthRequest, res, next) => {
+  try {
+    const { barcode } = z
+      .object({
+        barcode: z.string().trim().min(1),
+      })
+      .parse(req.body);
+
+    res.json({
+      data: await svc.lookupBarcodeForReceiving(pid(req), barcode),
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+inventoryRouter.post('/barcode-mappings', requirePermission('inventory.manage_stock'), async (req: AuthRequest, res, next) => {
+  try {
+    const payload = z
+      .object({
+        barcode: z.string().trim().min(1),
+        productId: z.string().min(1),
+        source: z.literal('USER_MAP').default('USER_MAP'),
+      })
+      .parse(req.body);
+
+    res.status(201).json({
+      data: await svc.saveProductBarcodeMapping(pid(req), uid(req), payload),
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
 inventoryRouter.get('/products/:id/fefo', requirePermission('inventory.view_products'), async (req: AuthRequest, res, next) => {
   try {
     const { quantity = 1 } = z.object({ quantity: z.coerce.number().int().positive().optional() }).parse(req.query);

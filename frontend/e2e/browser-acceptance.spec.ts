@@ -626,3 +626,109 @@ test('offline stock intake queues locally and flushes to live batches when back 
 
   await expect(page.getByText(batchNumber)).toBeVisible();
 });
+
+test('receiving falls back from GS1 barcode detection to a saved product mapping', async ({ page }) => {
+  const product = {
+    id: 'product-gs1-map',
+    name: 'Mapped Product',
+    genericName: 'Amoxicillin',
+    brandName: 'Mapped Product',
+    barcode: null,
+    dosageForm: 'CAPSULE',
+    strength: '500mg',
+  };
+  let lookupReads = 0;
+  let savedMappingPayload: Record<string, unknown> | null = null;
+
+  await bootstrapSession(page, {
+    user: browserUsers.activeOwner,
+    pharmacy: pharmacies.active,
+  });
+  await mockShell(page, { subscription: pharmacies.active });
+
+  await page.route('**/api/v1/inventory/products?*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ data: [product], total: 1, page: 1, limit: 10, totalPages: 1 }),
+    });
+  });
+
+  await page.route('**/api/v1/inventory/suppliers', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ data: [] }),
+    });
+  });
+
+  await page.route('**/api/v1/inventory/barcode-lookup', async (route) => {
+    lookupReads += 1;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: lookupReads === 1
+          ? {
+              barcode: '09506000134352',
+              source: 'GS1',
+              product: null,
+              gs1: {
+                gtin: '09506000134352',
+                digitalLink: 'https://id.gs1.org/01/09506000134352',
+              },
+            }
+          : {
+              barcode: '09506000134352',
+              source: 'USER_MAP',
+              product,
+              gs1: {
+                gtin: '09506000134352',
+                digitalLink: 'https://id.gs1.org/01/09506000134352',
+              },
+            },
+      }),
+    });
+  });
+
+  await page.route('**/api/v1/inventory/barcode-mappings', async (route) => {
+    savedMappingPayload = route.request().postDataJSON() as Record<string, unknown>;
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: {
+          id: 'mapping-1',
+          barcode: '09506000134352',
+          source: 'USER_MAP',
+          product,
+        },
+      }),
+    });
+  });
+
+  await expectProtectedRoute(page, '/inventory/receive');
+
+  await page.getByRole('button', { name: 'Scan' }).click();
+  await page.getByLabel('Manual barcode entry').fill('09506000134352');
+  await page.getByRole('button', { name: 'Record barcode' }).click();
+
+  await expect(page.getByText('GS1 barcode captured')).toBeVisible();
+  await page.getByLabel('Product search').fill('amox');
+  await page.getByRole('button', { name: /Amoxicillin/i }).click();
+  await page.getByRole('button', { name: 'Save barcode mapping' }).click();
+
+  await expect(page.getByText('Saved barcode mapping for Amoxicillin')).toBeVisible();
+  expect(savedMappingPayload).toEqual({
+    barcode: '09506000134352',
+    productId: 'product-gs1-map',
+    source: 'USER_MAP',
+  });
+
+  await page.getByRole('button', { name: 'Scan' }).click();
+  await page.getByLabel('Manual barcode entry').fill('09506000134352');
+  await page.getByRole('button', { name: 'Record barcode' }).click();
+
+  await expect(page.locator('input[name="productId"]')).toHaveValue(product.id);
+  await expect(page.getByText('Loaded saved mapping for Amoxicillin')).toBeVisible();
+});
