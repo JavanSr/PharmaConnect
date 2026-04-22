@@ -46,7 +46,8 @@ const PrescriptionManagementPage = lazy(() => import('@/modules/deferred/Prescri
 const SymptomCheckerPage = lazy(() => import('@/modules/deferred/SymptomCheckerPage').then(m => ({ default: m.SymptomCheckerPage })));
 const PatientRecordsPage = lazy(() => import('@/modules/deferred/PatientRecordsPage').then(m => ({ default: m.PatientRecordsPage })));
 const AccreditedCpdPage = lazy(() => import('@/modules/deferred/AccreditedCpdPage').then(m => ({ default: m.AccreditedCpdPage })));
-const ControlledSubstancesPage = lazy(() => import('@/modules/deferred/ControlledSubstancesPage').then(m => ({ default: m.ControlledSubstancesPage })));
+const ControlledDrugsRegisterPage = lazy(() => import('@/modules/dispensing/ControlledDrugsRegisterPage').then(m => ({ default: m.ControlledDrugsRegisterPage })));
+const TmdaUpdatesPage = lazy(() => import('@/modules/knowledge/TmdaUpdatesPage').then(m => ({ default: m.TmdaUpdatesPage })));
 const CpdDashboardPage = lazy(() => import('@/modules/cpd/CpdDashboardPage').then(m => ({ default: m.CpdDashboardPage })));
 const LogActivityPage = lazy(() => import('@/modules/cpd/LogActivityPage').then(m => ({ default: m.LogActivityPage })));
 const CourseDetailPage = lazy(() => import('@/modules/cpd/CourseDetailPage').then(m => ({ default: m.CourseDetailPage })));
@@ -83,7 +84,6 @@ export const App: React.FC = () => (
         <Route path="/symptom-checker" element={<Suspense fallback={<PageLoader />}><SymptomCheckerPage /></Suspense>} />
         <Route path="/patient-records" element={<Suspense fallback={<PageLoader />}><PatientRecordsPage /></Suspense>} />
         <Route path="/accredited-cpd" element={<Suspense fallback={<PageLoader />}><AccreditedCpdPage /></Suspense>} />
-        <Route path="/controlled-substances" element={<Suspense fallback={<PageLoader />}><ControlledSubstancesPage /></Suspense>} />
         <Route path="/verify/:certificateId" element={<Suspense fallback={<PageLoader />}><CertificateVerifyPage /></Suspense>} />
 
         <Route element={<AuthGuard><Layout /></AuthGuard>}>
@@ -92,6 +92,7 @@ export const App: React.FC = () => (
           <Route path="/analytics" element={<Suspense fallback={<PageLoader />}><AnalyticsPage /></Suspense>} />
           <Route path="/forecasting" element={<Suspense fallback={<PageLoader />}><ForecastingPage /></Suspense>} />
           <Route path="/knowledge" element={<Suspense fallback={<PageLoader />}><KnowledgeFeedPage /></Suspense>} />
+          <Route path="/tmda-updates" element={<Suspense fallback={<PageLoader />}><TmdaUpdatesPage /></Suspense>} />
           <Route path="/knowledge/:slug" element={<Suspense fallback={<PageLoader />}><ArticlePage /></Suspense>} />
           <Route path="/inventory" element={<Suspense fallback={<PageLoader />}><InventoryDashboardPage /></Suspense>} />
           <Route path="/inventory/products" element={<Suspense fallback={<PageLoader />}><ProductsListPage /></Suspense>} />
@@ -112,6 +113,7 @@ export const App: React.FC = () => (
           <Route path="/compliance/inspection" element={<Suspense fallback={<PageLoader />}><InspectionChecklistPage /></Suspense>} />
           <Route path="/dispensing" element={<Suspense fallback={<PageLoader />}><DispensingScreen /></Suspense>} />
           <Route path="/dispensing/daily-close" element={<Suspense fallback={<PageLoader />}><DailyClose /></Suspense>} />
+          <Route path="/controlled-substances" element={<Suspense fallback={<PageLoader />}><ControlledDrugsRegisterPage /></Suspense>} />
           <Route path="/wholesale" element={<Suspense fallback={<PageLoader />}><WholesaleDashboardPage /></Suspense>} />
           <Route path="/wholesale/orders" element={<Suspense fallback={<PageLoader />}><OrdersPage /></Suspense>} />
           <Route path="/wholesale/settings" element={<Suspense fallback={<PageLoader />}><WholesaleSettingsPage /></Suspense>} />

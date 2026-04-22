@@ -23,10 +23,12 @@ interface NavItem {
 const phase1Nav: NavItem[] = [
   { label: 'Dashboard', path: '/dashboard', icon: <LayoutDashboard size={18} /> },
   { label: 'Knowledge Hub', path: '/knowledge', icon: <BookOpen size={18} /> },
+  { label: 'TMDA Updates', path: '/tmda-updates', icon: <BookOpen size={18} /> },
   { label: 'Inventory', path: '/inventory', icon: <Package size={18} /> },
   { label: 'Compliance', path: '/compliance', icon: <Shield size={18} />, roles: ['OWNER','PHARMACIST_IN_CHARGE','DISPENSER','LOCUM','DATA_ENTRY_CLERK','WHOLESALE_MANAGER','WHOLESALE_COUNTER_STAFF','SUPER_ADMIN'] },
   { label: 'Analytics', path: '/analytics', icon: <BarChart3 size={18} /> },
   { label: 'Dispensing', path: '/dispensing', icon: <Pill size={18} />, roles: ['OWNER','PHARMACIST_IN_CHARGE','DISPENSER','LOCUM','CASHIER','SUPER_ADMIN'] },
+  { label: 'Controlled Register', path: '/controlled-substances', icon: <Lock size={18} />, roles: ['OWNER','PHARMACIST_IN_CHARGE','LOCUM','SUPER_ADMIN'] },
   { label: 'CPD Tracker', path: '/cpd', icon: <GraduationCap size={18} />, roles: ['OWNER','PHARMACIST_IN_CHARGE','DISPENSER','LOCUM','SUPER_ADMIN'] },
   { label: 'Wholesale', path: '/wholesale', icon: <Building2 size={18} />, roles: ['OWNER','WHOLESALE_MANAGER','WHOLESALE_COUNTER_STAFF','DELIVERY_STAFF','SUPER_ADMIN'] },
   { label: 'Orders', path: '/wholesale/orders', icon: <ClipboardList size={18} />, roles: ['OWNER','WHOLESALE_MANAGER','WHOLESALE_COUNTER_STAFF','DELIVERY_STAFF','SUPER_ADMIN'] },

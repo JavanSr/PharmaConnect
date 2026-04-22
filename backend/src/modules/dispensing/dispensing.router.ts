@@ -617,3 +617,68 @@ dispensingRouter.post(
     }
   },
 );
+
+dispensingRouter.get(
+  '/controlled-register',
+  requireRole('OWNER', 'PHARMACIST_IN_CHARGE', 'LOCUM', 'SUPER_ADMIN'),
+  async (req: AuthRequest, res, next) => {
+    try {
+      const pharmacyId = getPharmacyId(req);
+      const rows = await prisma.$queryRaw<Array<{
+        event_id: string;
+        reference_number: string;
+        product_id: string;
+        product_name: string;
+        drug_class: string;
+        quantity: number;
+        batch_number: string | null;
+        payment_method: string;
+        created_at: Date;
+        dispensed_by_name: string;
+      }>>(Prisma.sql`
+        SELECT
+          de."id" AS event_id,
+          de."reference_number",
+          item."productId" AS product_id,
+          p."name" AS product_name,
+          p."drugClass"::text AS drug_class,
+          item."quantity"::int AS quantity,
+          item."batchNumber" AS batch_number,
+          de."payment_method"::text AS payment_method,
+          de."created_at",
+          (u."firstName" || ' ' || u."lastName") AS dispensed_by_name
+        FROM "dispensing_events" de
+        INNER JOIN "users" u ON u."id" = de."dispensed_by"
+        CROSS JOIN LATERAL jsonb_to_recordset(de."items") AS item(
+          "productId" text,
+          "quantity" int,
+          "batchNumber" text
+        )
+        INNER JOIN "products" p ON p."id" = item."productId"
+        WHERE
+          de."pharmacy_id" = ${pharmacyId}
+          AND de."status" = 'COMPLETED'
+          AND p."drugClass" IN ('CONTROLLED', 'NARCOTIC')
+        ORDER BY de."created_at" DESC
+        LIMIT 200
+      `);
+
+      res.json({
+        data: rows.map((row) => ({
+          eventId: row.event_id,
+          referenceNumber: row.reference_number,
+          productId: row.product_id,
+          productName: row.product_name,
+          drugClass: row.drug_class,
+          quantity: row.quantity,
+          batchNumber: row.batch_number,
+          paymentMethod: row.payment_method,
+          dispensedByName: row.dispensed_by_name,
+          createdAt: row.created_at.toISOString(),
+        })),
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);

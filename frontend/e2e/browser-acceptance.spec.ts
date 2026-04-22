@@ -679,6 +679,87 @@ test('daily close requires a note when variance is above TZS 5000', async ({ pag
   await expect(page.getByText('Daily close recorded')).toBeVisible();
 });
 
+test('controlled register and TMDA updates feed render published records', async ({ page }) => {
+  await bootstrapSession(page, {
+    user: {
+      ...browserUsers.activeOwner,
+      role: 'PHARMACIST_IN_CHARGE',
+    },
+    pharmacy: pharmacies.active,
+  });
+  await mockShell(page, { subscription: pharmacies.active });
+
+  await page.route('**/api/v1/dispensing/controlled-register', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: [
+          {
+            eventId: 'event-1',
+            referenceNumber: 'RX-CTRL-1',
+            productId: 'product-1',
+            productName: 'Diazepam 5mg',
+            drugClass: 'CONTROLLED',
+            quantity: 2,
+            batchNumber: 'B-77',
+            paymentMethod: 'CASH',
+            dispensedByName: 'Active Owner',
+            createdAt: '2026-04-22T08:00:00.000Z',
+          },
+        ],
+      }),
+    });
+  });
+  await page.route('**/api/v1/knowledge/bulletins', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: [
+          {
+            id: 'bulletin-1',
+            title: 'TMDA recall notice',
+            body: {},
+            isUrgent: true,
+            isPublished: true,
+            publishedAt: '2026-04-20T00:00:00.000Z',
+            createdAt: '2026-04-20T00:00:00.000Z',
+          },
+        ],
+      }),
+    });
+  });
+  await page.route('**/api/v1/knowledge/publications', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: [
+          {
+            id: 'publication-1',
+            title: 'TMDA storage guidance',
+            description: 'Updated storage expectations for community pharmacies.',
+            fileUrl: 'https://example.com/tmda-storage.pdf',
+            category: 'Guidance',
+            isPublished: true,
+            publishedAt: '2026-04-18T00:00:00.000Z',
+            createdAt: '2026-04-18T00:00:00.000Z',
+          },
+        ],
+      }),
+    });
+  });
+
+  await expectProtectedRoute(page, '/controlled-substances');
+  await expect(page.getByText('Diazepam 5mg')).toBeVisible();
+  await expect(page.getByText('RX-CTRL-1')).toBeVisible();
+
+  await expectProtectedRoute(page, '/tmda-updates');
+  await expect(page.getByText('TMDA recall notice')).toBeVisible();
+  await expect(page.getByText('TMDA storage guidance')).toBeVisible();
+});
+
 test('dispensing hides patient checks until medicine rules trigger them and removes dose prompt', async ({ page }) => {
   const product = {
     id: 'product-amoxicillin',

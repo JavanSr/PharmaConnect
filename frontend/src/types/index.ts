@@ -442,6 +442,19 @@ export interface DispensingRecord {
   createdAt: string;
 }
 
+export interface ControlledRegisterEntry {
+  eventId: string;
+  referenceNumber: string;
+  productId: string;
+  productName: string;
+  drugClass: 'CONTROLLED' | 'NARCOTIC';
+  quantity: number;
+  batchNumber: string | null;
+  paymentMethod: string;
+  dispensedByName: string;
+  createdAt: string;
+}
+
 export interface DispensingItem {
   id: string;
   dispensingId: string;
