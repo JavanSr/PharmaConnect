@@ -14,6 +14,7 @@ import { ToastContainer } from '@/components/ui/Toast';
 const routeTitles: Record<string, string> = {
   '/dashboard': 'Dashboard',
   '/analytics': 'Analytics',
+  '/forecasting': 'Forecasting',
   '/knowledge': 'Knowledge Hub',
   '/inventory': 'Inventory',
   '/inventory/products': 'Products',

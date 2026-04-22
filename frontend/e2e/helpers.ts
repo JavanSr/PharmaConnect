@@ -301,6 +301,75 @@ export async function mockShell(page: Page, options: {
       }),
     });
   });
+
+  await page.route('**/api/v1/forecasting/stockout**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: [
+          {
+            productId: 'forecast-product-1',
+            productName: 'Paracetamol',
+            currentStock: 12,
+            avgDailyDemand: 1.2,
+            leadTimeDays: 14,
+            daysUntilStockout: 10,
+            estimatedStockoutDate: '2026-05-02T00:00:00.000Z',
+            valueTzs: 18000,
+            status: 'RISK',
+          },
+        ],
+      }),
+    });
+  });
+
+  await page.route('**/api/v1/forecasting/seasonality', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: [
+          { key: '2026-01', label: 'Jan 26', dispensedUnits: 30, revenueTzs: 30000 },
+          { key: '2026-02', label: 'Feb 26', dispensedUnits: 24, revenueTzs: 24000 },
+        ],
+      }),
+    });
+  });
+
+  await page.route('**/api/v1/forecasting/dead-stock**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: [
+          {
+            productId: 'dead-stock-1',
+            productName: 'Slow Mover',
+            currentStock: 18,
+            valueTzs: 54000,
+            daysSinceSale: 45,
+            deadStockScore: 2430000,
+            lastSaleAt: '2026-03-08T00:00:00.000Z',
+          },
+        ],
+      }),
+    });
+  });
+
+  await page.route('**/api/v1/forecasting/regional', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: {
+          enabled: false,
+          status: 'disabled',
+          message: 'Regional forecasting is disabled.',
+        },
+      }),
+    });
+  });
 }
 
 export async function expectProtectedRoute(page: Page, path: string) {

@@ -222,6 +222,41 @@ test('enterprise analytics shows one-metric compare across selected pharmacies',
   });
 });
 
+test('forecasting page shows stockout forecasting and premium insights', async ({ page }) => {
+  const premiumPharmacy = {
+    ...pharmacies.active,
+    id: 'pharmacy-premium',
+    name: 'Browser E2E Premium Outlet',
+    subscriptionTier: 'PREMIUM',
+  };
+
+  await bootstrapSession(page, {
+    user: browserUsers.activeOwner,
+    pharmacy: premiumPharmacy,
+  });
+  await mockShell(page, {
+    subscription: premiumPharmacy,
+    analyticsFeatures: {
+      tier: 'PREMIUM',
+      historyDays: 365,
+      stockout: true,
+      benchmark: true,
+      forecast: true,
+      seasonality: true,
+      deadStock: true,
+      multiOutletCompare: false,
+    },
+  });
+
+  await expectProtectedRoute(page, '/forecasting');
+
+  await expect(page.getByRole('main').getByRole('heading', { name: 'Forecasting' })).toBeVisible();
+  await expect(page.getByText('Stockout forecast')).toBeVisible();
+  await expect(page.getByText('Paracetamol')).toBeVisible();
+  await expect(page.getByText('Seasonality (12 months)')).toBeVisible();
+  await expect(page.getByText('Dead stock ranking')).toBeVisible();
+});
+
 test('owner can configure dispensing payment methods from settings', async ({ page }) => {
   let savedConfig: Record<string, unknown> | null = null;
 

@@ -519,9 +519,11 @@ export const AnalyticsPage: React.FC = () => {
         </div>
       </Card>
 
-      <p className="text-xs text-[#64748B] text-center pb-2">
-        In-depth analytics with trends, revenue breakdowns, and forecasting coming in Phase 2.
-      </p>
+      <div className="pb-2 text-center">
+        <Link to="/forecasting" className="text-xs font-medium text-[#1A6B5C] hover:underline">
+          Open forecasting workspace
+        </Link>
+      </div>
     </div>
   );
 };

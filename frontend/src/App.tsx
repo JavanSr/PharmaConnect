@@ -20,6 +20,7 @@ const queryClient = new QueryClient({
 
 const DashboardPage = lazy(() => import('@/modules/dashboard/DashboardPage').then(m => ({ default: m.DashboardPage })));
 const AnalyticsPage = lazy(() => import('@/modules/analytics/AnalyticsPage').then(m => ({ default: m.AnalyticsPage })));
+const ForecastingPage = lazy(() => import('@/modules/analytics/ForecastingPage').then(m => ({ default: m.ForecastingPage })));
 const KnowledgeFeedPage = lazy(() => import('@/modules/knowledge/KnowledgeFeedPage').then(m => ({ default: m.KnowledgeFeedPage })));
 const ArticlePage = lazy(() => import('@/modules/knowledge/ArticlePage').then(m => ({ default: m.ArticlePage })));
 const CertificateVerifyPage = lazy(() => import('@/modules/knowledge/CertificateVerifyPage').then(m => ({ default: m.CertificateVerifyPage })));
@@ -88,6 +89,7 @@ export const App: React.FC = () => (
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Suspense fallback={<PageLoader />}><DashboardPage /></Suspense>} />
           <Route path="/analytics" element={<Suspense fallback={<PageLoader />}><AnalyticsPage /></Suspense>} />
+          <Route path="/forecasting" element={<Suspense fallback={<PageLoader />}><ForecastingPage /></Suspense>} />
           <Route path="/knowledge" element={<Suspense fallback={<PageLoader />}><KnowledgeFeedPage /></Suspense>} />
           <Route path="/knowledge/:slug" element={<Suspense fallback={<PageLoader />}><ArticlePage /></Suspense>} />
           <Route path="/inventory" element={<Suspense fallback={<PageLoader />}><InventoryDashboardPage /></Suspense>} />
