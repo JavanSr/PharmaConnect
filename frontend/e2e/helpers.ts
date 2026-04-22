@@ -135,6 +135,8 @@ export async function mockShell(page: Page, options: {
   notifications?: Array<Record<string, unknown>>;
   paymentMethods?: Array<Record<string, unknown>>;
   memberships?: Array<Record<string, unknown>>;
+  analyticsFeatures?: Record<string, unknown>;
+  analyticsSummary?: Record<string, unknown>;
 }) {
   await page.route('**/api/v1/me/pharmacies', async (route) => {
     await route.fulfill({
@@ -222,6 +224,79 @@ export async function mockShell(page: Page, options: {
               source: 'legacy',
             },
           ],
+        },
+      }),
+    });
+  });
+
+  await page.route('**/api/v1/analytics/features', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: options.analyticsFeatures ?? {
+          tier: options.subscription.subscriptionTier ?? 'STANDARD',
+          historyDays: 365,
+          stockout: true,
+          benchmark: false,
+          forecast: false,
+          seasonality: false,
+          deadStock: false,
+          multiOutletCompare: false,
+        },
+      }),
+    });
+  });
+
+  await page.route('**/api/v1/analytics/summary', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: options.analyticsSummary ?? {
+          inventory: {
+            totalProducts: 24,
+            totalStockValue: 180000,
+            lowStockCount: 4,
+            outOfStockCount: 1,
+            storageBreakdown: {
+              AMBIENT: 18,
+              REFRIGERATED: 5,
+              FROZEN: 1,
+            },
+            expiryRisk: {
+              days1: 0,
+              days7: 1,
+              days30: 3,
+              days60: 5,
+              days90: 6,
+            },
+          },
+          movements: {
+            periodDays: 30,
+            counts: {
+              received: 48,
+              dispensed: 29,
+              adjusted: 3,
+              damaged: 1,
+              other: 0,
+            },
+            topDispensed: [
+              { name: 'Paracetamol', units: 14 },
+              { name: 'Amoxicillin', units: 9 },
+            ],
+          },
+          compliance: {
+            score: 88,
+            total: 6,
+            breakdown: {
+              GREEN: 4,
+              AMBER: 1,
+              RED: 1,
+              EXPIRED: 0,
+            },
+          },
         },
       }),
     });

@@ -4,6 +4,8 @@ import { Link } from 'react-router-dom';
 import {
   BarChart,
   Bar,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   Tooltip,
@@ -16,7 +18,9 @@ import {
 import { Package, TrendingDown, ShieldCheck, AlertTriangle, ArrowRight } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
+import { Select } from '@/components/ui/Select';
 import { api } from '@/lib/api';
+import { usePharmacyStore } from '@/stores/pharmacyStore';
 
 type MovementKey = 'received' | 'dispensed' | 'adjusted' | 'damaged' | 'other';
 type ComplianceKey = 'GREEN' | 'AMBER' | 'RED' | 'EXPIRED';
@@ -48,6 +52,48 @@ type AnalyticsResponse = {
   data: AnalyticsSummary;
 };
 
+type AnalyticsFeatures = {
+  tier: 'ADDO' | 'STANDARD' | 'PREMIUM' | 'ENTERPRISE' | 'WHOLESALE' | null;
+  historyDays: number;
+  stockout: boolean;
+  benchmark: boolean;
+  forecast: boolean;
+  seasonality: boolean;
+  deadStock: boolean;
+  multiOutletCompare: boolean;
+};
+
+type CompareMetric = 'DISPENSED_UNITS' | 'RECEIVED_UNITS' | 'REVENUE_TZS';
+type CompareRange = '7D' | '30D' | '90D' | '12M';
+
+type CompareResponse = {
+  data: {
+    metric: CompareMetric;
+    range: CompareRange;
+    labels: Array<{ key: string; label: string }>;
+    series: Array<{
+      pharmacyId: string;
+      pharmacyName: string;
+      values: Array<{ key: string; label: string; value: number }>;
+    }>;
+  };
+};
+
+const COMPARE_METRIC_OPTIONS = [
+  { value: 'DISPENSED_UNITS', label: 'Dispensed units' },
+  { value: 'RECEIVED_UNITS', label: 'Received units' },
+  { value: 'REVENUE_TZS', label: 'Revenue (TZS)' },
+] as const;
+
+const COMPARE_RANGE_OPTIONS = [
+  { value: '7D', label: 'Last 7 days' },
+  { value: '30D', label: 'Last 30 days' },
+  { value: '90D', label: 'Last 90 days' },
+  { value: '12M', label: 'Last 12 months' },
+] as const;
+
+const COMPARE_COLORS = ['#1A6B5C', '#D97706', '#1D4ED8', '#DC2626', '#7C3AED'];
+
 const TZS = (value: number) =>
   new Intl.NumberFormat('en-TZ', {
     style: 'currency',
@@ -71,13 +117,58 @@ const COMPLIANCE_COLORS: Record<ComplianceKey, string> = {
 };
 
 export const AnalyticsPage: React.FC = () => {
+  const memberships = usePharmacyStore((state) => state.memberships);
+  const activePharmacy = usePharmacyStore((state) => state.pharmacy);
+  const compareEligibleMemberships = memberships.filter((membership) => membership.pharmacy?.isActive !== false);
+  const [compareMetric, setCompareMetric] = React.useState<CompareMetric>('DISPENSED_UNITS');
+  const [compareRange, setCompareRange] = React.useState<CompareRange>('30D');
+  const [selectedPharmacyIds, setSelectedPharmacyIds] = React.useState<string[]>([]);
+
+  React.useEffect(() => {
+    if (!compareEligibleMemberships.length) {
+      return;
+    }
+
+    setSelectedPharmacyIds((current) => {
+      if (current.length) {
+        const next = current.filter((pharmacyId) => compareEligibleMemberships.some((membership) => membership.pharmacyId === pharmacyId));
+        if (next.length) {
+          return next;
+        }
+      }
+
+      const preferred = compareEligibleMemberships.find((membership) => membership.pharmacyId === activePharmacy?.id);
+      const seed = preferred
+        ? [preferred.pharmacyId, ...compareEligibleMemberships.filter((membership) => membership.pharmacyId !== preferred.pharmacyId).slice(0, 1).map((membership) => membership.pharmacyId)]
+        : compareEligibleMemberships.slice(0, Math.min(2, compareEligibleMemberships.length)).map((membership) => membership.pharmacyId);
+
+      return seed;
+    });
+  }, [activePharmacy?.id, compareEligibleMemberships]);
+
   const { data, isLoading, isError } = useQuery<AnalyticsResponse>({
     queryKey: ['analytics-summary'],
     queryFn: () => api.get('/analytics/summary').then(r => r.data),
     staleTime: 5 * 60 * 1000,
   });
+  const featuresQuery = useQuery<{ data: AnalyticsFeatures }>({
+    queryKey: ['analytics-features'],
+    queryFn: () => api.get('/analytics/features').then((response) => response.data),
+    staleTime: 5 * 60 * 1000,
+  });
+  const compareQuery = useQuery<CompareResponse>({
+    queryKey: ['analytics-compare', compareMetric, compareRange, [...selectedPharmacyIds].sort().join(',')],
+    enabled: featuresQuery.data?.data.multiOutletCompare === true && selectedPharmacyIds.length > 0,
+    queryFn: () => api.post('/analytics/compare', {
+      metric: compareMetric,
+      range: compareRange,
+      pharmacyIds: selectedPharmacyIds,
+    }).then((response) => response.data),
+    staleTime: 60_000,
+  });
 
   const summary = data?.data;
+  const features = featuresQuery.data?.data;
 
   const movementChartData = useMemo(() => {
     if (!summary) return [];
@@ -106,6 +197,24 @@ export const AnalyticsPage: React.FC = () => {
   }, [summary]);
 
   const expiryRisk = summary?.inventory.expiryRisk;
+  const compareChartData = useMemo(() => {
+    const compare = compareQuery.data?.data;
+    if (!compare) {
+      return [];
+    }
+
+    return compare.labels.map((label, index) => {
+      const point: Record<string, string | number> = {
+        label: label.label,
+      };
+
+      compare.series.forEach((series) => {
+        point[series.pharmacyId] = series.values[index]?.value ?? 0;
+      });
+
+      return point;
+    });
+  }, [compareQuery.data]);
 
   if (isLoading) {
     return (
@@ -134,8 +243,110 @@ export const AnalyticsPage: React.FC = () => {
             Operational snapshot: inventory, movements, and compliance across active modules.
           </p>
         </div>
-        <Badge variant="info" size="sm">Last 30 days</Badge>
+        <div className="flex items-center gap-2">
+          {features?.tier && <Badge variant="info" size="sm">{features.tier} analytics</Badge>}
+          <Badge variant="info" size="sm">Last 30 days</Badge>
+        </div>
       </div>
+
+      {features?.multiOutletCompare && (
+        <Card
+          header={
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <p className="text-sm font-semibold text-[#0D4035]">Multi-outlet compare</p>
+                <p className="text-xs text-[#64748B] mt-1">One metric, one time range, one chart across your accessible pharmacies.</p>
+              </div>
+              <Badge variant="success" size="sm">Enterprise</Badge>
+            </div>
+          }
+        >
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Select
+                label="Metric"
+                value={compareMetric}
+                onChange={(event) => setCompareMetric(event.target.value as CompareMetric)}
+                options={COMPARE_METRIC_OPTIONS.map((option) => ({ value: option.value, label: option.label }))}
+              />
+              <Select
+                label="Time range"
+                value={compareRange}
+                onChange={(event) => setCompareRange(event.target.value as CompareRange)}
+                options={COMPARE_RANGE_OPTIONS.map((option) => ({ value: option.value, label: option.label }))}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-[#0D4035]">Pharmacies</p>
+              <div className="flex flex-wrap gap-2">
+                {compareEligibleMemberships.map((membership) => {
+                  const selected = selectedPharmacyIds.includes(membership.pharmacyId);
+                  return (
+                    <button
+                      key={membership.id}
+                      type="button"
+                      className={`px-3 py-2 rounded-full border text-sm transition-colors ${
+                        selected
+                          ? 'bg-[#1A6B5C] border-[#1A6B5C] text-white'
+                          : 'bg-white border-[#D6F0E8] text-[#0D4035] hover:bg-[#EDF7F3]'
+                      }`}
+                      onClick={() => {
+                        setSelectedPharmacyIds((current) => (
+                          selected
+                            ? current.filter((pharmacyId) => pharmacyId !== membership.pharmacyId)
+                            : [...current, membership.pharmacyId]
+                        ));
+                      }}
+                    >
+                      {membership.pharmacy.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {compareQuery.isError ? (
+              <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-[#DC2626]">
+                Compare data could not be loaded for the selected pharmacies.
+              </div>
+            ) : compareQuery.isLoading ? (
+              <div className="flex items-center justify-center h-56">
+                <div className="w-8 h-8 border-3 border-[#1A6B5C] border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : compareChartData.length ? (
+              <ResponsiveContainer width="100%" height={280}>
+                <LineChart data={compareChartData}>
+                  <XAxis dataKey="label" tick={{ fontSize: 12, fill: '#64748B' }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: '#64748B' }} axisLine={false} tickLine={false} />
+                  <Tooltip
+                    contentStyle={{ borderRadius: 12, border: '1px solid #D6F0E8', fontSize: 12 }}
+                    formatter={(value) => [
+                      compareMetric === 'REVENUE_TZS' ? TZS(Number(value)) : Number(value).toLocaleString(),
+                      '',
+                    ]}
+                  />
+                  {compareQuery.data?.data.series.map((series, index) => (
+                    <Line
+                      key={series.pharmacyId}
+                      type="monotone"
+                      dataKey={series.pharmacyId}
+                      name={series.pharmacyName}
+                      stroke={COMPARE_COLORS[index % COMPARE_COLORS.length]}
+                      strokeWidth={3}
+                      dot={false}
+                    />
+                  ))}
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="rounded-2xl border border-[#D6F0E8] bg-[#F7FBF9] px-4 py-6 text-sm text-[#64748B] text-center">
+                Pick at least one pharmacy to compare this metric.
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard

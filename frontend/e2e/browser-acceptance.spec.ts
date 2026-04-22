@@ -122,6 +122,106 @@ test('multi-outlet users can pick a pharmacy and persist the device selection', 
   expect(persistedState).toContain(pharmacies.nearTrial.id);
 });
 
+test('enterprise analytics shows one-metric compare across selected pharmacies', async ({ page }) => {
+  const enterprisePharmacy = {
+    ...pharmacies.active,
+    id: 'pharmacy-enterprise',
+    name: 'Browser E2E Enterprise Outlet',
+    subscriptionTier: 'ENTERPRISE',
+  };
+  const memberships = [
+    {
+      id: 'membership-enterprise',
+      pharmacyId: enterprisePharmacy.id,
+      role: 'OWNER',
+      active: true,
+      validFrom: '2026-01-01T00:00:00.000Z',
+      validUntil: null,
+      selected: true,
+      pharmacy: enterprisePharmacy,
+    },
+    {
+      id: 'membership-secondary',
+      pharmacyId: pharmacies.nearTrial.id,
+      role: 'OWNER',
+      active: true,
+      validFrom: '2026-01-01T00:00:00.000Z',
+      validUntil: null,
+      selected: false,
+      pharmacy: { ...pharmacies.nearTrial, subscriptionTier: 'ENTERPRISE' },
+    },
+  ];
+  let comparePayload: Record<string, unknown> | null = null;
+
+  await bootstrapSession(page, {
+    user: browserUsers.activeOwner,
+    pharmacy: enterprisePharmacy,
+  });
+  await mockShell(page, {
+    subscription: enterprisePharmacy,
+    memberships,
+    analyticsFeatures: {
+      tier: 'ENTERPRISE',
+      historyDays: 365,
+      stockout: true,
+      benchmark: true,
+      forecast: true,
+      seasonality: true,
+      deadStock: true,
+      multiOutletCompare: true,
+    },
+  });
+
+  await page.route('**/api/v1/analytics/compare', async (route) => {
+    comparePayload = route.request().postDataJSON() as Record<string, unknown>;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: {
+          metric: 'DISPENSED_UNITS',
+          range: '30D',
+          labels: [
+            { key: '2026-04-20', label: 'Apr 20' },
+            { key: '2026-04-21', label: 'Apr 21' },
+            { key: '2026-04-22', label: 'Apr 22' },
+          ],
+          series: [
+            {
+              pharmacyId: enterprisePharmacy.id,
+              pharmacyName: enterprisePharmacy.name,
+              values: [
+                { key: '2026-04-20', label: 'Apr 20', value: 10 },
+                { key: '2026-04-21', label: 'Apr 21', value: 12 },
+                { key: '2026-04-22', label: 'Apr 22', value: 8 },
+              ],
+            },
+            {
+              pharmacyId: pharmacies.nearTrial.id,
+              pharmacyName: pharmacies.nearTrial.name,
+              values: [
+                { key: '2026-04-20', label: 'Apr 20', value: 7 },
+                { key: '2026-04-21', label: 'Apr 21', value: 9 },
+                { key: '2026-04-22', label: 'Apr 22', value: 6 },
+              ],
+            },
+          ],
+        },
+      }),
+    });
+  });
+
+  await expectProtectedRoute(page, '/analytics');
+
+  await expect(page.getByText('Multi-outlet compare')).toBeVisible();
+  await expect(page.getByLabel('Metric')).toHaveValue('DISPENSED_UNITS');
+  expect(comparePayload).toEqual({
+    metric: 'DISPENSED_UNITS',
+    range: '30D',
+    pharmacyIds: [enterprisePharmacy.id, pharmacies.nearTrial.id],
+  });
+});
+
 test('owner can configure dispensing payment methods from settings', async ({ page }) => {
   let savedConfig: Record<string, unknown> | null = null;
 
