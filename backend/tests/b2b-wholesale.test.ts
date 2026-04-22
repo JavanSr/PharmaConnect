@@ -150,6 +150,22 @@ describe('wholesale operations extensions', () => {
     expect(invoices.body.data[0].efdmsStatus).toBe('STUBBED');
     expect(invoices.body.data[0].efdmsPayload.mode).toBe('stub');
 
+    const aging = await request(app)
+      .get('/api/v1/b2b/receivables-aging')
+      .set('Authorization', `Bearer ${sellerAuth.body.data.accessToken}`);
+
+    expect(aging.status).toBe(200);
+    expect(aging.body.data.totalOpenAmount).toBeGreaterThan(0);
+    expect(aging.body.data.invoices[0].buyerName).toBe(buyerPharmacy.name);
+
+    const insights = await request(app)
+      .get('/api/v1/b2b/demand-insights')
+      .set('Authorization', `Bearer ${sellerAuth.body.data.accessToken}`);
+
+    expect(insights.status).toBe(200);
+    expect(insights.body.data.topProducts[0].productName).toBe(seeded.product.name);
+    expect(insights.body.data.windows.current30d.units).toBeGreaterThan(0);
+
     process.env.FEATURE_EFDMS_INVOICES = previousFlag;
   }, 120000);
 });

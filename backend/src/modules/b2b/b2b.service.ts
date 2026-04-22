@@ -895,3 +895,161 @@ export async function listVatInvoices(pharmacyId: string) {
     issuedAt: row.issued_at.toISOString(),
   }));
 }
+
+export async function listReceivablesAging(sellerPharmacyId: string) {
+  const rows = await prisma.$queryRaw<Array<{
+    invoice_id: string;
+    invoice_number: string;
+    order_id: string;
+    buyer_pharmacy_id: string;
+    buyer_name: string;
+    total_amount: Prisma.Decimal | string | number;
+    issued_at: Date;
+  }>>(Prisma.sql`
+    SELECT
+      vi."id" AS invoice_id,
+      vi."invoice_number",
+      vi."order_id",
+      o."buyer_pharmacy_id",
+      p."name" AS buyer_name,
+      vi."total_amount",
+      vi."issued_at"
+    FROM "vat_invoices" vi
+    INNER JOIN "orders" o ON o."id" = vi."order_id"
+    INNER JOIN "pharmacies" p ON p."id" = o."buyer_pharmacy_id"
+    WHERE o."seller_pharmacy_id" = ${sellerPharmacyId}
+    ORDER BY vi."issued_at" DESC
+  `);
+
+  const buckets = {
+    current: 0,
+    days31To60: 0,
+    days61To90: 0,
+    over90: 0,
+  };
+
+  const invoices = rows.map((row) => {
+    const openAmount = asNumber(row.total_amount);
+    const daysOutstanding = Math.max(
+      0,
+      Math.floor((Date.now() - row.issued_at.getTime()) / 86_400_000),
+    );
+
+    if (daysOutstanding <= 30) {
+      buckets.current += openAmount;
+    } else if (daysOutstanding <= 60) {
+      buckets.days31To60 += openAmount;
+    } else if (daysOutstanding <= 90) {
+      buckets.days61To90 += openAmount;
+    } else {
+      buckets.over90 += openAmount;
+    }
+
+    return {
+      invoiceId: row.invoice_id,
+      invoiceNumber: row.invoice_number,
+      orderId: row.order_id,
+      buyerPharmacyId: row.buyer_pharmacy_id,
+      buyerName: row.buyer_name,
+      openAmount,
+      daysOutstanding,
+      issuedAt: row.issued_at.toISOString(),
+    };
+  });
+
+  return {
+    totalOpenAmount: invoices.reduce((sum, invoice) => sum + invoice.openAmount, 0),
+    buckets,
+    invoices,
+  };
+}
+
+export async function getDemandInsights(sellerPharmacyId: string) {
+  const rows = await prisma.$queryRaw<Array<{
+    buyer_pharmacy_id: string;
+    created_at: Date;
+    items: Prisma.JsonValue;
+  }>>(Prisma.sql`
+    SELECT
+      o."buyer_pharmacy_id",
+      o."created_at",
+      o."items"
+    FROM "orders" o
+    WHERE o."seller_pharmacy_id" = ${sellerPharmacyId}
+      AND o."status" IN ('CONFIRMED', 'PACKED', 'DISPATCHED', 'DELIVERED', 'COMPLETED')
+      AND o."created_at" >= NOW() - INTERVAL '120 days'
+    ORDER BY o."created_at" DESC
+  `);
+
+  const currentWindowStart = Date.now() - (30 * 86_400_000);
+  const previousWindowStart = Date.now() - (60 * 86_400_000);
+  const productStats = new Map<string, {
+    productId: string;
+    productName: string;
+    units: number;
+    revenueTzs: number;
+    buyers: Set<string>;
+  }>();
+
+  let currentWindowRevenue = 0;
+  let previousWindowRevenue = 0;
+  let currentWindowUnits = 0;
+  let previousWindowUnits = 0;
+
+  rows.forEach((row) => {
+    const timestamp = row.created_at.getTime();
+    const inCurrentWindow = timestamp >= currentWindowStart;
+    const inPreviousWindow = timestamp >= previousWindowStart && timestamp < currentWindowStart;
+    const lines = Array.isArray(row.items) ? (row.items as OrderLine[]) : [];
+
+    lines.forEach((line) => {
+      const stat = productStats.get(line.productId) ?? {
+        productId: line.productId,
+        productName: line.productName,
+        units: 0,
+        revenueTzs: 0,
+        buyers: new Set<string>(),
+      };
+
+      stat.units += line.quantity;
+      stat.revenueTzs += line.lineTotal;
+      stat.buyers.add(row.buyer_pharmacy_id);
+      productStats.set(line.productId, stat);
+
+      if (inCurrentWindow) {
+        currentWindowUnits += line.quantity;
+        currentWindowRevenue += line.lineTotal;
+      }
+
+      if (inPreviousWindow) {
+        previousWindowUnits += line.quantity;
+        previousWindowRevenue += line.lineTotal;
+      }
+    });
+  });
+
+  const topProducts = Array.from(productStats.values())
+    .sort((left, right) => right.units - left.units)
+    .slice(0, 5)
+    .map((stat) => ({
+      productId: stat.productId,
+      productName: stat.productName,
+      units: stat.units,
+      revenueTzs: stat.revenueTzs,
+      activeBuyers: stat.buyers.size,
+    }));
+
+  return {
+    windows: {
+      current30d: {
+        units: currentWindowUnits,
+        revenueTzs: currentWindowRevenue,
+      },
+      previous30d: {
+        units: previousWindowUnits,
+        revenueTzs: previousWindowRevenue,
+      },
+    },
+    topProducts,
+  };
+}

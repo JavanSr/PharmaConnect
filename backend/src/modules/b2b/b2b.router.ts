@@ -8,8 +8,10 @@ import {
   confirmDelivery,
   createOrder,
   getOrder,
+  getDemandInsights,
   listCreditLimits,
   listOrders,
+  listReceivablesAging,
   listVatInvoices,
   listWholesaleCatalogue,
   pickOrderItems,
@@ -276,6 +278,22 @@ b2bRouter.put('/credit-limits/:clientPharmacyId', requirePermission('wholesale.s
 b2bRouter.get('/invoices', async (req: AuthRequest, res, next) => {
   try {
     res.json({ data: await listVatInvoices(pid(req)) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+b2bRouter.get('/receivables-aging', requirePermission('wholesale.view_financial_reports'), async (req: AuthRequest, res, next) => {
+  try {
+    res.json({ data: await listReceivablesAging(pid(req)) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+b2bRouter.get('/demand-insights', requirePermission('wholesale.view_dashboard'), async (req: AuthRequest, res, next) => {
+  try {
+    res.json({ data: await getDemandInsights(pid(req)) });
   } catch (error) {
     next(error);
   }
