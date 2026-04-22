@@ -432,6 +432,7 @@ test('dispenser submits a stock adjustment suggestion without direct adjustment 
 
 test('owner reviews a pending stock adjustment suggestion from the queue', async ({ page }) => {
   let reviewPayload: Record<string, unknown> | null = null;
+  let suggestionReads = 0;
 
   await bootstrapSession(page, {
     user: browserUsers.activeOwner,
@@ -440,45 +441,48 @@ test('owner reviews a pending stock adjustment suggestion from the queue', async
   await mockShell(page, { subscription: pharmacies.active });
 
   await page.route('**/api/v1/inventory/adjustment-suggestions?*', async (route) => {
+    suggestionReads += 1;
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
-        data: [
-          {
-            id: 'suggestion-owner-review-1',
-            pharmacyId: pharmacies.active.id,
-            productId: 'product-stock-suggestion',
-            quantityDelta: -3,
-            approvedQuantityDelta: null,
-            reason: 'COUNT_VARIANCE',
-            note: 'Short by three packs after drawer count.',
-            photoPath: null,
-            status: 'PENDING',
-            createdBy: browserUsers.activeDispenser.id,
-            reviewedBy: null,
-            reviewNote: null,
-            createdAt: '2026-04-22T08:00:00.000Z',
-            updatedAt: '2026-04-22T08:00:00.000Z',
-            reviewedAt: null,
-            product: {
-              id: 'product-stock-suggestion',
-              name: 'Paracetamol 500',
-              genericName: 'Paracetamol',
-            },
-            batch: {
-              id: 'batch-stock-suggestion',
-              batchNumber: 'PC-0422',
-              expiryDate: '2027-01-10T00:00:00.000Z',
-            },
-            creator: {
-              id: browserUsers.activeDispenser.id,
-              firstName: browserUsers.activeDispenser.firstName,
-              lastName: browserUsers.activeDispenser.lastName,
-            },
-            reviewer: null,
-          },
-        ],
+        data: suggestionReads === 1
+          ? [
+              {
+                id: 'suggestion-owner-review-1',
+                pharmacyId: pharmacies.active.id,
+                productId: 'product-stock-suggestion',
+                quantityDelta: -3,
+                approvedQuantityDelta: null,
+                reason: 'COUNT_VARIANCE',
+                note: 'Short by three packs after drawer count.',
+                photoPath: null,
+                status: 'PENDING',
+                createdBy: browserUsers.activeDispenser.id,
+                reviewedBy: null,
+                reviewNote: null,
+                createdAt: '2026-04-22T08:00:00.000Z',
+                updatedAt: '2026-04-22T08:00:00.000Z',
+                reviewedAt: null,
+                product: {
+                  id: 'product-stock-suggestion',
+                  name: 'Paracetamol 500',
+                  genericName: 'Paracetamol',
+                },
+                batch: {
+                  id: 'batch-stock-suggestion',
+                  batchNumber: 'PC-0422',
+                  expiryDate: '2027-01-10T00:00:00.000Z',
+                },
+                creator: {
+                  id: browserUsers.activeDispenser.id,
+                  firstName: browserUsers.activeDispenser.firstName,
+                  lastName: browserUsers.activeDispenser.lastName,
+                },
+                reviewer: null,
+              },
+            ]
+          : [],
       }),
     });
   });
@@ -502,6 +506,7 @@ test('owner reviews a pending stock adjustment suggestion from the queue', async
 
   await expectProtectedRoute(page, '/inventory/adjust');
 
+  await expect(page.getByLabel('Movement Type *')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Pending owner review' })).toBeVisible();
   await expect(page.getByText('Short by three packs after drawer count.')).toBeVisible();
 
@@ -510,6 +515,7 @@ test('owner reviews a pending stock adjustment suggestion from the queue', async
   await page.getByRole('button', { name: 'Save partial' }).click();
 
   await expect(page.getByText('Suggestion review saved')).toBeVisible();
+  await expect(page.getByText('No pending stock adjustment suggestions right now.')).toBeVisible();
   expect(reviewPayload).toEqual({
     status: 'PARTIAL',
     approvedQuantityDelta: -1,

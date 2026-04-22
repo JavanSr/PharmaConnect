@@ -12,15 +12,6 @@ import { useAuthStore } from '@/stores/authStore';
 import { useDebounce } from '@/hooks/useDebounce';
 import { api } from '@/lib/api';
 
-const MOVEMENT_TYPES = [
-  { value: 'ADJUSTED', label: 'Stock Adjustment (quantity correction)' },
-  { value: 'DAMAGED', label: 'Damaged / Spoiled' },
-  { value: 'EXPIRED_REMOVED', label: 'Expired - Removed from shelf' },
-  { value: 'DONATED', label: 'Donated' },
-  { value: 'TRANSFERRED', label: 'Transferred to another facility' },
-  { value: 'RETURNED', label: 'Returned to supplier' },
-];
-
 const SUGGESTION_REASONS = [
   { value: 'COUNT_VARIANCE', label: 'Count variance' },
   { value: 'DAMAGED', label: 'Damaged stock' },
@@ -42,13 +33,9 @@ export const StockAdjustPage: React.FC = () => {
   const [productSearch, setProductSearch] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [selectedBatch, setSelectedBatch] = useState('');
-  const [movementType, setMovementType] = useState('ADJUSTED');
-  const [quantity, setQuantity] = useState('');
   const [quantityDelta, setQuantityDelta] = useState('');
   const [suggestionReason, setSuggestionReason] = useState('COUNT_VARIANCE');
-  const [reason, setReason] = useState('');
   const [notes, setNotes] = useState('');
-  const [referenceNumber, setReferenceNumber] = useState('');
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
   const [partialQuantityBySuggestion, setPartialQuantityBySuggestion] = useState<Record<string, string>>({});
@@ -79,43 +66,35 @@ export const StockAdjustPage: React.FC = () => {
 
   const mutation = useMutation({
     mutationFn: async () => {
-      if (isSuggestionMode) {
-        const formData = new FormData();
-        formData.append('productId', selectedProduct.id);
-        if (selectedBatch) {
-          formData.append('batchId', selectedBatch);
-        }
-        formData.append('quantityDelta', quantityDelta);
-        formData.append('reason', suggestionReason);
-        if (notes.trim()) {
-          formData.append('note', notes.trim());
-        }
-        if (photoFile) {
-          formData.append('photo', photoFile);
-        }
-
-        return api.post('/inventory/adjustment-suggestions', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        });
+      const formData = new FormData();
+      formData.append('productId', selectedProduct.id);
+      if (selectedBatch) {
+        formData.append('batchId', selectedBatch);
+      }
+      formData.append('quantityDelta', quantityDelta);
+      formData.append('reason', suggestionReason);
+      if (notes.trim()) {
+        formData.append('note', notes.trim());
+      }
+      if (photoFile) {
+        formData.append('photo', photoFile);
       }
 
-      const compiledNotes = [reason.trim(), notes.trim(), referenceNumber.trim()].filter(Boolean).join(' | ') || undefined;
-
-      return api.post('/inventory/movements/adjust', {
-        productId: selectedProduct.id,
-        batchId: selectedBatch || undefined,
-        type: movementType,
-        quantity: parseInt(quantity, 10),
-        notes: compiledNotes,
+      return api.post('/inventory/adjustment-suggestions', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
     },
     onSuccess: () => {
-      toast.success(isSuggestionMode ? 'Stock adjustment suggestion submitted' : 'Stock movement recorded');
+      toast.success(canReviewSuggestions ? 'Stock adjustment request submitted for approval' : 'Stock adjustment suggestion submitted');
       qc.invalidateQueries({ queryKey: ['products'] });
       qc.invalidateQueries({ queryKey: ['product-detail', selectedProduct?.id] });
-      navigate('/inventory');
+      if (canReviewSuggestions) {
+        qc.invalidateQueries({ queryKey: ['stock-adjustment-suggestions', 'PENDING'] });
+      } else {
+        navigate('/inventory');
+      }
     },
-    onError: (error: any) => toast.error(error.response?.data?.error || 'Failed to save stock adjustment'),
+    onError: (error: any) => toast.error(error.response?.data?.error || 'Failed to submit stock adjustment request'),
   });
   const reviewMutation = useMutation({
     mutationFn: async (payload: {
@@ -136,14 +115,8 @@ export const StockAdjustPage: React.FC = () => {
     onError: (error: any) => toast.error(error.response?.data?.error || 'Failed to review suggestion'),
   });
 
-  const needsReason = ['ADJUSTED', 'DAMAGED', 'EXPIRED_REMOVED', 'DONATED', 'TRANSFERRED'].includes(movementType);
   const noteRequiredForSuggestion = suggestionReason === 'OTHER';
   const parsedQuantityDelta = parseInt(quantityDelta, 10);
-  const canSubmitDirectAdjustment =
-    Boolean(selectedProduct) &&
-    Boolean(quantity) &&
-    parseInt(quantity, 10) > 0 &&
-    (!needsReason || (reason.trim().length > 0 && notes.trim().length >= 10));
   const canSubmitSuggestion =
     Boolean(selectedProduct) &&
     Number.isInteger(parsedQuantityDelta) &&
@@ -194,12 +167,12 @@ export const StockAdjustPage: React.FC = () => {
         </Link>
         <div className="flex-1">
           <h1 className="text-xl font-bold text-[#0D4035]">
-            {isSuggestionMode ? 'Stock Adjustment Suggestion' : 'Stock Adjustment'}
+            {canReviewSuggestions ? 'Stock Adjustment Approval' : 'Stock Adjustment Suggestion'}
           </h1>
           <p className="mt-1 text-sm text-[#64748B]">
             {isSuggestionMode
               ? 'Submit a suggested stock correction for owner review. Stock will not change at this step.'
-              : 'Record a stock movement directly while approval workflow is being phased in.'}
+              : 'Submit a stock correction request, then approve it from the owner queue to apply stock changes.'}
           </p>
         </div>
       </div>
@@ -279,107 +252,49 @@ export const StockAdjustPage: React.FC = () => {
             />
           )}
 
-          {isSuggestionMode ? (
-            <>
-              <Input
-                label="Quantity delta *"
-                type="number"
-                value={quantityDelta}
-                onChange={(event) => setQuantityDelta(event.target.value)}
-                placeholder="Use -3 for a decrease or 5 for an increase"
-              />
+          <Input
+            label="Quantity delta *"
+            type="number"
+            value={quantityDelta}
+            onChange={(event) => setQuantityDelta(event.target.value)}
+            placeholder="Use -3 for a decrease or 5 for an increase"
+          />
 
-              <Select
-                label="Reason *"
-                value={suggestionReason}
-                onChange={(event) => setSuggestionReason(event.target.value)}
-                options={SUGGESTION_REASONS}
-              />
+          <Select
+            label="Reason *"
+            value={suggestionReason}
+            onChange={(event) => setSuggestionReason(event.target.value)}
+            options={SUGGESTION_REASONS}
+          />
 
-              <div>
-                <label htmlFor="stock-adjustment-suggestion-note" className="mb-1.5 block text-sm font-medium text-[#374151]">
-                  Note {noteRequiredForSuggestion ? '*' : '(optional)'}
-                </label>
-                <textarea
-                  id="stock-adjustment-suggestion-note"
-                  value={notes}
-                  onChange={(event) => setNotes(event.target.value)}
-                  rows={3}
-                  placeholder={
-                    noteRequiredForSuggestion
-                      ? 'Explain this stock adjustment request...'
-                      : 'Add any supporting context for the owner if needed'
-                  }
-                  className="w-full resize-none rounded-xl border border-[#D6F0E8] px-3 py-2.5 text-sm text-[#0D4035] focus:outline-none focus:ring-2 focus:ring-[#1A6B5C]"
-                />
-              </div>
+          <div>
+            <label htmlFor="stock-adjustment-suggestion-note" className="mb-1.5 block text-sm font-medium text-[#374151]">
+              Note {noteRequiredForSuggestion ? '*' : '(optional)'}
+            </label>
+            <textarea
+              id="stock-adjustment-suggestion-note"
+              value={notes}
+              onChange={(event) => setNotes(event.target.value)}
+              rows={3}
+              placeholder={
+                noteRequiredForSuggestion
+                  ? 'Explain this stock adjustment request...'
+                  : 'Add any supporting context for the owner if needed'
+              }
+              className="w-full resize-none rounded-xl border border-[#D6F0E8] px-3 py-2.5 text-sm text-[#0D4035] focus:outline-none focus:ring-2 focus:ring-[#1A6B5C]"
+            />
+          </div>
 
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-[#374151]">Photo evidence (optional)</label>
-                <input
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp"
-                  onChange={(event) => setPhotoFile(event.target.files?.[0] ?? null)}
-                  className="block w-full text-sm text-[#0D4035] file:mr-4 file:rounded-xl file:border-0 file:bg-[#EDF7F3] file:px-4 file:py-2 file:font-medium file:text-[#1A6B5C] hover:file:bg-[#D6F0E8]"
-                />
-                {photoFile && <p className="mt-2 text-xs text-[#64748B]">{photoFile.name}</p>}
-              </div>
-            </>
-          ) : (
-            <>
-              <Select
-                label="Movement Type *"
-                value={movementType}
-                onChange={(event) => setMovementType(event.target.value)}
-                options={MOVEMENT_TYPES}
-              />
-
-              <Input
-                label="Quantity *"
-                type="number"
-                value={quantity}
-                onChange={(event) => setQuantity(event.target.value)}
-                min="1"
-                placeholder="Number of units"
-              />
-
-              {needsReason && (
-                <>
-                  <Input
-                    label="Reason *"
-                    value={reason}
-                    onChange={(event) => setReason(event.target.value)}
-                    placeholder="Brief reason for adjustment"
-                  />
-                  <div>
-                    <label htmlFor="stock-adjustment-direct-note" className="mb-1.5 block text-sm font-medium text-[#374151]">
-                      Notes * <span className="text-xs font-normal text-[#64748B]">(min. 10 characters - required for audit)</span>
-                    </label>
-                    <textarea
-                      id="stock-adjustment-direct-note"
-                      value={notes}
-                      onChange={(event) => setNotes(event.target.value)}
-                      rows={3}
-                      placeholder="Describe the circumstances in detail..."
-                      className={`w-full resize-none rounded-xl border px-3 py-2.5 text-sm text-[#0D4035] focus:outline-none focus:ring-2 focus:ring-[#1A6B5C] ${
-                        notes.length > 0 && notes.trim().length < 10 ? 'border-[#DC2626]' : 'border-[#D6F0E8]'
-                      }`}
-                    />
-                    <p className={`mt-1 text-xs ${notes.trim().length >= 10 ? 'text-[#64748B]' : 'text-[#DC2626]'}`}>
-                      {notes.trim().length}/10 characters minimum
-                    </p>
-                  </div>
-                </>
-              )}
-
-              <Input
-                label="Reference Number (optional)"
-                value={referenceNumber}
-                onChange={(event) => setReferenceNumber(event.target.value)}
-                placeholder="e.g. disposal certificate, transfer note..."
-              />
-            </>
-          )}
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-[#374151]">Photo evidence (optional)</label>
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              onChange={(event) => setPhotoFile(event.target.files?.[0] ?? null)}
+              className="block w-full text-sm text-[#0D4035] file:mr-4 file:rounded-xl file:border-0 file:bg-[#EDF7F3] file:px-4 file:py-2 file:font-medium file:text-[#1A6B5C] hover:file:bg-[#D6F0E8]"
+            />
+            {photoFile && <p className="mt-2 text-xs text-[#64748B]">{photoFile.name}</p>}
+          </div>
         </div>
       </Card>
 
@@ -388,10 +303,10 @@ export const StockAdjustPage: React.FC = () => {
         <Button
           leftIcon={<Save size={16} />}
           loading={mutation.isPending}
-          disabled={isSuggestionMode ? !canSubmitSuggestion : !canSubmitDirectAdjustment}
+          disabled={!canSubmitSuggestion}
           onClick={() => mutation.mutate()}
         >
-          {isSuggestionMode ? 'Submit Suggestion' : 'Record Movement'}
+          {canReviewSuggestions ? 'Submit Request' : 'Submit Suggestion'}
         </Button>
       </div>
 
@@ -401,7 +316,7 @@ export const StockAdjustPage: React.FC = () => {
             <div>
               <h2 className="text-lg font-semibold text-[#0D4035]">Pending owner review</h2>
               <p className="mt-1 text-sm text-[#64748B]">
-                Review dispenser suggestions here. This step records the decision only and keeps stock unchanged until the approval action is enforced.
+                Review dispenser suggestions here. Approving or partially approving a request now applies the stock change immediately and records the audit trail.
               </p>
             </div>
 

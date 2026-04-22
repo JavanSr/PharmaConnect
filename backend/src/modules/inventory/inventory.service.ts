@@ -49,6 +49,8 @@ type StockAdjustmentSuggestionPhoto = {
   buffer: Buffer;
 };
 
+type SuggestionReviewStatus = 'APPROVED' | 'REJECTED' | 'PARTIAL';
+
 function stockAdjustmentSuggestionInclude() {
   return {
     product: {
@@ -513,6 +515,98 @@ export async function adjustStock(
   });
 }
 
+function toApprovedSuggestionMovementType(reason: string, quantityDelta: number): 'ADJUSTED' | 'DAMAGED' | 'EXPIRED_REMOVED' | 'RETURNED' {
+  if (quantityDelta > 0) {
+    return 'ADJUSTED';
+  }
+
+  switch (reason) {
+    case 'DAMAGED':
+      return 'DAMAGED';
+    case 'EXPIRED':
+      return 'EXPIRED_REMOVED';
+    case 'RETURN_TO_SUPPLIER':
+      return 'RETURNED';
+    default:
+      return 'ADJUSTED';
+  }
+}
+
+async function resolveSuggestionBatch(
+  tx: Prisma.TransactionClient,
+  pharmacyId: string,
+  suggestion: {
+    batchId: string | null;
+    productId: string;
+  },
+  approvedQuantityDelta: number,
+) {
+  if (suggestion.batchId) {
+    const batch = await tx.batch.findFirst({
+      where: {
+        id: suggestion.batchId,
+        pharmacyId,
+        productId: suggestion.productId,
+      },
+    });
+
+    if (!batch) {
+      throw Object.assign(new Error('Batch not found'), { status: 404 });
+    }
+
+    return batch;
+  }
+
+  if (approvedQuantityDelta < 0) {
+    const batch = await tx.batch.findFirst({
+      where: {
+        pharmacyId,
+        productId: suggestion.productId,
+        quantityRemaining: { gte: Math.abs(approvedQuantityDelta) },
+      },
+      orderBy: [{ expiryDate: 'asc' }, { receivedAt: 'asc' }],
+    });
+
+    if (!batch) {
+      throw Object.assign(new Error('No FEFO batch has enough stock for this approval'), { status: 409 });
+    }
+
+    return batch;
+  }
+
+  const batch = await tx.batch.findFirst({
+    where: {
+      pharmacyId,
+      productId: suggestion.productId,
+    },
+    orderBy: [{ expiryDate: 'asc' }, { receivedAt: 'asc' }],
+  });
+
+  if (!batch) {
+    throw Object.assign(new Error('Batch is required before approving a positive stock correction'), { status: 409 });
+  }
+
+  return batch;
+}
+
+function buildApprovedSuggestionNotes(
+  suggestion: {
+    id: string;
+    reason: string;
+    note: string | null;
+  },
+  reviewNote: string | undefined,
+) {
+  return [
+    `Approved from suggestion ${suggestion.id}`,
+    `reason=${suggestion.reason}`,
+    suggestion.note?.trim() || null,
+    reviewNote?.trim() || null,
+  ]
+    .filter(Boolean)
+    .join(' | ');
+}
+
 async function storeStockAdjustmentSuggestionPhoto(photo: StockAdjustmentSuggestionPhoto) {
   const uploadsRoot = path.resolve(process.cwd(), process.env.UPLOAD_DIR ?? './uploads');
   const suggestionDir = path.join(uploadsRoot, 'stock-adjustment-suggestions');
@@ -609,62 +703,94 @@ export async function reviewStockAdjustmentSuggestion(
   reviewerUserId: string,
   suggestionId: string,
   data: {
-    status: 'APPROVED' | 'REJECTED' | 'PARTIAL';
+    status: SuggestionReviewStatus;
     approvedQuantityDelta?: number;
     reviewNote?: string;
   },
 ) {
-  const suggestion = await prisma.stockAdjustmentSuggestion.findFirst({
-    where: {
-      id: suggestionId,
-      pharmacyId,
-    },
-  });
+  return withPrismaRetry(() => prisma.$transaction(async (tx) => {
+    const suggestion = await tx.stockAdjustmentSuggestion.findFirst({
+      where: {
+        id: suggestionId,
+        pharmacyId,
+      },
+    });
 
-  if (!suggestion) {
-    throw Object.assign(new Error('Stock adjustment suggestion not found'), { status: 404 });
-  }
-
-  if (suggestion.status !== 'PENDING') {
-    throw Object.assign(new Error('Stock adjustment suggestion has already been reviewed'), { status: 409 });
-  }
-
-  let approvedQuantityDelta: number | null = null;
-  if (data.status === 'APPROVED') {
-    approvedQuantityDelta = data.approvedQuantityDelta ?? suggestion.quantityDelta;
-  }
-
-  if (data.status === 'PARTIAL') {
-    approvedQuantityDelta = data.approvedQuantityDelta ?? null;
-    if (!approvedQuantityDelta || approvedQuantityDelta === 0) {
-      throw Object.assign(new Error('Approved quantity delta is required for partial review'), { status: 400 });
+    if (!suggestion) {
+      throw Object.assign(new Error('Stock adjustment suggestion not found'), { status: 404 });
     }
 
-    const requestedDirection = Math.sign(suggestion.quantityDelta);
-    if (Math.sign(approvedQuantityDelta) !== requestedDirection) {
+    if (suggestion.status !== 'PENDING') {
+      throw Object.assign(new Error('Stock adjustment suggestion has already been reviewed'), { status: 409 });
+    }
+
+    let approvedQuantityDelta: number | null = null;
+    if (data.status === 'APPROVED') {
+      approvedQuantityDelta = data.approvedQuantityDelta ?? suggestion.quantityDelta;
+    }
+
+    if (data.status === 'PARTIAL') {
+      approvedQuantityDelta = data.approvedQuantityDelta ?? null;
+      if (!approvedQuantityDelta || approvedQuantityDelta === 0) {
+        throw Object.assign(new Error('Approved quantity delta is required for partial review'), { status: 400 });
+      }
+
+      const requestedDirection = Math.sign(suggestion.quantityDelta);
+      if (Math.sign(approvedQuantityDelta) !== requestedDirection) {
+        throw Object.assign(new Error('Approved quantity delta must keep the same direction as the request'), { status: 400 });
+      }
+
+      if (Math.abs(approvedQuantityDelta) >= Math.abs(suggestion.quantityDelta)) {
+        throw Object.assign(new Error('Partial quantity delta must be smaller than the requested quantity delta'), { status: 400 });
+      }
+    }
+
+    if (data.status === 'APPROVED' && approvedQuantityDelta !== null && Math.sign(approvedQuantityDelta) !== Math.sign(suggestion.quantityDelta)) {
       throw Object.assign(new Error('Approved quantity delta must keep the same direction as the request'), { status: 400 });
     }
 
-    if (Math.abs(approvedQuantityDelta) >= Math.abs(suggestion.quantityDelta)) {
-      throw Object.assign(new Error('Partial quantity delta must be smaller than the requested quantity delta'), { status: 400 });
+    if (approvedQuantityDelta !== null) {
+      const batch = await resolveSuggestionBatch(tx, pharmacyId, suggestion, approvedQuantityDelta);
+      const nextQuantity = batch.quantityRemaining + approvedQuantityDelta;
+
+      if (nextQuantity < 0) {
+        throw Object.assign(new Error('Approved quantity delta exceeds batch stock'), { status: 409 });
+      }
+
+      await tx.batch.update({
+        where: { id: batch.id },
+        data: { quantityRemaining: { increment: approvedQuantityDelta } },
+      });
+
+      await tx.stockMovement.create({
+        data: {
+          pharmacyId,
+          productId: suggestion.productId,
+          batchId: batch.id,
+          userId: reviewerUserId,
+          type: toApprovedSuggestionMovementType(suggestion.reason, approvedQuantityDelta),
+          quantity: Math.abs(approvedQuantityDelta),
+          notes: buildApprovedSuggestionNotes(suggestion, data.reviewNote),
+        },
+      });
     }
-  }
 
-  if (data.status === 'APPROVED' && approvedQuantityDelta !== null && Math.sign(approvedQuantityDelta) !== Math.sign(suggestion.quantityDelta)) {
-    throw Object.assign(new Error('Approved quantity delta must keep the same direction as the request'), { status: 400 });
-  }
+    await tx.stockAdjustmentSuggestion.update({
+      where: { id: suggestion.id },
+      data: {
+        status: data.status,
+        approvedQuantityDelta,
+        reviewNote: data.reviewNote?.trim() || null,
+        reviewedBy: reviewerUserId,
+        reviewedAt: new Date(),
+      },
+    });
 
-  return prisma.stockAdjustmentSuggestion.update({
-    where: { id: suggestion.id },
-    data: {
-      status: data.status,
-      approvedQuantityDelta,
-      reviewNote: data.reviewNote?.trim() || null,
-      reviewedBy: reviewerUserId,
-      reviewedAt: new Date(),
-    },
-    include: stockAdjustmentSuggestionInclude(),
-  });
+    return tx.stockAdjustmentSuggestion.findUniqueOrThrow({
+      where: { id: suggestion.id },
+      include: stockAdjustmentSuggestionInclude(),
+    });
+  }));
 }
 
 export async function listSuppliers(pharmacyId: string) {

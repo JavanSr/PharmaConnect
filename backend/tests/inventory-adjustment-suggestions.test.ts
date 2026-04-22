@@ -87,14 +87,14 @@ describe('inventory adjustment suggestions', () => {
         notes: 'Trying to reduce stock directly',
       });
 
-    expect(response.status).toBe(403);
-    expect(response.body.error).toBe('ROLE_INSUFFICIENT');
+    expect(response.status).toBe(409);
+    expect(response.body.error).toBe('APPROVAL_WORKFLOW_REQUIRED');
 
     const unchangedBatch = await prisma.batch.findUnique({ where: { id: batch.id } });
     expect(unchangedBatch?.quantityRemaining).toBe(15);
   });
 
-  it('still allows an owner to use the direct stock adjustment route for now', async () => {
+  it('blocks direct owner stock adjustment so changes only happen on approval', async () => {
     const pharmacy = await createPharmacy({ subscriptionTier: 'PREMIUM' });
     const owner = await createUser({ pharmacyId: pharmacy.id, role: 'OWNER' });
     const auth = await login(owner.user.email, owner.password);
@@ -112,17 +112,17 @@ describe('inventory adjustment suggestions', () => {
         batchId: batch.id,
         type: 'ADJUSTED',
         quantity: 2,
-        notes: 'Owner stock count correction | counted at close',
+        notes: 'Owner stock count correction attempt',
       });
 
-    expect(response.status).toBe(201);
-    expect(response.body.data.type).toBe('ADJUSTED');
+    expect(response.status).toBe(409);
+    expect(response.body.error).toBe('APPROVAL_WORKFLOW_REQUIRED');
 
-    const updatedBatch = await prisma.batch.findUnique({ where: { id: batch.id } });
-    expect(updatedBatch?.quantityRemaining).toBe(10);
+    const unchangedBatch = await prisma.batch.findUnique({ where: { id: batch.id } });
+    expect(unchangedBatch?.quantityRemaining).toBe(12);
   });
 
-  it('lets an owner review pending suggestions without changing stock yet', async () => {
+  it('lets an owner review pending suggestions and applies the approved stock change', async () => {
     const pharmacy = await createPharmacy({ subscriptionTier: 'PREMIUM' });
     const owner = await createUser({ pharmacyId: pharmacy.id, role: 'OWNER' });
     const dispenser = await createUser({ pharmacyId: pharmacy.id, role: 'DISPENSER' });
@@ -169,8 +169,21 @@ describe('inventory adjustment suggestions', () => {
     expect(reviewResponse.body.data.reviewedBy).toBe(owner.user.id);
     expect(reviewResponse.body.data.reviewedAt).toBeTruthy();
 
-    const unchangedBatch = await prisma.batch.findUnique({ where: { id: batch.id } });
-    expect(unchangedBatch?.quantityRemaining).toBe(18);
+    const updatedBatch = await prisma.batch.findUnique({ where: { id: batch.id } });
+    expect(updatedBatch?.quantityRemaining).toBe(16);
+
+    const movement = await prisma.stockMovement.findFirst({
+      where: {
+        pharmacyId: pharmacy.id,
+        productId: product.id,
+        batchId: batch.id,
+        userId: owner.user.id,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(movement?.type).toBe('ADJUSTED');
+    expect(movement?.quantity).toBe(2);
+    expect(movement?.notes).toContain(suggestionResponse.body.data.id);
   });
 
   it('blocks a dispenser from the owner review queue endpoints', async () => {

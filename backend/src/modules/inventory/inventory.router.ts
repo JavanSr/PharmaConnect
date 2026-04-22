@@ -175,30 +175,10 @@ inventoryRouter.get('/movements', requirePermission('inventory.manage_stock'), a
 
 inventoryRouter.post('/movements/adjust', requirePermission('inventory.manage_stock'), async (req: AuthRequest, res, next) => {
   try {
-    if (req.user?.normalizedRole === 'DISPENSER') {
-      res.status(403).json({
-        error: 'ROLE_INSUFFICIENT',
-        message: 'DISPENSER must submit a stock adjustment suggestion for owner review',
-      });
-      return;
-    }
-
-    const data = z
-      .object({
-        productId: z.string(),
-        batchId: z.string().optional(),
-        type: z.enum(['ADJUSTED', 'DAMAGED', 'EXPIRED_REMOVED', 'RETURNED']),
-        quantity: z.coerce.number().int().positive(),
-        notes: z.string().optional(),
-      })
-      .parse(req.body);
-
-    if (req.user?.normalizedRole === 'WHOLESALE_COUNTER_STAFF' && data.type === 'EXPIRED_REMOVED') {
-      res.status(403).json({ error: 'ROLE_INSUFFICIENT', message: 'WHOLESALE_COUNTER_STAFF cannot write off expired stock' });
-      return;
-    }
-
-    res.status(201).json({ data: await svc.adjustStock(pid(req), uid(req), data) });
+    res.status(409).json({
+      error: 'APPROVAL_WORKFLOW_REQUIRED',
+      message: 'Direct stock adjustment is disabled. Submit an adjustment suggestion and apply stock changes from owner approval.',
+    });
   } catch (e) {
     next(e);
   }
