@@ -30,6 +30,8 @@ const routeTitles: Record<string, string> = {
   '/dispensing': 'Dispensing',
   '/dispensing/daily-close': 'Daily Close',
   '/wholesale': 'Wholesale',
+  '/wholesale/orders': 'Wholesale Orders',
+  '/wholesale/settings': 'Wholesale Settings',
   '/orders': 'Orders',
   '/reports': 'Reports',
   '/attendance': 'Attendance',

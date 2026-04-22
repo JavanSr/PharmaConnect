@@ -51,6 +51,7 @@ const CpdDashboardPage = lazy(() => import('@/modules/cpd/CpdDashboardPage').the
 const LogActivityPage = lazy(() => import('@/modules/cpd/LogActivityPage').then(m => ({ default: m.LogActivityPage })));
 const CourseDetailPage = lazy(() => import('@/modules/cpd/CourseDetailPage').then(m => ({ default: m.CourseDetailPage })));
 const WholesaleDashboardPage = lazy(() => import('@/modules/wholesale/WholesaleDashboardPage').then(m => ({ default: m.WholesaleDashboardPage })));
+const WholesaleSettingsPage = lazy(() => import('@/modules/wholesale/WholesaleSettingsPage').then(m => ({ default: m.WholesaleSettingsPage })));
 const OrdersPage = lazy(() => import('@/modules/orders/OrdersPage').then(m => ({ default: m.OrdersPage })));
 const ReportsPage = lazy(() => import('@/modules/reports/ReportsPage').then(m => ({ default: m.ReportsPage })));
 const AttendancePage = lazy(() => import('@/modules/reports/AttendancePage').then(m => ({ default: m.AttendancePage })));
@@ -112,8 +113,10 @@ export const App: React.FC = () => (
           <Route path="/dispensing" element={<Suspense fallback={<PageLoader />}><DispensingScreen /></Suspense>} />
           <Route path="/dispensing/daily-close" element={<Suspense fallback={<PageLoader />}><DailyClose /></Suspense>} />
           <Route path="/wholesale" element={<Suspense fallback={<PageLoader />}><WholesaleDashboardPage /></Suspense>} />
-          <Route path="/b2b" element={<Navigate to="/orders" replace />} />
-          <Route path="/orders" element={<Suspense fallback={<PageLoader />}><OrdersPage /></Suspense>} />
+          <Route path="/wholesale/orders" element={<Suspense fallback={<PageLoader />}><OrdersPage /></Suspense>} />
+          <Route path="/wholesale/settings" element={<Suspense fallback={<PageLoader />}><WholesaleSettingsPage /></Suspense>} />
+          <Route path="/b2b" element={<Navigate to="/wholesale/orders" replace />} />
+          <Route path="/orders" element={<Navigate to="/wholesale/orders" replace />} />
           <Route path="/reports" element={<Suspense fallback={<PageLoader />}><ReportsPage /></Suspense>} />
           <Route path="/attendance" element={<Suspense fallback={<PageLoader />}><AttendancePage /></Suspense>} />
           <Route path="/patients/new" element={<Navigate to="/patient-records" replace />} />

@@ -29,7 +29,7 @@ const phase1Nav: NavItem[] = [
   { label: 'Dispensing', path: '/dispensing', icon: <Pill size={18} />, roles: ['OWNER','PHARMACIST_IN_CHARGE','DISPENSER','LOCUM','CASHIER','SUPER_ADMIN'] },
   { label: 'CPD Tracker', path: '/cpd', icon: <GraduationCap size={18} />, roles: ['OWNER','PHARMACIST_IN_CHARGE','DISPENSER','LOCUM','SUPER_ADMIN'] },
   { label: 'Wholesale', path: '/wholesale', icon: <Building2 size={18} />, roles: ['OWNER','WHOLESALE_MANAGER','WHOLESALE_COUNTER_STAFF','DELIVERY_STAFF','SUPER_ADMIN'] },
-  { label: 'Orders', path: '/orders', icon: <ClipboardList size={18} /> },
+  { label: 'Orders', path: '/wholesale/orders', icon: <ClipboardList size={18} />, roles: ['OWNER','WHOLESALE_MANAGER','WHOLESALE_COUNTER_STAFF','DELIVERY_STAFF','SUPER_ADMIN'] },
   { label: 'Reports', path: '/reports', icon: <BarChart3 size={18} />, roles: ['OWNER','PHARMACIST_IN_CHARGE','ACCOUNTANT','WHOLESALE_MANAGER','SUPER_ADMIN'] },
   { label: 'Attendance', path: '/attendance', icon: <Users size={18} /> },
 ];

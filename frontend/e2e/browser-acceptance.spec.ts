@@ -350,6 +350,53 @@ test('dispenser is denied on wholesale dashboard in browser flow', async ({ page
   await expect(page.getByRole('heading', { name: 'Wholesale access is restricted' })).toBeVisible();
 });
 
+test('wholesale workspace has its own nav and keeps the legacy orders route working', async ({ page }) => {
+  const wholesalePharmacy = {
+    ...pharmacies.active,
+    id: 'pharmacy-wholesale',
+    name: 'Browser E2E Wholesale Outlet',
+    pharmacyType: 'WHOLESALE',
+    subscriptionTier: 'WHOLESALE',
+    isHybrid: true,
+    hybridAddonActive: true,
+  };
+
+  await bootstrapSession(page, {
+    user: {
+      ...browserUsers.activeOwner,
+      role: 'WHOLESALE_MANAGER',
+      pharmacyId: wholesalePharmacy.id,
+    },
+    pharmacy: wholesalePharmacy,
+  });
+  await mockShell(page, { subscription: wholesalePharmacy });
+
+  await page.route('**/api/v1/b2b/catalogue', async (route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: [] }) });
+  });
+  await page.route('**/api/v1/b2b/orders', async (route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: [] }) });
+  });
+  await page.route('**/api/v1/b2b/invoices', async (route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: [] }) });
+  });
+
+  await expectProtectedRoute(page, '/wholesale');
+
+  await expect(page.getByText('Wholesale Operations')).toBeVisible();
+  await expect(page.getByRole('main').getByRole('link', { name: 'Dashboard' })).toBeVisible();
+  await expect(page.getByRole('main').getByRole('link', { name: 'Orders' })).toBeVisible();
+  await expect(page.getByRole('main').getByRole('link', { name: 'Settings' })).toBeVisible();
+
+  await page.getByRole('main').getByRole('link', { name: 'Settings' }).click();
+  await expect(page).toHaveURL(/\/wholesale\/settings/);
+  await expect(page.getByRole('heading', { name: 'Wholesale controls stay separate, data stays shared.' })).toBeVisible();
+
+  await page.goto('/orders');
+  await expect(page).toHaveURL(/\/wholesale\/orders/);
+  await expect(page.getByRole('main').getByRole('heading', { name: 'Wholesale orders' })).toBeVisible();
+});
+
 test('dispensing defaults to walk-in and can search/register patients while offline', async ({ page, context }) => {
   await bootstrapSession(page, {
     user: browserUsers.activeOwner,
