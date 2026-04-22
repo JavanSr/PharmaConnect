@@ -603,8 +603,9 @@ test('offline stock intake queues locally and flushes to live batches when back 
 
   await expectProtectedRoute(page, '/inventory/receive');
 
-  await page.getByLabel('Manual barcode entry').fill('990000000001');
-  await page.getByRole('button', { name: 'Record barcode' }).click();
+  await expect(page.getByRole('button', { name: 'Scan' })).toBeVisible();
+  await page.getByLabel('Product search').fill('990000000001');
+  await page.getByRole('button', { name: /Paracetamol/i }).click();
   await expect(page.locator('input[name="productId"]')).toHaveValue(product.id);
   await page.getByLabel('Batch Number').fill(batchNumber);
   await page.getByLabel('Expiry Date').fill('2027-12-31');

@@ -38,6 +38,7 @@ export const StockIntakePage: React.FC = () => {
   const [productSearch, setProductSearch] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<ProductOption | null>(null);
   const [success, setSuccess] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
   const debouncedSearch = useDebounce(productSearch, 300);
   const toast = useNotificationStore(s => s.toast);
   const { isOnline, pendingWrites, isSyncing, flush } = useOfflineSync(false);
@@ -131,6 +132,7 @@ export const StockIntakePage: React.FC = () => {
 
       setSelectedProduct(exactMatch);
       setProductSearch(exactMatch.genericName || exactMatch.name);
+      setShowScanner(false);
       toast.success(`Scanned ${exactMatch.genericName || exactMatch.name}`);
     } catch (error: any) {
       toast.error(error.response?.data?.error || 'Barcode scan lookup failed');
@@ -174,29 +176,42 @@ export const StockIntakePage: React.FC = () => {
 
       <Card>
         <form onSubmit={handleSubmit(d => mutation.mutate(d))} className="space-y-5">
-          <BarcodeScanner
-            label="Barcode intake scanner"
-            placeholder="Scan with camera or enter barcode manually"
-            onDetected={handleBarcodeDetected}
-          />
-
-          {/* Product search */}
           <div className="space-y-2">
-            <label className="text-sm font-medium text-[#0D4035]">Product <span className="text-[#DC2626]">*</span></label>
+            <div className="flex items-center justify-between gap-3">
+              <label className="text-sm font-medium text-[#0D4035]">Product <span className="text-[#DC2626]">*</span></label>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                leftIcon={<ScanLine size={16} />}
+                onClick={() => setShowScanner((current) => !current)}
+              >
+                {showScanner ? 'Hide scanner' : 'Scan'}
+              </Button>
+            </div>
             <Input
-              placeholder="Search by name, or scan barcode with scanner..."
+              label="Product search"
+              placeholder="Search by name, generic name, SKU, or barcode"
               value={productSearch}
               onChange={e => setProductSearch(e.target.value)}
               leftIcon={<Search size={16} />}
-              rightIcon={<ScanLine size={16} className="text-[#1A6B5C]" />}
               onKeyDown={e => {
                 if (e.key === 'Enter' && productSearch.trim()) {
-                  // Trigger immediate search on barcode scanner Enter
                   e.preventDefault();
                   setProductSearch(productSearch.trim());
                 }
               }}
+              hint="Use the search box first. Open the scanner only when you need to capture a barcode."
             />
+            {showScanner && (
+              <div className="rounded-2xl border border-dashed border-[#D6F0E8] bg-[#F8FCFA] p-4">
+                <BarcodeScanner
+                  label="Scan product barcode"
+                  placeholder="Scan with camera or enter barcode manually"
+                  onDetected={handleBarcodeDetected}
+                />
+              </div>
+            )}
             {products.length > 0 && !selectedProduct && (
               <div className="border border-[#D6F0E8] rounded-xl overflow-hidden">
                 {products.map((p) => (
