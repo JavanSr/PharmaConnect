@@ -33,6 +33,29 @@ describe('inventory barcode lookup', () => {
       CREATE INDEX IF NOT EXISTS "product_barcode_mappings_product_id_idx"
       ON "product_barcode_mappings"("product_id");
     `);
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "barcode_scan_telemetry" (
+        "id" TEXT NOT NULL,
+        "pharmacy_id" TEXT NOT NULL,
+        "barcode" TEXT NOT NULL,
+        "source" TEXT NOT NULL,
+        "result" TEXT NOT NULL,
+        "matched_product_id" TEXT,
+        "metadata" JSONB,
+        "created_by" TEXT NOT NULL,
+        "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "barcode_scan_telemetry_pkey" PRIMARY KEY ("id")
+      );
+    `);
+    await prisma.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS "barcode_scan_telemetry_pharmacy_created_at_idx"
+      ON "barcode_scan_telemetry"("pharmacy_id", "created_at");
+    `);
+    await prisma.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS "barcode_scan_telemetry_source_result_idx"
+      ON "barcode_scan_telemetry"("source", "result");
+    `);
   });
 
   afterAll(async () => {
@@ -57,6 +80,19 @@ describe('inventory barcode lookup', () => {
     expect(response.status).toBe(200);
     expect(response.body.data.source).toBe('LOCAL');
     expect(response.body.data.product.id).toBe(product.id);
+
+    const telemetry = await prisma.$queryRaw<Array<{ source: string; result: string; matchedProductId: string | null }>>`
+      SELECT "source" AS "source", "result" AS "result", "matched_product_id" AS "matchedProductId"
+      FROM "barcode_scan_telemetry"
+      WHERE "pharmacy_id" = ${pharmacy.id}
+      ORDER BY "created_at" DESC
+      LIMIT 1
+    `;
+    expect(telemetry[0]).toEqual({
+      source: 'LOCAL',
+      result: 'MATCH',
+      matchedProductId: product.id,
+    });
   });
 
   it('returns GS1 details when no local product matches a scan', async () => {
@@ -74,6 +110,18 @@ describe('inventory barcode lookup', () => {
     expect(response.body.data.product).toBeNull();
     expect(response.body.data.gs1.gtin).toBe('09506000134352');
     expect(response.body.data.gs1.digitalLink).toContain('/01/09506000134352');
+
+    const telemetry = await prisma.$queryRaw<Array<{ source: string; result: string }>>`
+      SELECT "source" AS "source", "result" AS "result"
+      FROM "barcode_scan_telemetry"
+      WHERE "pharmacy_id" = ${pharmacy.id}
+      ORDER BY "created_at" DESC
+      LIMIT 1
+    `;
+    expect(telemetry[0]).toEqual({
+      source: 'GS1',
+      result: 'MISS',
+    });
   });
 
   it('stores a user mapping and resolves later scans from that saved mapping', async () => {
@@ -107,5 +155,18 @@ describe('inventory barcode lookup', () => {
     expect(lookupResponse.status).toBe(200);
     expect(lookupResponse.body.data.source).toBe('USER_MAP');
     expect(lookupResponse.body.data.product.id).toBe(product.id);
+
+    const telemetry = await prisma.$queryRaw<Array<{ source: string; result: string; matchedProductId: string | null }>>`
+      SELECT "source" AS "source", "result" AS "result", "matched_product_id" AS "matchedProductId"
+      FROM "barcode_scan_telemetry"
+      WHERE "pharmacy_id" = ${pharmacy.id}
+      ORDER BY "created_at" DESC
+      LIMIT 1
+    `;
+    expect(telemetry[0]).toEqual({
+      source: 'USER_MAP',
+      result: 'MATCH',
+      matchedProductId: product.id,
+    });
   });
 });

@@ -87,7 +87,7 @@ inventoryRouter.post('/barcode-lookup', requirePermission('inventory.view_produc
       .parse(req.body);
 
     res.json({
-      data: await svc.lookupBarcodeForReceiving(pid(req), barcode),
+      data: await svc.lookupBarcodeForReceiving(pid(req), uid(req), barcode),
     });
   } catch (e) {
     next(e);

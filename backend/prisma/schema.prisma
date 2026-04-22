@@ -203,6 +203,7 @@ model Pharmacy {
   settings        PharmacySetting[]
   stockAdjustmentSuggestions StockAdjustmentSuggestion[]
   productBarcodeMappings ProductBarcodeMapping[]
+  barcodeScanTelemetry BarcodeScanTelemetry[]
 
   @@map("pharmacies")
 }
@@ -242,6 +243,7 @@ model User {
   createdStockAdjustmentSuggestions StockAdjustmentSuggestion[] @relation("StockAdjustmentSuggestionCreatedBy")
   reviewedStockAdjustmentSuggestions StockAdjustmentSuggestion[] @relation("StockAdjustmentSuggestionReviewedBy")
   createdProductBarcodeMappings ProductBarcodeMapping[] @relation("ProductBarcodeMappingCreatedBy")
+  createdBarcodeScanTelemetry BarcodeScanTelemetry[] @relation("BarcodeScanTelemetryCreatedBy")
 
   @@map("users")
 }
@@ -313,6 +315,7 @@ model Product {
   dispensingItems DispensingItem[]
   stockAdjustmentSuggestions StockAdjustmentSuggestion[]
   barcodeMappings ProductBarcodeMapping[]
+  barcodeScanTelemetry BarcodeScanTelemetry[]
 
   @@index([pharmacyId, barcode], map: "products_pharmacy_barcode_idx")
   @@index([pharmacyId, sku], map: "products_pharmacy_sku_idx")
@@ -337,6 +340,27 @@ model ProductBarcodeMapping {
   @@unique([pharmacyId, barcode], map: "product_barcode_mappings_pharmacy_barcode_key")
   @@index([productId], map: "product_barcode_mappings_product_id_idx")
   @@map("product_barcode_mappings")
+}
+
+model BarcodeScanTelemetry {
+  id              String   @id @default(uuid())
+  pharmacyId       String   @map("pharmacy_id")
+  barcode          String
+  source           String
+  result           String
+  matchedProductId String?  @map("matched_product_id")
+  metadata         Json?
+  createdBy        String   @map("created_by")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  product  Product? @relation(fields: [matchedProductId], references: [id], onDelete: SetNull)
+  creator  User     @relation("BarcodeScanTelemetryCreatedBy", fields: [createdBy], references: [id], onDelete: Restrict)
+
+  @@index([pharmacyId, createdAt], map: "barcode_scan_telemetry_pharmacy_created_at_idx")
+  @@index([source, result], map: "barcode_scan_telemetry_source_result_idx")
+  @@map("barcode_scan_telemetry")
 }
 
 model Batch {

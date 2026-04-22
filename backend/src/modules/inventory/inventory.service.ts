@@ -336,7 +336,7 @@ export async function getProduct(id: string, pharmacyId: string) {
   };
 }
 
-export async function lookupBarcodeForReceiving(pharmacyId: string, barcode: string) {
+export async function lookupBarcodeForReceiving(pharmacyId: string, userId: string, barcode: string) {
   const normalizedBarcode = normalizeBarcodeInput(barcode);
   if (!normalizedBarcode) {
     throw Object.assign(new Error('Barcode is required'), { status: 400 });
@@ -372,6 +372,13 @@ export async function lookupBarcodeForReceiving(pharmacyId: string, barcode: str
 
   if (existingMappings[0]) {
     const existingMapping = existingMappings[0];
+    await recordBarcodeScanTelemetry(pharmacyId, userId, {
+      barcode: normalizedBarcode,
+      source: existingMapping.source === 'USER_MAP' ? 'USER_MAP' : 'LOCAL',
+      result: 'MATCH',
+      matchedProductId: existingMapping.id,
+      metadata: existingMapping.gs1Payload as Prisma.InputJsonValue,
+    });
     return {
       barcode: normalizedBarcode,
       source: existingMapping.source,
@@ -398,6 +405,12 @@ export async function lookupBarcodeForReceiving(pharmacyId: string, barcode: str
   });
 
   if (localProduct) {
+    await recordBarcodeScanTelemetry(pharmacyId, userId, {
+      barcode: normalizedBarcode,
+      source: 'LOCAL',
+      result: 'MATCH',
+      matchedProductId: localProduct.id,
+    });
     return {
       barcode: normalizedBarcode,
       source: 'LOCAL',
@@ -408,6 +421,12 @@ export async function lookupBarcodeForReceiving(pharmacyId: string, barcode: str
 
   const gs1 = parseGs1Barcode(normalizedBarcode);
   if (gs1) {
+    await recordBarcodeScanTelemetry(pharmacyId, userId, {
+      barcode: normalizedBarcode,
+      source: 'GS1',
+      result: 'MISS',
+      metadata: gs1 as Prisma.InputJsonValue,
+    });
     return {
       barcode: normalizedBarcode,
       source: 'GS1',
@@ -415,6 +434,12 @@ export async function lookupBarcodeForReceiving(pharmacyId: string, barcode: str
       gs1,
     };
   }
+
+  await recordBarcodeScanTelemetry(pharmacyId, userId, {
+    barcode: normalizedBarcode,
+    source: 'MISS',
+    result: 'MISS',
+  });
 
   return {
     barcode: normalizedBarcode,
@@ -824,6 +849,45 @@ function buildApprovedSuggestionNotes(
   ]
     .filter(Boolean)
     .join(' | ');
+}
+
+async function recordBarcodeScanTelemetry(
+  pharmacyId: string,
+  userId: string,
+  data: {
+    barcode: string;
+    source: 'LOCAL' | 'GS1' | 'USER_MAP' | 'MISS';
+    result: 'MATCH' | 'MISS';
+    matchedProductId?: string | null;
+    metadata?: Prisma.InputJsonValue;
+  },
+) {
+  await prisma.$executeRaw(Prisma.sql`
+    INSERT INTO "barcode_scan_telemetry" (
+      "id",
+      "pharmacy_id",
+      "barcode",
+      "source",
+      "result",
+      "matched_product_id",
+      "metadata",
+      "created_by",
+      "created_at",
+      "updated_at"
+    )
+    VALUES (
+      ${randomUUID()},
+      ${pharmacyId},
+      ${data.barcode},
+      ${data.source},
+      ${data.result},
+      ${data.matchedProductId ?? null},
+      ${data.metadata ?? null},
+      ${userId},
+      CURRENT_TIMESTAMP,
+      CURRENT_TIMESTAMP
+    )
+  `);
 }
 
 async function storeStockAdjustmentSuggestionPhoto(photo: StockAdjustmentSuggestionPhoto) {
