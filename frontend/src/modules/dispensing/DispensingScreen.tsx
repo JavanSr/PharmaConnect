@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import {
   AlertTriangle,
+  Camera,
   CheckCircle,
   Pill,
   Plus,
@@ -88,6 +89,7 @@ export const DispensingScreen: React.FC = () => {
   const [cartItems, setCartItems] = useState<DispensingCartItem[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CASH');
   const [paymentRef, setPaymentRef] = useState('');
+  const [prescriptionPhoto, setPrescriptionPhoto] = useState<File | null>(null);
   const [discountAmount, setDiscountAmount] = useState('');
   const [discountReason, setDiscountReason] = useState('');
   const [receipt, setReceipt] = useState<DispensingReceipt | null>(null);
@@ -262,27 +264,36 @@ export const DispensingScreen: React.FC = () => {
   }, [availablePaymentMethods, paymentMethod]);
 
   const checkoutMutation = useMutation({
-    mutationFn: () =>
-      api
-        .post('/dispensing/checkout', {
-          paymentMethod,
-          paymentRef: paymentRef.trim() || undefined,
-          discountAmount: canApplyDiscount && parsedDiscount > 0 ? parsedDiscount : undefined,
-          discountReason: canApplyDiscount && discountReason.trim() ? discountReason.trim() : undefined,
-          safetyContext: safetyEnabled ? sessionPayload : undefined,
-          override: safetyStatus.requiresOverride ? safetyStatus.overrideDraft : undefined,
-          items: cartItems.map((item) => ({
-            productId: item.product.id,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            counsellingNotes: item.counsellingNotes,
-          })),
-        })
-        .then((response) => response.data),
+    mutationFn: () => {
+      const checkoutPayload = {
+        paymentMethod,
+        paymentRef: paymentRef.trim() || undefined,
+        discountAmount: canApplyDiscount && parsedDiscount > 0 ? parsedDiscount : undefined,
+        discountReason: canApplyDiscount && discountReason.trim() ? discountReason.trim() : undefined,
+        safetyContext: safetyEnabled ? sessionPayload : undefined,
+        override: safetyStatus.requiresOverride ? safetyStatus.overrideDraft : undefined,
+        items: cartItems.map((item) => ({
+          productId: item.product.id,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          counsellingNotes: item.counsellingNotes,
+        })),
+      };
+
+      if (prescriptionPhoto) {
+        const formData = new FormData();
+        formData.append('checkout', JSON.stringify(checkoutPayload));
+        formData.append('prescriptionPhoto', prescriptionPhoto);
+        return api.post('/dispensing/checkout', formData).then((response) => response.data);
+      }
+
+      return api.post('/dispensing/checkout', checkoutPayload).then((response) => response.data);
+    },
     onSuccess: (response) => {
       setReceipt(response.data);
       setCartItems([]);
       setPaymentRef('');
+      setPrescriptionPhoto(null);
       setDiscountAmount('');
       setDiscountReason('');
       setSelectedDrug(null);
@@ -465,10 +476,13 @@ export const DispensingScreen: React.FC = () => {
               <p className="mt-2 text-sm text-[#475569]">
                 Reference {receipt.referenceNumber} | {format(new Date(receipt.createdAt), 'dd MMM yyyy HH:mm')}
               </p>
-              <p className="mt-1 text-sm text-[#475569]">
-                {receipt.itemCount} item{receipt.itemCount === 1 ? '' : 's'} | {money(receipt.totalAmount)} | {receipt.paymentMethod.replace(/_/g, ' ')}
-              </p>
-            </div>
+                <p className="mt-1 text-sm text-[#475569]">
+                  {receipt.itemCount} item{receipt.itemCount === 1 ? '' : 's'} | {money(receipt.totalAmount)} | {receipt.paymentMethod.replace(/_/g, ' ')}
+                </p>
+                {receipt.prescriptionPhotoPath && (
+                  <p className="mt-1 text-xs font-medium text-[#1A6B5C]">Prescription photo attached</p>
+                )}
+              </div>
             <div className="flex flex-wrap gap-2">
               <Button
                 variant="secondary"
@@ -903,17 +917,43 @@ export const DispensingScreen: React.FC = () => {
                 </div>
               )}
 
-              {selectedPaymentOption?.requiresReference && (
-                <Input
-                  label="Payment reference"
-                  value={paymentRef}
-                  onChange={(event) => setPaymentRef(event.target.value)}
-                  placeholder="Transaction reference"
-                />
-              )}
+                {selectedPaymentOption?.requiresReference && (
+                  <Input
+                    label="Payment reference"
+                    value={paymentRef}
+                    onChange={(event) => setPaymentRef(event.target.value)}
+                    placeholder="Transaction reference"
+                  />
+                )}
 
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-[#64748B]">Total due</span>
+                <div>
+                  <label className="mb-1.5 flex items-center gap-2 text-sm font-medium text-[#374151]">
+                    <Camera size={15} className="text-[#1A6B5C]" />
+                    Prescription photo (optional)
+                  </label>
+                  <input
+                    aria-label="Prescription photo"
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    capture="environment"
+                    onChange={(event) => setPrescriptionPhoto(event.target.files?.[0] ?? null)}
+                    className="block w-full text-sm text-[#0D4035] file:mr-4 file:rounded-xl file:border-0 file:bg-[#EDF7F3] file:px-4 file:py-2 file:font-medium file:text-[#1A6B5C] hover:file:bg-[#D6F0E8]"
+                  />
+                  <p className="mt-2 text-xs text-[#64748B]">
+                    Use the phone camera or upload an image if you want to keep the original prescription with this sale.
+                  </p>
+                  {prescriptionPhoto && (
+                    <div className="mt-2 flex items-center justify-between rounded-2xl border border-[#D6F0E8] bg-white px-3 py-2 text-sm text-[#0D4035]">
+                      <span className="truncate">{prescriptionPhoto.name}</span>
+                      <Button size="sm" variant="ghost" onClick={() => setPrescriptionPhoto(null)}>
+                        Clear
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-[#64748B]">Total due</span>
                 <span className="text-xl font-bold text-[#0D4035]">{money(totalDue)}</span>
               </div>
 

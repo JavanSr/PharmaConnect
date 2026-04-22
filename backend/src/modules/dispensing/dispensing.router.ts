@@ -1,4 +1,8 @@
+import { randomUUID } from 'node:crypto';
+import { mkdir, writeFile } from 'node:fs/promises';
+import path from 'node:path';
 import { Router } from 'express';
+import multer from 'multer';
 import { PaymentMethod, Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { authenticate, requireRole, type AuthRequest } from '../../middleware/auth';
@@ -25,6 +29,13 @@ const paymentMethodLabels: Record<PaymentMethod, string> = {
   INSURANCE: 'Insurance',
 };
 
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: (Number(process.env.MAX_FILE_SIZE_MB ?? '5') || 5) * 1024 * 1024,
+  },
+});
+
 type DispensingPaymentMethodOption = {
   code: PaymentMethod;
   label: string;
@@ -32,6 +43,12 @@ type DispensingPaymentMethodOption = {
   note: string;
   requiresReference: boolean;
   source: 'legacy' | 'config';
+};
+
+type PrescriptionPhotoUpload = {
+  originalname: string;
+  mimetype: string;
+  buffer: Buffer;
 };
 
 const lineItemSchema = z.object({
@@ -75,6 +92,7 @@ type DispensingEventRow = {
   reference_number: string;
   payment_method: string;
   payment_reference: string | null;
+  prescription_photo_path: string | null;
   subtotal_amount: string | number;
   discount_amount: string | number;
   total_amount: string | number;
@@ -117,6 +135,7 @@ function formatReceiptResponse(event: DispensingEventRow, lines: DispensingEvent
     referenceNumber: event.reference_number,
     paymentMethod: event.payment_method,
     paymentRef: event.payment_reference,
+    prescriptionPhotoPath: event.prescription_photo_path,
     subtotalAmount: toNumber(event.subtotal_amount),
     discountAmount: toNumber(event.discount_amount),
     totalAmount: toNumber(event.total_amount),
@@ -137,8 +156,30 @@ function formatReceiptResponse(event: DispensingEventRow, lines: DispensingEvent
   };
 }
 
+async function storePrescriptionPhoto(photo: PrescriptionPhotoUpload) {
+  const uploadsRoot = path.resolve(process.cwd(), process.env.UPLOAD_DIR ?? './uploads');
+  const prescriptionDir = path.join(uploadsRoot, 'prescriptions');
+  await mkdir(prescriptionDir, { recursive: true });
+
+  const extension = path.extname(photo.originalname || '').toLowerCase();
+  const safeExtension = extension && extension.length <= 10 ? extension : '.jpg';
+  const filename = `${randomUUID()}${safeExtension}`;
+  const absolutePath = path.join(prescriptionDir, filename);
+  await writeFile(absolutePath, photo.buffer);
+
+  return path.join('uploads', 'prescriptions', filename).replace(/\\/g, '/');
+}
+
 function isPaymentMethod(value: string): value is PaymentMethod {
   return paymentMethods.includes(value as PaymentMethod);
+}
+
+function parseCheckoutPayload(req: AuthRequest) {
+  if (typeof req.body?.checkout === 'string') {
+    return checkoutSchema.parse(JSON.parse(req.body.checkout));
+  }
+
+  return checkoutSchema.parse(req.body);
 }
 
 function normalizeDispensingPaymentMethods(value: Prisma.JsonValue | null | undefined): DispensingPaymentMethodOption[] {
@@ -213,13 +254,22 @@ dispensingRouter.get('/payment-methods', requirePermission('dispensing.access'),
   }
 });
 
-dispensingRouter.post('/checkout', requirePermission('dispensing.access'), async (req: AuthRequest, res, next) => {
+dispensingRouter.post('/checkout', requirePermission('dispensing.access'), upload.single('prescriptionPhoto'), async (req: AuthRequest, res, next) => {
   try {
-    const payload = checkoutSchema.parse(req.body);
+    const payload = parseCheckoutPayload(req);
     const pharmacyId = getPharmacyId(req);
     const currentUserId = getUserId(req);
     const discountAmount = payload.discountAmount ?? 0;
     const discountReason = payload.discountReason?.trim() || null;
+    const prescriptionPhoto = req.file;
+
+    if (prescriptionPhoto) {
+      const allowedPhotoTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
+      if (!allowedPhotoTypes.has(prescriptionPhoto.mimetype)) {
+        res.status(400).json({ error: 'UNSUPPORTED_PRESCRIPTION_PHOTO_TYPE' });
+        return;
+      }
+    }
 
     if ((discountAmount > 0 || discountReason) && !req.user) {
       res.status(401).json({ error: 'Authentication required' });
@@ -324,6 +374,14 @@ dispensingRouter.post('/checkout', requirePermission('dispensing.access'), async
       }
     }
 
+    const prescriptionPhotoPath = prescriptionPhoto
+      ? await storePrescriptionPhoto({
+          originalname: prescriptionPhoto.originalname,
+          mimetype: prescriptionPhoto.mimetype,
+          buffer: prescriptionPhoto.buffer,
+        })
+      : null;
+
     const checkoutResult = await prisma.$transaction(async (tx) => {
       for (const line of lines) {
         const batchUpdate = await tx.batch.updateMany({
@@ -359,6 +417,7 @@ dispensingRouter.post('/checkout', requirePermission('dispensing.access'), async
           "reference_number",
           "payment_method",
           "payment_reference",
+          "prescription_photo_path",
           "subtotal_amount",
           "discount_amount",
           "discount_reason",
@@ -374,6 +433,7 @@ dispensingRouter.post('/checkout', requirePermission('dispensing.access'), async
           ${referenceNumber},
           ${payload.paymentMethod}::"PaymentMethod",
           ${payload.paymentRef || null},
+          ${prescriptionPhotoPath},
           ${subtotalAmount},
           ${discountAmount},
           ${discountReason},
@@ -387,6 +447,7 @@ dispensingRouter.post('/checkout', requirePermission('dispensing.access'), async
           "reference_number",
           "payment_method",
           "payment_reference",
+          "prescription_photo_path",
           "subtotal_amount",
           "discount_amount",
           "total_amount",
@@ -433,7 +494,7 @@ dispensingRouter.post('/checkout', requirePermission('dispensing.access'), async
         ${checkoutResult.event.id},
         'INSERT',
         ${currentUserId},
-        ${JSON.stringify({ referenceNumber, totalAmount, lines: checkoutResult.lines })}::jsonb
+        ${JSON.stringify({ referenceNumber, totalAmount, lines: checkoutResult.lines, prescriptionPhotoPath })}::jsonb
       )
     `);
 

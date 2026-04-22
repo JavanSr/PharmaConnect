@@ -93,6 +93,7 @@ export interface DispensingReceipt {
   referenceNumber: string;
   paymentMethod: PaymentMethod;
   paymentRef?: string | null;
+  prescriptionPhotoPath?: string | null;
   subtotalAmount: number;
   discountAmount: number;
   totalAmount: number;

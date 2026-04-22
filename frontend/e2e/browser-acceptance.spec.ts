@@ -1031,6 +1031,105 @@ test('dispensing loads configured payment methods and uses cached options offlin
   await expect(page.getByText(/Using the last cached payment settings while offline/)).toBeVisible();
 });
 
+test('dispensing can attach an optional prescription photo from the checkout panel', async ({ page }) => {
+  const product = {
+    id: 'product-photo-checkout',
+    name: 'Paracetamol 500',
+    genericName: 'Paracetamol',
+    strength: '500mg',
+    dosageForm: 'TABLET',
+    currentStock: 20,
+    sellingPrice: 1200,
+  };
+  let checkoutContentType = '';
+
+  await bootstrapSession(page, {
+    user: browserUsers.activeOwner,
+    pharmacy: pharmacies.active,
+  });
+  await mockShell(page, { subscription: pharmacies.active });
+
+  await page.route('**/api/v1/inventory/products**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ data: [product], total: 1, page: 1, limit: 10, totalPages: 1 }),
+    });
+  });
+
+  await page.route('**/api/v1/patient-safety/session-review', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: {
+          resolvedDrugs: [{ id: 'drug-paracetamol', genericName: 'paracetamol', source: product.id, sourceType: 'product' }],
+          interactions: [],
+          contraindications: [],
+          diagnosisMatches: [],
+          ncdHints: [],
+          dosageSuggestions: [],
+          requiredPatientInputs: [],
+          requiresPicPin: false,
+        },
+      }),
+    });
+  });
+
+  await page.route('**/api/v1/dispensing/checkout', async (route) => {
+    checkoutContentType = route.request().headers()['content-type'] ?? '';
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: {
+          id: 'dispensing-photo-1',
+          referenceNumber: 'RX-PHOTO-1',
+          paymentMethod: 'CASH',
+          paymentRef: null,
+          prescriptionPhotoPath: 'uploads/prescriptions/rx-photo.jpg',
+          subtotalAmount: 1200,
+          discountAmount: 0,
+          totalAmount: 1200,
+          status: 'COMPLETED',
+          vfdStatus: 'NOT_ENABLED',
+          createdAt: '2026-04-22T10:45:00.000Z',
+          itemCount: 1,
+          lines: [
+            {
+              productId: product.id,
+              productName: product.name,
+              quantity: 1,
+              unitPrice: 1200,
+              totalAmount: 1200,
+              batchNumber: 'B-1',
+            },
+          ],
+          safetyReview: null,
+        },
+      }),
+    });
+  });
+
+  await expectProtectedRoute(page, '/dispensing');
+
+  await page.getByLabel('Medicine').fill('para');
+  await page.getByRole('button', { name: /Paracetamol/i }).first().click();
+  await page.getByRole('button', { name: 'Add to basket' }).click();
+
+  await page.getByLabel('Prescription photo').setInputFiles({
+    name: 'prescription.jpg',
+    mimeType: 'image/jpeg',
+    buffer: Buffer.from('fake-image'),
+  });
+  await expect(page.getByText('prescription.jpg')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Complete dispensing' }).click();
+
+  await expect(page.getByText('Dispensing completed')).toBeVisible();
+  expect(checkoutContentType).toContain('multipart/form-data');
+});
+
 test('dispenser submits a stock adjustment suggestion without direct adjustment controls', async ({ page }) => {
   const product = {
     id: 'product-stock-suggestion',
