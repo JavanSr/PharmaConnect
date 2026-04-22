@@ -3,8 +3,16 @@ import { z } from 'zod';
 import { authenticate } from '../../middleware/auth';
 import type { AuthRequest } from '../../middleware/auth';
 import { requirePermission } from '../../middleware/permissions';
+import { requireTier } from '../../middleware/tier';
 import { enforceTrialRestrictions } from '../../middleware/trial';
 import { prisma } from '../../lib/prisma';
+import {
+  ANALYTICS_COMPARE_METRICS,
+  ANALYTICS_COMPARE_RANGES,
+  getAnalyticsFeatureSet,
+  getAnalyticsSummary,
+  getCompareSeries,
+} from './analytics.service';
 
 export const analyticsRouter = Router();
 analyticsRouter.use(authenticate);
@@ -12,6 +20,23 @@ analyticsRouter.use(enforceTrialRestrictions);
 analyticsRouter.use(requirePermission('analytics.view_dashboard'));
 
 const pid = (req: AuthRequest) => req.user!.pharmacyId!;
+
+analyticsRouter.get('/features', async (req: AuthRequest, res) => {
+  res.json({
+    data: getAnalyticsFeatureSet(req.user!.pharmacy?.subscriptionTier ?? null),
+  });
+});
+
+analyticsRouter.get('/summary', async (req: AuthRequest, res, next) => {
+  try {
+    res.json({
+      success: true,
+      data: await getAnalyticsSummary(pid(req)),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
 
 analyticsRouter.get('/overview', async (req: AuthRequest, res, next) => {
   try {
@@ -84,6 +109,55 @@ analyticsRouter.get('/overview', async (req: AuthRequest, res, next) => {
       },
     });
   } catch (e) { next(e); }
+});
+
+analyticsRouter.post('/compare', requireTier('ENTERPRISE'), async (req: AuthRequest, res, next) => {
+  try {
+    const payload = z.object({
+      metric: z.enum(ANALYTICS_COMPARE_METRICS),
+      range: z.enum(ANALYTICS_COMPARE_RANGES),
+      pharmacyIds: z.array(z.string().uuid()).min(1),
+    }).parse(req.body);
+
+    const memberships = await prisma.pharmacyMembership.findMany({
+      where: {
+        userId: req.user!.userId,
+        active: true,
+        OR: [
+          { validFrom: null },
+          { validFrom: { lte: new Date() } },
+        ],
+        AND: [
+          {
+            OR: [
+              { validUntil: null },
+              { validUntil: { gte: new Date() } },
+            ],
+          },
+        ],
+      },
+      select: {
+        pharmacyId: true,
+      },
+    });
+
+    const membershipIds = new Set(memberships.map((membership) => membership.pharmacyId));
+    const hasForeignPharmacy = payload.pharmacyIds.some((pharmacyId) => !membershipIds.has(pharmacyId));
+    if (hasForeignPharmacy) {
+      res.status(403).json({ error: 'PHARMACY_SCOPE_INVALID' });
+      return;
+    }
+
+    res.json({
+      data: await getCompareSeries({
+        pharmacyIds: payload.pharmacyIds,
+        metric: payload.metric,
+        range: payload.range,
+      }),
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
 analyticsRouter.get('/movements-trend', async (req: AuthRequest, res, next) => {
