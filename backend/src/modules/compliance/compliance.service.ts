@@ -16,6 +16,7 @@ export const WHOLESALE_PERMIT_LICENCE_TYPE = 'WHOLESALE_PERMIT';
 const COMPLIANCE_DOCUMENT_BUCKET = 'compliance-documents';
 const INSPECTION_PDF_BUCKET = 'compliance-documents';
 const ALERT_WINDOWS_DAYS = [90, 60, 30, 14, 7, 3, 1];
+// TODO Phase 2: cold chain log UI and API
 
 export type ComplianceRole =
   | 'SUPER_ADMIN'

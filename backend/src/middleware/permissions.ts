@@ -38,7 +38,7 @@ export const PERMISSIONS = {
   'compliance.manage': ['OWNER', 'PHARMACIST_IN_CHARGE', 'DATA_ENTRY_CLERK', 'WM', 'WCS', 'SUPER_ADMIN'],
   'knowledge.view': ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'DATA_ENTRY_CLERK', 'CASHIER', 'WM', 'WCS', 'DELIVERY_STAFF', 'SUPER_ADMIN'],
   'knowledge.manage': ['OWNER', 'PHARMACIST_IN_CHARGE', 'SUPER_ADMIN'],
-  'analytics.view_dashboard': ['OWNER', 'PHARMACIST_IN_CHARGE', 'ACCOUNTANT', 'WM', 'SUPER_ADMIN'],
+  'analytics.view_dashboard': ['OWNER', 'PHARMACIST_IN_CHARGE', 'ACCOUNTANT', 'DISPENSER', 'LOCUM', 'WM', 'SUPER_ADMIN'],
   'analytics.view_financial_reports': ['OWNER', 'ACCOUNTANT', 'WM', 'SUPER_ADMIN'],
   'settings.manage_subscription': ['OWNER', 'SUPER_ADMIN'],
   'settings.manage_team': ['OWNER', 'PHARMACIST_IN_CHARGE', 'SUPER_ADMIN'],

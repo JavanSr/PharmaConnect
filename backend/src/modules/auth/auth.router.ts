@@ -13,8 +13,9 @@ import type { AuthRequest } from '../../middleware/auth';
 export const authRouter = Router();
 
 const loginSchema = z.object({
-  email:    z.string().email(),
-  password: z.string().min(1),
+  email:             z.string().email(),
+  password:          z.string().min(1),
+  preferredPharmacyId: z.string().uuid().optional(),
 });
 
 const registerSchema = z.object({
@@ -31,8 +32,8 @@ const registerSchema = z.object({
 
 authRouter.post('/login', async (req, res, next) => {
   try {
-    const { email, password } = loginSchema.parse(req.body);
-    const result = await loginService(email, password);
+    const { email, password, preferredPharmacyId } = loginSchema.parse(req.body);
+    const result = await loginService(email, password, preferredPharmacyId);
     res.json({ data: result });
   } catch (err) {
     next(err);

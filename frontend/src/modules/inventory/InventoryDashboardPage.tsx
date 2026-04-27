@@ -41,6 +41,7 @@ export const InventoryDashboardPage: React.FC = () => {
           <Link to="/inventory/receive"><Button leftIcon={<Plus size={16} />}>Receive Stock</Button></Link>
           <Link to="/inventory/adjust"><Button variant="secondary">Adjust Stock</Button></Link>
           <Link to="/inventory/products"><Button variant="secondary">Products</Button></Link>
+          <Link to="/inventory/import-catalogue"><Button variant="secondary">Import Catalogue</Button></Link>
           <Link to="/inventory/drug-master"><Button variant="secondary">Drug Catalogue</Button></Link>
           <Link to="/inventory/batches"><Button variant="secondary">Batches</Button></Link>
           <Link to="/inventory/conflicts"><Button variant="secondary">Conflicts</Button></Link>

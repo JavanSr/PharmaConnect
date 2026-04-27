@@ -11,9 +11,17 @@
     "db:generate": "prisma generate",
     "db:studio": "prisma studio",
     "db:seed": "ts-node prisma/seed.ts",
-    "db:seed:drug": "ts-node prisma/seed-drug-database.ts"
+    "db:seed:drug": "ts-node prisma/seed-drug-database.ts",
+    "db:seed:master-catalog": "ts-node prisma/seed-master-catalog.ts",
+    "seed:drugs": "ts-node prisma/seed-drug-database.ts",
+    "seed:master-catalog": "ts-node prisma/seed-master-catalog.ts",
+    "import:public-products": "ts-node prisma/import-public-product-scrape-fast.ts",
+    "backfill:public-product-brands": "ts-node prisma/backfill-public-product-brands.ts",
+    "source-sync:check": "ts-node prisma/check-source-updates.ts",
+    "scrape:public-products": "python scripts/scrape_public_product_sources.py"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.91.1",
     "@prisma/client": "^5.13.0",
     "@supabase/auth-js": "^2.103.0",
     "@supabase/supabase-js": "^2.103.0",

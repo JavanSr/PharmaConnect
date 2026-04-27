@@ -39,7 +39,7 @@ export const DeferredFeaturePage: React.FC<DeferredFeaturePageProps> = ({
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(42,148,120,0.16),_transparent_42%),linear-gradient(180deg,#EDF7F3_0%,#F8FAFC_100%)] px-4 py-10">
       <div className="mx-auto max-w-4xl space-y-6">
-        <Link to="/login" className="inline-flex items-center gap-2 text-sm font-medium text-[#1A6B5C] hover:underline">
+        <Link to="/dashboard" className="inline-flex items-center gap-2 text-sm font-medium text-[#1A6B5C] hover:underline">
           <ArrowLeft size={14} />
           Back to platform
         </Link>

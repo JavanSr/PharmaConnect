@@ -70,6 +70,19 @@ inventoryRouter.get('/products', requirePermission('inventory.view_products'), a
   }
 });
 
+inventoryRouter.get('/products/unverified', requirePermission('inventory.view_products'), async (req: AuthRequest, res, next) => {
+  try {
+    const { limit } = z
+      .object({
+        limit: z.coerce.number().optional(),
+      })
+      .parse(req.query);
+    res.json({ data: await svc.listUnverifiedProducts(pid(req), limit) });
+  } catch (e) {
+    next(e);
+  }
+});
+
 inventoryRouter.get('/products/:id', requirePermission('inventory.view_products'), async (req: AuthRequest, res, next) => {
   try {
     res.json({ data: await svc.getProduct(req.params.id, pid(req)) });
@@ -101,11 +114,19 @@ inventoryRouter.post('/barcode-mappings', requirePermission('inventory.manage_st
         barcode: z.string().trim().min(1),
         productId: z.string().min(1),
         source: z.literal('USER_MAP').default('USER_MAP'),
+        // sharedToNetwork: only OWNER and PIC may share; other roles silently coerced to false
+        sharedToNetwork: z.boolean().optional().default(false),
       })
       .parse(req.body);
 
+    const role = req.user?.role;
+    const canShare = role === 'OWNER' || role === 'PHARMACIST_IN_CHARGE';
+
     res.status(201).json({
-      data: await svc.saveProductBarcodeMapping(pid(req), uid(req), payload),
+      data: await svc.saveProductBarcodeMapping(pid(req), uid(req), {
+        ...payload,
+        sharedToNetwork: canShare ? payload.sharedToNetwork : false,
+      }),
     });
   } catch (e) {
     next(e);
@@ -180,7 +201,8 @@ inventoryRouter.post('/batches', requirePermission('inventory.manage_stock'), as
         expiryDate: z.string(),
         quantityRemaining: z.coerce.number().int().positive(),
         purchasePrice: z.coerce.number().positive(),
-        supplierId: z.string().optional(),
+        sellingPrice: z.coerce.number().positive().optional(),
+        supplierId: z.string().trim().optional().transform((value) => value || undefined),
       })
       .parse(req.body);
     res.status(201).json({ data: await svc.receiveBatch(pid(req), uid(req), data) });
@@ -422,8 +444,20 @@ inventoryRouter.post('/enterprise/transfers', requireTier('ENTERPRISE'), async (
 
 inventoryRouter.get('/drug-master', requirePermission('inventory.view_products'), async (req: AuthRequest, res, next) => {
   try {
-    const { q, limit } = z.object({ q: z.string().optional(), limit: z.coerce.number().optional() }).parse(req.query);
-    res.json({ data: await svc.searchDrugMaster(q || '', limit) });
+    const { q, limit, page, storageCondition, essential } = z.object({
+      q: z.string().optional(),
+      limit: z.coerce.number().optional(),
+      page: z.coerce.number().optional(),
+      storageCondition: z.string().optional(),
+      essential: z.coerce.boolean().optional(),
+    }).parse(req.query);
+    res.json(await svc.searchDrugMaster({
+      query: q,
+      limit,
+      page,
+      storageCondition,
+      essentialOnly: essential,
+    }));
   } catch (e) {
     next(e);
   }

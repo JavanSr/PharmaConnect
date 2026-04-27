@@ -1,4 +1,16 @@
-import type { DrugContraindication, DrugDatabase, DrugInteraction, Prisma } from '@prisma/client';
+import type {
+  ActiveIngredient,
+  DrugContraindication,
+  DrugDatabase,
+  DrugInteraction,
+  DrugProduct,
+  HepaticFlag,
+  LactationFlag,
+  PregnancyFlag,
+  Prisma,
+  RenalFlag,
+  Warning,
+} from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 import { DIAGNOSIS_DRUG_MAP } from '../../data/drug-database-seed';
 
@@ -9,6 +21,7 @@ type ResolvedDrug = Pick<
   | 'brandNames'
   | 'drugClass'
   | 'therapeuticCategory'
+  | 'awarClass'
   | 'standardAdultDose'
   | 'frequency'
   | 'route'
@@ -26,20 +39,100 @@ type ResolvedDrug = Pick<
   sourceType: 'product' | 'manual' | 'session';
 };
 
+type SourceDocumentMeta = {
+  title: string;
+  url: string | null;
+  sourceName: string;
+};
+
+type InteractionCatalogueRow = DrugInteraction & {
+  drugA: DrugDatabase;
+  drugB: DrugDatabase;
+  sourceDocument: SourceDocumentMeta | null;
+};
+
+type ContraindicationCatalogueRow = DrugContraindication & {
+  drug: DrugDatabase;
+  sourceDocument: SourceDocumentMeta | null;
+};
+
+type WarningCatalogueRow = Warning & {
+  drugProduct: Pick<DrugProduct, 'id' | 'productName' | 'genericName'> | null;
+  activeIngredient: Pick<ActiveIngredient, 'id' | 'name'> | null;
+  drugDatabase: DrugDatabase | null;
+  sourceDocument: SourceDocumentMeta | null;
+};
+
+type PregnancyFlagCatalogueRow = PregnancyFlag & {
+  drugProduct: Pick<DrugProduct, 'id' | 'productName' | 'genericName'> | null;
+  activeIngredient: Pick<ActiveIngredient, 'id' | 'name'> | null;
+  drugDatabase: DrugDatabase | null;
+  sourceDocument: SourceDocumentMeta | null;
+};
+
+type LactationFlagCatalogueRow = LactationFlag & {
+  drugProduct: Pick<DrugProduct, 'id' | 'productName' | 'genericName'> | null;
+  activeIngredient: Pick<ActiveIngredient, 'id' | 'name'> | null;
+  drugDatabase: DrugDatabase | null;
+  sourceDocument: SourceDocumentMeta | null;
+};
+
+type RenalFlagCatalogueRow = RenalFlag & {
+  drugProduct: Pick<DrugProduct, 'id' | 'productName' | 'genericName'> | null;
+  activeIngredient: Pick<ActiveIngredient, 'id' | 'name'> | null;
+  drugDatabase: DrugDatabase | null;
+  sourceDocument: SourceDocumentMeta | null;
+};
+
+type HepaticFlagCatalogueRow = HepaticFlag & {
+  drugProduct: Pick<DrugProduct, 'id' | 'productName' | 'genericName'> | null;
+  activeIngredient: Pick<ActiveIngredient, 'id' | 'name'> | null;
+  drugDatabase: DrugDatabase | null;
+  sourceDocument: SourceDocumentMeta | null;
+};
+
+type PrecautionCatalogueRow =
+  | WarningCatalogueRow
+  | PregnancyFlagCatalogueRow
+  | LactationFlagCatalogueRow
+  | RenalFlagCatalogueRow
+  | HepaticFlagCatalogueRow;
+
+type SafetyTargets = {
+  drugDatabaseIds: Set<string>;
+  drugProductIds: Set<string>;
+  activeIngredientIds: Set<string>;
+};
+
+export type SafetyAlertPayload = {
+  id: string;
+  drug?: string;
+  drugA?: string;
+  drugB?: string;
+  severity: string;
+  message?: string;
+  effectSummary?: string;
+  management?: string | null;
+  requiresPicPin: boolean;
+  conditionType?: string;
+  conditionValue?: string;
+  ruleType?: string;
+  sourceTitle?: string | null;
+  sourceSection?: string | null;
+  sourceUrl?: string | null;
+};
+
+const APPROVED_REVIEW_STATUS = 'APPROVED';
 const CACHE_TTL_MS = 5 * 60 * 1000;
+
 let reviewedDrugCache: { value: DrugDatabase[]; expiresAt: number } | null = null;
-let interactionCache:
-  | {
-      value: Array<DrugInteraction & { drugA: DrugDatabase; drugB: DrugDatabase }>;
-      expiresAt: number;
-    }
-  | null = null;
-let contraindicationCache:
-  | {
-      value: Array<DrugContraindication & { drug: DrugDatabase }>;
-      expiresAt: number;
-    }
-  | null = null;
+let interactionCache: { value: InteractionCatalogueRow[]; expiresAt: number } | null = null;
+let contraindicationCache: { value: ContraindicationCatalogueRow[]; expiresAt: number } | null = null;
+let warningCache: { value: WarningCatalogueRow[]; expiresAt: number } | null = null;
+let pregnancyFlagCache: { value: PregnancyFlagCatalogueRow[]; expiresAt: number } | null = null;
+let lactationFlagCache: { value: LactationFlagCatalogueRow[]; expiresAt: number } | null = null;
+let renalFlagCache: { value: RenalFlagCatalogueRow[]; expiresAt: number } | null = null;
+let hepaticFlagCache: { value: HepaticFlagCatalogueRow[]; expiresAt: number } | null = null;
 
 export type SafetySessionContext = {
   productIds?: string[];
@@ -83,6 +176,64 @@ function normalizeText(value: string | null | undefined): string {
 
 function uniqueStrings(values: Array<string | null | undefined>): string[] {
   return [...new Set(values.map(normalizeText).filter(Boolean))];
+}
+
+function pairKey(a: string, b: string): string {
+  return [a, b].sort().join(':');
+}
+
+function mapSourceFields(
+  sourceDocument: SourceDocumentMeta | null,
+  sourceSection?: string | null,
+  sourceUrl?: string | null,
+) {
+  return {
+    sourceTitle: sourceDocument?.title ?? null,
+    sourceSection: sourceSection ?? null,
+    sourceUrl: sourceUrl ?? sourceDocument?.url ?? null,
+  };
+}
+
+function normalizeFlagSeverity(value: string | null | undefined): string {
+  const normalized = normalizeText(value);
+  switch (normalized) {
+    case 'contraindicated':
+      return 'CONTRAINDICATED';
+    case 'major':
+    case 'high':
+    case 'avoid':
+      return 'MAJOR';
+    case 'moderate':
+      return 'MODERATE';
+    case 'minor':
+      return 'MINOR';
+    case 'info':
+    case 'informational':
+      return 'INFO';
+    default:
+      return 'INFO';
+  }
+}
+
+function getPrecautionSubjectName(row: PrecautionCatalogueRow): string | null {
+  return row.drugDatabase?.genericName ?? row.drugProduct?.genericName ?? row.drugProduct?.productName ?? row.activeIngredient?.name ?? null;
+}
+
+function summariseSeverity(alerts: SafetyAlertPayload[]) {
+  return alerts.reduce(
+    (acc, alert) => {
+      const normalized = normalizeFlagSeverity(alert.severity);
+      if (normalized === 'CONTRAINDICATED' || normalized === 'MAJOR') {
+        acc.high += 1;
+      } else if (normalized === 'MODERATE') {
+        acc.moderate += 1;
+      } else {
+        acc.informational += 1;
+      }
+      return acc;
+    },
+    { high: 0, moderate: 0, informational: 0 },
+  );
 }
 
 async function resolveReviewedDrugByTerm(term: string): Promise<DrugDatabase | null> {
@@ -132,9 +283,17 @@ async function getInteractionCatalogue() {
   }
 
   const value = await prisma.drugInteraction.findMany({
+    where: { reviewStatus: APPROVED_REVIEW_STATUS },
     include: {
       drugA: true,
       drugB: true,
+      sourceDocument: {
+        select: {
+          title: true,
+          url: true,
+          sourceName: true,
+        },
+      },
     },
   });
   interactionCache = { value, expiresAt: Date.now() + CACHE_TTL_MS };
@@ -147,9 +306,194 @@ async function getContraindicationCatalogue() {
   }
 
   const value = await prisma.drugContraindication.findMany({
-    include: { drug: true },
+    where: { reviewStatus: APPROVED_REVIEW_STATUS },
+    include: {
+      drug: true,
+      sourceDocument: {
+        select: {
+          title: true,
+          url: true,
+          sourceName: true,
+        },
+      },
+    },
   });
   contraindicationCache = { value, expiresAt: Date.now() + CACHE_TTL_MS };
+  return value;
+}
+
+async function getWarningCatalogue() {
+  if (warningCache && warningCache.expiresAt > Date.now()) {
+    return warningCache.value;
+  }
+
+  const value = await prisma.warning.findMany({
+    where: { reviewStatus: APPROVED_REVIEW_STATUS },
+    include: {
+      drugProduct: {
+        select: {
+          id: true,
+          productName: true,
+          genericName: true,
+        },
+      },
+      activeIngredient: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+      drugDatabase: true,
+      sourceDocument: {
+        select: {
+          title: true,
+          url: true,
+          sourceName: true,
+        },
+      },
+    },
+  });
+  warningCache = { value, expiresAt: Date.now() + CACHE_TTL_MS };
+  return value;
+}
+
+async function getPregnancyFlagCatalogue() {
+  if (pregnancyFlagCache && pregnancyFlagCache.expiresAt > Date.now()) {
+    return pregnancyFlagCache.value;
+  }
+
+  const value = await prisma.pregnancyFlag.findMany({
+    where: { reviewStatus: APPROVED_REVIEW_STATUS },
+    include: {
+      drugProduct: {
+        select: {
+          id: true,
+          productName: true,
+          genericName: true,
+        },
+      },
+      activeIngredient: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+      drugDatabase: true,
+      sourceDocument: {
+        select: {
+          title: true,
+          url: true,
+          sourceName: true,
+        },
+      },
+    },
+  });
+  pregnancyFlagCache = { value, expiresAt: Date.now() + CACHE_TTL_MS };
+  return value;
+}
+
+async function getLactationFlagCatalogue() {
+  if (lactationFlagCache && lactationFlagCache.expiresAt > Date.now()) {
+    return lactationFlagCache.value;
+  }
+
+  const value = await prisma.lactationFlag.findMany({
+    where: { reviewStatus: APPROVED_REVIEW_STATUS },
+    include: {
+      drugProduct: {
+        select: {
+          id: true,
+          productName: true,
+          genericName: true,
+        },
+      },
+      activeIngredient: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+      drugDatabase: true,
+      sourceDocument: {
+        select: {
+          title: true,
+          url: true,
+          sourceName: true,
+        },
+      },
+    },
+  });
+  lactationFlagCache = { value, expiresAt: Date.now() + CACHE_TTL_MS };
+  return value;
+}
+
+async function getRenalFlagCatalogue() {
+  if (renalFlagCache && renalFlagCache.expiresAt > Date.now()) {
+    return renalFlagCache.value;
+  }
+
+  const value = await prisma.renalFlag.findMany({
+    where: { reviewStatus: APPROVED_REVIEW_STATUS },
+    include: {
+      drugProduct: {
+        select: {
+          id: true,
+          productName: true,
+          genericName: true,
+        },
+      },
+      activeIngredient: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+      drugDatabase: true,
+      sourceDocument: {
+        select: {
+          title: true,
+          url: true,
+          sourceName: true,
+        },
+      },
+    },
+  });
+  renalFlagCache = { value, expiresAt: Date.now() + CACHE_TTL_MS };
+  return value;
+}
+
+async function getHepaticFlagCatalogue() {
+  if (hepaticFlagCache && hepaticFlagCache.expiresAt > Date.now()) {
+    return hepaticFlagCache.value;
+  }
+
+  const value = await prisma.hepaticFlag.findMany({
+    where: { reviewStatus: APPROVED_REVIEW_STATUS },
+    include: {
+      drugProduct: {
+        select: {
+          id: true,
+          productName: true,
+          genericName: true,
+        },
+      },
+      activeIngredient: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+      drugDatabase: true,
+      sourceDocument: {
+        select: {
+          title: true,
+          url: true,
+          sourceName: true,
+        },
+      },
+    },
+  });
+  hepaticFlagCache = { value, expiresAt: Date.now() + CACHE_TTL_MS };
   return value;
 }
 
@@ -167,10 +511,7 @@ function matchDrugFromCatalogue(catalogue: DrugDatabase[], term: string): DrugDa
     return exact;
   }
 
-  return (
-    catalogue.find((drug) => normalizeText(drug.genericName).includes(normalized)) ??
-    null
-  );
+  return catalogue.find((drug) => normalizeText(drug.genericName).includes(normalized)) ?? null;
 }
 
 async function resolveDrugsFromContext(context: SafetySessionContext): Promise<ResolvedDrug[]> {
@@ -206,26 +547,73 @@ async function resolveDrugsFromContext(context: SafetySessionContext): Promise<R
   return resolved;
 }
 
-function pairKey(a: string, b: string): string {
-  return [a, b].sort().join(':');
+async function resolveSafetyTargets(
+  context: SafetySessionContext,
+  resolvedDrugs: ResolvedDrug[],
+): Promise<SafetyTargets> {
+  const drugDatabaseIds = new Set(resolvedDrugs.map((drug) => drug.id));
+  const drugProductIds = new Set<string>();
+  const activeIngredientIds = new Set<string>();
+
+  if (context.productIds?.length) {
+    const products = await prisma.product.findMany({
+      where: { id: { in: context.productIds } },
+      select: {
+        drugMasterId: true,
+        drugMaster: {
+          select: {
+            productIngredients: {
+              select: {
+                activeIngredientId: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    for (const product of products) {
+      if (product.drugMasterId) {
+        drugProductIds.add(product.drugMasterId);
+      }
+
+      for (const ingredient of product.drugMaster?.productIngredients ?? []) {
+        activeIngredientIds.add(ingredient.activeIngredientId);
+      }
+    }
+  }
+
+  const normalizedDrugNames = uniqueStrings(resolvedDrugs.map((drug) => drug.genericName));
+  if (normalizedDrugNames.length > 0) {
+    const ingredientMatches = await prisma.activeIngredient.findMany({
+      where: {
+        normalizedName: { in: normalizedDrugNames },
+      },
+      select: { id: true },
+    });
+
+    for (const ingredient of ingredientMatches) {
+      activeIngredientIds.add(ingredient.id);
+    }
+  }
+
+  return {
+    drugDatabaseIds,
+    drugProductIds,
+    activeIngredientIds,
+  };
 }
 
 export function deriveRequiredPatientInputs(input: {
-  resolvedDrugs: Array<
-    Pick<
-      ResolvedDrug,
-      | 'genericName'
-      | 'pregnancyCategory'
-      | 'breastfeedingSafety'
-      | 'renalCaution'
-      | 'hepaticCaution'
-    >
-  >;
   contraindications: Array<
     Pick<DrugContraindication, 'conditionType'> & {
       drug: Pick<DrugDatabase, 'genericName'>;
     }
   >;
+  pregnancyFlags: PrecautionCatalogueRow[];
+  lactationFlags: PrecautionCatalogueRow[];
+  renalFlags: PrecautionCatalogueRow[];
+  hepaticFlags: PrecautionCatalogueRow[];
 }): RequiredPatientInput[] {
   const required = new Map<RequiredPatientInputKey, RequiredPatientInput>();
   const addInput = (key: RequiredPatientInputKey, reason: string) => {
@@ -260,83 +648,35 @@ export function deriveRequiredPatientInputs(input: {
     }
   }
 
-  for (const drug of input.resolvedDrugs) {
-    if (['D', 'X'].includes(drug.pregnancyCategory)) {
-      addInput('pregnant', `${drug.genericName} has pregnancy risk guidance.`);
+  for (const row of input.pregnancyFlags) {
+    const subject = getPrecautionSubjectName(row);
+    if (subject) {
+      addInput('pregnant', `${subject} has approved pregnancy guidance.`);
     }
+  }
 
-    if (drug.breastfeedingSafety && normalizeText(drug.breastfeedingSafety) !== 'compatible') {
-      addInput('breastfeeding', `${drug.genericName} has breastfeeding caution.`);
+  for (const row of input.lactationFlags) {
+    const subject = getPrecautionSubjectName(row);
+    if (subject) {
+      addInput('breastfeeding', `${subject} has approved lactation guidance.`);
     }
+  }
 
-    if (drug.renalCaution) {
-      addInput('renalImpairment', `${drug.genericName} has renal caution.`);
+  for (const row of input.renalFlags) {
+    const subject = getPrecautionSubjectName(row);
+    if (subject) {
+      addInput('renalImpairment', `${subject} has approved renal caution guidance.`);
     }
+  }
 
-    if (drug.hepaticCaution) {
-      addInput('hepaticImpairment', `${drug.genericName} has hepatic caution.`);
+  for (const row of input.hepaticFlags) {
+    const subject = getPrecautionSubjectName(row);
+    if (subject) {
+      addInput('hepaticImpairment', `${subject} has approved hepatic caution guidance.`);
     }
   }
 
   return [...required.values()];
-}
-
-export async function getDrugDetails(query: string) {
-  const drug = await resolveReviewedDrugByTerm(query);
-  if (!drug) {
-    return null;
-  }
-
-  return {
-    id: drug.id,
-    genericName: drug.genericName,
-    brandNames: drug.brandNames,
-    therapeuticCategory: drug.therapeuticCategory,
-    standardAdultDose: drug.standardAdultDose,
-    frequency: drug.frequency,
-    route: drug.route,
-    dosageSuggestions: {
-      adult: drug.standardAdultDose,
-      paediatric: drug.paediatricDoseFormula,
-      elderly: drug.elderlyDoseNotes,
-    },
-    ncdHints: drug.ncdHints,
-    pregnancyCategory: drug.pregnancyCategory,
-    breastfeedingSafety: drug.breastfeedingSafety,
-  };
-}
-
-export async function checkInteractions(context: SafetySessionContext) {
-  const drugs = await resolveDrugsFromContext(context);
-  if (drugs.length < 2) {
-    return { interactions: [], resolvedDrugs: drugs };
-  }
-
-  const ids = drugs.map((drug) => drug.id);
-  const interactionCatalogue = await getInteractionCatalogue();
-  const rows = interactionCatalogue.filter(
-    (row) => ids.includes(row.drugAId) && ids.includes(row.drugBId) && row.drugAId !== row.drugBId,
-  );
-
-  const unique = new Map<string, DrugInteraction & { drugA: DrugDatabase; drugB: DrugDatabase }>();
-  for (const row of rows) {
-    const key = pairKey(row.drugAId, row.drugBId);
-    if (!unique.has(key)) {
-      unique.set(key, row);
-    }
-  }
-
-  const interactions = [...unique.values()].map((row) => ({
-    id: row.id,
-    drugA: row.drugA.genericName,
-    drugB: row.drugB.genericName,
-    severity: row.severity,
-    effectSummary: row.effectSummary,
-    management: row.management,
-    requiresPicPin: row.requiresPicPin,
-  }));
-
-  return { interactions, resolvedDrugs: drugs };
 }
 
 function contraindicationMatches(
@@ -364,6 +704,219 @@ function contraindicationMatches(
   }
 }
 
+function buildPrecautionAlert(
+  row: PrecautionCatalogueRow,
+  message: string,
+  severity: string,
+  ruleType: string,
+): SafetyAlertPayload | null {
+  const drug = getPrecautionSubjectName(row);
+  if (!drug) {
+    return null;
+  }
+
+  return {
+    id: row.id,
+    drug,
+    severity,
+    message,
+    requiresPicPin: false,
+    ruleType,
+    ...mapSourceFields(row.sourceDocument, row.sourceSection),
+  };
+}
+
+async function getPrecautionAlerts(
+  context: SafetySessionContext,
+  resolvedDrugs: ResolvedDrug[],
+  safetyTargets: SafetyTargets,
+): Promise<SafetyAlertPayload[]> {
+  if (resolvedDrugs.length === 0) {
+    return [];
+  }
+
+  const [warnings, pregnancyFlags, lactationFlags, renalFlags, hepaticFlags] = await Promise.all([
+    getWarningCatalogue(),
+    getPregnancyFlagCatalogue(),
+    getLactationFlagCatalogue(),
+    getRenalFlagCatalogue(),
+    getHepaticFlagCatalogue(),
+  ]);
+
+  const alerts: SafetyAlertPayload[] = [];
+
+  for (const row of warnings) {
+    const matchesTarget =
+      (row.drugDatabaseId && safetyTargets.drugDatabaseIds.has(row.drugDatabaseId)) ||
+      (row.drugProductId && safetyTargets.drugProductIds.has(row.drugProductId)) ||
+      (row.activeIngredientId && safetyTargets.activeIngredientIds.has(row.activeIngredientId));
+    if (!matchesTarget) {
+      continue;
+    }
+
+    const alert = buildPrecautionAlert(
+      row,
+      row.message,
+      normalizeFlagSeverity(row.severity),
+      row.warningType,
+    );
+    if (alert) {
+      alerts.push(alert);
+    }
+  }
+
+  if (context.pregnant) {
+    for (const row of pregnancyFlags) {
+      const matchesTarget =
+        (row.drugDatabaseId && safetyTargets.drugDatabaseIds.has(row.drugDatabaseId)) ||
+        (row.drugProductId && safetyTargets.drugProductIds.has(row.drugProductId)) ||
+        (row.activeIngredientId && safetyTargets.activeIngredientIds.has(row.activeIngredientId));
+      if (!matchesTarget) {
+        continue;
+      }
+
+      const alert = buildPrecautionAlert(
+        row,
+        row.message,
+        normalizeFlagSeverity(row.riskLevel),
+        'PREGNANCY',
+      );
+      if (alert) {
+        alerts.push(alert);
+      }
+    }
+  }
+
+  if (context.breastfeeding) {
+    for (const row of lactationFlags) {
+      const matchesTarget =
+        (row.drugDatabaseId && safetyTargets.drugDatabaseIds.has(row.drugDatabaseId)) ||
+        (row.drugProductId && safetyTargets.drugProductIds.has(row.drugProductId)) ||
+        (row.activeIngredientId && safetyTargets.activeIngredientIds.has(row.activeIngredientId));
+      if (!matchesTarget) {
+        continue;
+      }
+
+      const alert = buildPrecautionAlert(
+        row,
+        row.message,
+        normalizeFlagSeverity(row.riskLevel),
+        'LACTATION',
+      );
+      if (alert) {
+        alerts.push(alert);
+      }
+    }
+  }
+
+  if (context.renalImpairment) {
+    for (const row of renalFlags) {
+      const matchesTarget =
+        (row.drugDatabaseId && safetyTargets.drugDatabaseIds.has(row.drugDatabaseId)) ||
+        (row.drugProductId && safetyTargets.drugProductIds.has(row.drugProductId)) ||
+        (row.activeIngredientId && safetyTargets.activeIngredientIds.has(row.activeIngredientId));
+      if (!matchesTarget) {
+        continue;
+      }
+
+      const alert = buildPrecautionAlert(
+        row,
+        row.message,
+        normalizeFlagSeverity(row.severity),
+        'RENAL',
+      );
+      if (alert) {
+        alerts.push(alert);
+      }
+    }
+  }
+
+  if (context.hepaticImpairment) {
+    for (const row of hepaticFlags) {
+      const matchesTarget =
+        (row.drugDatabaseId && safetyTargets.drugDatabaseIds.has(row.drugDatabaseId)) ||
+        (row.drugProductId && safetyTargets.drugProductIds.has(row.drugProductId)) ||
+        (row.activeIngredientId && safetyTargets.activeIngredientIds.has(row.activeIngredientId));
+      if (!matchesTarget) {
+        continue;
+      }
+
+      const alert = buildPrecautionAlert(
+        row,
+        row.message,
+        normalizeFlagSeverity(row.severity),
+        'HEPATIC',
+      );
+      if (alert) {
+        alerts.push(alert);
+      }
+    }
+  }
+
+  return alerts;
+}
+
+export async function getDrugDetails(query: string) {
+  const drug = await resolveReviewedDrugByTerm(query);
+  if (!drug) {
+    return null;
+  }
+
+  return {
+    id: drug.id,
+    genericName: drug.genericName,
+    brandNames: drug.brandNames,
+    therapeuticCategory: drug.therapeuticCategory,
+    awarClass: drug.awarClass,
+    standardAdultDose: drug.standardAdultDose,
+    frequency: drug.frequency,
+    route: drug.route,
+    dosageSuggestions: {
+      adult: drug.standardAdultDose,
+      paediatric: drug.paediatricDoseFormula,
+      elderly: drug.elderlyDoseNotes,
+    },
+    ncdHints: drug.ncdHints,
+    pregnancyCategory: drug.pregnancyCategory,
+    breastfeedingSafety: drug.breastfeedingSafety,
+  };
+}
+
+export async function checkInteractions(context: SafetySessionContext) {
+  const drugs = await resolveDrugsFromContext(context);
+  if (drugs.length < 2) {
+    return { interactions: [], resolvedDrugs: drugs };
+  }
+
+  const ids = drugs.map((drug) => drug.id);
+  const interactionCatalogue = await getInteractionCatalogue();
+  const rows = interactionCatalogue.filter(
+    (row) => ids.includes(row.drugAId) && ids.includes(row.drugBId) && row.drugAId !== row.drugBId,
+  );
+
+  const unique = new Map<string, InteractionCatalogueRow>();
+  for (const row of rows) {
+    const key = pairKey(row.drugAId, row.drugBId);
+    if (!unique.has(key)) {
+      unique.set(key, row);
+    }
+  }
+
+  const interactions = [...unique.values()].map((row) => ({
+    id: row.id,
+    drugA: row.drugA.genericName,
+    drugB: row.drugB.genericName,
+    severity: row.severity,
+    effectSummary: row.effectSummary,
+    management: row.management,
+    requiresPicPin: row.requiresPicPin,
+    ruleType: 'INTERACTION',
+    ...mapSourceFields(row.sourceDocument, row.sourceSection, row.sourceUrl),
+  }));
+
+  return { interactions, resolvedDrugs: drugs };
+}
+
 export async function checkContraindications(context: SafetySessionContext) {
   const drugs = await resolveDrugsFromContext(context);
   if (drugs.length === 0) {
@@ -383,21 +936,9 @@ export async function checkContraindications(context: SafetySessionContext) {
       conditionType: row.conditionType,
       conditionValue: row.conditionValue,
       requiresPicPin: row.requiresPicPin,
+      ruleType: 'CONTRAINDICATION',
+      ...mapSourceFields(row.sourceDocument, row.sourceSection, row.sourceUrl),
     }));
-
-  for (const drug of drugs) {
-    if (context.pregnant && ['D', 'X'].includes(drug.pregnancyCategory)) {
-      contraindications.push({
-        id: `pregnancy-${drug.id}`,
-        drug: drug.genericName,
-        severity: drug.pregnancyCategory === 'X' ? 'CONTRAINDICATED' : 'MAJOR',
-        message: `Pregnancy category ${drug.pregnancyCategory} requires caution for ${drug.genericName}.`,
-        conditionType: 'PREGNANCY',
-        conditionValue: drug.pregnancyCategory,
-        requiresPicPin: ['D', 'X'].includes(drug.pregnancyCategory),
-      });
-    }
-  }
 
   return { contraindications, resolvedDrugs: drugs };
 }
@@ -587,13 +1128,49 @@ export async function sessionReview(context: SafetySessionContext) {
   }
 
   const resolvedDrugs = [...resolvedDrugMap.values()];
-  const contraindicationCatalogue = await getContraindicationCatalogue();
+  const safetyTargets = await resolveSafetyTargets(context, resolvedDrugs);
+  const [
+    contraindicationCatalogue,
+    pregnancyFlagCatalogue,
+    lactationFlagCatalogue,
+    renalFlagCatalogue,
+    hepaticFlagCatalogue,
+    precautionAlerts,
+  ] = await Promise.all([
+    getContraindicationCatalogue(),
+    getPregnancyFlagCatalogue(),
+    getLactationFlagCatalogue(),
+    getRenalFlagCatalogue(),
+    getHepaticFlagCatalogue(),
+    getPrecautionAlerts(context, resolvedDrugs, safetyTargets),
+  ]);
+
   const requiredPatientInputs = deriveRequiredPatientInputs({
-    resolvedDrugs,
     contraindications: contraindicationCatalogue.filter((row) =>
       resolvedDrugs.some((drug) => drug.id === row.drugId),
     ),
+    pregnancyFlags: pregnancyFlagCatalogue.filter((row) =>
+      (row.drugDatabaseId && safetyTargets.drugDatabaseIds.has(row.drugDatabaseId)) ||
+      (row.drugProductId && safetyTargets.drugProductIds.has(row.drugProductId)) ||
+      (row.activeIngredientId && safetyTargets.activeIngredientIds.has(row.activeIngredientId)),
+    ),
+    lactationFlags: lactationFlagCatalogue.filter((row) =>
+      (row.drugDatabaseId && safetyTargets.drugDatabaseIds.has(row.drugDatabaseId)) ||
+      (row.drugProductId && safetyTargets.drugProductIds.has(row.drugProductId)) ||
+      (row.activeIngredientId && safetyTargets.activeIngredientIds.has(row.activeIngredientId)),
+    ),
+    renalFlags: renalFlagCatalogue.filter((row) =>
+      (row.drugDatabaseId && safetyTargets.drugDatabaseIds.has(row.drugDatabaseId)) ||
+      (row.drugProductId && safetyTargets.drugProductIds.has(row.drugProductId)) ||
+      (row.activeIngredientId && safetyTargets.activeIngredientIds.has(row.activeIngredientId)),
+    ),
+    hepaticFlags: hepaticFlagCatalogue.filter((row) =>
+      (row.drugDatabaseId && safetyTargets.drugDatabaseIds.has(row.drugDatabaseId)) ||
+      (row.drugProductId && safetyTargets.drugProductIds.has(row.drugProductId)) ||
+      (row.activeIngredientId && safetyTargets.activeIngredientIds.has(row.activeIngredientId)),
+    ),
   });
+
   const diagnoses = uniqueStrings(context.diagnoses ?? []).join(' ');
   const diagnosisMatches = diagnoses ? await matchDiagnosis({ diagnosis: diagnoses }) : [];
   const ncdHints = resolvedDrugs.flatMap((drug) => drug.ncdHints ?? []);
@@ -607,16 +1184,25 @@ export async function sessionReview(context: SafetySessionContext) {
     frequency: drug.frequency,
   }));
 
+  const allAlerts = [
+    ...interactionResult.interactions,
+    ...contraindicationResult.contraindications,
+    ...precautionAlerts,
+  ];
+
   return {
     resolvedDrugs: resolvedDrugs.map((drug) => ({
       id: drug.id,
       genericName: drug.genericName,
       therapeuticCategory: drug.therapeuticCategory,
+      awarClass: drug.awarClass,
       source: drug.source,
       sourceType: drug.sourceType,
     })),
     interactions: interactionResult.interactions,
     contraindications: contraindicationResult.contraindications,
+    precautions: precautionAlerts,
+    severitySummary: summariseSeverity(allAlerts),
     diagnosisMatches,
     ncdHints: [...new Set(ncdHints)],
     dosageSuggestions,
@@ -647,5 +1233,6 @@ export async function searchReviewedDrugs(query: string, limit = 10) {
     genericName: drug.genericName,
     brandNames: drug.brandNames,
     therapeuticCategory: drug.therapeuticCategory,
+    awarClass: drug.awarClass,
   }));
 }

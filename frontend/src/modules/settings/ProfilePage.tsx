@@ -10,10 +10,12 @@ import { useAuthStore } from '@/stores/authStore';
 import { usePharmacyStore } from '@/stores/pharmacyStore';
 import { useNotificationStore } from '@/stores/notificationStore';
 import { api } from '@/lib/api';
+import { SettingsNav } from './SettingsNav';
 
 export const ProfilePage: React.FC = () => {
   const user = useAuthStore(s => s.user);
   const pharmacy = usePharmacyStore(s => s.pharmacy);
+  const memberships = usePharmacyStore(s => s.memberships);
   const toast = useNotificationStore(s => s.toast);
 
   const { register, handleSubmit, formState: { errors } } = useForm({
@@ -29,6 +31,7 @@ export const ProfilePage: React.FC = () => {
   return (
     <div className="space-y-5 max-w-2xl">
       <h1 className="text-xl font-bold text-[#0D4035]">Profile</h1>
+      <SettingsNav />
 
       <Card header={<span className="text-sm font-semibold text-[#0D4035]">Account Information</span>}>
         <div className="flex items-center gap-4 mb-5">
@@ -57,6 +60,25 @@ export const ProfilePage: React.FC = () => {
           ))}
         </div>
       </Card>
+
+      {memberships.length > 1 && (
+        <Card header={<span className="text-sm font-semibold text-[#0D4035]">Your Pharmacies</span>} padding={false}>
+          <div className="divide-y divide-[#D6F0E8]">
+            {memberships.map(m => (
+              <div key={m.id} className="flex items-center justify-between px-5 py-3">
+                <div>
+                  <p className="text-sm font-medium text-[#0D4035]">{m.pharmacy?.name ?? m.pharmacyId}</p>
+                  <p className="text-xs text-[#64748B]">{m.pharmacy?.region ?? ''}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant="info" size="sm">{m.role.replace(/_/g, ' ')}</Badge>
+                  {m.pharmacyId === pharmacy?.id && <Badge variant="success" size="sm">Active</Badge>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       <Card header={<span className="text-sm font-semibold text-[#0D4035]">Subscription</span>}>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

@@ -43,6 +43,8 @@ const routeTitles: Record<string, string> = {
   '/settings/profile': 'Profile',
   '/settings/team': 'Team Management',
   '/settings/subscription': 'Subscription',
+  '/settings/data-review': 'Data Review',
+  '/settings/source-updates': 'Source Updates',
 };
 
 export const Layout: React.FC = () => {

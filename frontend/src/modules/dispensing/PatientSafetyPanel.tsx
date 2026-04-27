@@ -14,28 +14,6 @@ type OverrideDraft = {
   pic_pin: string;
 };
 
-type CounsellingSuggestion = {
-  id: string;
-  rule: string;
-  severity: string;
-  drug: string;
-  flags: string[];
-  suggestionText: string;
-  source: string;
-  cached: boolean;
-};
-
-function buildCounsellingFlags(sessionPayload: SafetySessionPayload) {
-  const flags: string[] = [];
-  if (sessionPayload.pregnant) flags.push('pregnant');
-  if (sessionPayload.breastfeeding) flags.push('breastfeeding');
-  if (sessionPayload.renalImpairment) flags.push('renal impairment');
-  if (sessionPayload.hepaticImpairment) flags.push('hepatic impairment');
-  if ((sessionPayload.allergies ?? []).length > 0) flags.push(`allergies: ${(sessionPayload.allergies ?? []).join(', ')}`);
-  if ((sessionPayload.diagnoses ?? []).length > 0) flags.push(`diagnoses: ${(sessionPayload.diagnoses ?? []).join(', ')}`);
-  return flags;
-}
-
 export const PatientSafetyPanel: React.FC<{
   enabled: boolean;
   cartItems: DispensingCartItem[];
@@ -64,36 +42,6 @@ export const PatientSafetyPanel: React.FC<{
   });
 
   const review = (reviewQuery.data?.data ?? null) as SafetyReviewResponse | null;
-  const counsellingTriggers = useMemo(() => {
-    if (!review) {
-      return [];
-    }
-
-    const flags = buildCounsellingFlags(sessionPayload);
-    return [
-      ...review.interactions.map((alert) => ({
-        rule: alert.effectSummary || alert.management || 'Interaction rule triggered.',
-        severity: alert.severity,
-        drug: [alert.drugA, alert.drugB].filter(Boolean).join(' + '),
-        flags,
-      })),
-      ...review.contraindications.map((alert) => ({
-        rule: alert.message || `${alert.conditionType || 'Contraindication'} rule triggered.`,
-        severity: alert.severity,
-        drug: alert.drug || 'Unknown drug',
-        flags,
-      })),
-    ].filter((trigger) => trigger.drug.trim() && trigger.rule.trim());
-  }, [review, sessionPayload]);
-  const counsellingQuery = useQuery({
-    queryKey: ['patient-safety-counselling', counsellingTriggers],
-    queryFn: () =>
-      api
-        .post('/patient-safety/counselling-suggestions', { triggers: counsellingTriggers })
-        .then((response) => response.data),
-    enabled: enabled && counsellingTriggers.length > 0,
-    staleTime: 60_000,
-  });
   const riskSignature = useMemo(() => {
     if (!review) {
       return 'none';
@@ -104,25 +52,6 @@ export const PatientSafetyPanel: React.FC<{
       contraindications: review.contraindications.filter((item) => item.requiresPicPin).map((item) => item.id).sort(),
     });
   }, [review]);
-  const counsellingSuggestions = (counsellingQuery.data?.data ?? []) as CounsellingSuggestion[];
-  const fallbackCounsellingSuggestions = useMemo<CounsellingSuggestion[]>(
-    () =>
-      counsellingTriggers.map((trigger, index) => ({
-        id: `fallback-${index}`,
-        rule: trigger.rule,
-        severity: trigger.severity,
-        drug: trigger.drug,
-        flags: trigger.flags,
-        suggestionText: `Severity remains ${trigger.severity}. Use the triggered rule as the counselling source of truth: ${trigger.rule}`,
-        source: 'RULE_ONLY',
-        cached: false,
-      })),
-    [counsellingTriggers],
-  );
-  const displayedCounsellingSuggestions =
-    counsellingQuery.isError || counsellingSuggestions.length === 0
-      ? fallbackCounsellingSuggestions
-      : counsellingSuggestions;
 
   useEffect(() => {
     setOverrideReason('');
@@ -169,7 +98,8 @@ export const PatientSafetyPanel: React.FC<{
         }
       >
         <p className="text-sm text-[#64748B]">
-          Add medicines to start interaction checks, contraindication review, dosage suggestions, and NCD hints.
+          Add medicines to start interaction checks, contraindication review, precaution alerts, dosage suggestions,
+          and NCD hints.
         </p>
       </Card>
     );
@@ -184,16 +114,20 @@ export const PatientSafetyPanel: React.FC<{
             <span className="text-sm font-semibold text-[#0D4035]">Patient safety</span>
           </div>
           {review?.requiresPicPin ? (
-            <Badge variant="warning" size="sm">PIC override required</Badge>
+            <Badge variant="warning" size="sm">
+              PIC override required
+            </Badge>
           ) : (
-            <Badge variant="success" size="sm">Reviewed</Badge>
+            <Badge variant="success" size="sm">
+              Reviewed
+            </Badge>
           )}
         </div>
       }
     >
       {reviewQuery.isLoading && (
         <div className="rounded-2xl bg-[#F8FAFC] px-4 py-5 text-sm text-[#64748B]">
-          Running interaction and contraindication checks...
+          Running interaction, contraindication, and precaution checks...
         </div>
       )}
 
@@ -233,98 +167,45 @@ export const PatientSafetyPanel: React.FC<{
             </div>
           )}
 
-          <div className="grid gap-3 md:grid-cols-3">
+          <div className="grid gap-3 md:grid-cols-4">
             <div className="rounded-2xl bg-[#EDF7F3] px-4 py-3">
               <p className="text-xs uppercase tracking-wide text-[#64748B]">Reviewed drugs</p>
               <p className="mt-1 text-lg font-semibold text-[#0D4035]">{review.resolvedDrugs.length}</p>
             </div>
             <div className="rounded-2xl bg-[#FEF2F2] px-4 py-3">
-              <p className="text-xs uppercase tracking-wide text-[#64748B]">Interactions</p>
-              <p className="mt-1 text-lg font-semibold text-[#991B1B]">{review.interactions.length}</p>
+              <p className="text-xs uppercase tracking-wide text-[#64748B]">High alerts</p>
+              <p className="mt-1 text-lg font-semibold text-[#991B1B]">{review.severitySummary.high}</p>
             </div>
             <div className="rounded-2xl bg-[#FFFBEB] px-4 py-3">
-              <p className="text-xs uppercase tracking-wide text-[#64748B]">Contraindications</p>
-              <p className="mt-1 text-lg font-semibold text-[#92400E]">{review.contraindications.length}</p>
+              <p className="text-xs uppercase tracking-wide text-[#64748B]">Moderate alerts</p>
+              <p className="mt-1 text-lg font-semibold text-[#92400E]">{review.severitySummary.moderate}</p>
+            </div>
+            <div className="rounded-2xl bg-[#EFF6FF] px-4 py-3">
+              <p className="text-xs uppercase tracking-wide text-[#64748B]">Informational</p>
+              <p className="mt-1 text-lg font-semibold text-[#1D4ED8]">{review.severitySummary.informational}</p>
             </div>
           </div>
 
           <InteractionAlert
             title="Interaction alerts"
             alerts={review.interactions}
-            emptyMessage="No interaction alerts for the current basket."
+            emptyMessage="No approved interaction alerts for the current basket."
           />
 
           <InteractionAlert
             title="Contraindication alerts"
             alerts={review.contraindications}
-            emptyMessage="No contraindication alerts for the current patient flags."
+            emptyMessage="No approved contraindication alerts for the current patient flags."
           />
 
-          {review.dosageSuggestions.length > 0 && (
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-[#0D4035]">Dosage suggestions</h3>
-              {review.dosageSuggestions.map((suggestion) => (
-                <div key={suggestion.drugId} className="rounded-2xl border border-[#D6F0E8] bg-[#F8FAFC] px-4 py-3">
-                  <p className="text-sm font-semibold text-[#0D4035]">{suggestion.genericName}</p>
-                  <p className="mt-1 text-xs text-[#475569]">
-                    Adult: {suggestion.adultDose || 'Not set'} | Paediatric: {suggestion.paediatric || 'Not set'} | Elderly: {suggestion.elderly || 'Not set'}
-                  </p>
-                  <p className="mt-1 text-xs text-[#64748B]">
-                    Route: {suggestion.route || 'Not set'} | Frequency: {suggestion.frequency || 'Not set'}
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {review.diagnosisMatches.length > 0 && (
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-[#0D4035]">Diagnosis guidance</h3>
-              <div className="grid gap-3 md:grid-cols-2">
-                {review.diagnosisMatches.map((match) => (
-                  <div key={match.id} className="rounded-2xl border border-[#D6F0E8] bg-white px-4 py-3">
-                    <p className="text-sm font-semibold text-[#0D4035]">{match.genericName}</p>
-                    <p className="mt-1 text-xs text-[#64748B]">
-                      {match.therapeuticCategory || 'General use'}
-                    </p>
-                    <p className="mt-2 text-xs text-[#475569]">
-                      Standard adult dose: {match.standardAdultDose || 'Not set'}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          <InteractionAlert
+            title="Precaution alerts"
+            alerts={review.precautions}
+            emptyMessage="No approved precaution alerts for the current patient flags."
+          />
 
           <NCDHints hints={review.ncdHints} />
 
-          {displayedCounsellingSuggestions.length > 0 && (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between gap-3">
-                <h3 className="text-sm font-semibold text-[#0D4035]">AI counselling suggestions</h3>
-                {counsellingQuery.isError && (
-                  <Badge variant="warning" size="sm">Rule-only fallback</Badge>
-                )}
-              </div>
-              {displayedCounsellingSuggestions.map((suggestion) => (
-                <div key={suggestion.id} className="rounded-2xl border border-[#D6F0E8] bg-[#F8FAFC] px-4 py-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-[#0D4035]">{suggestion.drug}</p>
-                      <p className="mt-1 text-xs text-[#64748B]">{suggestion.rule}</p>
-                    </div>
-                    <Badge variant={suggestion.severity === 'MAJOR' || suggestion.severity === 'CONTRAINDICATED' ? 'warning' : 'info'} size="sm">
-                      {suggestion.severity}
-                    </Badge>
-                  </div>
-                  <p className="mt-3 text-sm text-[#475569]">{suggestion.suggestionText}</p>
-                  {suggestion.flags.length > 0 && (
-                    <p className="mt-2 text-xs text-[#64748B]">Flags: {suggestion.flags.join(' • ')}</p>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       )}
     </Card>

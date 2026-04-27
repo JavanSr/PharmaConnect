@@ -30,6 +30,8 @@ interface FormState {
   name: string;
   genericName: string;
   brandName: string;
+  manufacturer: string;
+  therapeuticCategory: string;
   drugClass: string;
   description: string;
   sku: string;
@@ -49,10 +51,12 @@ interface FormState {
 
 interface DrugMaster {
   id: string;
+  productName: string;
   tmdaRegistrationNumber: string;
   genericName: string;
   brandName?: string | null;
   manufacturer?: string | null;
+  therapeuticCategory?: string | null;
   drugClass?: string | null;
   dosageForm?: string | null;
   strength?: string | null;
@@ -63,8 +67,28 @@ interface DrugMaster {
   isEssentialMedicine?: boolean | null;
 }
 
+const DOSAGE_FORM_MAP: Record<string, string> = {
+  TABLET: 'TABLET',
+  TABLETS: 'TABLET',
+  CAPSULE: 'CAPSULE',
+  CAPSULES: 'CAPSULE',
+  SYRUP: 'SYRUP',
+  INJECTION: 'INJECTION',
+  INJECTIONS: 'INJECTION',
+  CREAM: 'CREAM',
+  OINTMENT: 'OINTMENT',
+  DROPS: 'DROPS',
+  DROP: 'DROPS',
+  INHALER: 'INHALER',
+  INHALERS: 'INHALER',
+  SUPPOSITORY: 'SUPPOSITORY',
+  SUPPOSITORIES: 'SUPPOSITORY',
+  POWDER: 'POWDER',
+  SOLUTION: 'SOLUTION',
+};
+
 const empty: FormState = {
-  name: '', genericName: '', brandName: '', drugClass: '', description: '',
+  name: '', genericName: '', brandName: '', manufacturer: '', therapeuticCategory: '', drugClass: '', description: '',
   sku: '', barcode: '', dosageForm: 'TABLET', strength: '',
   unitOfMeasure: 'unit', packSize: '1',
   storageCondition: 'AMBIENT', isColdChain: false,
@@ -74,6 +98,14 @@ const empty: FormState = {
 
 const optionValuesWithCurrent = (options: string[], current: string) =>
   current && !options.includes(current) ? [current, ...options] : options;
+
+const normalizeDosageForm = (value?: string | null) => {
+  if (!value) {
+    return 'TABLET';
+  }
+
+  return DOSAGE_FORM_MAP[value.trim().toUpperCase()] || 'OTHER';
+};
 
 export const ProductFormPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -102,15 +134,38 @@ export const ProductFormPage: React.FC = () => {
   useEffect(() => {
     if (data?.data) {
       const p = data.data;
+      if (p.drugMasterId) {
+        setSelectedDrug({
+          id: p.drugMasterId,
+          productName: p.name || p.genericName || '',
+          genericName: p.genericName || p.name || '',
+          brandName: p.brandName || '',
+          manufacturer: p.manufacturer || '',
+          therapeuticCategory: p.therapeuticCategory || '',
+          drugClass: p.drugClass || '',
+          dosageForm: normalizeDosageForm(p.dosageForm),
+          strength: p.strength || '',
+          unitOfMeasure: p.unitOfMeasure || 'unit',
+          packSize: p.packSize ?? 1,
+          storageCondition: p.storageCondition || 'AMBIENT',
+          isColdChain: p.coldChainRequired || p.isColdChain || false,
+          tmdaRegistrationNumber: p.tmdaRegistrationNumber || '',
+          isEssentialMedicine: false,
+        });
+      } else {
+        setSelectedDrug(null);
+      }
       setForm({
         name: p.name || '',
         genericName: p.genericName || '',
         brandName: p.brandName || '',
+        manufacturer: p.manufacturer || '',
+        therapeuticCategory: p.therapeuticCategory || '',
         drugClass: p.drugClass || '',
         description: p.description || '',
         sku: p.sku || '',
         barcode: p.barcode || '',
-        dosageForm: p.dosageForm || 'TABLET',
+        dosageForm: normalizeDosageForm(p.dosageForm),
         strength: p.strength || '',
         unitOfMeasure: p.unitOfMeasure || 'unit',
         packSize: String(p.packSize ?? 1),
@@ -127,17 +182,23 @@ export const ProductFormPage: React.FC = () => {
 
   const drugs: DrugMaster[] = drugResults?.data ?? [];
   const clinicalFieldsLocked = Boolean(selectedDrug);
+  const showManualFallbackNotice = debouncedSearch.trim().length >= 2 && !selectedDrug && drugs.length === 0;
+  const verificationStatus = data?.data?.verificationStatus as string | undefined;
+  const loadedDrugMasterId = data?.data?.drugMasterId as string | undefined;
+  const canClearSelectedDrug = !loadedDrugMasterId || selectedDrug?.id !== loadedDrugMasterId;
 
   const selectDrug = (drug: DrugMaster) => {
     setSelectedDrug(drug);
     setDrugSearch('');
     setForm(f => ({
       ...f,
-      name: drug.brandName ? `${drug.genericName} (${drug.brandName})` : drug.genericName,
+      name: drug.productName || (drug.brandName ? `${drug.genericName} (${drug.brandName})` : drug.genericName),
       genericName: drug.genericName,
       brandName: drug.brandName || '',
+      manufacturer: drug.manufacturer || '',
+      therapeuticCategory: drug.therapeuticCategory || '',
       drugClass: drug.drugClass || '',
-      dosageForm: drug.dosageForm || 'TABLET',
+      dosageForm: normalizeDosageForm(drug.dosageForm),
       strength: drug.strength || '',
       unitOfMeasure: drug.unitOfMeasure || 'unit',
       packSize: String(drug.packSize ?? 1),
@@ -157,6 +218,8 @@ export const ProductFormPage: React.FC = () => {
         description: form.description || undefined,
         sku: form.sku || undefined,
         barcode: form.barcode || undefined,
+        manufacturer: form.manufacturer || undefined,
+        therapeuticCategory: form.therapeuticCategory || undefined,
         dosageForm: form.dosageForm || undefined,
         strength: form.strength || undefined,
         unitOfMeasure: form.unitOfMeasure,
@@ -199,17 +262,17 @@ export const ProductFormPage: React.FC = () => {
 
       <Card>
         <p className="text-xs font-semibold text-[#64748B] uppercase tracking-wide mb-4">
-          Search TMDA Catalogue
+          Search Master Catalogue
         </p>
         <div className="relative">
           <Input
-            label="Search by generic name, brand name, or TMDA number"
+            label="Search by generic name, brand name, TMDA number, or MSD code"
             value={drugSearch}
             onChange={e => {
               setSelectedDrug(null);
               setDrugSearch(e.target.value);
             }}
-            placeholder="e.g. Amoxicillin, Paracetamol, TZ-TMDA-0001..."
+            placeholder="e.g. Amoxicillin, Paracetamol, TZ-TMDA-0001, 10030001..."
             leftIcon={<Search size={16} />}
           />
           {drugs.length > 0 && !selectedDrug && (
@@ -237,6 +300,14 @@ export const ProductFormPage: React.FC = () => {
             </div>
           )}
         </div>
+        {showManualFallbackNotice && (
+          <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+            <p className="text-sm font-medium text-[#92400E]">No master-catalog match found yet.</p>
+            <p className="text-xs text-[#B45309] mt-1">
+              You can continue with manual entry. The product will be marked unverified and queued for later review.
+            </p>
+          </div>
+        )}
         {selectedDrug && (
           <div className="mt-3 flex items-center justify-between gap-3 bg-[#D6F0E8] rounded-xl px-4 py-3">
             <div>
@@ -251,16 +322,26 @@ export const ProductFormPage: React.FC = () => {
               )}
               <p className="text-xs text-[#1A6B5C]">{selectedDrug.tmdaRegistrationNumber}</p>
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedDrug(null);
-                setDrugSearch('');
-              }}
-              className="text-xs text-[#64748B] hover:text-[#DC2626]"
-            >
-              Clear
-            </button>
+            {canClearSelectedDrug && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedDrug(null);
+                  setDrugSearch('');
+                }}
+                className="text-xs text-[#64748B] hover:text-[#DC2626]"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        )}
+        {!selectedDrug && verificationStatus === 'UNVERIFIED' && (
+          <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+            <p className="text-sm font-medium text-[#92400E]">This product is currently unverified.</p>
+            <p className="text-xs text-[#B45309] mt-1">
+              It was saved without a linked master-catalog record and remains in the review queue until matched later.
+            </p>
           </div>
         )}
       </Card>
@@ -272,6 +353,8 @@ export const ProductFormPage: React.FC = () => {
           <Input label="Generic Name *" value={form.genericName} onChange={set('genericName')} placeholder="e.g. Amoxicillin" required disabled={clinicalFieldsLocked} readOnly={clinicalFieldsLocked} />
           <Input label="Brand / Trade Name" value={form.brandName} onChange={set('brandName')} placeholder="e.g. Amoxil" disabled={clinicalFieldsLocked} readOnly={clinicalFieldsLocked} />
           <Input label="Product Name *" value={form.name} onChange={set('name')} placeholder="Display name shown in dispensing" required disabled={clinicalFieldsLocked} readOnly={clinicalFieldsLocked} />
+          <Input label="Manufacturer" value={form.manufacturer} onChange={set('manufacturer')} placeholder="e.g. Shelys, Cipla" disabled={clinicalFieldsLocked} readOnly={clinicalFieldsLocked} />
+          <Input label="Therapeutic Category" value={form.therapeuticCategory} onChange={set('therapeuticCategory')} placeholder="e.g. Antibiotic, Anti-diabetic" disabled={clinicalFieldsLocked} readOnly={clinicalFieldsLocked} />
           <Select
             label="Drug Class"
             value={form.drugClass}
@@ -284,7 +367,7 @@ export const ProductFormPage: React.FC = () => {
           <Input label="TMDA Registration No." value={form.tmdaRegistrationNumber} onChange={set('tmdaRegistrationNumber')} placeholder="TZ-TMDA-XXX" disabled={clinicalFieldsLocked} readOnly={clinicalFieldsLocked} />
           {selectedDrug && (
             <p className="text-xs text-[#64748B] sm:col-span-2">
-              Clinical fields are pre-filled from the TMDA catalogue. Only pricing and stock thresholds can be edited.
+              Catalog-linked fields are pre-filled from the master catalog. Only pricing, thresholds, and local stock details can be edited.
             </p>
           )}
         </div>

@@ -3,6 +3,7 @@ import PDFDocument from 'pdfkit';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 import { storeComplianceObject } from '../compliance/compliance.storage';
+import { resolveActiveClientPriceOverrideMap } from './b2b.extensions.service';
 
 export const ORDER_STATUSES = [
   'DRAFT',
@@ -530,6 +531,11 @@ export async function createOrder(input: {
       AND wcp."is_active" = true
       AND p."id" IN (${Prisma.join(input.items.map((item) => item.productId))})
   `);
+  const overridePriceMap = await resolveActiveClientPriceOverrideMap(
+    input.sellerPharmacyId,
+    input.buyerPharmacyId,
+    input.items.map((item) => item.productId),
+  );
 
   const pricingMap = new Map(pricingRows.map((row) => [row.product_id, row]));
   const lines: OrderLine[] = input.items.map((item) => {
@@ -546,7 +552,9 @@ export async function createOrder(input: {
       throw Object.assign(new Error('MAX_ORDER_QUANTITY_EXCEEDED'), { status: 422, code: 'MAX_ORDER_QUANTITY_EXCEEDED' });
     }
 
-    const unitPrice = resolveTierPrice(asNumber(pricing.price), parseTierPrices(pricing.tier_prices), buyer?.subscriptionTier);
+    const unitPrice =
+      overridePriceMap.get(pricing.product_id) ??
+      resolveTierPrice(asNumber(pricing.price), parseTierPrices(pricing.tier_prices), buyer?.subscriptionTier);
     return {
       productId: pricing.product_id,
       productName: pricing.product_name,

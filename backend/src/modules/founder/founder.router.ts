@@ -1,0 +1,62 @@
+import { Router } from 'express';
+import { authenticate, requireRole, type AuthRequest } from '../../middleware/auth';
+import { prisma } from '../../lib/prisma';
+
+export const founderRouter = Router();
+founderRouter.use(authenticate);
+founderRouter.use(requireRole('SUPER_ADMIN'));
+
+founderRouter.get('/stats', async (_req: AuthRequest, res, next) => {
+  try {
+    const [
+      totalPharmacies,
+      activePharmacies,
+      totalUsers,
+      tierBreakdown,
+      statusBreakdown,
+      recentPharmacies,
+      recentOverrides,
+      totalDispensings,
+      totalBatches,
+    ] = await Promise.all([
+      prisma.pharmacy.count(),
+      prisma.pharmacy.count({ where: { isActive: true } }),
+      prisma.user.count(),
+      prisma.pharmacy.groupBy({ by: ['subscriptionTier'], _count: { id: true } }),
+      prisma.pharmacy.groupBy({ by: ['status'], _count: { id: true } }),
+      prisma.pharmacy.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+        select: { id: true, name: true, region: true, subscriptionTier: true, status: true, createdAt: true },
+      }),
+      prisma.overrideLog.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: 20,
+        select: {
+          id: true,
+          pharmacyId: true,
+          alertType: true,
+          reason: true,
+          createdAt: true,
+          pharmacy: { select: { name: true } },
+        },
+      }),
+      prisma.dispensing.count(),
+      prisma.batch.count(),
+    ]);
+
+    res.json({
+      data: {
+        pharmacies: { total: totalPharmacies, active: activePharmacies },
+        users: { total: totalUsers },
+        tierBreakdown: Object.fromEntries(tierBreakdown.map(r => [r.subscriptionTier, r._count.id])),
+        statusBreakdown: Object.fromEntries(statusBreakdown.map(r => [r.status, r._count.id])),
+        recentPharmacies,
+        recentOverrides,
+        activity: { totalDispensings, totalBatches },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});

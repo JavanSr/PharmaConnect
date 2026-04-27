@@ -34,6 +34,10 @@ export interface SafetyAlert {
   requiresPicPin: boolean;
   conditionType?: string;
   conditionValue?: string;
+  ruleType?: string;
+  sourceTitle?: string | null;
+  sourceSection?: string | null;
+  sourceUrl?: string | null;
 }
 
 export interface DosageSuggestion {
@@ -58,11 +62,18 @@ export interface SafetyReviewResponse {
     id: string;
     genericName: string;
     therapeuticCategory?: string | null;
+    awarClass?: 'ACCESS' | 'WATCH' | 'RESERVE' | null;
     source: string;
     sourceType: string;
   }>;
   interactions: SafetyAlert[];
   contraindications: SafetyAlert[];
+  precautions: SafetyAlert[];
+  severitySummary: {
+    high: number;
+    moderate: number;
+    informational: number;
+  };
   diagnosisMatches: DiagnosisMatch[];
   ncdHints: string[];
   dosageSuggestions: DosageSuggestion[];

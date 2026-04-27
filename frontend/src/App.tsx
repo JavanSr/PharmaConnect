@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Layout } from '@/components/layout/Layout';
 import { AuthGuard } from '@/components/layout/AuthGuard';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { useOfflineSync } from '@/hooks/useOfflineSync';
 import { LoginPage } from '@/modules/auth/LoginPage';
 import { PharmacySelectorPage } from '@/modules/auth/PharmacySelectorPage';
@@ -29,6 +30,7 @@ const ProductsListPage = lazy(() => import('@/modules/inventory/ProductsListPage
 const ProductFormPage = lazy(() => import('@/modules/inventory/ProductFormPage').then(m => ({ default: m.ProductFormPage })));
 const DrugCataloguePage = lazy(() => import('@/modules/inventory/DrugCataloguePage').then(m => ({ default: m.DrugCataloguePage })));
 const StockIntakePage = lazy(() => import('@/modules/inventory/StockIntakePage').then(m => ({ default: m.StockIntakePage })));
+const CatalogueImportPage = lazy(() => import('@/modules/inventory/CatalogueImportPage').then(m => ({ default: m.CatalogueImportPage })));
 const StockAdjustPage = lazy(() => import('@/modules/inventory/StockAdjustPage').then(m => ({ default: m.StockAdjustPage })));
 const BatchManagerPage = lazy(() => import('@/modules/inventory/BatchManagerPage').then(m => ({ default: m.BatchManagerPage })));
 const ExpiryDashboardPage = lazy(() => import('@/modules/inventory/ExpiryDashboardPage').then(m => ({ default: m.ExpiryDashboardPage })));
@@ -41,12 +43,16 @@ const InspectionChecklistPage = lazy(() => import('@/modules/compliance/Inspecti
 const StaffCredentialsPage = lazy(() => import('@/modules/compliance/StaffCredentialsPage').then(m => ({ default: m.StaffCredentialsPage })));
 const DispensingScreen = lazy(() => import('@/modules/dispensing/DispensingScreen').then(m => ({ default: m.DispensingScreen })));
 const DispensingReturnsPage = lazy(() => import('@/modules/dispensing/DispensingReturnsPage').then(m => ({ default: m.DispensingReturnsPage })));
+const PatientSafetyAlertsPage = lazy(() => import('@/modules/dispensing/PatientSafetyAlertsPage').then(m => ({ default: m.PatientSafetyAlertsPage })));
 const DailyClose = lazy(() => import('@/modules/dispensing/DailyClose').then(m => ({ default: m.DailyClose })));
 const NhifClaimsPage = lazy(() => import('@/modules/deferred/NhifClaimsPage').then(m => ({ default: m.NhifClaimsPage })));
 const PrescriptionManagementPage = lazy(() => import('@/modules/deferred/PrescriptionManagementPage').then(m => ({ default: m.PrescriptionManagementPage })));
 const SymptomCheckerPage = lazy(() => import('@/modules/deferred/SymptomCheckerPage').then(m => ({ default: m.SymptomCheckerPage })));
 const PatientRecordsPage = lazy(() => import('@/modules/deferred/PatientRecordsPage').then(m => ({ default: m.PatientRecordsPage })));
 const AccreditedCpdPage = lazy(() => import('@/modules/deferred/AccreditedCpdPage').then(m => ({ default: m.AccreditedCpdPage })));
+const ControlledSubstancesPage = lazy(() => import('@/modules/deferred/ControlledSubstancesPage').then(m => ({ default: m.ControlledSubstancesPage })));
+const PharmacovigilancePage = lazy(() => import('@/modules/deferred/PharmacovigilancePage').then(m => ({ default: m.PharmacovigilancePage })));
+const UnsubscribePage = lazy(() => import('@/modules/knowledge/UnsubscribePage').then(m => ({ default: m.UnsubscribePage })));
 const ControlledDrugsRegisterPage = lazy(() => import('@/modules/dispensing/ControlledDrugsRegisterPage').then(m => ({ default: m.ControlledDrugsRegisterPage })));
 const TmdaUpdatesPage = lazy(() => import('@/modules/knowledge/TmdaUpdatesPage').then(m => ({ default: m.TmdaUpdatesPage })));
 const CpdDashboardPage = lazy(() => import('@/modules/cpd/CpdDashboardPage').then(m => ({ default: m.CpdDashboardPage })));
@@ -60,6 +66,10 @@ const AttendancePage = lazy(() => import('@/modules/reports/AttendancePage').the
 const ProfilePage = lazy(() => import('@/modules/settings/ProfilePage').then(m => ({ default: m.ProfilePage })));
 const TeamManagementPage = lazy(() => import('@/modules/settings/TeamManagementPage').then(m => ({ default: m.TeamManagementPage })));
 const SubscriptionPage = lazy(() => import('@/modules/settings/SubscriptionPage').then(m => ({ default: m.SubscriptionPage })));
+const DataReviewPage = lazy(() => import('@/modules/settings/DataReviewPage').then(m => ({ default: m.DataReviewPage })));
+const SourceUpdatesPage = lazy(() => import('@/modules/settings/SourceUpdatesPage').then(m => ({ default: m.SourceUpdatesPage })));
+const FeaturesPage = lazy(() => import('@/modules/settings/FeaturesPage').then(m => ({ default: m.FeaturesPage })));
+const FounderDashboardPage = lazy(() => import('@/modules/founder/FounderDashboardPage').then(m => ({ default: m.FounderDashboardPage })));
 
 const PageLoader = () => (
   <div className="flex h-64 items-center justify-center">
@@ -73,6 +83,7 @@ const OfflineSyncBootstrap: React.FC = () => {
 };
 
 export const App: React.FC = () => (
+  <ErrorBoundary>
   <QueryClientProvider client={queryClient}>
     <OfflineSyncBootstrap />
     <BrowserRouter>
@@ -85,6 +96,9 @@ export const App: React.FC = () => (
         <Route path="/symptom-checker" element={<Suspense fallback={<PageLoader />}><SymptomCheckerPage /></Suspense>} />
         <Route path="/patient-records" element={<Suspense fallback={<PageLoader />}><PatientRecordsPage /></Suspense>} />
         <Route path="/accredited-cpd" element={<Suspense fallback={<PageLoader />}><AccreditedCpdPage /></Suspense>} />
+        <Route path="/controlled-substances-reporting" element={<Suspense fallback={<PageLoader />}><ControlledSubstancesPage /></Suspense>} />
+        <Route path="/pharmacovigilance" element={<Suspense fallback={<PageLoader />}><PharmacovigilancePage /></Suspense>} />
+        <Route path="/unsubscribe/:token" element={<Suspense fallback={<PageLoader />}><UnsubscribePage /></Suspense>} />
         <Route path="/verify/:certificateId" element={<Suspense fallback={<PageLoader />}><CertificateVerifyPage /></Suspense>} />
 
         <Route element={<AuthGuard><Layout /></AuthGuard>}>
@@ -105,6 +119,7 @@ export const App: React.FC = () => (
           <Route path="/inventory/batches" element={<Suspense fallback={<PageLoader />}><BatchManagerPage /></Suspense>} />
           <Route path="/inventory/expiry" element={<Suspense fallback={<PageLoader />}><ExpiryDashboardPage /></Suspense>} />
           <Route path="/inventory/conflicts" element={<Suspense fallback={<PageLoader />}><InventoryConflictsPage /></Suspense>} />
+          <Route path="/inventory/import-catalogue" element={<Suspense fallback={<PageLoader />}><CatalogueImportPage /></Suspense>} />
           <Route path="/compliance" element={<Suspense fallback={<PageLoader />}><ComplianceDashboardPage /></Suspense>} />
           <Route path="/compliance/items" element={<Suspense fallback={<PageLoader />}><ComplianceListPage /></Suspense>} />
           <Route path="/compliance/items/new" element={<Suspense fallback={<PageLoader />}><ComplianceItemFormPage /></Suspense>} />
@@ -114,6 +129,7 @@ export const App: React.FC = () => (
           <Route path="/compliance/inspection" element={<Suspense fallback={<PageLoader />}><InspectionChecklistPage /></Suspense>} />
           <Route path="/dispensing" element={<Suspense fallback={<PageLoader />}><DispensingScreen /></Suspense>} />
           <Route path="/dispensing/returns" element={<Suspense fallback={<PageLoader />}><DispensingReturnsPage /></Suspense>} />
+          <Route path="/dispensing/alerts" element={<Suspense fallback={<PageLoader />}><PatientSafetyAlertsPage /></Suspense>} />
           <Route path="/dispensing/daily-close" element={<Suspense fallback={<PageLoader />}><DailyClose /></Suspense>} />
           <Route path="/controlled-substances" element={<Suspense fallback={<PageLoader />}><ControlledDrugsRegisterPage /></Suspense>} />
           <Route path="/wholesale" element={<Suspense fallback={<PageLoader />}><WholesaleDashboardPage /></Suspense>} />
@@ -134,10 +150,15 @@ export const App: React.FC = () => (
           <Route path="/settings/profile" element={<Suspense fallback={<PageLoader />}><ProfilePage /></Suspense>} />
           <Route path="/settings/team" element={<Suspense fallback={<PageLoader />}><TeamManagementPage /></Suspense>} />
           <Route path="/settings/subscription" element={<Suspense fallback={<PageLoader />}><SubscriptionPage /></Suspense>} />
+          <Route path="/settings/data-review" element={<Suspense fallback={<PageLoader />}><DataReviewPage /></Suspense>} />
+          <Route path="/settings/source-updates" element={<Suspense fallback={<PageLoader />}><SourceUpdatesPage /></Suspense>} />
+          <Route path="/settings/features" element={<Suspense fallback={<PageLoader />}><FeaturesPage /></Suspense>} />
+          <Route path="/founder" element={<Suspense fallback={<PageLoader />}><FounderDashboardPage /></Suspense>} />
         </Route>
 
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </BrowserRouter>
   </QueryClientProvider>
+  </ErrorBoundary>
 );

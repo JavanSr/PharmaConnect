@@ -43,7 +43,23 @@ const ProductsListRow = React.memo(function ProductsListRow({
     >
       <td className="px-4 py-3">
         <p className="text-sm font-medium text-[#0D4035]">{product.genericName || product.name}</p>
-        {product.brandName && <p className="text-xs text-[#64748B]">{product.brandName}</p>}
+        <div className="flex flex-wrap items-center gap-2 mt-1">
+          {product.brandName && <p className="text-xs text-[#64748B]">{product.brandName}</p>}
+          <span
+            className={`inline-flex text-[11px] px-2 py-0.5 rounded-full font-medium ${
+              product.verificationStatus === 'MASTER_CATALOG_MATCHED'
+                ? 'bg-[#D6F0E8] text-[#1A6B5C]'
+                : 'bg-amber-50 text-[#B45309]'
+            }`}
+          >
+            {product.verificationStatus === 'MASTER_CATALOG_MATCHED' ? 'Catalog matched' : 'Unverified'}
+          </span>
+          {product.pendingReview && (
+            <span className="inline-flex text-[11px] px-2 py-0.5 rounded-full font-medium bg-[#FEF3C7] text-[#92400E]">
+              Review queued
+            </span>
+          )}
+        </div>
       </td>
 
       <td className="px-4 py-3">

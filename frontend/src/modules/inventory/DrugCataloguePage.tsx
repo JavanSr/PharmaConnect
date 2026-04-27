@@ -101,7 +101,7 @@ export const DrugCataloguePage: React.FC = () => {
         </Link>
         <div className="flex-1">
           <h1 className="text-xl font-bold text-[#0D4035]">Drug Catalogue</h1>
-          <p className="text-sm text-[#64748B]">System-wide DrugMaster catalogue for product activation.</p>
+          <p className="text-sm text-[#64748B]">System-wide master drug catalogue for product activation.</p>
         </div>
       </div>
 

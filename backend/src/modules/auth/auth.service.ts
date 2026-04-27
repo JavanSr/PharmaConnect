@@ -3,7 +3,7 @@ import { prisma } from '../../lib/prisma';
 import { withPrismaRetry } from '../../lib/prisma-retry';
 import { verifyRefresh } from '../../lib/jwt';
 import { normalizeRole, type KnownRole } from '../../types/roles';
-import { issueAuthTokens, resolveActiveMembership } from './pharmacy-membership.service';
+import { issueAuthTokens, listAccessiblePharmacies, resolveActiveMembership } from './pharmacy-membership.service';
 
 function initialSubscriptionTier(pharmacyType: 'RETAIL' | 'ADDO' | 'WHOLESALE') {
   if (pharmacyType === 'ADDO') {
@@ -17,7 +17,27 @@ function initialSubscriptionTier(pharmacyType: 'RETAIL' | 'ADDO' | 'WHOLESALE') 
   return 'STANDARD' as const;
 }
 
-export async function loginService(email: string, password: string) {
+type LoginMembership = Awaited<ReturnType<typeof listAccessiblePharmacies>>[number];
+
+function chooseLoginMembership(
+  memberships: LoginMembership[],
+  preferredPharmacyId?: string | null,
+): LoginMembership | null {
+  if (!memberships.length) {
+    return null;
+  }
+
+  if (preferredPharmacyId) {
+    const preferred = memberships.find((membership) => membership.pharmacyId === preferredPharmacyId);
+    if (preferred) {
+      return preferred;
+    }
+  }
+
+  return memberships[0];
+}
+
+export async function loginService(email: string, password: string, preferredPharmacyId?: string) {
   const user = await withPrismaRetry(() => prisma.user.findUnique({
     where: { email: email.toLowerCase() },
     include: { pharmacy: true },
@@ -32,28 +52,51 @@ export async function loginService(email: string, password: string) {
     throw Object.assign(new Error('Invalid email or password'), { status: 401 });
   }
 
-  await withPrismaRetry(() => prisma.user.update({
-    where: { id: user.id },
-    data: { lastLogin: new Date() },
-  }));
-
   const normalizedRole = normalizeRole(user.role);
+  const rawMemberships = normalizedRole === 'SUPER_ADMIN'
+    ? []
+    : await listAccessiblePharmacies(user.id);
   const membership = normalizedRole === 'SUPER_ADMIN'
     ? null
-    : await resolveActiveMembership(user.id, user.pharmacyId);
+    : chooseLoginMembership(rawMemberships, preferredPharmacyId ?? user.pharmacyId);
 
   if (!membership && normalizedRole !== 'SUPER_ADMIN') {
     throw Object.assign(new Error('No active pharmacy membership found'), { status: 403 });
   }
 
-  const { accessToken, refreshToken } = await issueAuthTokens({
-    userId: user.id,
-    role: user.role,
-    pharmacyId: membership?.pharmacyId ?? user.pharmacyId,
-  });
+  const selectedPharmacyId = membership?.pharmacyId ?? user.pharmacyId;
+
+  const [{ accessToken, refreshToken }] = await Promise.all([
+    issueAuthTokens({
+      userId: user.id,
+      role: user.role,
+      pharmacyId: selectedPharmacyId,
+    }),
+    withPrismaRetry(() => prisma.user.update({
+      where: { id: user.id },
+      data: {
+        lastLogin: new Date(),
+        ...(selectedPharmacyId ? { pharmacyId: selectedPharmacyId } : {}),
+      },
+    })),
+  ]);
+
+  const memberships = rawMemberships.map((entry) => ({
+      ...entry,
+      selected: entry.pharmacyId === selectedPharmacyId,
+    }));
 
   const { password: _pw, ...safeUser } = user;
-  return { user: safeUser, accessToken, refreshToken, pharmacy: membership?.pharmacy ?? user.pharmacy };
+  return {
+    user: {
+      ...safeUser,
+      pharmacyId: selectedPharmacyId,
+    },
+    accessToken,
+    refreshToken,
+    pharmacy: membership?.pharmacy ?? user.pharmacy,
+    memberships,
+  };
 }
 
 export async function registerService(payload: {

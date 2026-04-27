@@ -5,12 +5,15 @@ import {
   AlertTriangle,
   Camera,
   CheckCircle,
+  ChevronDown,
+  ChevronUp,
   Pill,
   Plus,
   Search,
   ShoppingCart,
   Trash2,
-  UserRoundSearch,
+  UserRound,
+  X,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Badge } from '@/components/ui/Badge';
@@ -66,6 +69,22 @@ type SessionFlagOption = {
 const isRetailSafetyTier = (tier?: string | null) => ['STANDARD', 'PREMIUM', 'ENTERPRISE'].includes(tier || '');
 const WALK_IN_LABEL = 'Walk-in customer';
 
+const AwarBadge: React.FC<{ awarClass?: Product['awarClass'] }> = ({ awarClass }) => {
+  if (awarClass !== 'WATCH' && awarClass !== 'RESERVE') {
+    return null;
+  }
+
+  const tooltip = `This antibiotic is classified as ${awarClass} under WHO AWaRe / Tanzania NEMLIT 2021. Dispensing requires a valid prescription from an authorised facility.`;
+
+  return (
+    <span title={tooltip} aria-label={tooltip} tabIndex={0}>
+      <Badge variant={awarClass === 'WATCH' ? 'warning' : 'danger'} size="sm">
+        {awarClass} antibiotic
+      </Badge>
+    </span>
+  );
+};
+
 export const DispensingScreen: React.FC = () => {
   const queryClient = useQueryClient();
   const toast = useNotificationStore((state) => state.toast);
@@ -94,6 +113,7 @@ export const DispensingScreen: React.FC = () => {
   const [discountReason, setDiscountReason] = useState('');
   const [receipt, setReceipt] = useState<DispensingReceipt | null>(null);
 
+  const [showPatientPanel, setShowPatientPanel] = useState(false);
   const [patientLabel, setPatientLabel] = useState(WALK_IN_LABEL);
   const [patientPhone, setPatientPhone] = useState('');
   const [ageYears, setAgeYears] = useState('');
@@ -312,7 +332,7 @@ export const DispensingScreen: React.FC = () => {
     },
   });
 
-  const addToCart = () => {
+  const addToCart = async () => {
     if (!selectedDrug) {
       toast.error('Select a medicine first');
       return;
@@ -322,9 +342,20 @@ export const DispensingScreen: React.FC = () => {
       return;
     }
 
-    const currentStock = selectedDrug.currentStock ?? 0;
+    let latestSelectedDrug = selectedDrug;
+    try {
+      const response = await api.get(`/inventory/products/${selectedDrug.id}`);
+      if (response.data?.data) {
+        latestSelectedDrug = response.data.data as Product;
+        setSelectedDrug(latestSelectedDrug);
+      }
+    } catch {
+      // Keep the current selection if the refresh fails; the existing validation below still applies.
+    }
+
+    const currentStock = latestSelectedDrug.currentStock ?? 0;
     const existingQuantity = cartItems
-      .filter((item) => item.product.id === selectedDrug.id)
+      .filter((item) => item.product.id === latestSelectedDrug.id)
       .reduce((sum, item) => sum + item.quantity, 0);
 
     if (quantity + existingQuantity > currentStock) {
@@ -332,9 +363,9 @@ export const DispensingScreen: React.FC = () => {
       return;
     }
 
-    const unitPrice = Number(selectedDrug.sellingPrice ?? 0);
+    const unitPrice = Number(latestSelectedDrug.sellingPrice ?? 0);
     const lineTotal = Number((unitPrice * quantity).toFixed(2));
-    const lineId = `${selectedDrug.id}:${counsellingNotes.trim().toLowerCase()}`;
+    const lineId = `${latestSelectedDrug.id}:${counsellingNotes.trim().toLowerCase()}`;
 
     setCartItems((items) => {
       const existing = items.find((item) => item.id === lineId);
@@ -343,7 +374,7 @@ export const DispensingScreen: React.FC = () => {
           ...items,
           {
             id: lineId,
-            product: selectedDrug,
+            product: latestSelectedDrug,
             quantity,
             counsellingNotes: counsellingNotes.trim() || undefined,
             unitPrice,
@@ -456,9 +487,11 @@ export const DispensingScreen: React.FC = () => {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Link to="/dispensing/daily-close">
-            <Button variant="secondary" size="sm">Daily close</Button>
-          </Link>
+          {['OWNER', 'PHARMACIST_IN_CHARGE', 'SUPER_ADMIN'].includes(user?.role || '') && (
+            <Link to="/dispensing/daily-close">
+              <Button variant="secondary" size="sm">Daily close</Button>
+            </Link>
+          )}
           <Badge variant={safetyEnabled ? 'success' : 'muted'} size="sm">
             {safetyEnabled ? 'Safety enabled' : 'Basic retail flow'}
           </Badge>
@@ -516,112 +549,124 @@ export const DispensingScreen: React.FC = () => {
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_420px]">
         <div className="space-y-5">
-          <Card
-            header={
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <UserRoundSearch size={16} className="text-[#1A6B5C]" />
-                  <span className="text-sm font-semibold text-[#0D4035]">Session patient profile</span>
-                </div>
-                <Badge variant={patientPhone ? 'info' : 'muted'} size="sm">
-                  {patientPhone ? 'Local patient cache' : 'Walk-in default'}
-                </Badge>
-              </div>
-            }
-          >
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="md:col-span-2 flex flex-wrap gap-3">
-                <Button variant="secondary" onClick={resetPatientProfile}>
-                  Use walk-in
-                </Button>
-                <Input
-                  label="Phone number"
-                  value={patientPhone}
-                  onChange={(event) => setPatientPhone(event.target.value)}
-                  placeholder="Search or register by phone"
-                />
-                <div className="flex items-end">
-                  <Button onClick={handleSearchOrRegister}>
-                    Search/Register
-                  </Button>
-                </div>
-              </div>
-              <div className="relative">
-                <Input
-                  label="Patient name / label"
-                  value={patientLabel}
-                  onChange={(event) => setPatientLabel(event.target.value)}
-                  placeholder="Walk-in customer or registered patient name"
-                  hint="Search by phone to load a local patient, or enter a name before registering a new one."
-                />
-                {sessionMatches.length > 0 && (
-                  <div className="absolute left-0 right-0 top-full z-20 mt-1 rounded-2xl border border-[#D6F0E8] bg-white shadow-lg">
-                    {sessionMatches.map((shortcut) => (
-                      <button
-                        key={shortcut.label}
-                        type="button"
-                        onClick={() => applySessionShortcut(shortcut)}
-                        className="block w-full border-b border-[#D6F0E8] px-4 py-3 text-left text-sm text-[#0D4035] last:border-b-0 hover:bg-[#EDF7F3]"
-                      >
-                        {shortcut.label}
-                      </button>
-                    ))}
-                  </div>
+          {/* Patient bar — collapsed by default, expands on toggle */}
+          <div className="rounded-2xl border border-[#D6F0E8] bg-white overflow-hidden">
+            {/* Bar */}
+            <button
+              type="button"
+              onClick={() => setShowPatientPanel((v) => !v)}
+              className="flex w-full items-center justify-between gap-3 px-4 py-3 hover:bg-[#EDF7F3] transition-colors"
+            >
+              <div className="flex items-center gap-2.5">
+                <UserRound size={15} className={patientLabel === WALK_IN_LABEL ? 'text-[#94A3B8]' : 'text-[#1A6B5C]'} />
+                <span className={`text-sm font-medium ${patientLabel === WALK_IN_LABEL ? 'text-[#64748B]' : 'text-[#0D4035]'}`}>
+                  {patientLabel === WALK_IN_LABEL ? 'Walk-in' : patientLabel}
+                </span>
+                {patientPhone && patientLabel !== WALK_IN_LABEL && (
+                  <span className="text-xs text-[#94A3B8]">{patientPhone}</span>
                 )}
               </div>
-              <div className="flex items-end">
-                <Button variant="secondary" onClick={saveSessionShortcut}>
-                  Save session shortcut
-                </Button>
+              <div className="flex items-center gap-2">
+                {patientLabel !== WALK_IN_LABEL && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); resetPatientProfile(); setShowPatientPanel(false); }}
+                    className="rounded-full p-0.5 text-[#94A3B8] hover:text-[#DC2626] transition-colors"
+                    aria-label="Reset to walk-in"
+                  >
+                    <X size={13} />
+                  </button>
+                )}
+                <span className="text-xs text-[#94A3B8]">
+                  {showPatientPanel ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+                </span>
               </div>
-              <Input
-                label="Age (years)"
-                type="number"
-                min="0"
-                value={ageYears}
-                onChange={(event) => setAgeYears(event.target.value)}
-                placeholder="Optional"
-              />
-                <Input
-                  ref={weightInputRef}
-                  label="Weight (kg)"
-                  type="number"
-                min="0"
-                value={weightKg}
-                onChange={(event) => setWeightKg(event.target.value)}
-                  placeholder="Optional"
-                />
-              </div>
+            </button>
 
-              {phoneMatches.length > 0 && (
-                <div className="mt-4 rounded-2xl border border-[#D6F0E8] bg-[#F8FAFC] p-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-[#64748B]">
-                    Cached patients for this pharmacy
-                  </p>
-                  <div className="mt-2 space-y-2">
+            {/* Expandable panel */}
+            {showPatientPanel && (
+              <div className="border-t border-[#D6F0E8] px-4 py-4 space-y-4">
+                <div className="flex flex-wrap items-end gap-3">
+                  <div className="flex-1 min-w-[180px]">
+                    <Input
+                      label="Phone number"
+                      value={patientPhone}
+                      onChange={(event) => setPatientPhone(event.target.value)}
+                      placeholder="Search or register by phone"
+                    />
+                  </div>
+                  <Button onClick={handleSearchOrRegister}>Search / Register</Button>
+                </div>
+
+                {phoneMatches.length > 0 && (
+                  <div className="space-y-2">
                     {phoneMatches.map((profile) => (
                       <button
                         key={profile.normalizedPhone}
                         type="button"
-                        onClick={() =>
-                          applyPatientProfile({
-                            ...profile,
-                            phone: profile.phone,
-                          })
-                        }
-                        className="flex w-full items-center justify-between rounded-2xl border border-[#D6F0E8] bg-white px-4 py-3 text-left hover:bg-[#EDF7F3]"
+                        onClick={() => { applyPatientProfile({ ...profile, phone: profile.phone }); setShowPatientPanel(false); }}
+                        className="flex w-full items-center justify-between rounded-2xl border border-[#D6F0E8] bg-[#F8FAFC] px-4 py-3 text-left hover:bg-[#EDF7F3]"
                       >
                         <span>
                           <span className="block text-sm font-semibold text-[#0D4035]">{profile.name}</span>
-                          <span className="mt-1 block text-xs text-[#64748B]">{profile.phone}</span>
+                          <span className="mt-0.5 block text-xs text-[#64748B]">{profile.phone}</span>
                         </span>
                         <Badge variant="info" size="sm">Load</Badge>
                       </button>
                     ))}
                   </div>
+                )}
+
+                <div className="relative">
+                  <Input
+                    label="Patient name"
+                    value={patientLabel === WALK_IN_LABEL ? '' : patientLabel}
+                    onChange={(event) => setPatientLabel(event.target.value || WALK_IN_LABEL)}
+                    placeholder="Enter name to register a new patient"
+                  />
+                  {sessionMatches.length > 0 && (
+                    <div className="absolute left-0 right-0 top-full z-20 mt-1 rounded-2xl border border-[#D6F0E8] bg-white shadow-lg">
+                      {sessionMatches.map((shortcut) => (
+                        <button
+                          key={shortcut.label}
+                          type="button"
+                          onClick={() => { applySessionShortcut(shortcut); setShowPatientPanel(false); }}
+                          className="block w-full border-b border-[#D6F0E8] px-4 py-3 text-left text-sm text-[#0D4035] last:border-b-0 hover:bg-[#EDF7F3]"
+                        >
+                          {shortcut.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )}
-          </Card>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <Input
+                    label="Age (years)"
+                    type="number"
+                    min="0"
+                    value={ageYears}
+                    onChange={(event) => setAgeYears(event.target.value)}
+                    placeholder="Optional"
+                  />
+                  <Input
+                    ref={weightInputRef}
+                    label="Weight (kg)"
+                    type="number"
+                    min="0"
+                    value={weightKg}
+                    onChange={(event) => setWeightKg(event.target.value)}
+                    placeholder="Optional"
+                  />
+                </div>
+
+                <div className="flex gap-2">
+                  <Button size="sm" variant="secondary" onClick={saveSessionShortcut}>Save shortcut</Button>
+                  <Button size="sm" variant="ghost" onClick={() => setShowPatientPanel(false)}>Done</Button>
+                </div>
+              </div>
+            )}
+          </div>
 
           <Card
             header={
@@ -664,9 +709,12 @@ export const DispensingScreen: React.FC = () => {
                       }}
                       className="block w-full border-b border-[#D6F0E8] px-4 py-3 text-left last:border-b-0 hover:bg-[#EDF7F3]"
                     >
-                      <p className="text-sm font-semibold text-[#0D4035]">
-                        {product.genericName || product.name}
-                      </p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-semibold text-[#0D4035]">
+                          {product.genericName || product.name}
+                        </p>
+                        <AwarBadge awarClass={product.awarClass} />
+                      </div>
                       <p className="mt-1 text-xs text-[#64748B]">
                         {[product.name, product.strength, `Stock: ${product.currentStock ?? 0}`].filter(Boolean).join(' | ')}
                       </p>
@@ -678,7 +726,10 @@ export const DispensingScreen: React.FC = () => {
 
             {selectedDrug && (
               <div className="mt-4 rounded-2xl bg-[#EDF7F3] px-4 py-3">
-                <p className="text-sm font-semibold text-[#0D4035]">{selectedDrug.genericName || selectedDrug.name}</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-sm font-semibold text-[#0D4035]">{selectedDrug.genericName || selectedDrug.name}</p>
+                  <AwarBadge awarClass={selectedDrug.awarClass} />
+                </div>
                 <p className="mt-1 text-xs text-[#64748B]">
                   {[selectedDrug.strength, selectedDrug.dosageForm, selectedDrug.tmdaRegistrationNumber].filter(Boolean).join(' | ')}
                 </p>
@@ -732,7 +783,7 @@ export const DispensingScreen: React.FC = () => {
               header={
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
-                    <UserRoundSearch size={16} className="text-[#1A6B5C]" />
+                    <UserRound size={16} className="text-[#1A6B5C]" />
                     <span className="text-sm font-semibold text-[#0D4035]">Rule-triggered patient checks</span>
                   </div>
                   <Badge variant="warning" size="sm">
@@ -846,9 +897,12 @@ export const DispensingScreen: React.FC = () => {
                   <div key={item.id} className="px-5 py-4">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold text-[#0D4035]">
-                          {item.product.genericName || item.product.name}
-                        </p>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm font-semibold text-[#0D4035]">
+                            {item.product.genericName || item.product.name}
+                          </p>
+                          <AwarBadge awarClass={item.product.awarClass} />
+                        </div>
                         <p className="mt-1 text-xs text-[#64748B]">{item.quantity} x {money(item.unitPrice)}</p>
                       </div>
                       <div className="text-right">

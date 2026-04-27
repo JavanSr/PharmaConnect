@@ -9,7 +9,8 @@ import { Input } from '@/components/ui/Input';
 import { useAuthStore } from '@/stores/authStore';
 import { usePharmacyStore } from '@/stores/pharmacyStore';
 import { api } from '@/lib/api';
-import { loadMemberships, selectMembershipPharmacy } from '@/lib/pharmacySelection';
+import { loadMemberships } from '@/lib/pharmacySelection';
+import type { PharmacyMembership } from '@/types';
 
 const schema = z.object({
   email: z.string().email('Enter a valid email'),
@@ -31,27 +32,58 @@ const DEMO_PASSWORD = 'Demo123!';
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const setAuth = useAuthStore(s => s.setAuth);
+  const updateUser = useAuthStore(s => s.updateUser);
   const setPharmacy = usePharmacyStore(s => s.setPharmacy);
+  const setMemberships = usePharmacyStore(s => s.setMemberships);
   const setDeviceSelectedPharmacyId = usePharmacyStore(s => s.setDeviceSelectedPharmacyId);
   const deviceSelectedPharmacyId = usePharmacyStore(s => s.deviceSelectedPharmacyId);
   const [showPw, setShowPw] = React.useState(false);
   const [error, setError] = React.useState('');
 
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
+  const { register, handleSubmit, setValue, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
   });
+
+  const fillDemo = (email: string) => {
+    setValue('email', email);
+    setValue('password', DEMO_PASSWORD);
+    setError('');
+  };
 
   const onSubmit = async (data: FormData) => {
     setError('');
     try {
-      const res = await api.post('/auth/login', data);
-      const { user, accessToken, refreshToken, pharmacy } = res.data.data;
+      const res = await api.post('/auth/login', {
+        ...data,
+        preferredPharmacyId: deviceSelectedPharmacyId || undefined,
+      });
+      const { user, accessToken, refreshToken, pharmacy, memberships: loginMemberships } = res.data.data as {
+        user: Parameters<typeof setAuth>[0];
+        accessToken: string;
+        refreshToken: string;
+        pharmacy: Parameters<typeof setPharmacy>[0] | null;
+        memberships?: PharmacyMembership[];
+      };
       setAuth(user, accessToken, refreshToken);
       if (pharmacy) {
         setPharmacy(pharmacy);
       }
 
-      const memberships = await loadMemberships();
+      const memberships = Array.isArray(loginMemberships)
+        ? loginMemberships
+        : await loadMemberships();
+      setMemberships(memberships);
+
+      const selectedMembership = memberships.find((membership) => membership.selected) ?? null;
+      if (selectedMembership) {
+        setPharmacy(selectedMembership.pharmacy);
+        setDeviceSelectedPharmacyId(selectedMembership.pharmacyId);
+        updateUser({
+          pharmacyId: selectedMembership.pharmacyId,
+          role: selectedMembership.role,
+        });
+      }
+
       if (memberships.length <= 1) {
         const onlyMembership = memberships[0];
         if (onlyMembership) {
@@ -62,8 +94,7 @@ export const LoginPage: React.FC = () => {
         return;
       }
 
-      if (deviceSelectedPharmacyId && memberships.some((membership) => membership.pharmacyId === deviceSelectedPharmacyId)) {
-        await selectMembershipPharmacy(deviceSelectedPharmacyId);
+      if (selectedMembership) {
         navigate('/dashboard');
         return;
       }
@@ -129,13 +160,18 @@ export const LoginPage: React.FC = () => {
             </Button>
           </form>
 
-          <div className="mt-5 space-y-2 text-xs text-[#64748B]">
-            <p className="font-semibold text-[#0D4035]">Demo accounts</p>
+          <div className="mt-5 space-y-1 text-xs text-[#64748B]">
+            <p className="font-semibold text-[#0D4035] mb-2">Demo accounts — click to fill</p>
             {DEMO_ACCOUNTS.map(account => (
-              <p key={account.email}>
-                <span className="font-medium text-[#0D4035]">{account.label}:</span>{' '}
-                {account.email} / {DEMO_PASSWORD}
-              </p>
+              <button
+                key={account.email}
+                type="button"
+                onClick={() => fillDemo(account.email)}
+                className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-[#EDF7F3] transition-colors"
+              >
+                <span className="font-medium text-[#1A6B5C]">{account.label}</span>
+                <span className="ml-1 text-[#64748B]">{account.email}</span>
+              </button>
             ))}
           </div>
 

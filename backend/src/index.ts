@@ -26,6 +26,10 @@ import { waitlistRouter } from './modules/waitlist/waitlist.router';
 import { b2bRouter } from './modules/b2b/b2b.router';
 import { reportsRouter } from './modules/reports/reports.router';
 import { attendanceRouter } from './modules/reports/attendance.router';
+import { reviewRouter } from './modules/review/review.router';
+import { founderRouter } from './modules/founder/founder.router';
+import { catalogueImportRouter } from './modules/catalogue-import/catalogue-import.router';
+import { sourceSyncRouter } from './modules/source-sync/source-sync.router';
 import { registerExpiryAlertsJob } from './jobs/expiry-alerts';
 import { registerLowStockAlertsJob } from './jobs/low-stock-alerts';
 import { registerComplianceAlertsJob, registerComplianceHealthJob } from './jobs/compliance-alerts';
@@ -96,10 +100,21 @@ app.use(`${v1}/dispensing`, dispensingRouter);
 app.use(`${v1}/b2b`, b2bRouter);
 app.use(`${v1}/reports`, reportsRouter);
 app.use(`${v1}/attendance`, attendanceRouter);
+app.use(`${v1}/review-queue`, reviewRouter);
+app.use(`${v1}/founder`,           founderRouter);
+app.use(`${v1}/catalogue-import`,  catalogueImportRouter);
+app.use(`${v1}/source-sync`,       sourceSyncRouter);
 
 // ── Error handling ────────────────────────────────────────────────────────────
 app.use(notFound);
 app.use(errorHandler);
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[unhandledRejection]', reason);
+});
+process.on('uncaughtException', (error) => {
+  console.error('[uncaughtException]', error);
+});
 
 if (process.env.NODE_ENV !== 'test') {
   registerExpiryAlertsJob();

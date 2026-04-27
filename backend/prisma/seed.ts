@@ -1,5 +1,16 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, type PharmacyMembershipRole, type UserRole } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+
+function toMembershipRole(role: UserRole): PharmacyMembershipRole {
+  switch (role) {
+    case 'OWNER':               return 'OWNER';
+    case 'PHARMACIST_IN_CHARGE': return 'PHARMACIST_IN_CHARGE';
+    case 'DISPENSER':           return 'DISPENSER';
+    case 'DATA_ENTRY_CLERK':    return 'ACCOUNTANT';
+    case 'WHOLESALE_SELLER':    return 'OWNER';
+    default:                    return 'DISPENSER';
+  }
+}
 
 const prisma = new PrismaClient();
 
@@ -45,9 +56,9 @@ async function main() {
   ];
 
   for (const u of demoUsers) {
-    await prisma.user.upsert({
+    const user = await prisma.user.upsert({
       where: { email: u.email },
-      update: {},
+      update: { password: await bcrypt.hash('Demo123!', 12) },
       create: {
         email: u.email,
         password: await bcrypt.hash('Demo123!', 12),
@@ -55,6 +66,19 @@ async function main() {
         lastName: u.lastName,
         role: u.role,
         pharmacyId: pharmacy.id,
+      },
+    });
+
+    await prisma.pharmacyMembership.upsert({
+      where: { userId_pharmacyId: { userId: user.id, pharmacyId: pharmacy.id } },
+      update: { active: true },
+      create: {
+        userId: user.id,
+        pharmacyId: pharmacy.id,
+        role: toMembershipRole(u.role),
+        active: true,
+        validFrom: new Date(),
+        createdBy: user.id,
       },
     });
     console.log('Created user:', u.email);
@@ -140,6 +164,73 @@ async function main() {
       create: article,
     });
     console.log('Created article:', article.title);
+  }
+
+  // Founder membership to demo pharmacy (needed to log in and test)
+  await prisma.pharmacyMembership.upsert({
+    where: { userId_pharmacyId: { userId: superAdmin.id, pharmacyId: pharmacy.id } },
+    update: { active: true },
+    create: {
+      userId: superAdmin.id,
+      pharmacyId: pharmacy.id,
+      role: 'OWNER',
+      active: true,
+      validFrom: new Date(),
+      createdBy: superAdmin.id,
+    },
+  });
+  console.log('Ensured founder membership in demo pharmacy');
+
+  // Seed 100 units of every drug in the master catalogue for founder testing
+  const drugProducts = await prisma.drugProduct.findMany({
+    take: 300,
+    orderBy: { productName: 'asc' },
+    select: { id: true, productName: true, genericName: true },
+  });
+
+  if (drugProducts.length > 0) {
+    console.log(`Seeding stock for ${drugProducts.length} drugs...`);
+    let created = 0;
+    for (const drug of drugProducts) {
+      let product = await prisma.product.findFirst({
+        where: { pharmacyId: pharmacy.id, drugMasterId: drug.id },
+        select: { id: true },
+      });
+      if (!product) {
+        product = await prisma.product.create({
+          data: {
+            pharmacyId: pharmacy.id,
+            name: drug.productName,
+            genericName: drug.genericName ?? undefined,
+            drugMasterId: drug.id,
+            sellingPrice: 2000,
+            reorderLevel: 10,
+            isActive: true,
+          },
+          select: { id: true },
+        });
+        created++;
+      }
+      const existingBatch = await prisma.batch.findFirst({
+        where: { productId: product.id, batchNumber: 'SEED-001' },
+        select: { id: true },
+      });
+      if (!existingBatch) {
+        await prisma.batch.create({
+          data: {
+            productId: product.id,
+            pharmacyId: pharmacy.id,
+            batchNumber: 'SEED-001',
+            expiryDate: new Date('2027-12-31'),
+            quantityRemaining: 100,
+            purchasePrice: 1500,
+          },
+        });
+      }
+    }
+    console.log(`Created ${created} new products, ensured 100-unit batches for all`);
+  } else {
+    console.log('No drugs in master catalogue yet — run drug database import first');
   }
 
   console.log('\nSeed complete. Login with any demo account using password: Demo123!');

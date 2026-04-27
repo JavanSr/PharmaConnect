@@ -30,6 +30,9 @@ type ProductWriteInput = {
   drugMasterId?: string;
 };
 
+type ProductVerificationStatus = 'MASTER_CATALOG_MATCHED' | 'UNVERIFIED';
+type AwarClass = 'ACCESS' | 'WATCH' | 'RESERVE';
+
 type SupplierWriteInput = {
   name: string;
   contactName?: string;
@@ -66,6 +69,26 @@ type ParsedGs1Barcode = {
   normalizedBarcode: string;
   gtin: string;
   digitalLink: string;
+};
+
+const DOSAGE_FORM_ALIASES: Record<string, string> = {
+  TABLET: 'TABLET',
+  TABLETS: 'TABLET',
+  CAPSULE: 'CAPSULE',
+  CAPSULES: 'CAPSULE',
+  SYRUP: 'SYRUP',
+  INJECTION: 'INJECTION',
+  INJECTIONS: 'INJECTION',
+  CREAM: 'CREAM',
+  OINTMENT: 'OINTMENT',
+  DROPS: 'DROPS',
+  DROP: 'DROPS',
+  INHALER: 'INHALER',
+  INHALERS: 'INHALER',
+  SUPPOSITORY: 'SUPPOSITORY',
+  SUPPOSITORIES: 'SUPPOSITORY',
+  POWDER: 'POWDER',
+  SOLUTION: 'SOLUTION',
 };
 
 function stockAdjustmentSuggestionInclude() {
@@ -157,6 +180,177 @@ function toProductData(pharmacyId: string, data: ProductWriteInput): Prisma.Prod
   };
 }
 
+function formatMasterProductName(masterProduct: {
+  productName: string;
+  genericName: string | null;
+  brand: { name: string } | null;
+}) {
+  if (masterProduct.brand?.name && masterProduct.genericName) {
+    return `${masterProduct.genericName} (${masterProduct.brand.name})`;
+  }
+
+  return masterProduct.genericName || masterProduct.productName;
+}
+
+function normalizeDosageFormValue(value?: string | null) {
+  if (!value) {
+    return undefined;
+  }
+
+  const normalized = value.trim().toUpperCase();
+  return DOSAGE_FORM_ALIASES[normalized] ?? 'OTHER';
+}
+
+async function hydrateProductWriteInputFromMaster(
+  data: ProductWriteInput,
+): Promise<ProductWriteInput> {
+  if (!data.drugMasterId) {
+    return data;
+  }
+
+  const masterProduct = await prisma.drugProduct.findUnique({
+    where: { id: data.drugMasterId },
+    include: {
+      brand: { select: { name: true } },
+      manufacturer: { select: { name: true } },
+      therapeuticClass: { select: { name: true } },
+      dosageForm: { select: { name: true } },
+      packSize: { select: { quantity: true, unit: true } },
+    },
+  });
+
+  if (!masterProduct || !masterProduct.isActive) {
+    throw Object.assign(new Error('Master catalog product not found'), { status: 404 });
+  }
+
+  return {
+    ...data,
+    name: data.name?.trim() || formatMasterProductName(masterProduct),
+    genericName: data.genericName?.trim() || masterProduct.genericName || masterProduct.productName,
+    brandName: data.brandName?.trim() || masterProduct.brand?.name || undefined,
+    dosageForm:
+      normalizeDosageFormValue(data.dosageForm) ??
+      normalizeDosageFormValue(masterProduct.dosageFormName) ??
+      normalizeDosageFormValue(masterProduct.dosageForm?.name) ??
+      undefined,
+    strength: data.strength?.trim() || masterProduct.strengthText || undefined,
+    unitOfMeasure: data.unitOfMeasure?.trim() || masterProduct.packSize?.unit || undefined,
+    tmdaRegistrationNumber:
+      data.tmdaRegistrationNumber?.trim() || masterProduct.tmdaRegistrationNumber || undefined,
+    coldChainRequired: data.coldChainRequired ?? masterProduct.isColdChain,
+    storageCondition: data.storageCondition?.trim() || masterProduct.storageCondition,
+    manufacturer: data.manufacturer?.trim() || masterProduct.manufacturer?.name || undefined,
+    therapeuticCategory:
+      data.therapeuticCategory?.trim() || masterProduct.therapeuticClass?.name || undefined,
+  };
+}
+
+function getProductVerificationStatus(product: { drugMasterId: string | null }): ProductVerificationStatus {
+  return product.drugMasterId ? 'MASTER_CATALOG_MATCHED' : 'UNVERIFIED';
+}
+
+async function syncUnverifiedProductReviewQueue(
+  tx: Prisma.TransactionClient,
+  pharmacyId: string,
+  product: {
+    id: string;
+    name: string;
+    genericName: string | null;
+    brandName: string | null;
+    dosageForm: string;
+    strength: string | null;
+    tmdaRegistrationNumber: string | null;
+    drugMasterId: string | null;
+  },
+) {
+  const existingEntries = await tx.dataReviewQueue.findMany({
+    where: {
+      entityType: 'PHARMACY_PRODUCT',
+      entityId: product.id,
+      pharmacyId,
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  if (product.drugMasterId) {
+    if (existingEntries.length > 0) {
+      await tx.dataReviewQueue.updateMany({
+        where: {
+          entityType: 'PHARMACY_PRODUCT',
+          entityId: product.id,
+          pharmacyId,
+          status: {
+            in: ['DRAFT', 'IMPORTED', 'PENDING_REVIEW'],
+          },
+        },
+        data: {
+          status: 'RETIRED',
+          notes: 'Review queue retired after linking the product to the master catalog.',
+          reviewedAt: new Date(),
+        },
+      });
+    }
+    return;
+  }
+
+  const payload: Prisma.InputJsonObject = {
+    productId: product.id,
+    name: product.name,
+    genericName: product.genericName,
+    brandName: product.brandName,
+    dosageForm: product.dosageForm,
+    strength: product.strength,
+    tmdaRegistrationNumber: product.tmdaRegistrationNumber,
+    verificationStatus: getProductVerificationStatus(product),
+  };
+
+  const latestPending = existingEntries.find((entry) =>
+    ['DRAFT', 'IMPORTED', 'PENDING_REVIEW'].includes(entry.status),
+  );
+
+  if (latestPending) {
+    await tx.dataReviewQueue.update({
+      where: { id: latestPending.id },
+      data: {
+        status: 'PENDING_REVIEW',
+        currentPayload: payload,
+        proposedPayload: payload,
+        notes:
+          'Manual pharmacy product entry without a linked master-catalog record. Review for future catalog matching.',
+        reviewerType: 'PIC_OVERRIDE',
+      },
+    });
+    return;
+  }
+
+  await tx.dataReviewQueue.create({
+    data: {
+      entityType: 'PHARMACY_PRODUCT',
+      entityId: product.id,
+      pharmacyId,
+      status: 'PENDING_REVIEW',
+      reviewerType: 'PIC_OVERRIDE',
+      currentPayload: payload,
+      proposedPayload: payload,
+      notes:
+        'Manual pharmacy product entry without a linked master-catalog record. Review for future catalog matching.',
+    },
+  });
+}
+
+function enrichProductsWithVerification<T extends {
+  id: string;
+  drugMasterId: string | null;
+}>(products: T[], pendingReviewByEntityId: Map<string, { status: string }>) {
+  return products.map((product) => ({
+    ...product,
+    verificationStatus: getProductVerificationStatus(product),
+    masterCatalogMatched: Boolean(product.drugMasterId),
+    pendingReview: pendingReviewByEntityId.has(product.id),
+    reviewQueueStatus: pendingReviewByEntityId.get(product.id)?.status ?? null,
+  }));
+}
+
 function parseBoolean(value: string | undefined, fallback = false): boolean {
   if (!value || value.trim() === '') {
     return fallback;
@@ -176,6 +370,117 @@ function parseNumber(value: string | undefined): number | undefined {
 
 function normalizeBarcodeInput(value: string) {
   return value.trim();
+}
+
+function normalizeCatalogSearchValue(value?: string | null) {
+  return (value ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ');
+}
+
+function isAwarClass(value: string | null): value is AwarClass {
+  return value === 'ACCESS' || value === 'WATCH' || value === 'RESERVE';
+}
+
+async function enrichProductsWithAwarClass<T extends {
+  name: string;
+  genericName?: string | null;
+  awarClass?: string | null;
+}>(products: T[]): Promise<Array<T & { awarClass: AwarClass | null }>> {
+  if (products.length === 0) {
+    return [];
+  }
+
+  const awarRows = await prisma.drugDatabase.findMany({
+    where: { awarClass: { not: null } },
+    select: { genericName: true, awarClass: true },
+  });
+  const awarMatches = awarRows
+    .filter((row): row is { genericName: string; awarClass: AwarClass } => isAwarClass(row.awarClass))
+    .map((row) => ({
+      genericName: normalizeCatalogSearchValue(row.genericName),
+      awarClass: row.awarClass,
+    }));
+
+  return products.map((product) => {
+    const explicitAwarClass = product.awarClass ?? null;
+    if (isAwarClass(explicitAwarClass)) {
+      return { ...product, awarClass: explicitAwarClass };
+    }
+
+    const productTerms = [
+      normalizeCatalogSearchValue(product.genericName),
+      normalizeCatalogSearchValue(product.name),
+    ].filter(Boolean);
+    const match = awarMatches.find((row) =>
+      productTerms.some((term) => term === row.genericName || term.includes(row.genericName)),
+    );
+
+    return { ...product, awarClass: match?.awarClass ?? null };
+  });
+}
+
+function productSearchIdentity(product: {
+  drugMasterId?: string | null;
+  genericName?: string | null;
+  name: string;
+  strength?: string | null;
+  dosageForm: string;
+}) {
+  if (product.drugMasterId) {
+    return `master:${product.drugMasterId}`;
+  }
+
+  return [
+    normalizeCatalogSearchValue(product.genericName || product.name),
+    normalizeCatalogSearchValue(product.strength),
+    normalizeCatalogSearchValue(product.dosageForm),
+  ].join('::');
+}
+
+function sortProductsByStockAndRecency<T extends {
+  name: string;
+  currentStock?: number | null;
+  createdAt: Date | string;
+}>(products: T[]) {
+  return [...products].sort((left, right) => {
+    const stockDiff = (right.currentStock ?? 0) - (left.currentStock ?? 0);
+    if (stockDiff !== 0) {
+      return stockDiff;
+    }
+
+    const createdAtDiff =
+      new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
+    if (createdAtDiff !== 0) {
+      return createdAtDiff;
+    }
+
+    return left.name.localeCompare(right.name);
+  });
+}
+
+function collapseProductSearchResults<T extends {
+  id: string;
+  name: string;
+  genericName?: string | null;
+  strength?: string | null;
+  dosageForm: string;
+  drugMasterId?: string | null;
+  currentStock?: number | null;
+  createdAt: Date | string;
+}>(products: T[]) {
+  const bestByIdentity = new Map<string, T>();
+
+  for (const product of sortProductsByStockAndRecency(products)) {
+    const identity = productSearchIdentity(product);
+    if (!bestByIdentity.has(identity)) {
+      bestByIdentity.set(identity, product);
+    }
+  }
+
+  return sortProductsByStockAndRecency([...bestByIdentity.values()]);
 }
 
 function parseGs1Barcode(value: string): ParsedGs1Barcode | null {
@@ -270,13 +575,35 @@ export async function listProducts(
         wholesaleSellingPrice: true,
         manufacturer: true,
         therapeuticCategory: true,
+        drugMasterId: true,
         isActive: true,
         createdAt: true,
       },
     }));
 
+    const pendingReviewEntries = await prisma.dataReviewQueue.findMany({
+      where: {
+        pharmacyId,
+        entityType: 'PHARMACY_PRODUCT',
+        entityId: { in: products.map((product) => product.id) },
+        status: {
+          in: ['DRAFT', 'IMPORTED', 'PENDING_REVIEW'],
+        },
+      },
+      select: {
+        entityId: true,
+        status: true,
+      },
+    });
+
+    const pendingReviewByEntityId = new Map(
+      pendingReviewEntries.map((entry) => [entry.entityId, { status: entry.status }]),
+    );
+
+    const verifiedProducts = enrichProductsWithVerification(products, pendingReviewByEntityId);
+
     return {
-      data: products,
+      data: await enrichProductsWithAwarClass(verifiedProducts),
       total: products.length,
       page: 1,
       limit,
@@ -312,13 +639,102 @@ export async function listProducts(
     prisma.product.count({ where }),
   ]));
 
-  const enriched = products.map((product) => ({
+  const pendingReviewEntries = await prisma.dataReviewQueue.findMany({
+    where: {
+      pharmacyId,
+      entityType: 'PHARMACY_PRODUCT',
+      entityId: { in: products.map((product) => product.id) },
+      status: {
+        in: ['DRAFT', 'IMPORTED', 'PENDING_REVIEW'],
+      },
+    },
+    select: {
+      entityId: true,
+      status: true,
+    },
+  });
+
+  const pendingReviewByEntityId = new Map(
+    pendingReviewEntries.map((entry) => [entry.entityId, { status: entry.status }]),
+  );
+
+  const verifiedProducts = enrichProductsWithVerification(products, pendingReviewByEntityId).map((product) => ({
     ...product,
     currentStock: product.batches.reduce((sum, batch) => sum + batch.quantityRemaining, 0),
     nextExpiringBatch: product.batches[0] ?? null,
   }));
+  const enriched = await enrichProductsWithAwarClass(verifiedProducts);
+  const collapsed = search ? collapseProductSearchResults(enriched) : sortProductsByStockAndRecency(enriched);
+  const resultTotal = search ? collapsed.length : total;
 
-  return { data: enriched, total, page, limit, totalPages: Math.ceil(total / limit) };
+  return {
+    data: collapsed,
+    total: resultTotal,
+    page,
+    limit,
+    totalPages: resultTotal > 0 ? Math.ceil(resultTotal / limit) : 0,
+  };
+}
+
+export async function listUnverifiedProducts(pharmacyId: string, limit = 50) {
+  const take = Math.min(Math.max(limit, 1), 100);
+  const queueEntries = await prisma.dataReviewQueue.findMany({
+    where: {
+      pharmacyId,
+      entityType: 'PHARMACY_PRODUCT',
+      status: {
+        in: ['DRAFT', 'IMPORTED', 'PENDING_REVIEW'],
+      },
+    },
+    orderBy: [{ createdAt: 'desc' }],
+    take,
+  });
+
+  if (queueEntries.length === 0) {
+    return [];
+  }
+
+  const productIds = [...new Set(queueEntries.map((entry) => entry.entityId))];
+  const products = await prisma.product.findMany({
+    where: {
+      pharmacyId,
+      id: { in: productIds },
+    },
+    select: {
+      id: true,
+      name: true,
+      genericName: true,
+      brandName: true,
+      dosageForm: true,
+      strength: true,
+      manufacturer: true,
+      therapeuticCategory: true,
+      tmdaRegistrationNumber: true,
+      drugMasterId: true,
+      createdAt: true,
+    },
+  });
+
+  const productById = new Map(products.map((product) => [product.id, product]));
+
+  return queueEntries
+    .map((entry) => {
+      const product = productById.get(entry.entityId);
+      if (!product) {
+        return null;
+      }
+
+      return {
+        ...product,
+        verificationStatus: getProductVerificationStatus(product),
+        pendingReview: true,
+        reviewQueueStatus: entry.status,
+        queueEntryId: entry.id,
+        queueNotes: entry.notes,
+        queuedAt: entry.createdAt,
+      };
+    })
+    .filter(Boolean);
 }
 
 export async function getProduct(id: string, pharmacyId: string) {
@@ -330,10 +746,31 @@ export async function getProduct(id: string, pharmacyId: string) {
     throw Object.assign(new Error('Product not found'), { status: 404 });
   }
 
-  return {
+  const pendingReviewEntry = await prisma.dataReviewQueue.findFirst({
+    where: {
+      pharmacyId,
+      entityType: 'PHARMACY_PRODUCT',
+      entityId: product.id,
+      status: {
+        in: ['DRAFT', 'IMPORTED', 'PENDING_REVIEW'],
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+    select: {
+      status: true,
+    },
+  });
+
+  const verifiedProduct = {
+    ...enrichProductsWithVerification(
+      [product],
+      new Map(pendingReviewEntry ? [[product.id, { status: pendingReviewEntry.status }]] : []),
+    )[0],
     ...product,
     currentStock: product.batches.reduce((sum, batch) => sum + batch.quantityRemaining, 0),
   };
+  const [enrichedProduct] = await enrichProductsWithAwarClass([verifiedProduct]);
+  return enrichedProduct;
 }
 
 export async function lookupBarcodeForReceiving(pharmacyId: string, userId: string, barcode: string) {
@@ -342,7 +779,7 @@ export async function lookupBarcodeForReceiving(pharmacyId: string, userId: stri
     throw Object.assign(new Error('Barcode is required'), { status: 400 });
   }
 
-  const existingMappings = await prisma.$queryRaw<Array<{
+  type BarcodeMappingRow = {
     source: string;
     gs1Payload: Prisma.JsonValue | null;
     id: string;
@@ -352,17 +789,22 @@ export async function lookupBarcodeForReceiving(pharmacyId: string, userId: stri
     barcode: string | null;
     dosageForm: string;
     strength: string | null;
-  }>>(Prisma.sql`
+    networkConfirmations: number;
+  };
+
+  // Tier 1 — own pharmacy mapping (exact match, highest confidence)
+  const ownMapping = await prisma.$queryRaw<BarcodeMappingRow[]>(Prisma.sql`
     SELECT
-      m."source" AS "source",
-      m."gs1_payload" AS "gs1Payload",
-      p."id" AS "id",
-      p."name" AS "name",
-      p."genericName" AS "genericName",
-      p."brandName" AS "brandName",
-      p."barcode" AS "barcode",
-      p."dosageForm" AS "dosageForm",
-      p."strength" AS "strength"
+      m."source"                AS "source",
+      m."gs1_payload"           AS "gs1Payload",
+      m."network_confirmations" AS "networkConfirmations",
+      p."id"                    AS "id",
+      p."name"                  AS "name",
+      p."genericName"           AS "genericName",
+      p."brandName"             AS "brandName",
+      p."barcode"               AS "barcode",
+      p."dosageForm"            AS "dosageForm",
+      p."strength"              AS "strength"
     FROM "product_barcode_mappings" m
     INNER JOIN "products" p ON p."id" = m."product_id"
     WHERE m."pharmacy_id" = ${pharmacyId}
@@ -370,37 +812,31 @@ export async function lookupBarcodeForReceiving(pharmacyId: string, userId: stri
     LIMIT 1
   `);
 
-  if (existingMappings[0]) {
-    const existingMapping = existingMappings[0];
+  if (ownMapping[0]) {
+    const m = ownMapping[0];
     await recordBarcodeScanTelemetry(pharmacyId, userId, {
       barcode: normalizedBarcode,
-      source: existingMapping.source === 'USER_MAP' ? 'USER_MAP' : 'LOCAL',
+      source: m.source === 'USER_MAP' ? 'USER_MAP' : 'LOCAL',
       result: 'MATCH',
-      matchedProductId: existingMapping.id,
-      metadata: existingMapping.gs1Payload as Prisma.InputJsonValue,
+      matchedProductId: m.id,
+      metadata: m.gs1Payload as Prisma.InputJsonValue,
     });
     return {
       barcode: normalizedBarcode,
-      source: existingMapping.source,
+      source: m.source,
       product: {
-        id: existingMapping.id,
-        name: existingMapping.name,
-        genericName: existingMapping.genericName,
-        brandName: existingMapping.brandName,
-        barcode: existingMapping.barcode,
-        dosageForm: existingMapping.dosageForm,
-        strength: existingMapping.strength,
+        id: m.id, name: m.name, genericName: m.genericName,
+        brandName: m.brandName, barcode: m.barcode,
+        dosageForm: m.dosageForm, strength: m.strength,
       },
-      gs1: existingMapping.gs1Payload,
+      gs1: m.gs1Payload,
+      networkSuggestion: false,
     };
   }
 
+  // Tier 2 — own product barcode field
   const localProduct = await prisma.product.findFirst({
-    where: {
-      pharmacyId,
-      barcode: normalizedBarcode,
-      isActive: true,
-    },
+    where: { pharmacyId, barcode: normalizedBarcode, isActive: true },
     select: receivingBarcodeProductSelect(),
   });
 
@@ -411,42 +847,84 @@ export async function lookupBarcodeForReceiving(pharmacyId: string, userId: stri
       result: 'MATCH',
       matchedProductId: localProduct.id,
     });
-    return {
-      barcode: normalizedBarcode,
-      source: 'LOCAL',
-      product: localProduct,
-      gs1: null,
-    };
+    return { barcode: normalizedBarcode, source: 'LOCAL', product: localProduct, gs1: null, networkSuggestion: false };
   }
 
-  const gs1 = parseGs1Barcode(normalizedBarcode);
-  if (gs1) {
+  // Tier 3 — network-shared mapping from any pharmacy (sorted by confirmations desc
+  // so the most-confirmed suggestion comes first)
+  const networkMapping = await prisma.$queryRaw<BarcodeMappingRow[]>(Prisma.sql`
+    SELECT
+      m."source"                AS "source",
+      m."gs1_payload"           AS "gs1Payload",
+      m."network_confirmations" AS "networkConfirmations",
+      p."id"                    AS "id",
+      p."name"                  AS "name",
+      p."genericName"           AS "genericName",
+      p."brandName"             AS "brandName",
+      p."barcode"               AS "barcode",
+      p."dosageForm"            AS "dosageForm",
+      p."strength"              AS "strength"
+    FROM "product_barcode_mappings" m
+    INNER JOIN "products" p ON p."id" = m."product_id"
+    WHERE m."shared_to_network" = TRUE
+      AND m."barcode" = ${normalizedBarcode}
+      AND m."pharmacy_id" != ${pharmacyId}
+    ORDER BY m."network_confirmations" DESC
+    LIMIT 1
+  `);
+
+  if (networkMapping[0]) {
+    const m = networkMapping[0];
+    // Increment confirmation count on the source mapping asynchronously
+    void prisma.$executeRaw(Prisma.sql`
+      UPDATE "product_barcode_mappings"
+      SET "network_confirmations" = "network_confirmations" + 1,
+          "updated_at" = CURRENT_TIMESTAMP
+      WHERE "barcode" = ${normalizedBarcode}
+        AND "shared_to_network" = TRUE
+        AND "pharmacy_id" != ${pharmacyId}
+      ORDER BY "network_confirmations" DESC
+      LIMIT 1
+    `).catch(() => undefined); // non-blocking; telemetry failure must not break the lookup
     await recordBarcodeScanTelemetry(pharmacyId, userId, {
       barcode: normalizedBarcode,
-      source: 'GS1',
-      result: 'MISS',
-      metadata: gs1 as Prisma.InputJsonValue,
+      source: 'NETWORK',
+      result: 'MATCH',
+      matchedProductId: m.id,
+      metadata: m.gs1Payload as Prisma.InputJsonValue,
     });
     return {
       barcode: normalizedBarcode,
-      source: 'GS1',
-      product: null,
-      gs1,
+      source: 'NETWORK',
+      // Return drug-level fields only — not the foreign pharmacy's productId,
+      // so the receiving pharmacy must create or match their own product.
+      product: {
+        id: null, // signal to frontend: no local product yet, show "create product" flow
+        name: m.name, genericName: m.genericName,
+        brandName: m.brandName, barcode: m.barcode,
+        dosageForm: m.dosageForm, strength: m.strength,
+      },
+      gs1: m.gs1Payload,
+      networkSuggestion: true,
+      networkConfirmations: m.networkConfirmations,
     };
   }
 
-  await recordBarcodeScanTelemetry(pharmacyId, userId, {
-    barcode: normalizedBarcode,
-    source: 'MISS',
-    result: 'MISS',
-  });
+  // Tier 4 — GS1 barcode parse (structural data, no product)
+  const gs1 = parseGs1Barcode(normalizedBarcode);
+  if (gs1) {
+    await recordBarcodeScanTelemetry(pharmacyId, userId, {
+      barcode: normalizedBarcode, source: 'GS1', result: 'MISS',
+      metadata: gs1 as Prisma.InputJsonValue,
+    });
+    return { barcode: normalizedBarcode, source: 'GS1', product: null, gs1, networkSuggestion: false };
+  }
 
-  return {
-    barcode: normalizedBarcode,
-    source: 'MISS',
-    product: null,
-    gs1: null,
-  };
+  // Tier 5 — complete miss
+  await recordBarcodeScanTelemetry(pharmacyId, userId, {
+    barcode: normalizedBarcode, source: 'MISS', result: 'MISS',
+  });
+  return { barcode: normalizedBarcode, source: 'MISS', product: null, gs1: null, networkSuggestion: false };
 }
 
 export async function saveProductBarcodeMapping(
@@ -456,6 +934,7 @@ export async function saveProductBarcodeMapping(
     barcode: string;
     productId: string;
     source: 'USER_MAP';
+    sharedToNetwork?: boolean; // OWNERs and PICs may share to the network catalog
   },
 ) {
   const normalizedBarcode = normalizeBarcodeInput(data.barcode);
@@ -477,6 +956,7 @@ export async function saveProductBarcodeMapping(
   }
 
   const gs1 = parseGs1Barcode(normalizedBarcode);
+  const sharedToNetwork = data.sharedToNetwork ?? false;
   await prisma.$executeRaw(Prisma.sql`
     INSERT INTO "product_barcode_mappings" (
       "id",
@@ -485,6 +965,7 @@ export async function saveProductBarcodeMapping(
       "product_id",
       "source",
       "gs1_payload",
+      "shared_to_network",
       "created_by",
       "created_at",
       "updated_at"
@@ -496,6 +977,7 @@ export async function saveProductBarcodeMapping(
       ${product.id},
       ${data.source},
       ${gs1 ? (gs1 as Prisma.InputJsonValue) : null},
+      ${sharedToNetwork},
       ${userId},
       CURRENT_TIMESTAMP,
       CURRENT_TIMESTAMP
@@ -505,6 +987,7 @@ export async function saveProductBarcodeMapping(
       "product_id" = EXCLUDED."product_id",
       "source" = EXCLUDED."source",
       "gs1_payload" = EXCLUDED."gs1_payload",
+      "shared_to_network" = EXCLUDED."shared_to_network",
       "updated_at" = CURRENT_TIMESTAMP
   `);
 
@@ -517,7 +1000,17 @@ export async function saveProductBarcodeMapping(
 }
 
 export async function createProduct(pharmacyId: string, data: ProductWriteInput) {
-  return prisma.product.create({ data: toProductData(pharmacyId, data) });
+  const resolvedData = await hydrateProductWriteInputFromMaster(data);
+
+  return withPrismaRetry(() => prisma.$transaction(async (tx) => {
+    const product = await tx.product.create({
+      data: toProductData(pharmacyId, resolvedData),
+    });
+
+    await syncUnverifiedProductReviewQueue(tx, pharmacyId, product);
+
+    return product;
+  }));
 }
 
 export async function updateProduct(id: string, pharmacyId: string, data: Partial<ProductWriteInput>) {
@@ -526,9 +1019,7 @@ export async function updateProduct(id: string, pharmacyId: string, data: Partia
     throw Object.assign(new Error('Product not found'), { status: 404 });
   }
 
-  return prisma.product.update({
-    where: { id },
-    data: toProductData(pharmacyId, {
+  const resolvedData = await hydrateProductWriteInputFromMaster({
       name: data.name ?? product.name,
       genericName: data.genericName ?? product.genericName ?? undefined,
       brandName: data.brandName ?? product.brandName ?? undefined,
@@ -553,8 +1044,41 @@ export async function updateProduct(id: string, pharmacyId: string, data: Partia
       manufacturer: data.manufacturer ?? product.manufacturer ?? undefined,
       therapeuticCategory: data.therapeuticCategory ?? product.therapeuticCategory ?? undefined,
       drugMasterId: data.drugMasterId ?? product.drugMasterId ?? undefined,
-    }),
   });
+
+  return withPrismaRetry(() => prisma.$transaction(async (tx) => {
+    const updatedProduct = await tx.product.update({
+      where: { id },
+      data: toProductData(pharmacyId, {
+        name: resolvedData.name,
+        genericName: resolvedData.genericName,
+        brandName: resolvedData.brandName,
+        sku: resolvedData.sku,
+        barcode: resolvedData.barcode,
+        dosageForm: resolvedData.dosageForm,
+        strength: resolvedData.strength,
+        unitOfMeasure: resolvedData.unitOfMeasure,
+        drugClass: resolvedData.drugClass,
+        description: resolvedData.description,
+        reorderLevel: resolvedData.reorderLevel,
+        sellingPrice: resolvedData.sellingPrice,
+        tmda: resolvedData.tmda,
+        tmdaRegistrationNumber: resolvedData.tmdaRegistrationNumber,
+        coldChainRequired: resolvedData.coldChainRequired,
+        storageCondition: resolvedData.storageCondition,
+        retailStock: resolvedData.retailStock,
+        wholesaleStock: resolvedData.wholesaleStock,
+        wholesaleSellingPrice: resolvedData.wholesaleSellingPrice,
+        manufacturer: resolvedData.manufacturer,
+        therapeuticCategory: resolvedData.therapeuticCategory,
+        drugMasterId: resolvedData.drugMasterId,
+      }),
+    });
+
+    await syncUnverifiedProductReviewQueue(tx, pharmacyId, updatedProduct);
+
+    return updatedProduct;
+  }));
 }
 
 export async function fefoQuery(pharmacyId: string, productId: string, quantityRequired = 1) {
@@ -635,10 +1159,46 @@ export async function receiveBatch(
     expiryDate: string;
     quantityRemaining: number;
     purchasePrice: number;
+    sellingPrice?: number;
     supplierId?: string;
   },
 ) {
   return withPrismaRetry(() => prisma.$transaction(async (tx) => {
+    const supplierId = data.supplierId?.trim() || undefined;
+
+    const product = await tx.product.findFirst({
+      where: { id: data.productId, pharmacyId },
+      select: { id: true },
+    });
+    if (!product) {
+      throw Object.assign(new Error('Product not found'), { status: 404, code: 'PRODUCT_NOT_FOUND' });
+    }
+
+    if (supplierId) {
+      const supplier = await tx.supplier.findFirst({
+        where: {
+          id: supplierId,
+          pharmacyId,
+          isActive: true,
+        },
+        select: { id: true },
+      });
+
+      if (!supplier) {
+        throw Object.assign(new Error('Selected supplier is no longer available for this pharmacy'), {
+          status: 400,
+          code: 'SUPPLIER_NOT_FOUND',
+        });
+      }
+    }
+
+    if (data.sellingPrice) {
+      await tx.product.update({
+        where: { id: data.productId },
+        data: { sellingPrice: data.sellingPrice },
+      });
+    }
+
     const batch = await tx.batch.create({
       data: {
         productId: data.productId,
@@ -647,7 +1207,7 @@ export async function receiveBatch(
         expiryDate: new Date(data.expiryDate),
         quantityRemaining: data.quantityRemaining,
         purchasePrice: data.purchasePrice,
-        supplierId: data.supplierId,
+        supplierId,
       },
     });
 
@@ -856,7 +1416,7 @@ async function recordBarcodeScanTelemetry(
   userId: string,
   data: {
     barcode: string;
-    source: 'LOCAL' | 'GS1' | 'USER_MAP' | 'MISS';
+    source: 'LOCAL' | 'GS1' | 'USER_MAP' | 'MISS' | 'NETWORK';
     result: 'MATCH' | 'MISS';
     matchedProductId?: string | null;
     metadata?: Prisma.InputJsonValue;
@@ -1301,19 +1861,87 @@ export async function importProductsFromCsv(pharmacyId: string, csv: string): Pr
   return { inserted: normalizedRows.length, errors: [] };
 }
 
-export async function searchDrugMaster(query: string, limit = 20) {
-  return prisma.drugMaster.findMany({
-    where: {
-      isActive: true,
-      OR: [
-        { name: { contains: query, mode: 'insensitive' } },
-        { genericName: { contains: query, mode: 'insensitive' } },
-        { msdCode: { contains: query, mode: 'insensitive' } },
-      ],
+export async function searchDrugMaster(params: {
+  query?: string;
+  limit?: number;
+  page?: number;
+  storageCondition?: string;
+  essentialOnly?: boolean;
+}) {
+  const {
+    query = '',
+    limit = 20,
+    page = 1,
+    storageCondition,
+    essentialOnly = false,
+  } = params;
+  const take = Math.max(1, Math.min(limit, 100));
+  const currentPage = Math.max(1, page);
+  const skip = (currentPage - 1) * take;
+  const trimmedQuery = query.trim();
+
+  const where: Prisma.DrugProductWhereInput = {
+    isActive: true,
+    ...(storageCondition ? { storageCondition } : {}),
+    ...(essentialOnly ? { isEssentialMedicine: true } : {}),
+    ...(trimmedQuery
+      ? {
+          OR: [
+            { productName: { contains: trimmedQuery, mode: 'insensitive' } },
+            { genericName: { contains: trimmedQuery, mode: 'insensitive' } },
+            { tmdaRegistrationNumber: { contains: trimmedQuery, mode: 'insensitive' } },
+            { msdCode: { contains: trimmedQuery, mode: 'insensitive' } },
+            { brand: { is: { name: { contains: trimmedQuery, mode: 'insensitive' } } } },
+            { manufacturer: { is: { name: { contains: trimmedQuery, mode: 'insensitive' } } } },
+            { aliases: { some: { alias: { contains: trimmedQuery, mode: 'insensitive' } } } },
+          ],
+        }
+      : {}),
+  };
+
+  const [rows, total] = await prisma.$transaction([
+    prisma.drugProduct.findMany({
+      where,
+      skip,
+      take,
+      orderBy: [{ genericName: 'asc' }, { productName: 'asc' }],
+      include: {
+        brand: { select: { name: true } },
+        manufacturer: { select: { name: true } },
+        dosageForm: { select: { name: true } },
+        packSize: { select: { quantity: true, unit: true } },
+        therapeuticClass: { select: { name: true } },
+      },
+    }),
+    prisma.drugProduct.count({ where }),
+  ]);
+
+  return {
+    data: rows.map((row) => ({
+      id: row.id,
+      productName: row.productName,
+      tmdaRegistrationNumber: row.tmdaRegistrationNumber ?? '',
+      genericName: row.genericName ?? row.productName,
+      brandName: row.brand?.name ?? null,
+      manufacturer: row.manufacturer?.name ?? null,
+      drugClass: null,
+      dosageForm: row.dosageForm?.name ?? row.dosageFormName ?? null,
+      strength: row.strengthText ?? null,
+      unitOfMeasure: row.packSize?.unit ?? 'unit',
+      packSize: row.packSize?.quantity ? Number(row.packSize.quantity) : 1,
+      storageCondition: row.storageCondition as 'AMBIENT' | 'REFRIGERATED' | 'FROZEN',
+      isColdChain: row.isColdChain,
+      isEssentialMedicine: row.isEssentialMedicine,
+      therapeuticCategory: row.therapeuticClass?.name ?? row.category ?? null,
+      verificationStatus: row.registrationStatus,
+    })),
+    meta: {
+      total,
+      page: currentPage,
+      limit: take,
+      totalPages: total === 0 ? 0 : Math.ceil(total / take),
     },
-    take: limit,
-    orderBy: { name: 'asc' },
-  });
+  };
 }
 
 export async function alertAlreadySentToday(

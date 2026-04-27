@@ -24,6 +24,11 @@ const severityTone: Record<string, { badge: 'danger' | 'warning' | 'info'; borde
     border: 'border-[#BFDBFE] bg-[#EFF6FF]',
     icon: 'text-[#2563EB]',
   },
+  INFO: {
+    badge: 'info',
+    border: 'border-[#BFDBFE] bg-[#EFF6FF]',
+    icon: 'text-[#2563EB]',
+  },
 };
 
 export const InteractionAlert: React.FC<{
@@ -61,6 +66,26 @@ export const InteractionAlert: React.FC<{
                 {alert.management && (
                   <p className="mt-2 text-xs text-[#0D4035]">
                     Management: {alert.management}
+                  </p>
+                )}
+                {(alert.sourceTitle || alert.sourceSection) && (
+                  <p className="mt-2 text-[11px] text-[#64748B]">
+                    Source:{' '}
+                    {alert.sourceUrl ? (
+                      <a
+                        href={alert.sourceUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-medium text-[#1A6B5C] underline underline-offset-2"
+                      >
+                        {alert.sourceTitle || 'Reference'}
+                      </a>
+                    ) : (
+                      <span className="font-medium text-[#1A6B5C]">
+                        {alert.sourceTitle || 'Reference'}
+                      </span>
+                    )}
+                    {alert.sourceSection ? ` • ${alert.sourceSection}` : ''}
                   </p>
                 )}
                 {alert.requiresPicPin && (

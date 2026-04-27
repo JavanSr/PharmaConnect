@@ -4,7 +4,7 @@ import {
   LayoutDashboard, BookOpen, Package, Shield, Pill, FileCheck, GraduationCap,
   Lock, ChevronLeft, ChevronRight, Settings, LogOut, BarChart3, Repeat2,
   AlertTriangle, ClipboardList, Users,
-  Building2, Smartphone, Brain, Database, X
+  Building2, Smartphone, Brain, Database, X, ShieldAlert
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { usePharmacyStore } from '@/stores/pharmacyStore';
@@ -25,22 +25,25 @@ const phase1Nav: NavItem[] = [
   { label: 'Knowledge Hub', path: '/knowledge', icon: <BookOpen size={18} /> },
   { label: 'TMDA Updates', path: '/tmda-updates', icon: <BookOpen size={18} /> },
   { label: 'Inventory', path: '/inventory', icon: <Package size={18} /> },
-  { label: 'Compliance', path: '/compliance', icon: <Shield size={18} />, roles: ['OWNER','PHARMACIST_IN_CHARGE','DISPENSER','LOCUM','DATA_ENTRY_CLERK','WHOLESALE_MANAGER','WHOLESALE_COUNTER_STAFF','SUPER_ADMIN'] },
+  { label: 'Compliance', path: '/compliance', icon: <Shield size={18} />, roles: ['OWNER','PHARMACIST_IN_CHARGE','SUPER_ADMIN'] },
   { label: 'Analytics', path: '/analytics', icon: <BarChart3 size={18} /> },
-  { label: 'Dispensing', path: '/dispensing', icon: <Pill size={18} />, roles: ['OWNER','PHARMACIST_IN_CHARGE','DISPENSER','LOCUM','CASHIER','SUPER_ADMIN'] },
+  { label: 'Dispensing', path: '/dispensing', icon: <Pill size={18} />, roles: ['PHARMACIST_IN_CHARGE','DISPENSER','LOCUM','CASHIER','SUPER_ADMIN'] },
+  { label: 'Safety Alerts', path: '/dispensing/alerts', icon: <ShieldAlert size={18} />, roles: ['OWNER','PHARMACIST_IN_CHARGE','SUPER_ADMIN'] },
   { label: 'Controlled Register', path: '/controlled-substances', icon: <Lock size={18} />, roles: ['OWNER','PHARMACIST_IN_CHARGE','LOCUM','SUPER_ADMIN'] },
-  { label: 'CPD Tracker', path: '/cpd', icon: <GraduationCap size={18} />, roles: ['OWNER','PHARMACIST_IN_CHARGE','DISPENSER','LOCUM','SUPER_ADMIN'] },
   { label: 'Wholesale', path: '/wholesale', icon: <Building2 size={18} />, roles: ['OWNER','WHOLESALE_MANAGER','WHOLESALE_COUNTER_STAFF','DELIVERY_STAFF','SUPER_ADMIN'] },
   { label: 'Orders', path: '/wholesale/orders', icon: <ClipboardList size={18} />, roles: ['OWNER','WHOLESALE_MANAGER','WHOLESALE_COUNTER_STAFF','DELIVERY_STAFF','SUPER_ADMIN'] },
   { label: 'Reports', path: '/reports', icon: <BarChart3 size={18} />, roles: ['OWNER','PHARMACIST_IN_CHARGE','ACCOUNTANT','WHOLESALE_MANAGER','SUPER_ADMIN'] },
   { label: 'Attendance', path: '/attendance', icon: <Users size={18} /> },
+  { label: 'Sync Conflicts', path: '/inventory/conflicts', icon: <AlertTriangle size={18} />, roles: ['OWNER','PHARMACIST_IN_CHARGE','DATA_ENTRY_CLERK','SUPER_ADMIN'] },
 ];
 
 const phase2Nav: NavItem[] = [
+  { label: 'CPD Tracker', path: '/cpd', icon: <GraduationCap size={18} />, locked: true, phase: 2 },
   { label: 'NHIF Claims', path: '/nhif-claims', icon: <FileCheck size={18} />, locked: true, phase: 2 },
   { label: 'PC-Accredited CPD', path: '/accredited-cpd', icon: <GraduationCap size={18} />, locked: true, phase: 2 },
   { label: 'Stock Exchange', path: '/stock-exchange', icon: <Repeat2 size={18} />, locked: true, phase: 2 },
-  { label: 'Sync Conflicts', path: '/inventory/conflicts', icon: <AlertTriangle size={18} /> },
+  { label: 'TMDA Reporting', path: '/controlled-substances-reporting', icon: <FileCheck size={18} />, locked: true, phase: 2 },
+  { label: 'ADR Reporting', path: '/pharmacovigilance', icon: <AlertTriangle size={18} />, locked: true, phase: 2 },
 ];
 
 const phase3Nav: NavItem[] = [
@@ -49,7 +52,11 @@ const phase3Nav: NavItem[] = [
 
 const phase4Nav: NavItem[] = [
   { label: 'AI Safety', path: '/ai-safety', icon: <Brain size={18} />, locked: true, phase: 4 },
-  { label: 'Data Products', path: '/data-products', icon: <Database size={18} />, locked: true, phase: 4 },
+  { label: 'Data Products', path: '/data-products', icon: <Database size={18} />, locked: true, phase: 4, roles: ['SUPER_ADMIN'] },
+];
+
+const founderNav: NavItem[] = [
+  { label: 'Founder Dashboard', path: '/founder', icon: <LayoutDashboard size={18} />, roles: ['SUPER_ADMIN'] },
 ];
 
 interface SidebarProps {
@@ -135,7 +142,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, collapsed, on
   });
 
   const SidebarContent = () => (
-    <div className="flex flex-col h-full">
+    <div className="flex h-full min-h-0 flex-col">
       {/* Logo */}
       <div className={`flex items-center gap-3 px-4 py-5 border-b border-[#D6F0E8] ${collapsed ? 'justify-center' : ''}`}>
         <img
@@ -152,17 +159,27 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, collapsed, on
       </div>
 
       {/* Navigation */}
-      <nav ref={navRef} onKeyDown={handleKeyDown} className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
+      <nav ref={navRef} onKeyDown={handleKeyDown} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4 space-y-1">
         {visiblePhase1Nav.map(item => <NavItemEl key={item.path} item={item} />)}
+
+        {founderNav
+          .filter((item) => !item.roles || (user?.role && item.roles.includes(user.role as UserRole)))
+          .map(item => <NavItemEl key={item.path} item={item} />)}
 
         {!collapsed && (
           <div className="pt-3 pb-1">
             <p className="px-3 text-xs font-semibold text-[#64748B] uppercase tracking-wider">Coming Soon</p>
           </div>
         )}
-        {phase2Nav.map(item => <NavItemEl key={item.path} item={item} />)}
-        {phase3Nav.map(item => <NavItemEl key={item.path} item={item} />)}
-        {phase4Nav.map(item => <NavItemEl key={item.path} item={item} />)}
+        {phase2Nav
+          .filter((item) => !item.roles || (user?.role && item.roles.includes(user.role as UserRole)))
+          .map(item => <NavItemEl key={item.path} item={item} />)}
+        {phase3Nav
+          .filter((item) => !item.roles || (user?.role && item.roles.includes(user.role as UserRole)))
+          .map(item => <NavItemEl key={item.path} item={item} />)}
+        {phase4Nav
+          .filter((item) => !item.roles || (user?.role && item.roles.includes(user.role as UserRole)))
+          .map(item => <NavItemEl key={item.path} item={item} />)}
       </nav>
 
       {/* User Footer */}
@@ -203,7 +220,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, collapsed, on
       )}
 
       {/* Mobile sidebar */}
-      <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-[#D6F0E8] transform transition-transform duration-300 lg:hidden ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <div className={`fixed inset-y-0 left-0 z-50 h-screen w-64 bg-white border-r border-[#D6F0E8] transform transition-transform duration-300 lg:hidden ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="absolute top-4 right-4">
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-[#EDF7F3]">
             <X size={18} className="text-[#64748B]" />
@@ -213,7 +230,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, collapsed, on
       </div>
 
       {/* Desktop sidebar */}
-      <div className={`hidden lg:flex flex-col bg-white border-r border-[#D6F0E8] transition-all duration-300 ${collapsed ? 'w-16' : 'w-64'}`}>
+      <div className={`relative hidden lg:flex h-screen min-h-0 flex-col bg-white border-r border-[#D6F0E8] transition-all duration-300 ${collapsed ? 'w-16' : 'w-64'}`}>
         <SidebarContent />
         <button
           onClick={onToggleCollapse}

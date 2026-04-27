@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import type { Prisma } from '@prisma/client';
+import { prisma } from '../../lib/prisma';
 import { authenticate, hasRoleAccess, type AuthRequest } from '../../middleware/auth';
 import { enforceTrialRestrictions } from '../../middleware/trial';
 import { requirePicPin } from '../../middleware/pic-pin';
@@ -173,6 +174,40 @@ patientSafetyRouter.post('/counselling-suggestions', async (req: AuthRequest, re
     });
 
     res.json({ data });
+  } catch (error) {
+    next(error);
+  }
+});
+
+patientSafetyRouter.get('/override-log', async (req: AuthRequest, res, next) => {
+  try {
+    const { page, limit } = z.object({
+      page: z.coerce.number().int().min(1).default(1),
+      limit: z.coerce.number().int().min(1).max(100).default(50),
+    }).parse(req.query);
+
+    const skip = (page - 1) * limit;
+    const pharmacyId = req.user!.pharmacyId!;
+
+    const [logs, total] = await Promise.all([
+      prisma.overrideLog.findMany({
+        where: { pharmacyId },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+        select: {
+          id: true,
+          alertType: true,
+          reason: true,
+          createdAt: true,
+          user: { select: { firstName: true, lastName: true, role: true } },
+          picUser: { select: { firstName: true, lastName: true } },
+        },
+      }),
+      prisma.overrideLog.count({ where: { pharmacyId } }),
+    ]);
+
+    res.json({ data: logs, total, page, limit, totalPages: Math.ceil(total / limit) });
   } catch (error) {
     next(error);
   }

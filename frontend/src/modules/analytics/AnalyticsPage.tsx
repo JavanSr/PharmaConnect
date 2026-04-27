@@ -146,9 +146,40 @@ export const AnalyticsPage: React.FC = () => {
     });
   }, [activePharmacy?.id, compareEligibleMemberships]);
 
-  const { data, isLoading, isError } = useQuery<AnalyticsResponse>({
+  const emptyAnalyticsSummary: AnalyticsSummary = {
+    inventory: { totalProducts: 0, totalStockValue: 0, lowStockCount: 0, outOfStockCount: 0, storageBreakdown: { AMBIENT: 0, REFRIGERATED: 0, FROZEN: 0 }, expiryRisk: {} },
+    movements: { periodDays: 30, counts: { received: 0, dispensed: 0, adjusted: 0, damaged: 0, other: 0 }, topDispensed: [] },
+    compliance: { score: 0, total: 0, breakdown: { GREEN: 0, AMBER: 0, RED: 0, EXPIRED: 0 } },
+  };
+
+  const { data, isLoading, isError, error } = useQuery<AnalyticsResponse>({
     queryKey: ['analytics-summary'],
-    queryFn: () => api.get('/analytics/summary').then(r => r.data),
+    queryFn: () =>
+      api.get('/analytics/overview').then((r) => {
+        const o = r.data?.data ?? {};
+        const summary: AnalyticsSummary = {
+          inventory: {
+            totalProducts: o.totalProducts ?? 0,
+            totalStockValue: 0,
+            lowStockCount: o.lowStockCount ?? 0,
+            outOfStockCount: 0,
+            storageBreakdown: { AMBIENT: 0, REFRIGERATED: 0, FROZEN: 0 },
+            expiryRisk: { days30: o.expiryCount ?? 0 },
+          },
+          movements: {
+            periodDays: 30,
+            counts: { received: o.receivedUnits ?? 0, dispensed: o.dispensedUnits ?? 0, adjusted: 0, damaged: 0, other: 0 },
+            topDispensed: [],
+          },
+          compliance: { score: 0, total: 0, breakdown: { GREEN: 0, AMBER: 0, RED: 0, EXPIRED: 0 } },
+        };
+        return { success: true, data: summary };
+      }).catch((e) => {
+        if (e?.response?.status === 403) {
+          return { success: true, data: emptyAnalyticsSummary, permissionDenied: true };
+        }
+        throw e;
+      }),
     staleTime: 5 * 60 * 1000,
   });
   const featuresQuery = useQuery<{ data: AnalyticsFeatures }>({
@@ -224,18 +255,28 @@ export const AnalyticsPage: React.FC = () => {
     );
   }
 
-  if (isError || !summary) {
+  const permissionDenied = (data as any)?.permissionDenied === true;
+
+  if (isError) {
     return (
       <Card>
         <div className="p-8 text-center text-sm text-[#64748B]">
-          Analytics summary could not be loaded.
+          Analytics could not be loaded. Check your connection and try refreshing.
         </div>
       </Card>
     );
   }
 
+  if (!summary) return null;
+
   return (
     <div className="space-y-6">
+      {permissionDenied && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-[#92400E]">
+          Your role does not have analytics access. The figures below are blank — ask your pharmacy owner to grant analytics permission.
+        </div>
+      )}
+
       <div className="flex items-start justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-xl font-bold text-[#0D4035]">Analytics</h1>

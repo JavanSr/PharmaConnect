@@ -168,6 +168,86 @@ enum SyncConflictStatus {
   RESOLVED
 }
 
+enum SourceDocumentType {
+  PRODUCT_REGISTER
+  SMPC
+  TPAR
+  NEMLIT
+  MSD_CATALOGUE
+  WHO_EML
+  WHO_MODEL_FORMULARY
+  BNF
+  STG
+  ADDENDUM
+  MANUAL_ENTRY
+  OTHER
+}
+
+enum SourceTrustLevel {
+  OFFICIAL_PRIMARY
+  OFFICIAL_SECONDARY
+  PROCUREMENT_PRIMARY
+  INTERNATIONAL_FALLBACK
+  MANUAL_REVIEW
+}
+
+enum ImportMethod {
+  API_SYNC
+  HTML_SCRAPE
+  PDF_EXTRACTION
+  CSV_IMPORT
+  XLSX_IMPORT
+  MANUAL_ENTRY
+}
+
+enum ReviewStatus {
+  DRAFT
+  IMPORTED
+  NEEDS_VERIFICATION
+  REVIEWED
+  APPROVED
+  REJECTED
+  RETIRED
+}
+
+enum ReviewQueueStatus {
+  DRAFT
+  IMPORTED
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+  RETIRED
+}
+
+enum AliasType {
+  BRAND
+  GENERIC
+  SPELLING_VARIANT
+  MSD_CODE
+  TMDA_REGISTRATION
+  LOCAL_NAME
+}
+
+enum ReviewerType {
+  PLATFORM_PHARMACIST
+  PIC_OVERRIDE
+  TMDA_REFERENCE
+}
+
+enum SourceSyncStatus {
+  STARTED
+  COMPLETED
+  FAILED
+}
+
+enum SourceSyncChangeType {
+  NEW_SOURCE
+  SOURCE_METADATA_UPDATED
+  SOURCE_UNCHANGED
+  SOURCE_CHECK_FAILED
+  SOURCE_NOT_MONITORED
+}
+
 // ─── Core Models ─────────────────────────────────────────────────────────────
 
 model Pharmacy {
@@ -214,6 +294,8 @@ model Pharmacy {
   stockAdjustmentSuggestions StockAdjustmentSuggestion[]
   productBarcodeMappings ProductBarcodeMapping[]
   barcodeScanTelemetry BarcodeScanTelemetry[]
+  coldChainLogs   ColdChainLog[]
+  adverseReactionReports AdverseReactionReport[]
   memberships     PharmacyMembership[]
   aiCounsellingCache AiCounsellingCache[]
   featureTelemetry FeatureTelemetry[]
@@ -257,6 +339,8 @@ model User {
   reviewedStockAdjustmentSuggestions StockAdjustmentSuggestion[] @relation("StockAdjustmentSuggestionReviewedBy")
   createdProductBarcodeMappings ProductBarcodeMapping[] @relation("ProductBarcodeMappingCreatedBy")
   createdBarcodeScanTelemetry BarcodeScanTelemetry[] @relation("BarcodeScanTelemetryCreatedBy")
+  coldChainLogs ColdChainLog[]
+  adverseReactionReports AdverseReactionReport[]
   memberships PharmacyMembership[] @relation("UserPharmacyMemberships")
   createdMemberships PharmacyMembership[] @relation("PharmacyMembershipCreatedBy")
   createdAiCounsellingCache AiCounsellingCache[] @relation("AiCounsellingCacheCreatedBy")
@@ -343,34 +427,42 @@ model Product {
   manufacturer           String?
   therapeuticCategory    String?  @map("therapeutic_category")
   isActive      Boolean    @default(true)
-  drugMasterId  String?
+  drugMasterId  String?    @map("drug_product_id")
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
 
   pharmacy       Pharmacy        @relation(fields: [pharmacyId], references: [id])
-  drugMaster     DrugMaster?     @relation(fields: [drugMasterId], references: [id])
+  drugMaster     DrugProduct?    @relation(fields: [drugMasterId], references: [id])
   batches        Batch[]
   stockMovements StockMovement[]
   dispensingItems DispensingItem[]
   stockAdjustmentSuggestions StockAdjustmentSuggestion[]
   barcodeMappings ProductBarcodeMapping[]
   barcodeScanTelemetry BarcodeScanTelemetry[]
+  coldChainLogs ColdChainLog[]
 
   @@index([pharmacyId, barcode], map: "products_pharmacy_barcode_idx")
   @@index([pharmacyId, sku], map: "products_pharmacy_sku_idx")
+  @@index([drugMasterId], map: "products_drug_product_id_idx")
   @@map("products")
 }
 
 model ProductBarcodeMapping {
-  id         String   @id @default(uuid())
-  pharmacyId String   @map("pharmacy_id")
-  barcode    String
-  productId  String   @map("product_id")
-  source     String
-  gs1Payload Json?    @map("gs1_payload")
-  createdBy  String   @map("created_by")
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
+  id                   String   @id @default(uuid())
+  pharmacyId           String   @map("pharmacy_id")
+  barcode              String
+  productId            String   @map("product_id")
+  source               String
+  gs1Payload           Json?    @map("gs1_payload")
+  // Network sharing — when true this mapping is visible to all pharmacies as a
+  // suggested auto-fill during stock intake. networkConfirmations increments each
+  // time a second pharmacy accepts this mapping without correction, building
+  // confidence in the data quality. Only OWNERs and PICs can set sharedToNetwork.
+  sharedToNetwork      Boolean  @default(false) @map("shared_to_network")
+  networkConfirmations Int      @default(0)     @map("network_confirmations")
+  createdBy            String   @map("created_by")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt       @map("updated_at")
 
   pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
   product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
@@ -378,6 +470,7 @@ model ProductBarcodeMapping {
 
   @@unique([pharmacyId, barcode], map: "product_barcode_mappings_pharmacy_barcode_key")
   @@index([productId], map: "product_barcode_mappings_product_id_idx")
+  @@index([barcode, sharedToNetwork], map: "product_barcode_mappings_barcode_shared_idx")
   @@map("product_barcode_mappings")
 }
 
@@ -400,6 +493,26 @@ model BarcodeScanTelemetry {
   @@index([pharmacyId, createdAt], map: "barcode_scan_telemetry_pharmacy_created_at_idx")
   @@index([source, result], map: "barcode_scan_telemetry_source_result_idx")
   @@map("barcode_scan_telemetry")
+}
+
+model ColdChainLog {
+  id           String   @id @default(uuid())
+  pharmacyId   String   @map("pharmacy_id")
+  productId    String?  @map("product_id")
+  loggedBy     String   @map("logged_by")
+  temperatureC Decimal  @db.Decimal(5, 2) @map("temperature_c")
+  storageUnit  String?  @map("storage_unit")
+  excursion    Boolean  @default(false)
+  notes        String?
+  loggedAt     DateTime @default(now()) @map("logged_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  product  Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  logger   User     @relation(fields: [loggedBy], references: [id], onDelete: Restrict)
+
+  @@index([pharmacyId, loggedAt], map: "cold_chain_logs_pharmacy_logged_at_idx")
+  @@map("cold_chain_logs")
 }
 
 model AiCounsellingCache {
@@ -567,20 +680,508 @@ model StockMovement {
   @@map("stock_movements")
 }
 
-model DrugMaster {
-  id          String  @id @default(uuid())
-  msdCode     String  @unique
-  name        String
-  genericName String?
-  dosageForm  String?
-  strength    String?
-  unitPrice   Decimal? @db.Decimal(12, 2)
-  category    String?
-  isActive    Boolean @default(true)
+model DrugProduct {
+  id                      String        @id @default(uuid())
+  productName             String        @map("product_name")
+  normalizedProductName   String?       @map("normalized_product_name")
+  genericName             String?       @map("generic_name")
+  tmdaRegistrationNumber  String?       @map("tmda_registration_number")
+  msdCode                 String?       @map("msd_code")
+  brandId                 String?       @map("brand_id")
+  manufacturerId          String?       @map("manufacturer_id")
+  registrantId            String?       @map("registrant_id")
+  dosageFormId            String?       @map("dosage_form_id")
+  dosageFormName          String?       @map("dosage_form_name")
+  routeId                 String?       @map("route_id")
+  packSizeId              String?       @map("pack_size_id")
+  therapeuticClassId      String?       @map("therapeutic_class_id")
+  primarySourceDocumentId String?       @map("primary_source_document_id")
+  strengthText            String?       @map("strength_text")
+  packSizeLabel           String?       @map("pack_size_label")
+  storageCondition        String        @default("AMBIENT") @map("storage_condition")
+  isColdChain             Boolean       @default(false) @map("is_cold_chain")
+  isEssentialMedicine     Boolean       @default(false) @map("is_essential_medicine")
+  registrationStatus      String        @default("UNVERIFIED") @map("registration_status")
+  reviewStatus            ReviewStatus  @default(DRAFT) @map("review_status")
+  sourceUrl               String?       @map("source_url")
+  lastVerifiedAt          DateTime?     @map("last_verified_at")
+  unitPrice               Decimal?      @db.Decimal(12, 2) @map("unit_price")
+  category                String?
+  isActive                Boolean       @default(true) @map("is_active")
+  createdAt               DateTime      @default(now()) @map("created_at")
+  updatedAt               DateTime      @updatedAt @map("updated_at")
 
-  products Product[]
+  brand                 Brand?                @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  manufacturer          Manufacturer?         @relation(fields: [manufacturerId], references: [id], onDelete: SetNull)
+  registrant            Registrant?           @relation(fields: [registrantId], references: [id], onDelete: SetNull)
+  dosageForm            DosageFormDefinition? @relation(fields: [dosageFormId], references: [id], onDelete: SetNull)
+  route                 RouteDefinition?      @relation(fields: [routeId], references: [id], onDelete: SetNull)
+  packSize              PackSizeDefinition?   @relation(fields: [packSizeId], references: [id], onDelete: SetNull)
+  therapeuticClass      TherapeuticClass?     @relation(fields: [therapeuticClassId], references: [id], onDelete: SetNull)
+  primarySourceDocument SourceDocument?       @relation("DrugProductPrimarySourceDocument", fields: [primarySourceDocumentId], references: [id], onDelete: SetNull)
+  products              Product[]
+  productIngredients    DrugProductIngredient[]
+  aliases               ProductAlias[]
+  warnings              Warning[]
+  pregnancyFlags        PregnancyFlag[]
+  lactationFlags        LactationFlag[]
+  renalFlags            RenalFlag[]
+  hepaticFlags          HepaticFlag[]
 
-  @@map("drug_master")
+  @@index([productName], map: "drug_products_product_name_idx")
+  @@index([genericName], map: "drug_products_generic_name_idx")
+  @@index([reviewStatus], map: "drug_products_review_status_idx")
+  @@unique([tmdaRegistrationNumber], map: "drug_products_tmda_registration_number_key")
+  @@unique([msdCode], map: "drug_products_msd_code_key")
+  @@map("drug_products")
+}
+
+model ActiveIngredient {
+  id                  String                 @id @default(uuid())
+  name                String
+  normalizedName      String                 @unique @map("normalized_name")
+  atcCode             String?                @map("atc_code")
+  therapeuticClassId  String?                @map("therapeutic_class_id")
+  reviewStatus        ReviewStatus           @default(DRAFT) @map("review_status")
+  isActive            Boolean                @default(true) @map("is_active")
+  createdAt           DateTime               @default(now()) @map("created_at")
+  updatedAt           DateTime               @updatedAt @map("updated_at")
+
+  therapeuticClass   TherapeuticClass?       @relation(fields: [therapeuticClassId], references: [id], onDelete: SetNull)
+  productIngredients DrugProductIngredient[]
+  aliases            ProductAlias[]
+  warnings           Warning[]
+  pregnancyFlags     PregnancyFlag[]
+  lactationFlags     LactationFlag[]
+  renalFlags         RenalFlag[]
+  hepaticFlags       HepaticFlag[]
+
+  @@index([name], map: "active_ingredients_name_idx")
+  @@map("active_ingredients")
+}
+
+model Brand {
+  id             String         @id @default(uuid())
+  name           String
+  normalizedName String         @unique @map("normalized_name")
+  isActive       Boolean        @default(true) @map("is_active")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+
+  products DrugProduct[]
+  aliases  ProductAlias[]
+
+  @@index([name], map: "brands_name_idx")
+  @@map("brands")
+}
+
+model Manufacturer {
+  id             String         @id @default(uuid())
+  name           String
+  normalizedName String         @unique @map("normalized_name")
+  country        String?
+  isActive       Boolean        @default(true) @map("is_active")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+
+  products DrugProduct[]
+
+  @@index([name], map: "manufacturers_name_idx")
+  @@map("manufacturers")
+}
+
+model Registrant {
+  id             String         @id @default(uuid())
+  name           String
+  normalizedName String         @unique @map("normalized_name")
+  country        String?
+  isActive       Boolean        @default(true) @map("is_active")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+
+  products DrugProduct[]
+
+  @@index([name], map: "registrants_name_idx")
+  @@map("registrants")
+}
+
+model DosageFormDefinition {
+  id             String         @id @default(uuid())
+  name           String
+  normalizedName String         @unique @map("normalized_name")
+  description    String?
+  isActive       Boolean        @default(true) @map("is_active")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+
+  products DrugProduct[]
+
+  @@map("dosage_forms")
+}
+
+model StrengthDefinition {
+  id                String                  @id @default(uuid())
+  displayName       String                  @map("display_name")
+  normalizedName    String                  @unique @map("normalized_name")
+  numeratorValue    Decimal?                @db.Decimal(12, 4) @map("numerator_value")
+  numeratorUnit     String?                 @map("numerator_unit")
+  denominatorValue  Decimal?                @db.Decimal(12, 4) @map("denominator_value")
+  denominatorUnit   String?                 @map("denominator_unit")
+  isCombination     Boolean                 @default(false) @map("is_combination")
+  createdAt         DateTime                @default(now()) @map("created_at")
+  updatedAt         DateTime                @updatedAt @map("updated_at")
+
+  productIngredients DrugProductIngredient[]
+
+  @@map("strengths")
+}
+
+model RouteDefinition {
+  id             String         @id @default(uuid())
+  name           String
+  normalizedName String         @unique @map("normalized_name")
+  isActive       Boolean        @default(true) @map("is_active")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+
+  products DrugProduct[]
+
+  @@map("routes")
+}
+
+model PackSizeDefinition {
+  id             String         @id @default(uuid())
+  displayName    String         @map("display_name")
+  normalizedName String         @unique @map("normalized_name")
+  quantity       Decimal?       @db.Decimal(12, 2)
+  unit           String?
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+
+  products DrugProduct[]
+
+  @@map("pack_sizes")
+}
+
+model TherapeuticClass {
+  id                String             @id @default(uuid())
+  name              String
+  normalizedName    String             @unique @map("normalized_name")
+  code              String?
+  parentId          String?            @map("parent_id")
+  isActive          Boolean            @default(true) @map("is_active")
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+
+  parent            TherapeuticClass?  @relation("TherapeuticClassHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children          TherapeuticClass[] @relation("TherapeuticClassHierarchy")
+  activeIngredients ActiveIngredient[]
+  products          DrugProduct[]
+
+  @@index([name], map: "therapeutic_classes_name_idx")
+  @@map("therapeutic_classes")
+}
+
+model DrugProductIngredient {
+  id                 String             @id @default(uuid())
+  drugProductId      String             @map("drug_product_id")
+  activeIngredientId String             @map("active_ingredient_id")
+  strengthId         String?            @map("strength_id")
+  strengthText       String?            @map("strength_text")
+  ingredientOrder    Int                @default(1) @map("ingredient_order")
+  isPrimary          Boolean            @default(false) @map("is_primary")
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+
+  drugProduct      DrugProduct         @relation(fields: [drugProductId], references: [id], onDelete: Cascade)
+  activeIngredient ActiveIngredient    @relation(fields: [activeIngredientId], references: [id], onDelete: Cascade)
+  strength         StrengthDefinition? @relation(fields: [strengthId], references: [id], onDelete: SetNull)
+
+  @@unique([drugProductId, activeIngredientId, ingredientOrder], map: "drug_product_ingredients_unique_entry")
+  @@index([activeIngredientId], map: "drug_product_ingredients_active_ingredient_idx")
+  @@map("drug_product_ingredients")
+}
+
+model ProductAlias {
+  id                 String            @id @default(uuid())
+  drugProductId      String?           @map("drug_product_id")
+  brandId            String?           @map("brand_id")
+  activeIngredientId String?           @map("active_ingredient_id")
+  sourceDocumentId   String?           @map("source_document_id")
+  alias              String
+  normalizedAlias    String            @map("normalized_alias")
+  aliasType          AliasType         @default(SPELLING_VARIANT) @map("alias_type")
+  isPreferred        Boolean           @default(false) @map("is_preferred")
+  createdAt          DateTime          @default(now()) @map("created_at")
+  updatedAt          DateTime          @updatedAt @map("updated_at")
+
+  drugProduct      DrugProduct?       @relation(fields: [drugProductId], references: [id], onDelete: Cascade)
+  brand            Brand?             @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  activeIngredient ActiveIngredient?  @relation(fields: [activeIngredientId], references: [id], onDelete: Cascade)
+  sourceDocument   SourceDocument?    @relation(fields: [sourceDocumentId], references: [id], onDelete: SetNull)
+
+  @@index([normalizedAlias], map: "product_aliases_normalized_alias_idx")
+  @@map("product_aliases")
+}
+
+model Allergy {
+  id             String   @id @default(uuid())
+  name           String
+  normalizedName String   @unique @map("normalized_name")
+  allergyType    String   @default("DRUG") @map("allergy_type")
+  description    String?
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("allergies")
+}
+
+model ConditionDefinition {
+  id             String   @id @default(uuid())
+  name           String
+  normalizedName String   @unique @map("normalized_name")
+  category       String?
+  description    String?
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("conditions")
+}
+
+model SourceDocument {
+  id                 String             @id @default(uuid())
+  sourceName         String             @map("source_name")
+  title              String
+  url                String?
+  sourceType         SourceDocumentType @map("source_type")
+  trustLevel         SourceTrustLevel   @map("trust_level")
+  importMethod       ImportMethod       @map("import_method")
+  issuingAuthority   String?            @map("issuing_authority")
+  documentVersion    String?            @map("document_version")
+  publicationDate    DateTime?          @map("publication_date")
+  effectiveDate      DateTime?          @map("effective_date")
+  lastCheckedAt      DateTime?          @map("last_checked_at")
+  checksum           String?
+  notes              String?
+  isActive           Boolean            @default(true) @map("is_active")
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+
+  primaryDrugProducts DrugProduct[]       @relation("DrugProductPrimarySourceDocument")
+  aliases             ProductAlias[]
+  interactions        DrugInteraction[]
+  contraindications   DrugContraindication[]
+  warnings            Warning[]
+  pregnancyFlags      PregnancyFlag[]
+  lactationFlags      LactationFlag[]
+  renalFlags          RenalFlag[]
+  hepaticFlags        HepaticFlag[]
+  reviewQueueEntries  DataReviewQueue[]
+  syncRuns            SourceSyncRun[]
+  syncChanges         SourceSyncChange[]
+
+  @@index([sourceName, sourceType], map: "source_documents_source_name_type_idx")
+  @@map("source_documents")
+}
+
+model SourceSyncRun {
+  id              String           @id @default(uuid())
+  startedAt       DateTime         @default(now()) @map("started_at")
+  finishedAt      DateTime?        @map("finished_at")
+  status          SourceSyncStatus @default(STARTED)
+  triggeredBy     String?          @map("triggered_by")
+  notes           String?
+  sourcesChecked  Int              @default(0) @map("sources_checked")
+  changesDetected Int              @default(0) @map("changes_detected")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+
+  sourceDocumentId String?         @map("source_document_id")
+  sourceDocument   SourceDocument? @relation(fields: [sourceDocumentId], references: [id], onDelete: SetNull)
+  changes          SourceSyncChange[]
+
+  @@index([status, startedAt], map: "source_sync_runs_status_started_at_idx")
+  @@map("source_sync_runs")
+}
+
+model SourceSyncChange {
+  id               String               @id @default(uuid())
+  syncRunId        String               @map("sync_run_id")
+  sourceDocumentId String?              @map("source_document_id")
+  changeType       SourceSyncChangeType @map("change_type")
+  summary          String
+  previousValue    Json?                @map("previous_value")
+  nextValue        Json?                @map("next_value")
+  createdAt        DateTime             @default(now()) @map("created_at")
+
+  syncRun        SourceSyncRun   @relation(fields: [syncRunId], references: [id], onDelete: Cascade)
+  sourceDocument SourceDocument? @relation(fields: [sourceDocumentId], references: [id], onDelete: SetNull)
+
+  @@index([syncRunId, changeType], map: "source_sync_changes_run_change_type_idx")
+  @@index([sourceDocumentId, createdAt], map: "source_sync_changes_source_created_at_idx")
+  @@map("source_sync_changes")
+}
+
+model Warning {
+  id                 String            @id @default(uuid())
+  drugProductId      String?           @map("drug_product_id")
+  activeIngredientId String?           @map("active_ingredient_id")
+  drugDatabaseId     String?           @map("drug_database_id")
+  sourceDocumentId   String?           @map("source_document_id")
+  warningType        String            @default("GENERAL") @map("warning_type")
+  severity           String?
+  message            String
+  sourceSection      String?           @map("source_section")
+  sourceUrl          String?           @map("source_url")
+  reviewStatus       ReviewStatus      @default(DRAFT) @map("review_status")
+  createdAt          DateTime          @default(now()) @map("created_at")
+  updatedAt          DateTime          @updatedAt @map("updated_at")
+
+  drugProduct      DrugProduct?       @relation(fields: [drugProductId], references: [id], onDelete: Cascade)
+  activeIngredient ActiveIngredient?  @relation(fields: [activeIngredientId], references: [id], onDelete: Cascade)
+  drugDatabase     DrugDatabase?      @relation(fields: [drugDatabaseId], references: [id], onDelete: Cascade)
+  sourceDocument   SourceDocument?    @relation(fields: [sourceDocumentId], references: [id], onDelete: SetNull)
+
+  @@index([reviewStatus], map: "warnings_review_status_idx")
+  @@map("warnings")
+}
+
+model PregnancyFlag {
+  id                 String            @id @default(uuid())
+  drugProductId      String?           @map("drug_product_id")
+  activeIngredientId String?           @map("active_ingredient_id")
+  drugDatabaseId     String?           @map("drug_database_id")
+  sourceDocumentId   String?           @map("source_document_id")
+  trimester          String?
+  riskLevel          String?           @map("risk_level")
+  message            String
+  sourceSection      String?           @map("source_section")
+  reviewStatus       ReviewStatus      @default(DRAFT) @map("review_status")
+  createdAt          DateTime          @default(now()) @map("created_at")
+  updatedAt          DateTime          @updatedAt @map("updated_at")
+
+  drugProduct      DrugProduct?       @relation(fields: [drugProductId], references: [id], onDelete: Cascade)
+  activeIngredient ActiveIngredient?  @relation(fields: [activeIngredientId], references: [id], onDelete: Cascade)
+  drugDatabase     DrugDatabase?      @relation(fields: [drugDatabaseId], references: [id], onDelete: Cascade)
+  sourceDocument   SourceDocument?    @relation(fields: [sourceDocumentId], references: [id], onDelete: SetNull)
+
+  @@index([reviewStatus], map: "pregnancy_flags_review_status_idx")
+  @@map("pregnancy_flags")
+}
+
+model LactationFlag {
+  id                 String            @id @default(uuid())
+  drugProductId      String?           @map("drug_product_id")
+  activeIngredientId String?           @map("active_ingredient_id")
+  drugDatabaseId     String?           @map("drug_database_id")
+  sourceDocumentId   String?           @map("source_document_id")
+  riskLevel          String?           @map("risk_level")
+  message            String
+  sourceSection      String?           @map("source_section")
+  reviewStatus       ReviewStatus      @default(DRAFT) @map("review_status")
+  createdAt          DateTime          @default(now()) @map("created_at")
+  updatedAt          DateTime          @updatedAt @map("updated_at")
+
+  drugProduct      DrugProduct?       @relation(fields: [drugProductId], references: [id], onDelete: Cascade)
+  activeIngredient ActiveIngredient?  @relation(fields: [activeIngredientId], references: [id], onDelete: Cascade)
+  drugDatabase     DrugDatabase?      @relation(fields: [drugDatabaseId], references: [id], onDelete: Cascade)
+  sourceDocument   SourceDocument?    @relation(fields: [sourceDocumentId], references: [id], onDelete: SetNull)
+
+  @@index([reviewStatus], map: "lactation_flags_review_status_idx")
+  @@map("lactation_flags")
+}
+
+model RenalFlag {
+  id                 String            @id @default(uuid())
+  drugProductId      String?           @map("drug_product_id")
+  activeIngredientId String?           @map("active_ingredient_id")
+  drugDatabaseId     String?           @map("drug_database_id")
+  sourceDocumentId   String?           @map("source_document_id")
+  stage              String?
+  severity           String?
+  message            String
+  sourceSection      String?           @map("source_section")
+  reviewStatus       ReviewStatus      @default(DRAFT) @map("review_status")
+  createdAt          DateTime          @default(now()) @map("created_at")
+  updatedAt          DateTime          @updatedAt @map("updated_at")
+
+  drugProduct      DrugProduct?       @relation(fields: [drugProductId], references: [id], onDelete: Cascade)
+  activeIngredient ActiveIngredient?  @relation(fields: [activeIngredientId], references: [id], onDelete: Cascade)
+  drugDatabase     DrugDatabase?      @relation(fields: [drugDatabaseId], references: [id], onDelete: Cascade)
+  sourceDocument   SourceDocument?    @relation(fields: [sourceDocumentId], references: [id], onDelete: SetNull)
+
+  @@index([reviewStatus], map: "renal_flags_review_status_idx")
+  @@map("renal_flags")
+}
+
+model HepaticFlag {
+  id                 String            @id @default(uuid())
+  drugProductId      String?           @map("drug_product_id")
+  activeIngredientId String?           @map("active_ingredient_id")
+  drugDatabaseId     String?           @map("drug_database_id")
+  sourceDocumentId   String?           @map("source_document_id")
+  stage              String?
+  severity           String?
+  message            String
+  sourceSection      String?           @map("source_section")
+  reviewStatus       ReviewStatus      @default(DRAFT) @map("review_status")
+  createdAt          DateTime          @default(now()) @map("created_at")
+  updatedAt          DateTime          @updatedAt @map("updated_at")
+
+  drugProduct      DrugProduct?       @relation(fields: [drugProductId], references: [id], onDelete: Cascade)
+  activeIngredient ActiveIngredient?  @relation(fields: [activeIngredientId], references: [id], onDelete: Cascade)
+  drugDatabase     DrugDatabase?      @relation(fields: [drugDatabaseId], references: [id], onDelete: Cascade)
+  sourceDocument   SourceDocument?    @relation(fields: [sourceDocumentId], references: [id], onDelete: SetNull)
+
+  @@index([reviewStatus], map: "hepatic_flags_review_status_idx")
+  @@map("hepatic_flags")
+}
+
+model DataReviewQueue {
+  id               String            @id @default(uuid())
+  entityType       String            @map("entity_type")
+  entityId         String            @map("entity_id")
+  sourceDocumentId String?           @map("source_document_id")
+  reviewerType     ReviewerType?     @map("reviewer_type")
+  reviewerUserId   String?           @map("reviewer_user_id")
+  pharmacyId       String?           @map("pharmacy_id")
+  status           ReviewQueueStatus @default(PENDING_REVIEW)
+  currentPayload   Json              @default("{}") @map("current_payload")
+  proposedPayload  Json              @default("{}") @map("proposed_payload")
+  notes            String?
+  reviewedAt       DateTime?         @map("reviewed_at")
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+
+  sourceDocument SourceDocument? @relation(fields: [sourceDocumentId], references: [id], onDelete: SetNull)
+  auditLogs       DataReviewAuditLog[]
+
+  @@index([entityType, entityId], map: "data_review_queue_entity_idx")
+  @@index([status, reviewerType], map: "data_review_queue_status_reviewer_type_idx")
+  @@map("data_review_queue")
+}
+
+model DataReviewAuditLog {
+  id             String             @id @default(uuid())
+  queueId        String             @map("queue_id")
+  action         String
+  previousStatus ReviewQueueStatus? @map("previous_status")
+  nextStatus     ReviewQueueStatus? @map("next_status")
+  reviewerType   ReviewerType?      @map("reviewer_type")
+  actorUserId    String?            @map("actor_user_id")
+  actorRole      String?            @map("actor_role")
+  pharmacyId     String?            @map("pharmacy_id")
+  note           String?
+  payloadSnapshot Json              @default("{}") @map("payload_snapshot")
+  createdAt      DateTime           @default(now()) @map("created_at")
+
+  queue DataReviewQueue @relation(fields: [queueId], references: [id], onDelete: Cascade)
+
+  @@index([queueId, createdAt], map: "data_review_audit_logs_queue_created_at_idx")
+  @@index([actorUserId, createdAt], map: "data_review_audit_logs_actor_created_at_idx")
+  @@map("data_review_audit_logs")
 }
 
 // ─── Compliance ───────────────────────────────────────────────────────────────
@@ -719,6 +1320,34 @@ model Notification {
   @@map("notifications")
 }
 
+model AdverseReactionReport {
+  id              String    @id @default(uuid())
+  pharmacyId      String    @map("pharmacy_id")
+  reportedBy      String    @map("reported_by")
+  suspectedDrug   String    @map("suspected_drug")
+  brandUsed       String?   @map("brand_used")
+  batchNumber     String?   @map("batch_number")
+  reaction        String
+  onset           String?
+  outcome         String?
+  patientAgeYears Int?      @map("patient_age_years")
+  patientSex      String?   @map("patient_sex")
+  seriousness     String    @default("NON_SERIOUS") @map("seriousness")
+  status          String    @default("DRAFT")
+  tmdaReferenceNo String?   @map("tmda_reference_no")
+  submittedAt     DateTime? @map("submitted_at")
+  notes           String?
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  reporter User     @relation(fields: [reportedBy], references: [id], onDelete: Restrict)
+
+  @@index([pharmacyId, createdAt], map: "adverse_reaction_reports_pharmacy_created_at_idx")
+  @@index([status], map: "adverse_reaction_reports_status_idx")
+  @@map("adverse_reaction_reports")
+}
+
 // ─── Patient Safety ───────────────────────────────────────────────────────────
 
 model DrugDatabase {
@@ -727,6 +1356,7 @@ model DrugDatabase {
   brandNames            String[] @default([]) @map("brand_names")
   drugClass             String?  @map("drug_class")
   therapeuticCategory   String?  @map("therapeutic_category")
+  awarClass             String?  @map("awar_class")
   standardAdultDose     String?  @map("standard_adult_dose")
   frequency             String?
   route                 String?
@@ -745,6 +1375,11 @@ model DrugDatabase {
   interactionsAsDrugA DrugInteraction[] @relation("DrugInteractionDrugA")
   interactionsAsDrugB DrugInteraction[] @relation("DrugInteractionDrugB")
   contraindications   DrugContraindication[]
+  warnings            Warning[]
+  pregnancyFlags      PregnancyFlag[]
+  lactationFlags      LactationFlag[]
+  renalFlags          RenalFlag[]
+  hepaticFlags        HepaticFlag[]
 
   @@index([genericName], map: "drug_database_generic_name_idx")
   @@index([therapeuticCategory], map: "drug_database_therapeutic_category_idx")
@@ -752,37 +1387,53 @@ model DrugDatabase {
 }
 
 model DrugInteraction {
-  id             String   @id @default(uuid())
-  drugAId        String   @map("drug_a_id")
-  drugBId        String   @map("drug_b_id")
-  severity       String
-  effectSummary  String   @map("effect_summary")
-  management     String?
-  requiresPicPin Boolean  @default(false) @map("requires_pic_pin")
-  createdAt      DateTime @default(now()) @map("created_at")
+  id               String         @id @default(uuid())
+  drugAId          String         @map("drug_a_id")
+  drugBId          String         @map("drug_b_id")
+  severity         String
+  effectSummary    String         @map("effect_summary")
+  management       String?
+  requiresPicPin   Boolean        @default(false) @map("requires_pic_pin")
+  sourceDocumentId String?        @map("source_document_id")
+  sourceSection    String?        @map("source_section")
+  sourceUrl        String?        @map("source_url")
+  reviewStatus     ReviewStatus   @default(DRAFT) @map("review_status")
+  importedAt       DateTime?      @map("imported_at")
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
 
   drugA        DrugDatabase @relation("DrugInteractionDrugA", fields: [drugAId], references: [id], onDelete: Cascade)
   drugB        DrugDatabase @relation("DrugInteractionDrugB", fields: [drugBId], references: [id], onDelete: Cascade)
+  sourceDocument SourceDocument? @relation(fields: [sourceDocumentId], references: [id], onDelete: SetNull)
   overrideLogs OverrideLog[]
 
   @@unique([drugAId, drugBId], map: "drug_interactions_pair_unique")
+  @@index([reviewStatus], map: "drug_interactions_review_status_idx")
   @@map("drug_interactions")
 }
 
 model DrugContraindication {
-  id             String   @id @default(uuid())
-  drugId         String   @map("drug_id")
-  conditionType  String   @map("condition_type")
-  conditionValue String   @map("condition_value")
-  severity       String
-  message        String
-  requiresPicPin Boolean  @default(false) @map("requires_pic_pin")
-  createdAt      DateTime @default(now()) @map("created_at")
+  id               String       @id @default(uuid())
+  drugId           String       @map("drug_id")
+  conditionType    String       @map("condition_type")
+  conditionValue   String       @map("condition_value")
+  severity         String
+  message          String
+  requiresPicPin   Boolean      @default(false) @map("requires_pic_pin")
+  sourceDocumentId String?      @map("source_document_id")
+  sourceSection    String?      @map("source_section")
+  sourceUrl        String?      @map("source_url")
+  reviewStatus     ReviewStatus @default(DRAFT) @map("review_status")
+  importedAt       DateTime?    @map("imported_at")
+  createdAt        DateTime     @default(now()) @map("created_at")
+  updatedAt        DateTime     @updatedAt @map("updated_at")
 
-  drug         DrugDatabase @relation(fields: [drugId], references: [id], onDelete: Cascade)
+  drug           DrugDatabase    @relation(fields: [drugId], references: [id], onDelete: Cascade)
+  sourceDocument SourceDocument? @relation(fields: [sourceDocumentId], references: [id], onDelete: SetNull)
   overrideLogs OverrideLog[]
 
   @@index([drugId, conditionType], map: "drug_contraindications_drug_condition_idx")
+  @@index([reviewStatus], map: "drug_contraindications_review_status_idx")
   @@map("drug_contraindications")
 }
 

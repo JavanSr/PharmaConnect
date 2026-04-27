@@ -19,14 +19,15 @@ import {
   toDispensingPaymentMethodOptions,
   type PaymentMethodSetting,
 } from './paymentMethodConfig';
+import { SettingsNav } from './SettingsNav';
 
 const FOUNDER_WHATSAPP = '255764591374';
 
 const plans = [
   { tier: 'ADDO', monthly: 'TZS 20,000', annual: 'TZS 200,000', users: '2 users', features: ['Basic sale recording', 'Inventory and compliance', 'Knowledge Hub read access'] },
   { tier: 'STANDARD', monthly: 'TZS 55,000', annual: 'TZS 550,000', users: '4 users', features: ['Full dispensing workflow', 'Patient safety tools', 'Inventory, compliance, and reports'] },
-  { tier: 'PREMIUM', monthly: 'TZS 95,000', annual: 'TZS 950,000', users: '6 users', features: ['Everything in Standard', 'Courses and CPD tracker', 'Advanced analytics'] },
-  { tier: 'WHOLESALE', monthly: 'TZS 180,000', annual: 'TZS 1,800,000', users: '8 users + delivery', features: ['Wholesale catalogue and B2B', 'Delivery workflow', 'Wholesale operations'] },
+  { tier: 'PREMIUM', monthly: 'TZS 75,000', annual: 'TZS 750,000', users: '6 users', features: ['Everything in Standard', 'Advanced analytics and forecasting', 'Priority support'] },
+  { tier: 'WHOLESALE', monthly: 'TZS 100,000', annual: 'TZS 1,000,000', users: '8 users + delivery', features: ['Wholesale catalogue and B2B', 'Delivery workflow', 'Wholesale operations'] },
   { tier: 'ENTERPRISE', monthly: 'Negotiated', annual: 'Negotiated', users: 'Unlimited', features: ['Enterprise reporting', 'Multi-outlet visibility', 'Custom rollout support'] },
 ];
 
@@ -37,6 +38,8 @@ export const SubscriptionPage: React.FC = () => {
   const cachePaymentMethods = usePaymentMethodStore((state) => state.setMethods);
   const setPharmacy = usePharmacyStore((state) => state.setPharmacy);
   const pharmacy = usePharmacyStore((state) => state.pharmacy);
+  const pharmacyRef = React.useRef(pharmacy);
+  React.useLayoutEffect(() => { pharmacyRef.current = pharmacy; }, [pharmacy]);
   const canManagePaymentSettings = ['OWNER', 'SUPER_ADMIN'].includes(user?.role || '');
   const [paymentMethodsDraft, setPaymentMethodsDraft] = React.useState<PaymentMethodSetting[]>(
     () => normalizePaymentMethodConfig(null).methods,
@@ -60,18 +63,15 @@ export const SubscriptionPage: React.FC = () => {
   );
 
   React.useEffect(() => {
-    if (!subscription) {
-      return;
-    }
-
-    const changed =
-      !pharmacy ||
-      Object.entries(subscription).some(([key, value]) => ((pharmacy as unknown as Record<string, unknown>)[key] !== value));
-
+    if (!subscription) return;
+    const prev = pharmacyRef.current;
+    const changed = !prev || Object.entries(subscription).some(
+      ([key, value]) => (prev as unknown as Record<string, unknown>)[key] !== value
+    );
     if (changed) {
-      setPharmacy({ ...(pharmacy ?? {}), ...subscription });
+      setPharmacy({ ...(prev ?? {}), ...subscription } as any);
     }
-  }, [pharmacy, setPharmacy, subscription]);
+  }, [setPharmacy, subscription]);
   React.useEffect(() => {
     if (paymentMethodsDirty) {
       return;
@@ -141,8 +141,9 @@ export const SubscriptionPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div>
+        <div className="space-y-3">
           <h1 className="text-xl font-bold text-[#0D4035]">Subscription</h1>
+          <SettingsNav />
           <p className="mt-1 text-sm text-[#64748B]">
             Review your current tier, trial status, and upgrade path. Payments are confirmed manually after M-Pesa or bank transfer.
           </p>
@@ -372,7 +373,7 @@ export const SubscriptionPage: React.FC = () => {
             <div>
               <p className="text-sm font-semibold text-[#0D4035]">Hybrid add-on</p>
               <p className="mt-1 text-sm text-[#475569]">
-                Convert a retail pharmacy into a hybrid retail + wholesale operation for TZS 230,000/month total.
+                Convert a retail pharmacy into a hybrid retail + wholesale operation for TZS 130,000/month total.
               </p>
             </div>
             <a

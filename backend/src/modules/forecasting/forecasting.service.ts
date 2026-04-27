@@ -11,7 +11,7 @@ export async function getStockoutForecast(input: {
   limit?: number;
 }) {
   const lookbackDays = input.lookbackDays ?? 30;
-  const leadTimeDays = input.leadTimeDays ?? 14;
+  const leadTimeDays = input.leadTimeDays ?? 7;
   const since = new Date(Date.now() - lookbackDays * 86_400_000);
 
   const [products, batches, dispensedMovements] = await Promise.all([
@@ -86,8 +86,9 @@ export async function getStockoutForecast(input: {
       };
     })
     .sort((left, right) => {
+      const statusRank = { OUT: 0, RISK: 1, OK: 2 } as const;
       if (left.status !== right.status) {
-        return left.status.localeCompare(right.status);
+        return statusRank[left.status as keyof typeof statusRank] - statusRank[right.status as keyof typeof statusRank];
       }
       return (left.daysUntilStockout ?? Number.POSITIVE_INFINITY) - (right.daysUntilStockout ?? Number.POSITIVE_INFINITY);
     })
@@ -95,16 +96,19 @@ export async function getStockoutForecast(input: {
 }
 
 export async function getSeasonalitySeries(pharmacyId: string) {
-  const start = new Date();
-  start.setMonth(start.getMonth() - 11, 1);
-  start.setHours(0, 0, 0, 0);
+  const end = new Date();
+  end.setDate(1);
+  end.setHours(0, 0, 0, 0);
+
+  const start = new Date(end);
+  start.setMonth(start.getMonth() - 12, 1);
 
   const months = Array.from({ length: 12 }, (_, index) => {
     const date = new Date(start.getFullYear(), start.getMonth() + index, 1);
     const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
     return {
       key,
-      label: date.toLocaleString('en-US', { month: 'short', year: '2-digit' }),
+      label: date.toLocaleString('en-US', { month: 'short' }),
       dispensedUnits: 0,
       revenueTzs: 0,
     };
@@ -115,7 +119,7 @@ export async function getSeasonalitySeries(pharmacyId: string) {
       where: {
         pharmacyId,
         type: 'DISPENSED',
-        createdAt: { gte: start },
+        createdAt: { gte: start, lt: end },
       },
       select: {
         createdAt: true,
@@ -125,7 +129,7 @@ export async function getSeasonalitySeries(pharmacyId: string) {
     prisma.dispensing.findMany({
       where: {
         pharmacyId,
-        createdAt: { gte: start },
+        createdAt: { gte: start, lt: end },
       },
       select: {
         createdAt: true,
@@ -161,7 +165,6 @@ export async function getDeadStock(pharmacyId: string, limit = 20) {
         id: true,
         name: true,
         genericName: true,
-        sellingPrice: true,
       },
     }),
     prisma.batch.findMany({
@@ -170,6 +173,7 @@ export async function getDeadStock(pharmacyId: string, limit = 20) {
         productId: true,
         quantityRemaining: true,
         receivedAt: true,
+        purchasePrice: true,
       },
     }),
     prisma.stockMovement.findMany({
@@ -186,6 +190,7 @@ export async function getDeadStock(pharmacyId: string, limit = 20) {
   ]);
 
   const stockByProduct = new Map<string, { quantity: number; oldestBatchAt: Date | null }>();
+  const costValueByProduct = new Map<string, number>();
   batches.forEach((batch) => {
     const existing = stockByProduct.get(batch.productId) ?? { quantity: 0, oldestBatchAt: null };
     existing.quantity += batch.quantityRemaining;
@@ -193,6 +198,10 @@ export async function getDeadStock(pharmacyId: string, limit = 20) {
       existing.oldestBatchAt = batch.receivedAt;
     }
     stockByProduct.set(batch.productId, existing);
+    costValueByProduct.set(
+      batch.productId,
+      (costValueByProduct.get(batch.productId) ?? 0) + (batch.quantityRemaining * Number(batch.purchasePrice ?? 0)),
+    );
   });
 
   const lastSaleByProduct = new Map<string, Date>();
@@ -208,10 +217,10 @@ export async function getDeadStock(pharmacyId: string, limit = 20) {
     .map((product) => {
       const stock = stockByProduct.get(product.id);
       const currentStock = stock?.quantity ?? 0;
-      const valueTzs = currentStock * Number(product.sellingPrice ?? 0);
+      const valueTzs = costValueByProduct.get(product.id) ?? 0;
       const anchorDate = lastSaleByProduct.get(product.id) ?? stock?.oldestBatchAt ?? now;
       const daysSinceSale = daysBetween(anchorDate, now);
-      const deadStockScore = daysSinceSale * valueTzs;
+      const deadStockScore = Number((valueTzs * (daysSinceSale / 30)).toFixed(2));
 
       return {
         productId: product.id,
@@ -223,9 +232,9 @@ export async function getDeadStock(pharmacyId: string, limit = 20) {
         lastSaleAt: lastSaleByProduct.get(product.id)?.toISOString() ?? null,
       };
     })
-    .filter((row) => row.currentStock > 0)
+    .filter((row) => row.currentStock > 0 && row.daysSinceSale > 60)
     .sort((left, right) => right.deadStockScore - left.deadStockScore)
-    .slice(0, limit);
+    .slice(0, Math.min(limit, 15));
 }
 
 export function getRegionalForecastStub() {

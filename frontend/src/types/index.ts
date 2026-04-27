@@ -239,6 +239,12 @@ export interface Product {
   wholesaleSellingPrice?: number | null;
   manufacturer?: string | null;
   therapeuticCategory?: string | null;
+  awarClass?: 'ACCESS' | 'WATCH' | 'RESERVE' | null;
+  drugMasterId?: string | null;
+  masterCatalogMatched?: boolean;
+  pendingReview?: boolean;
+  reviewQueueStatus?: string | null;
+  verificationStatus?: 'MASTER_CATALOG_MATCHED' | 'UNVERIFIED';
   isActive: boolean;
   currentStock?: number;
   nextExpiringBatch?: Batch | null;
@@ -266,6 +272,131 @@ export interface Supplier {
   contactName: string | null;
   phone: string | null;
   email: string | null;
+}
+
+export type ReviewQueueStatus =
+  | 'DRAFT'
+  | 'IMPORTED'
+  | 'PENDING_REVIEW'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'RETIRED';
+
+export type ReviewerType = 'PLATFORM_PHARMACIST' | 'PIC_OVERRIDE' | 'TMDA_REFERENCE';
+
+export interface ReviewSourceDocumentSummary {
+  id: string;
+  title: string;
+  sourceName: string;
+  url: string | null;
+  sourceType: string;
+}
+
+export interface ReviewActorSummary {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  role: UserRole;
+}
+
+export interface DataReviewAuditLog {
+  id: string;
+  action: string;
+  previousStatus: ReviewQueueStatus | null;
+  nextStatus: ReviewQueueStatus | null;
+  reviewerType: ReviewerType | null;
+  actorUserId: string | null;
+  actorRole: string | null;
+  pharmacyId: string | null;
+  note: string | null;
+  payloadSnapshot: unknown;
+  createdAt: string;
+  actorUser?: ReviewActorSummary | null;
+}
+
+export interface DataReviewQueueEntry {
+  id: string;
+  entityType: string;
+  entityId: string;
+  sourceDocumentId: string | null;
+  reviewerType: ReviewerType | null;
+  reviewerUserId: string | null;
+  pharmacyId: string | null;
+  status: ReviewQueueStatus;
+  currentPayload: unknown;
+  proposedPayload: unknown;
+  notes: string | null;
+  reviewedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  sourceDocument?: ReviewSourceDocumentSummary | null;
+  reviewerUser?: ReviewActorSummary | null;
+  auditLogs?: DataReviewAuditLog[];
+}
+
+export type SourceSyncStatus = 'STARTED' | 'COMPLETED' | 'FAILED';
+export type SourceSyncChangeType =
+  | 'NEW_SOURCE'
+  | 'SOURCE_METADATA_UPDATED'
+  | 'SOURCE_UNCHANGED'
+  | 'SOURCE_CHECK_FAILED'
+  | 'SOURCE_NOT_MONITORED';
+
+export interface SourceSyncSnapshot {
+  category: 'MASTER_CATALOG' | 'SAFETY_RULES' | 'GENERIC_SOURCE';
+  reviewQueueCount: number;
+  importedProductCount?: number;
+  sourceRecordCount?: number;
+  approvedRuleCounts?: {
+    interactions: number;
+    contraindications: number;
+    warnings: number;
+    pregnancyFlags: number;
+    lactationFlags: number;
+    renalFlags: number;
+    hepaticFlags: number;
+  };
+  sourceFingerprint?: string | null;
+  importedFingerprint?: string | null;
+  requiresReview: boolean;
+  notes: string[];
+}
+
+export interface SourceSyncNextValue {
+  url?: string | null;
+  checksum?: string | null;
+  documentVersion?: string | null;
+  status?: number;
+  headers?: Record<string, string | null>;
+  snapshot?: SourceSyncSnapshot;
+}
+
+export interface SourceSyncChange {
+  id: string;
+  syncRunId: string;
+  sourceDocumentId: string | null;
+  changeType: SourceSyncChangeType;
+  summary: string;
+  previousValue: unknown;
+  nextValue: SourceSyncNextValue | unknown;
+  createdAt: string;
+  sourceDocument?: Pick<ReviewSourceDocumentSummary, 'id' | 'sourceName' | 'title' | 'url'> | null;
+}
+
+export interface SourceSyncRun {
+  id: string;
+  startedAt: string;
+  finishedAt: string | null;
+  status: SourceSyncStatus;
+  triggeredBy: string | null;
+  notes: string | null;
+  sourcesChecked: number;
+  changesDetected: number;
+  createdAt: string;
+  updatedAt: string;
+  sourceDocumentId?: string | null;
+  changes: SourceSyncChange[];
 }
 
 export type MovementType =

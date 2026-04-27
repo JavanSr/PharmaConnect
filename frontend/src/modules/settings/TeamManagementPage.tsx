@@ -11,6 +11,7 @@ import { Select } from '@/components/ui/Select';
 import { useNotificationStore } from '@/stores/notificationStore';
 import { useAuth } from '@/hooks/useAuth';
 import { api } from '@/lib/api';
+import { SettingsNav } from './SettingsNav';
 
 const ROLE_VARIANT: Record<string, any> = {
   OWNER: 'warning',
@@ -42,6 +43,7 @@ export const TeamManagementPage: React.FC = () => {
   const [inviteRole, setInviteRole] = useState('DISPENSER');
   const [inviteFirst, setInviteFirst] = useState('');
   const [inviteLast, setInviteLast] = useState('');
+  const [invitePassword, setInvitePassword] = useState('');
   const [newRole, setNewRole] = useState('');
   const toast = useNotificationStore(s => s.toast);
   const qc = useQueryClient();
@@ -50,24 +52,25 @@ export const TeamManagementPage: React.FC = () => {
 
   const { data, isLoading } = useQuery({
     queryKey: ['pharmacy-team'],
-    queryFn: () => api.get('/auth/pharmacy/users').then(r => r.data),
+    queryFn: () => api.get('/settings/team').then(r => r.data),
   });
 
   const inviteMutation = useMutation({
-    mutationFn: () => api.post('/auth/pharmacy/users', {
+    mutationFn: () => api.post('/settings/team/invite', {
       email: inviteEmail, role: inviteRole, firstName: inviteFirst, lastName: inviteLast,
+      password: invitePassword, mustChangePassword: true,
     }),
     onSuccess: () => {
-      toast.success('Team member invited — they can now log in');
+      toast.success('Team member added — share their temporary password with them');
       setInviteOpen(false);
-      setInviteEmail(''); setInviteFirst(''); setInviteLast(''); setInviteRole('DISPENSER');
+      setInviteEmail(''); setInviteFirst(''); setInviteLast(''); setInviteRole('DISPENSER'); setInvitePassword('');
       qc.invalidateQueries({ queryKey: ['pharmacy-team'] });
     },
     onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to invite'),
   });
 
   const changeRoleMutation = useMutation({
-    mutationFn: () => api.put(`/auth/pharmacy/users/${selectedUser.id}/role`, { role: newRole }),
+    mutationFn: () => api.patch(`/settings/team/${selectedUser.id}/role`, { role: newRole }),
     onSuccess: () => {
       toast.success('Role updated');
       setChangeRoleOpen(false);
@@ -87,12 +90,17 @@ export const TeamManagementPage: React.FC = () => {
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-[#0D4035]">Team Management</h1>
-        {canManage && (
-          <Button leftIcon={<UserPlus size={16} />} onClick={() => setInviteOpen(true)}>
-            Invite Member
-          </Button>
-        )}
+        <div className="space-y-3">
+          <h1 className="text-xl font-bold text-[#0D4035]">Team Management</h1>
+          <SettingsNav />
+        </div>
+        <div>
+          {canManage && (
+            <Button leftIcon={<UserPlus size={16} />} onClick={() => setInviteOpen(true)}>
+              Invite Member
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Stats */}
@@ -167,7 +175,7 @@ export const TeamManagementPage: React.FC = () => {
             <Button
               onClick={() => inviteMutation.mutate()}
               loading={inviteMutation.isPending}
-              disabled={!inviteEmail || !inviteFirst || !inviteLast}
+              disabled={!inviteEmail || !inviteFirst || !inviteLast || invitePassword.length < 8}
             >
               Send Invitation
             </Button>
@@ -180,6 +188,8 @@ export const TeamManagementPage: React.FC = () => {
             <Input label="Last Name *" value={inviteLast} onChange={e => setInviteLast(e.target.value)} />
           </div>
           <Input label="Email *" type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} />
+          <Input label="Temporary Password *" type="password" value={invitePassword} onChange={e => setInvitePassword(e.target.value)} placeholder="Min. 8 characters" />
+          <p className="text-xs text-[#64748B]">The team member will be prompted to change this on first login.</p>
           <Select label="Role" value={inviteRole} onChange={e => setInviteRole(e.target.value)} options={INVITE_ROLES} />
         </div>
       </Modal>

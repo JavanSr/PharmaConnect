@@ -3,6 +3,7 @@ export type DrugSeed = {
   brandNames: string[];
   drugClass: string;
   therapeuticCategory: string;
+  awarClass?: 'ACCESS' | 'WATCH' | 'RESERVE' | null;
   standardAdultDose: string;
   frequency: string;
   route: string;
@@ -16,6 +17,42 @@ export type DrugSeed = {
   ncdHints?: string[];
   clinicianReviewed: boolean;
 };
+
+const ACCESS_AWARE_ANTIBIOTICS = new Set([
+  'amoxicillin',
+  'co-trimoxazole',
+  'metronidazole',
+  'doxycycline',
+  'erythromycin',
+  'benzylpenicillin',
+  'phenoxymethylpenicillin',
+  'ampicillin',
+  'cloxacillin',
+  'nitrofurantoin',
+  'chloramphenicol',
+  'clindamycin',
+]);
+
+const WATCH_AWARE_ANTIBIOTICS = new Set([
+  'ciprofloxacin',
+  'azithromycin',
+  'ceftriaxone',
+  'cefixime',
+  'cephalexin',
+  'gentamicin',
+]);
+
+function getAwarClass(genericName: string): DrugSeed['awarClass'] {
+  const normalized = genericName.trim().toLowerCase();
+  const matches = (antibiotic: string) => normalized === antibiotic || normalized.startsWith(`${antibiotic} `);
+  if ([...ACCESS_AWARE_ANTIBIOTICS].some(matches)) {
+    return 'ACCESS';
+  }
+  if ([...WATCH_AWARE_ANTIBIOTICS].some(matches)) {
+    return 'WATCH';
+  }
+  return null;
+}
 
 export type InteractionSeed = {
   drugA: string;
@@ -35,7 +72,7 @@ export type ContraindicationSeed = {
   requiresPicPin?: boolean;
 };
 
-export const DRUG_DATABASE_SEED: DrugSeed[] = [
+const CORE_DRUG_DATABASE_SEED: DrugSeed[] = [
   {
     genericName: 'paracetamol',
     brandNames: ['panadol'],
@@ -54,6 +91,7 @@ export const DRUG_DATABASE_SEED: DrugSeed[] = [
     brandNames: ['amoxil'],
     drugClass: 'ANTIBIOTIC',
     therapeuticCategory: 'INFECTION',
+    awarClass: 'ACCESS',
     standardAdultDose: '500 mg',
     frequency: 'Every 8 hours',
     route: 'ORAL',
@@ -68,6 +106,7 @@ export const DRUG_DATABASE_SEED: DrugSeed[] = [
     brandNames: ['septrin'],
     drugClass: 'ANTIBIOTIC',
     therapeuticCategory: 'INFECTION',
+    awarClass: 'ACCESS',
     standardAdultDose: '960 mg',
     frequency: 'Every 12 hours',
     route: 'ORAL',
@@ -306,6 +345,152 @@ export const DRUG_DATABASE_SEED: DrugSeed[] = [
     elderlyCaution: true,
     clinicianReviewed: false,
   },
+];
+
+const SUPPLEMENTAL_FORMULARY_GROUPS: Array<{
+  drugClass: string;
+  therapeuticCategory: string;
+  names: string[];
+}> = [
+  {
+    drugClass: 'ANTIBIOTIC',
+    therapeuticCategory: 'INFECTION',
+    names: [
+      'ampicillin', 'cloxacillin', 'benzylpenicillin', 'flucloxacillin', 'phenoxymethylpenicillin', 'ceftriaxone', 'cefixime',
+      'cephalexin', 'cefuroxime', 'azithromycin', 'erythromycin', 'clarithromycin', 'ciprofloxacin',
+      'levofloxacin', 'doxycycline', 'tetracycline', 'nitrofurantoin', 'clindamycin', 'metronidazole',
+      'tinidazole', 'gentamicin', 'amikacin', 'chloramphenicol', 'linezolid', 'meropenem', 'vancomycin',
+    ],
+  },
+  {
+    drugClass: 'CARDIOVASCULAR',
+    therapeuticCategory: 'CARDIOVASCULAR',
+    names: [
+      'amlodipine', 'nifedipine', 'atenolol', 'bisoprolol', 'propranolol', 'carvedilol', 'hydrochlorothiazide',
+      'indapamide', 'bendroflumethiazide', 'methyldopa', 'hydralazine', 'lisinopril', 'captopril', 'ramipril',
+      'valsartan', 'telmisartan', 'irbesartan', 'diltiazem', 'verapamil', 'isosorbide dinitrate', 'nitroglycerin',
+      'atorvastatin', 'simvastatin', 'pravastatin', 'clopidogrel',
+    ],
+  },
+  {
+    drugClass: 'GASTROINTESTINAL',
+    therapeuticCategory: 'GASTROINTESTINAL',
+    names: [
+      'omeprazole', 'esomeprazole', 'pantoprazole', 'lansoprazole', 'famotidine', 'cimetidine', 'sucralfate',
+      'aluminium hydroxide', 'magnesium trisilicate', 'domperidone', 'metoclopramide', 'ondansetron',
+      'hyoscine butylbromide', 'loperamide', 'lactulose', 'bisacodyl', 'senna', 'glycerin suppository',
+      'oral rehydration salts', 'zinc sulfate',
+    ],
+  },
+  {
+    drugClass: 'ENDOCRINE',
+    therapeuticCategory: 'ENDOCRINE',
+    names: [
+      'insulin soluble', 'insulin isophane', 'insulin premix 70/30', 'gliclazide', 'glimepiride', 'pioglitazone',
+      'sitagliptin', 'levothyroxine', 'carbimazole', 'propylthiouracil', 'hydrocortisone', 'dexamethasone',
+      'methylprednisolone', 'calcium carbonate', 'vitamin d3',
+    ],
+  },
+  {
+    drugClass: 'RESPIRATORY',
+    therapeuticCategory: 'RESPIRATORY',
+    names: [
+      'beclometasone inhaler', 'budesonide inhaler', 'ipratropium bromide', 'aminophylline', 'theophylline',
+      'montelukast', 'cetirizine', 'loratadine', 'fexofenadine', 'promethazine', 'dextromethorphan',
+      'guaifenesin', 'bromhexine', 'xylometazoline', 'oxymetazoline',
+    ],
+  },
+  {
+    drugClass: 'ANALGESIC',
+    therapeuticCategory: 'PAIN',
+    names: [
+      'aspirin', 'naproxen', 'ketoprofen', 'piroxicam', 'meloxicam', 'celecoxib', 'tramadol', 'codeine',
+      'morphine', 'pethidine', 'diclofenac gel', 'capsaicin cream', 'allopurinol', 'colchicine', 'baclofen',
+    ],
+  },
+  {
+    drugClass: 'NEUROLOGY',
+    therapeuticCategory: 'NEUROLOGY',
+    names: [
+      'phenytoin', 'phenobarbital', 'lamotrigine', 'levetiracetam', 'gabapentin', 'pregabalin', 'amitriptyline',
+      'nortriptyline', 'fluoxetine', 'sertraline', 'diazepam', 'lorazepam', 'haloperidol', 'chlorpromazine',
+      'risperidone', 'olanzapine', 'quetiapine', 'trihexyphenidyl', 'donepezil', 'memantine',
+    ],
+  },
+  {
+    drugClass: 'ANTI-INFECTIVE',
+    therapeuticCategory: 'INFECTIOUS_DISEASE',
+    names: [
+      'acyclovir', 'fluconazole', 'ketoconazole', 'clotrimazole', 'miconazole', 'nystatin', 'albendazole',
+      'mebendazole', 'praziquantel', 'ivermectin', 'artesunate', 'quinine', 'atovaquone-proguanil',
+      'tenofovir', 'lamivudine',
+    ],
+  },
+  {
+    drugClass: 'DERMATOLOGY',
+    therapeuticCategory: 'DERMATOLOGY',
+    names: [
+      'hydrocortisone cream', 'betamethasone cream', 'clobetasol cream', 'mupirocin ointment', 'fusidic acid cream',
+      'benzyl benzoate', 'permethrin', 'calamine lotion', 'silver sulfadiazine', 'zinc oxide', 'salicylic acid',
+      'coal tar shampoo', 'ketoconazole shampoo', 'terbinafine cream', 'clindamycin gel',
+    ],
+  },
+  {
+    drugClass: 'OPHTHALMIC',
+    therapeuticCategory: 'EYE_EAR_NOSE',
+    names: [
+      'chloramphenicol eye drops', 'ciprofloxacin eye drops', 'tetracycline eye ointment', 'timolol eye drops',
+      'latanoprost eye drops', 'artificial tears', 'sodium cromoglycate eye drops', 'gentamicin ear drops',
+      'ciprofloxacin ear drops', 'acetic acid ear drops',
+    ],
+  },
+  {
+    drugClass: 'WOMENS_HEALTH',
+    therapeuticCategory: 'OBGYN',
+    names: [
+      'ferrous sulfate', 'folic acid', 'combined oral contraceptive', 'progesterone-only pill', 'medroxyprogesterone injection',
+      'levonorgestrel emergency contraception', 'misoprostol', 'oxytocin', 'tranexamic acid', 'methylergometrine',
+    ],
+  },
+  {
+    drugClass: 'VITAMIN',
+    therapeuticCategory: 'SUPPLEMENTS',
+    names: [
+      'vitamin a', 'vitamin b complex', 'vitamin c', 'vitamin e', 'zinc gluconate', 'magnesium sulfate',
+      'potassium chloride', 'multivitamin syrup', 'oral nutrition supplement', 'calcium with vitamin d',
+      'sodium bicarbonate', 'activated charcoal', 'povidone iodine', 'hydrogen peroxide', 'normal saline',
+      'ringer lactate', 'dextrose 5 percent', 'dextrose saline', 'water for injection', 'lignocaine',
+      'lignocaine with adrenaline', 'adrenaline', 'atropine', 'furosemide injection', 'ceftriaxone injection',
+    ],
+  },
+];
+
+const SUPPLEMENTAL_FORMULARY_SEED: DrugSeed[] = SUPPLEMENTAL_FORMULARY_GROUPS.flatMap((group) =>
+  group.names.map((genericName) => ({
+    genericName,
+    brandNames: [],
+    drugClass: group.drugClass,
+    therapeuticCategory: group.therapeuticCategory,
+    awarClass: getAwarClass(genericName),
+    standardAdultDose: 'See standard Tanzanian formulary guidance',
+    frequency: 'Use standard dosing guidance',
+    route: genericName.includes('cream') || genericName.includes('gel') || genericName.includes('ointment') || genericName.includes('lotion') || genericName.includes('shampoo')
+      ? 'TOPICAL'
+      : genericName.includes('drops')
+        ? 'TOPICAL'
+        : genericName.includes('injection') || genericName.includes('water for injection')
+          ? 'INJECTION'
+          : genericName.includes('inhaler')
+            ? 'INHALATION'
+            : 'ORAL',
+    pregnancyCategory: 'NA',
+    clinicianReviewed: false,
+  })),
+);
+
+export const DRUG_DATABASE_SEED: DrugSeed[] = [
+  ...CORE_DRUG_DATABASE_SEED,
+  ...SUPPLEMENTAL_FORMULARY_SEED,
 ];
 
 export const DRUG_INTERACTION_SEED: InteractionSeed[] = [

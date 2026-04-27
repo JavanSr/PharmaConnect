@@ -4,12 +4,12 @@
 
 PharmaConnect is a pharmacy-side operating system for Tanzania. It handles
 inventory management, patient safety, regulatory compliance, dispensing, NHIF
-claims, CPD tracking, and analytics. The system is live in Phase 1 and designed
+claims, CPD tracking (Phase 2), and analytics. The system is live in Phase 1 and designed
 to grow through four phases.
 
 The company is targeting the Tanzania UHI (Universal Health Insurance) mandate
 as a growth catalyst and is registered in Tanzania. Primary market: independent
-retail pharmacies, ADDOs, and wholesale pharmacies in Arusha expanding nationally.
+retail pharmacies and ADDOs in Arusha expanding nationally. Wholesale is deferred — MVP targets retail only.
 
 ---
 
@@ -180,10 +180,10 @@ CANNOT:
 |------|-------|-------|
 | ADDO | TZS 20,000/month | 2 |
 | STANDARD | TZS 55,000/month | 4 |
-| PREMIUM | TZS 95,000/month | 6 |
-| WHOLESALE | TZS 180,000/month | 8 + delivery |
+| PREMIUM | TZS 75,000/month | 6 |
+| WHOLESALE | TZS 100,000/month | 8 + delivery |
 | ENTERPRISE | Negotiated | Unlimited |
-| HYBRID ADD-ON | TZS 230,000/month total | — |
+| HYBRID ADD-ON | TZS 130,000/month total | — |
 
 Annual billing: 10 × monthly (2 months free).
 
@@ -199,9 +199,10 @@ Annual billing: 10 × monthly (2 months free).
 | 1     | Compliance Tracker | Live        |
 | 1     | Analytics          | Live        |
 | 1     | Dispensing         | Live        |
-| 1     | CPD Tracker        | Live        |
+| 2     | CPD Tracker        | Coming soon |
 | 2     | NHIF Claims        | Coming soon |
 | 2     | Stock Exchange     | Coming soon |
+| 2     | Wholesale / B2B    | Coming soon — code exists but not actively sold; MVP is retail only |
 | 3     | B2B Platform       | Coming soon |
 | 3     | Patient App        | Coming soon |
 | 4     | AI Safety          | Coming soon |
@@ -280,4 +281,4 @@ The following must NOT be built. Render a "coming soon" placeholder only:
 - The app name is **PharmaConnect** — one word, capital P and C.
   Never write "Pharma Connect" with a space.
 - The country is Tanzania. Use TZS for currency, Tanzanian regions for addresses.
-- Regulatory bodies: TMDA, NHIF, PPB (Pharmacy and Poisons Board).
+- Regulatory bodies: TMDA, NHIF, PC (Pharmacy Council).
