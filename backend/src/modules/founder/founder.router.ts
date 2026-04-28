@@ -41,9 +41,10 @@ founderRouter.get('/stats', async (_req: AuthRequest, res, next) => {
           pharmacy: { select: { name: true } },
         },
       }),
-      prisma.dispensing.count(),
+      prisma.$queryRaw<Array<{ count: bigint }>>`SELECT COUNT(*) AS count FROM dispensing_events`,
       prisma.batch.count(),
     ]);
+    const dispensingCount = Number(totalDispensings[0]?.count ?? 0);
 
     res.json({
       data: {
@@ -53,7 +54,7 @@ founderRouter.get('/stats', async (_req: AuthRequest, res, next) => {
         statusBreakdown: Object.fromEntries(statusBreakdown.map(r => [r.status, r._count.id])),
         recentPharmacies,
         recentOverrides,
-        activity: { totalDispensings, totalBatches },
+        activity: { totalDispensings: dispensingCount, totalBatches },
       },
     });
   } catch (error) {

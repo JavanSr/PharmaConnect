@@ -53,8 +53,11 @@ function escHtml(s: string): string {
 function sanitizeArticleHtml(html: string): string {
   return html
     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/<(iframe|object|embed)\b[^>]*>[\s\S]*?<\/\1>/gi, '')
     .replace(/\son\w+=(["']).*?\1/gi, '')
-    .replace(/\s(href|src)=(["'])\s*javascript:.*?\2/gi, '');
+    .replace(/\son\w+=\S+/gi, '')
+    .replace(/\s(href|src)=(["'])\s*javascript:.*?\2/gi, '')
+    .replace(/\s(href|src)=\s*javascript:\S+/gi, '');
 }
 
 function renderSafeArticleBody(body: unknown): string {

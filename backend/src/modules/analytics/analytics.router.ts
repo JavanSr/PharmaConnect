@@ -101,11 +101,15 @@ analyticsRouter.get('/overview', async (req: AuthRequest, res, next) => {
       .filter(m => m.type === 'RECEIVED')
       .reduce((s, m) => s + m.quantity, 0);
 
+    const dispensingCount = Number(dispensingResult[0]?.count ?? 0);
+
     res.json({
       data: {
         totalProducts,
+        patientCount: 0,
+        dispensingCount,
         totalPatients: 0,
-        totalDispensings: Number(dispensingResult[0]?.count ?? 0),
+        totalDispensings: dispensingCount,
         dispensedUnits: dispensed,
         receivedUnits: received,
         lowStockCount,

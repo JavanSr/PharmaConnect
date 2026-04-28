@@ -1,5 +1,10 @@
 import { prisma } from '../../lib/prisma';
 
+type DispensingRevenueRow = {
+  createdAt: Date;
+  totalAmount: number;
+};
+
 function daysBetween(from: Date, to: Date): number {
   return Math.max(0, Math.ceil((to.getTime() - from.getTime()) / 86_400_000));
 }
@@ -126,16 +131,15 @@ export async function getSeasonalitySeries(pharmacyId: string) {
         quantity: true,
       },
     }),
-    prisma.dispensing.findMany({
-      where: {
-        pharmacyId,
-        createdAt: { gte: start, lt: end },
-      },
-      select: {
-        createdAt: true,
-        totalAmount: true,
-      },
-    }),
+    prisma.$queryRaw<DispensingRevenueRow[]>`
+      SELECT
+        created_at AS "createdAt",
+        total_amount::float8 AS "totalAmount"
+      FROM dispensing_events
+      WHERE pharmacy_id = ${pharmacyId}
+        AND created_at >= ${start}
+        AND created_at < ${end}
+    `,
   ]);
 
   const monthMap = new Map(months.map((month) => [month.key, month]));
@@ -150,7 +154,7 @@ export async function getSeasonalitySeries(pharmacyId: string) {
     const key = `${dispensing.createdAt.getFullYear()}-${String(dispensing.createdAt.getMonth() + 1).padStart(2, '0')}`;
     const month = monthMap.get(key);
     if (month) {
-      month.revenueTzs += Number(dispensing.totalAmount);
+      month.revenueTzs += dispensing.totalAmount;
     }
   });
 

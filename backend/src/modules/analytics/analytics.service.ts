@@ -1,4 +1,4 @@
-import { type SubscriptionTier } from '@prisma/client';
+import { Prisma, type SubscriptionTier } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 import { normalizeTier, type SupportedTier } from '../../types/roles';
 
@@ -23,6 +23,16 @@ export type AnalyticsFeatureSet = {
 type TimeSeriesPoint = {
   key: string;
   label: string;
+};
+
+type DispensingRevenueRow = {
+  totalRevenue: number | null;
+};
+
+type DispensingSeriesRow = {
+  pharmacyId: string;
+  createdAt: Date;
+  totalAmount: number;
 };
 
 const DEFAULT_FEATURE_SET: AnalyticsFeatureSet = {
@@ -160,7 +170,8 @@ function movementBucketKey(date: Date, range: AnalyticsCompareRange) {
 }
 
 export async function getAnalyticsSummary(pharmacyId: string) {
-  const [products, batches, recentMovements, complianceItems, dispensings] = await Promise.all([
+  const since = new Date(Date.now() - 30 * 86_400_000);
+  const [products, batches, recentMovements, complianceItems, dispensingRevenue] = await Promise.all([
     prisma.product.findMany({
       where: { pharmacyId, isActive: true },
       select: {
@@ -182,7 +193,7 @@ export async function getAnalyticsSummary(pharmacyId: string) {
     prisma.stockMovement.findMany({
       where: {
         pharmacyId,
-        createdAt: { gte: new Date(Date.now() - 30 * 86_400_000) },
+        createdAt: { gte: since },
       },
       select: {
         type: true,
@@ -195,15 +206,12 @@ export async function getAnalyticsSummary(pharmacyId: string) {
       where: { pharmacyId },
       select: { status: true },
     }),
-    prisma.dispensing.findMany({
-      where: {
-        pharmacyId,
-        createdAt: { gte: new Date(Date.now() - 30 * 86_400_000) },
-      },
-      select: {
-        totalAmount: true,
-      },
-    }),
+    prisma.$queryRaw<DispensingRevenueRow[]>`
+      SELECT COALESCE(SUM(total_amount), 0)::float8 AS "totalRevenue"
+      FROM dispensing_events
+      WHERE pharmacy_id = ${pharmacyId}
+        AND created_at >= ${since}
+    `,
   ]);
 
   const stockByProduct = new Map<string, number>();
@@ -317,7 +325,7 @@ export async function getAnalyticsSummary(pharmacyId: string) {
       periodDays: 30,
       counts: movementCounts,
       topDispensed,
-      totalRevenue: dispensings.reduce((sum, dispensing) => sum + Number(dispensing.totalAmount), 0),
+      totalRevenue: dispensingRevenue[0]?.totalRevenue ?? 0,
     },
     compliance: {
       score: complianceScore,
@@ -349,17 +357,15 @@ export async function getCompareSeries(input: {
   const since = startDateForRange(input.range);
 
   if (input.metric === 'REVENUE_TZS') {
-    const dispensings = await prisma.dispensing.findMany({
-      where: {
-        pharmacyId: { in: input.pharmacyIds },
-        createdAt: { gte: since },
-      },
-      select: {
-        pharmacyId: true,
-        createdAt: true,
-        totalAmount: true,
-      },
-    });
+    const dispensings = await prisma.$queryRaw<DispensingSeriesRow[]>(Prisma.sql`
+      SELECT
+        pharmacy_id AS "pharmacyId",
+        created_at AS "createdAt",
+        total_amount::float8 AS "totalAmount"
+      FROM dispensing_events
+      WHERE pharmacy_id IN (${Prisma.join(input.pharmacyIds)})
+        AND created_at >= ${since}
+    `);
 
     for (const row of dispensings) {
       const bucket = movementBucketKey(row.createdAt, input.range);
@@ -367,7 +373,7 @@ export async function getCompareSeries(input: {
       if (!target || !target.has(bucket)) {
         continue;
       }
-      target.set(bucket, (target.get(bucket) ?? 0) + Number(row.totalAmount));
+      target.set(bucket, (target.get(bucket) ?? 0) + row.totalAmount);
     }
   } else {
     const movementType = input.metric === 'DISPENSED_UNITS' ? 'DISPENSED' : 'RECEIVED';

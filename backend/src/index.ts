@@ -73,9 +73,15 @@ app.use(cors({
 app.use(compression());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
-app.get('/uploads/:filename', authenticate, (req: Request, res: Response) => {
-  const filename = path.basename(req.params.filename);
-  const filePath = path.join(path.resolve(process.cwd(), process.env.UPLOAD_DIR ?? './uploads'), filename);
+app.get('/uploads/*', authenticate, (req: Request, res: Response) => {
+  const uploadsRoot = path.resolve(process.cwd(), process.env.UPLOAD_DIR ?? './uploads');
+  const requestedPath = path.normalize(req.params[0] ?? '').replace(/^(\.\.(\/|\\|$))+/, '');
+  const filePath = path.resolve(uploadsRoot, requestedPath);
+  if (!filePath.startsWith(`${uploadsRoot}${path.sep}`)) {
+    res.status(404).json({ error: 'Not found' });
+    return;
+  }
+
   if (!fs.existsSync(filePath)) {
     res.status(404).json({ error: 'Not found' });
     return;

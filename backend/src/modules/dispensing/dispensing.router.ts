@@ -4,7 +4,7 @@ import path from 'node:path';
 import { Router } from 'express';
 import multer from 'multer';
 import rateLimit from 'express-rate-limit';
-import { PaymentMethod, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { authenticate, requireRole, type AuthRequest } from '../../middleware/auth';
 import { hasPermission, requirePermission } from '../../middleware/permissions';
@@ -16,11 +16,12 @@ import { sessionReview } from '../patient-safety/patient-safety.service';
 import { ensurePaymentMethodConfig } from '../settings/payment-method-config';
 import { trackFeatureTelemetry } from '../telemetry/feature-telemetry.service';
 
-const paymentMethods = Object.values(PaymentMethod) as [PaymentMethod, ...PaymentMethod[]];
+const paymentMethods = ['CASH', 'MPESA', 'TIGOPESA', 'AIRTEL_MONEY', 'HALOPESA', 'INSURANCE'] as const;
+type PaymentMethod = (typeof paymentMethods)[number];
 const LEGACY_PAYMENT_METHOD_OPTIONS = [
-  { code: PaymentMethod.CASH, label: 'Cash', phoneNumber: '', note: 'Always enabled for offline fallback.', requiresReference: false, source: 'legacy' },
-  { code: PaymentMethod.MPESA, label: 'M-Pesa', phoneNumber: '', note: '', requiresReference: true, source: 'legacy' },
-  { code: PaymentMethod.TIGOPESA, label: 'Tigo Pesa', phoneNumber: '', note: '', requiresReference: true, source: 'legacy' },
+  { code: 'CASH', label: 'Cash', phoneNumber: '', note: 'Always enabled for offline fallback.', requiresReference: false, source: 'legacy' },
+  { code: 'MPESA', label: 'M-Pesa', phoneNumber: '', note: '', requiresReference: true, source: 'legacy' },
+  { code: 'TIGOPESA', label: 'Tigo Pesa', phoneNumber: '', note: '', requiresReference: true, source: 'legacy' },
 ] as const;
 const paymentMethodLabels: Record<PaymentMethod, string> = {
   CASH: 'Cash',
@@ -340,10 +341,10 @@ function normalizeDispensingPaymentMethods(value: Prisma.JsonValue | null | unde
   }
 
   const methods = (value as Prisma.JsonObject).methods as Prisma.JsonArray;
-  const seen = new Set<PaymentMethod>([PaymentMethod.CASH]);
+  const seen = new Set<PaymentMethod>(['CASH']);
   const normalized: DispensingPaymentMethodOption[] = [
     {
-      code: PaymentMethod.CASH,
+      code: 'CASH',
       label: 'Cash',
       phoneNumber: '',
       note: 'Always enabled for offline fallback.',
@@ -359,7 +360,7 @@ function normalizeDispensingPaymentMethods(value: Prisma.JsonValue | null | unde
 
     const record = entry as Prisma.JsonObject;
     const code = typeof record.code === 'string' ? record.code.trim().toUpperCase() : '';
-    if (!code || code === PaymentMethod.CASH || !isPaymentMethod(code) || seen.has(code)) {
+    if (!code || code === 'CASH' || !isPaymentMethod(code) || seen.has(code)) {
       continue;
     }
 
@@ -373,7 +374,7 @@ function normalizeDispensingPaymentMethods(value: Prisma.JsonValue | null | unde
       label: typeof record.label === 'string' && record.label.trim() ? record.label.trim() : paymentMethodLabels[code],
       phoneNumber: typeof record.phoneNumber === 'string' ? record.phoneNumber.trim() : '',
       note: typeof record.note === 'string' ? record.note.trim() : '',
-      requiresReference: code !== PaymentMethod.CASH,
+      requiresReference: code !== 'CASH',
       source: 'config',
     });
     seen.add(code);

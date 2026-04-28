@@ -288,7 +288,6 @@ model Pharmacy {
   inspectionChecklists       InspectionChecklist[]
   overrideLogs               OverrideLog[]
   patients                   Patient[]
-  dispensings                Dispensing[]
   nhifClaims                 NhifClaim[]
   notifications              Notification[]
   settings                   PharmacySetting[]
@@ -324,7 +323,6 @@ model User {
 
   pharmacy                           Pharmacy?                   @relation(fields: [pharmacyId], references: [id])
   stockMovements                     StockMovement[]
-  dispensings                        Dispensing[]
   cpdActivities                      CpdActivity[]
   articles                           Article[]                   @relation("AuthoredArticles")
   refreshTokens                      RefreshToken[]
@@ -440,7 +438,6 @@ model Product {
   lastSupplier               Supplier?                   @relation("ProductLastSupplier", fields: [lastSupplierId], references: [id], onDelete: SetNull)
   batches                    Batch[]
   stockMovements             StockMovement[]
-  dispensingItems            DispensingItem[]
   stockAdjustmentSuggestions StockAdjustmentSuggestion[]
   barcodeMappings            ProductBarcodeMapping[]
   barcodeScanTelemetry       BarcodeScanTelemetry[]
@@ -580,7 +577,6 @@ model Batch {
   pharmacy                   Pharmacy                    @relation(fields: [pharmacyId], references: [id])
   supplier                   Supplier?                   @relation(fields: [supplierId], references: [id])
   stockMovements             StockMovement[]
-  dispensingItems            DispensingItem[]
   stockAdjustmentSuggestions StockAdjustmentSuggestion[]
 
   @@index([pharmacyId, expiryDate, receivedAt], map: "batches_pharmacy_expiry_received_idx")
@@ -1538,49 +1534,9 @@ model Patient {
   updatedAt         DateTime  @updatedAt
 
   pharmacy    Pharmacy     @relation(fields: [pharmacyId], references: [id])
-  dispensings Dispensing[]
   nhifClaims  NhifClaim[]
 
   @@map("patients")
-}
-
-model Dispensing {
-  id              String        @id @default(uuid())
-  pharmacyId      String
-  patientId       String?
-  dispensedById   String
-  referenceNumber String        @unique
-  paymentMethod   PaymentMethod @default(CASH)
-  totalAmount     Decimal       @db.Decimal(12, 2)
-  notes           String?
-  createdAt       DateTime      @default(now())
-
-  pharmacy    Pharmacy         @relation(fields: [pharmacyId], references: [id])
-  patient     Patient?         @relation(fields: [patientId], references: [id])
-  dispensedBy User             @relation(fields: [dispensedById], references: [id])
-  items       DispensingItem[]
-
-  @@map("dispensings")
-}
-
-model DispensingItem {
-  id               String  @id @default(uuid())
-  dispensingId     String
-  productId        String
-  batchId          String?
-  quantity         Int
-  unitPrice        Decimal @db.Decimal(12, 2)
-  lineTotal        Decimal @db.Decimal(12, 2)
-  dose             String?
-  icdCode          String?
-  icdDescription   String?
-  counsellingNotes String?
-
-  dispensing Dispensing @relation(fields: [dispensingId], references: [id], onDelete: Cascade)
-  product    Product    @relation(fields: [productId], references: [id])
-  batch      Batch?     @relation(fields: [batchId], references: [id])
-
-  @@map("dispensing_items")
 }
 
 // ─── NHIF ─────────────────────────────────────────────────────────────────────
