@@ -119,7 +119,10 @@ const COMPLIANCE_COLORS: Record<ComplianceKey, string> = {
 export const AnalyticsPage: React.FC = () => {
   const memberships = usePharmacyStore((state) => state.memberships);
   const activePharmacy = usePharmacyStore((state) => state.pharmacy);
-  const compareEligibleMemberships = memberships.filter((membership) => membership.pharmacy?.isActive !== false);
+  const compareEligibleMemberships = useMemo(
+    () => memberships.filter((membership) => membership.pharmacy?.isActive !== false),
+    [memberships]
+  );
   const [compareMetric, setCompareMetric] = React.useState<CompareMetric>('DISPENSED_UNITS');
   const [compareRange, setCompareRange] = React.useState<CompareRange>('30D');
   const [selectedPharmacyIds, setSelectedPharmacyIds] = React.useState<string[]>([]);
