@@ -1,7 +1,11 @@
 /**
- * Removes the Amani demo pharmacy and all its data from the live database.
- * Keeps: SUPER_ADMIN user, knowledge articles, drug master catalogue.
+ * Cleans the founder account only.
+ * - Invalidates all active sessions (forces re-login with new password)
+ * - Amani Pharmacy and all demo data are LEFT INTACT for testing
+ *
  * Run via Railway shell: npx ts-node src/scripts/clear-demo.ts
+ * Then log in as founder@pharmaconnect.tz and change your password
+ * in Settings → Profile → Change Password.
  */
 
 import { PrismaClient } from '@prisma/client';
@@ -9,69 +13,30 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 async function main() {
-  const DEMO_LICENCE = 'PH-AR-2024-001';
-  const DEMO_EMAILS = [
-    'admin@pharmaconnect.tz',
-    'owner@amani.co.tz',
-    'staff@pharmaconnect.tz',
-    'dispenser2@amani.co.tz',
-    'clerk@amani.co.tz',
-    'seller@amani.co.tz',
-  ];
+  const FOUNDER_EMAIL = 'founder@pharmaconnect.tz';
 
-  const pharmacy = await prisma.pharmacy.findUnique({
-    where: { licenceNumber: DEMO_LICENCE },
+  const founder = await prisma.user.findUnique({
+    where: { email: FOUNDER_EMAIL },
+    select: { id: true, firstName: true, lastName: true, email: true },
   });
 
-  if (!pharmacy) {
-    console.log('Demo pharmacy not found — database is already clean.');
-    return;
+  if (!founder) {
+    console.error('Founder account not found. Check the email.');
+    process.exit(1);
   }
 
-  console.log(`Found demo pharmacy: ${pharmacy.name} (${pharmacy.id})`);
-  console.log('Clearing demo data...\n');
+  console.log(`Found founder: ${founder.firstName} ${founder.lastName} <${founder.email}>`);
 
-  // Delete in dependency order
-  await prisma.stockMovement.deleteMany({ where: { pharmacyId: pharmacy.id } });
-  console.log('  ✓ Stock movements deleted');
-
-  await prisma.batch.deleteMany({ where: { pharmacyId: pharmacy.id } });
-  console.log('  ✓ Batches deleted');
-
-  await prisma.product.deleteMany({ where: { pharmacyId: pharmacy.id } });
-  console.log('  ✓ Products deleted');
-
-  await prisma.complianceItem.deleteMany({ where: { pharmacyId: pharmacy.id } });
-  console.log('  ✓ Compliance items deleted');
-
-  await prisma.overrideLog.deleteMany({ where: { pharmacyId: pharmacy.id } });
-  console.log('  ✓ Override logs deleted');
-
-  await prisma.refreshToken.deleteMany({
-    where: { user: { pharmacyId: pharmacy.id } },
+  // Invalidate all active sessions — forces a clean login after password change
+  const deleted = await prisma.refreshToken.deleteMany({
+    where: { userId: founder.id },
   });
-  console.log('  ✓ Refresh tokens deleted');
 
-  await prisma.pharmacyMembership.deleteMany({ where: { pharmacyId: pharmacy.id } });
-  console.log('  ✓ Memberships deleted');
-
-  // Delete demo users (not the founder)
-  await prisma.user.deleteMany({ where: { email: { in: DEMO_EMAILS } } });
-  console.log('  ✓ Demo users deleted');
-
-  await prisma.pharmacy.delete({ where: { id: pharmacy.id } });
-  console.log('  ✓ Demo pharmacy deleted');
-
-  // Verify founder account is intact
-  const founder = await prisma.user.findUnique({
-    where: { email: 'founder@pharmaconnect.tz' },
-  });
-  console.log(`\nFounder account intact: ${founder ? '✓ ' + founder.email : '✗ NOT FOUND'}`);
-
-  const articleCount = await prisma.article.count();
-  console.log(`Knowledge articles intact: ✓ ${articleCount} articles`);
-
-  console.log('\nDone. Database is clean and ready for real pharmacies.');
+  console.log(`  ✓ ${deleted.count} active session(s) invalidated`);
+  console.log('\nDone.');
+  console.log('Next: log in as founder@pharmaconnect.tz with Demo123!');
+  console.log('Then go to Settings → Profile → Change Password to set a real password.');
+  console.log('\nAmani Pharmacy and all demo data are untouched.');
 }
 
 main()
