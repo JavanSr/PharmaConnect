@@ -560,7 +560,7 @@ export const DispensingScreen: React.FC = () => {
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_420px]">
         <div className="space-y-5">
           {/* Patient bar — collapsed by default, expands on toggle */}
-          <div className="rounded-2xl border border-[#D6F0E8] bg-white overflow-hidden">
+          <div className="hidden">
             {/* Bar */}
             <button
               type="button"
@@ -689,14 +689,122 @@ export const DispensingScreen: React.FC = () => {
                   <Pill size={16} className="text-[#1A6B5C]" />
                   <span className="text-sm font-semibold text-[#0D4035]">Medicine entry</span>
                 </div>
-                {selectedDrug && (
-                  <Badge variant="success" size="sm">
-                    {money(Number(selectedDrug.sellingPrice ?? 0))}
-                  </Badge>
-                )}
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  {selectedDrug && (
+                    <Badge variant="success" size="sm">
+                      {money(Number(selectedDrug.sellingPrice ?? 0))}
+                    </Badge>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setShowPatientPanel((value) => !value)}
+                    className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-[#D6F0E8] bg-white px-3 py-1.5 text-xs font-medium text-[#64748B] transition-colors hover:bg-[#EDF7F3] hover:text-[#0D4035]"
+                  >
+                    <UserRound size={14} className={patientLabel === WALK_IN_LABEL ? 'text-[#94A3B8]' : 'text-[#1A6B5C]'} />
+                    <span className="truncate">{patientLabel === WALK_IN_LABEL ? 'Walk-in' : patientLabel}</span>
+                    {patientPhone && patientLabel !== WALK_IN_LABEL && (
+                      <span className="hidden text-[#94A3B8] sm:inline">{patientPhone}</span>
+                    )}
+                    {showPatientPanel ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                  </button>
+                  {patientLabel !== WALK_IN_LABEL && (
+                    <button
+                      type="button"
+                      onClick={resetPatientProfile}
+                      className="rounded-full p-1 text-[#94A3B8] transition-colors hover:bg-red-50 hover:text-[#DC2626]"
+                      aria-label="Reset to walk-in"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
               </div>
             }
           >
+            {showPatientPanel && (
+              <div className="mb-4 rounded-2xl border border-[#D6F0E8] bg-[#F8FAFC] px-4 py-4 space-y-4">
+                <div className="flex flex-wrap items-end gap-3">
+                  <div className="flex-1 min-w-[180px]">
+                    <Input
+                      label="Phone number"
+                      value={patientPhone}
+                      onChange={(event) => setPatientPhone(event.target.value)}
+                      placeholder="Search or register by phone"
+                    />
+                  </div>
+                  <Button onClick={handleSearchOrRegister}>Search/Register</Button>
+                  <Button variant="ghost" onClick={resetPatientProfile}>Use walk-in</Button>
+                </div>
+
+                {phoneMatches.length > 0 && (
+                  <div className="space-y-2">
+                    {phoneMatches.map((profile) => (
+                      <button
+                        key={profile.normalizedPhone}
+                        type="button"
+                        onClick={() => { applyPatientProfile({ ...profile, phone: profile.phone }); setShowPatientPanel(false); }}
+                        className="flex w-full items-center justify-between rounded-2xl border border-[#D6F0E8] bg-white px-4 py-3 text-left hover:bg-[#EDF7F3]"
+                      >
+                        <span>
+                          <span className="block text-sm font-semibold text-[#0D4035]">{profile.name}</span>
+                          <span className="mt-0.5 block text-xs text-[#64748B]">{profile.phone}</span>
+                        </span>
+                        <Badge variant="info" size="sm">Load</Badge>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <div className="relative">
+                  <Input
+                    label="Patient name / label"
+                    value={patientLabel}
+                    onChange={(event) => setPatientLabel(event.target.value || WALK_IN_LABEL)}
+                    placeholder="Enter name to register a new patient"
+                  />
+                  {sessionMatches.length > 0 && (
+                    <div className="absolute left-0 right-0 top-full z-20 mt-1 rounded-2xl border border-[#D6F0E8] bg-white shadow-lg">
+                      {sessionMatches.map((shortcut) => (
+                        <button
+                          key={shortcut.label}
+                          type="button"
+                          onClick={() => { applySessionShortcut(shortcut); setShowPatientPanel(false); }}
+                          className="block w-full border-b border-[#D6F0E8] px-4 py-3 text-left text-sm text-[#0D4035] last:border-b-0 hover:bg-[#EDF7F3]"
+                        >
+                          {shortcut.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <Input
+                    label="Age (years)"
+                    type="number"
+                    min="0"
+                    value={ageYears}
+                    onChange={(event) => setAgeYears(event.target.value)}
+                    placeholder="Optional"
+                  />
+                  <Input
+                    ref={weightInputRef}
+                    label="Weight (kg)"
+                    type="number"
+                    min="0"
+                    value={weightKg}
+                    onChange={(event) => setWeightKg(event.target.value)}
+                    placeholder="Optional"
+                  />
+                </div>
+
+                <div className="flex gap-2">
+                  <Button size="sm" variant="secondary" onClick={saveSessionShortcut}>Save shortcut</Button>
+                  <Button size="sm" variant="ghost" onClick={() => setShowPatientPanel(false)}>Done</Button>
+                </div>
+              </div>
+            )}
+
             <div className="relative">
               <Input
                 label="Medicine"
