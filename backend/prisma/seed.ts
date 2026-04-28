@@ -6,7 +6,6 @@ function toMembershipRole(role: UserRole): PharmacyMembershipRole {
     case 'OWNER':               return 'OWNER';
     case 'PHARMACIST_IN_CHARGE': return 'PHARMACIST_IN_CHARGE';
     case 'DISPENSER':           return 'DISPENSER';
-    case 'DATA_ENTRY_CLERK':    return 'ACCOUNTANT';
     case 'WHOLESALE_SELLER':    return 'OWNER';
     default:                    return 'DISPENSER';
   }
@@ -51,7 +50,7 @@ async function main() {
     { email: 'owner@amani.co.tz',       firstName: 'Mohamed', lastName: 'Rashid',  role: 'OWNER'                as const },
     { email: 'staff@pharmaconnect.tz',  firstName: 'Staff',   lastName: 'Demo',    role: 'DISPENSER'            as const },
     { email: 'dispenser2@amani.co.tz',  firstName: 'Amina',   lastName: 'Hassan',  role: 'DISPENSER'            as const },
-    { email: 'clerk@amani.co.tz',       firstName: 'Clerk',   lastName: 'Demo',    role: 'DATA_ENTRY_CLERK'     as const },
+    { email: 'clerk@amani.co.tz',       firstName: 'Clerk',   lastName: 'Demo',    role: 'DISPENSER'            as const },
     { email: 'seller@amani.co.tz',      firstName: 'Seller',  lastName: 'Demo',    role: 'WHOLESALE_SELLER'     as const },
   ];
 

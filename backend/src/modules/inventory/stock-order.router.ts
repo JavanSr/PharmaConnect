@@ -4,8 +4,8 @@ import type { AuthRequest } from '../../middleware/auth';
 import { requirePermission } from '../../middleware/permissions';
 import * as svc from './stock-order.service';
 
-const editableRoles = new Set(['OWNER', 'PHARMACIST_IN_CHARGE', 'DATA_ENTRY_CLERK', 'WHOLESALE_MANAGER', 'SUPER_ADMIN']);
-const receiverRoles = new Set(['OWNER', 'PHARMACIST_IN_CHARGE', 'DATA_ENTRY_CLERK', 'SUPER_ADMIN']);
+const editableRoles = new Set(['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'WHOLESALE_MANAGER', 'SUPER_ADMIN']);
+const receiverRoles = new Set(['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'SUPER_ADMIN']);
 const submittedCancelRoles = new Set(['OWNER', 'PHARMACIST_IN_CHARGE', 'SUPER_ADMIN']);
 
 const requireStockOrderRole = (roles: Set<string>) => (req: AuthRequest, res: Response, next: NextFunction) => {

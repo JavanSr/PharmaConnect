@@ -23,7 +23,7 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 catalogueImportRouter.post(
   '/extract',
   authenticate,
-  requireRole('OWNER', 'PHARMACIST_IN_CHARGE', 'DATA_ENTRY_CLERK', 'SUPER_ADMIN'),
+  requireRole('OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'SUPER_ADMIN'),
   upload.single('file'),
   async (req: AuthRequest, res, next) => {
     try {

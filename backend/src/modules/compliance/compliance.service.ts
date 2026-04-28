@@ -23,8 +23,6 @@ export type ComplianceRole =
   | 'OWNER'
   | 'PHARMACIST_IN_CHARGE'
   | 'DISPENSER'
-  | 'ACCOUNTANT'
-  | 'DATA_ENTRY_CLERK'
   | 'CASHIER'
   | 'WHOLESALE_MANAGER'
   | 'WHOLESALE_COUNTER_STAFF'
@@ -378,7 +376,7 @@ export async function createComplianceItem(input: {
       roleScope:
         input.payload.type === WHOLESALE_PERMIT_LICENCE_TYPE
           ? ['OWNER', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF']
-          : ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'DATA_ENTRY_CLERK'],
+          : ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER'],
     },
     include: {
       _count: {

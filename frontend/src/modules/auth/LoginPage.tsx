@@ -25,7 +25,7 @@ const DEMO_ACCOUNTS = isDev ? [
   { label: 'Staff', email: 'staff@pharmaconnect.tz' },
   { label: 'Owner', email: 'owner@amani.co.tz' },
   { label: 'Dispenser 2', email: 'dispenser2@amani.co.tz' },
-  { label: 'Data Entry Clerk', email: 'clerk@amani.co.tz' },
+  { label: 'Clerk Demo', email: 'clerk@amani.co.tz' },
   { label: 'Wholesale Seller', email: 'seller@amani.co.tz' },
 ] : [];
 const DEMO_PASSWORD = isDev ? 'Demo123!' : '';

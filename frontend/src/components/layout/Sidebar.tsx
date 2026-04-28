@@ -25,7 +25,7 @@ const phase1Nav: NavItem[] = [
   { label: 'Knowledge Hub', path: '/knowledge', icon: <BookOpen size={18} /> },
   { label: 'TMDA Updates', path: '/tmda-updates', icon: <BookOpen size={18} /> },
   { label: 'Inventory', path: '/inventory', icon: <Package size={18} /> },
-  { label: 'Order Preparation', path: '/inventory/stock-orders', icon: <ClipboardList size={18} />, roles: ['OWNER','PHARMACIST_IN_CHARGE','DATA_ENTRY_CLERK','WHOLESALE_MANAGER','SUPER_ADMIN'] },
+  { label: 'Order Preparation', path: '/inventory/stock-orders', icon: <ClipboardList size={18} />, roles: ['OWNER','PHARMACIST_IN_CHARGE','DISPENSER','WHOLESALE_MANAGER','SUPER_ADMIN'] },
   { label: 'Compliance', path: '/compliance', icon: <Shield size={18} />, roles: ['OWNER','PHARMACIST_IN_CHARGE','DISPENSER','SUPER_ADMIN'] },
   { label: 'Analytics', path: '/analytics', icon: <BarChart3 size={18} /> },
   { label: 'Dispensing', path: '/dispensing', icon: <Pill size={18} />, roles: ['PHARMACIST_IN_CHARGE','DISPENSER','CASHIER','SUPER_ADMIN'] },
@@ -33,9 +33,9 @@ const phase1Nav: NavItem[] = [
   { label: 'Controlled Register', path: '/controlled-substances', icon: <Lock size={18} />, roles: ['OWNER','PHARMACIST_IN_CHARGE','SUPER_ADMIN'] },
   { label: 'Wholesale', path: '/wholesale', icon: <Building2 size={18} />, roles: ['OWNER','WHOLESALE_MANAGER','WHOLESALE_COUNTER_STAFF','DELIVERY_STAFF','SUPER_ADMIN'] },
   { label: 'Orders', path: '/wholesale/orders', icon: <ClipboardList size={18} />, roles: ['OWNER','WHOLESALE_MANAGER','WHOLESALE_COUNTER_STAFF','DELIVERY_STAFF','SUPER_ADMIN'] },
-  { label: 'Reports', path: '/reports', icon: <BarChart3 size={18} />, roles: ['OWNER','PHARMACIST_IN_CHARGE','ACCOUNTANT','WHOLESALE_MANAGER','SUPER_ADMIN'] },
+  { label: 'Reports', path: '/reports', icon: <BarChart3 size={18} />, roles: ['OWNER','PHARMACIST_IN_CHARGE','CASHIER','WHOLESALE_MANAGER','SUPER_ADMIN'] },
   { label: 'Attendance', path: '/attendance', icon: <Users size={18} /> },
-  { label: 'Sync Conflicts', path: '/inventory/conflicts', icon: <AlertTriangle size={18} />, roles: ['OWNER','PHARMACIST_IN_CHARGE','DATA_ENTRY_CLERK','SUPER_ADMIN'] },
+  { label: 'Sync Conflicts', path: '/inventory/conflicts', icon: <AlertTriangle size={18} />, roles: ['OWNER','PHARMACIST_IN_CHARGE','SUPER_ADMIN'] },
 ];
 
 const phase2Nav: NavItem[] = [

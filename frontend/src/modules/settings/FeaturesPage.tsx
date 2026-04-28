@@ -17,7 +17,7 @@ type SubFeature = {
   label: string;
   description: string;
   /** Roles that CAN use this subfeature. Owners/PIC/SUPER_ADMIN always have access. */
-  grantableRoles: Array<'DISPENSER' | 'CASHIER' | 'DATA_ENTRY_CLERK' | 'ACCOUNTANT'>;
+  grantableRoles: Array<'DISPENSER' | 'CASHIER'>;
 };
 
 type ModuleDefinition = {
@@ -51,8 +51,8 @@ const MODULES: ModuleDefinition[] = [
     label: 'Inventory',
     description: 'Stock management, batch tracking, expiry monitoring.',
     subs: [
-      { key: 'inventory.receive_stock', label: 'Receive stock', description: 'Allow staff to add incoming batches.', grantableRoles: ['DISPENSER', 'DATA_ENTRY_CLERK'] },
-      { key: 'inventory.adjust_stock', label: 'Adjust stock', description: 'Allow staff to submit stock adjustment requests.', grantableRoles: ['DISPENSER', 'DATA_ENTRY_CLERK'] },
+      { key: 'inventory.receive_stock', label: 'Receive stock', description: 'Allow staff to add incoming batches.', grantableRoles: ['DISPENSER'] },
+      { key: 'inventory.adjust_stock', label: 'Adjust stock', description: 'Allow staff to submit stock adjustment requests.', grantableRoles: ['DISPENSER'] },
     ],
   },
   {
@@ -60,7 +60,7 @@ const MODULES: ModuleDefinition[] = [
     label: 'Compliance',
     description: 'Regulatory item tracking, inspection checklists, staff credentials.',
     subs: [
-      { key: 'compliance.manage', label: 'Add/edit compliance items', description: 'Allow staff to create or update compliance records.', grantableRoles: ['DATA_ENTRY_CLERK'] },
+      { key: 'compliance.manage', label: 'Add/edit compliance items', description: 'Allow staff to create or update compliance records.', grantableRoles: ['DISPENSER'] },
     ],
   },
   {
@@ -76,8 +76,8 @@ const MODULES: ModuleDefinition[] = [
     label: 'Reports',
     description: 'Financial reports, sales summaries, and staff attendance.',
     subs: [
-      { key: 'reports.financial', label: 'Financial reports', description: 'Allow accountants to access revenue and financial summaries.', grantableRoles: ['ACCOUNTANT'] },
-      { key: 'reports.attendance', label: 'Attendance', description: 'Allow all staff to view the attendance module.', grantableRoles: ['DISPENSER', 'CASHIER', 'DATA_ENTRY_CLERK'] },
+      { key: 'reports.financial', label: 'Financial reports', description: 'Allow cashiers to access revenue and financial summaries.', grantableRoles: ['CASHIER'] },
+      { key: 'reports.attendance', label: 'Attendance', description: 'Allow all staff to view the attendance module.', grantableRoles: ['DISPENSER', 'CASHIER'] },
     ],
   },
   {
