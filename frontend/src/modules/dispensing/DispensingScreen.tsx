@@ -113,7 +113,7 @@ export const DispensingScreen: React.FC = () => {
   const [discountReason, setDiscountReason] = useState('');
   const [receipt, setReceipt] = useState<DispensingReceipt | null>(null);
 
-  const [showPatientPanel, setShowPatientPanel] = useState(true);
+  const [showPatientPanel, setShowPatientPanel] = useState(false);
   const [patientLabel, setPatientLabel] = useState(WALK_IN_LABEL);
   const [patientPhone, setPatientPhone] = useState('');
   const [ageYears, setAgeYears] = useState('');
@@ -246,6 +246,7 @@ export const DispensingScreen: React.FC = () => {
     setBreastfeeding(false);
     setRenalImpairment(false);
     setHepaticImpairment(false);
+    setShowPatientPanel(false);
   };
 
   const applyPatientProfile = (profile: {
