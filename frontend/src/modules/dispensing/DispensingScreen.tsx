@@ -140,6 +140,7 @@ export const DispensingScreen: React.FC = () => {
   const totalDue = Math.max(0, cartTotal - (Number.isFinite(parsedDiscount) ? parsedDiscount : 0));
   const canApplyDiscount = ['OWNER', 'PHARMACIST_IN_CHARGE', 'LOCUM', 'SUPER_ADMIN'].includes(user?.role || '');
   const normalizedPatientPhone = useMemo(() => normalizePatientPhone(patientPhone), [patientPhone]);
+  const patientNameInputValue = patientLabel === WALK_IN_LABEL ? '' : patientLabel;
   const safetyEnabled =
     isRetailSafetyTier(pharmacy?.subscriptionTier) &&
     pharmacy?.pharmacyType !== 'ADDO' &&
@@ -198,12 +199,12 @@ export const DispensingScreen: React.FC = () => {
   const selectedPaymentOption = availablePaymentMethods.find((method) => method.code === paymentMethod) ?? availablePaymentMethods[0];
   const sessionMatches = useMemo(
     () =>
-      patientLabel.trim().length < 2
+      patientNameInputValue.trim().length < 2
         ? []
         : sessionShortcuts.filter((shortcut) =>
-            shortcut.label.toLowerCase().includes(patientLabel.trim().toLowerCase()),
+            shortcut.label.toLowerCase().includes(patientNameInputValue.trim().toLowerCase()),
           ),
-    [patientLabel, sessionShortcuts],
+    [patientNameInputValue, sessionShortcuts],
   );
   const phoneMatches = useMemo(
     () =>
@@ -413,13 +414,13 @@ export const DispensingScreen: React.FC = () => {
   };
 
   const saveSessionShortcut = () => {
-    if (!patientLabel.trim()) {
+    if (!patientNameInputValue.trim()) {
       toast.error('Enter a session label first');
       return;
     }
 
     const shortcut: SessionShortcut = {
-      label: patientLabel.trim(),
+      label: patientNameInputValue.trim(),
       ageYears: ageYears ? Number(ageYears) : undefined,
       weightKg: weightKg ? Number(weightKg) : undefined,
       diagnoses: sessionPayload.diagnoses || [],
@@ -463,8 +464,8 @@ export const DispensingScreen: React.FC = () => {
       return;
     }
 
-    const trimmedName = patientLabel.trim();
-    if (!trimmedName || trimmedName === WALK_IN_LABEL) {
+    const trimmedName = patientNameInputValue.trim();
+    if (!trimmedName) {
       toast.error('Enter a patient name to register this phone number');
       return;
     }
@@ -633,10 +634,10 @@ export const DispensingScreen: React.FC = () => {
 
                 <div className="relative">
                   <Input
-                    label="Patient name / label"
-                    value={patientLabel}
+                    label="Customer name (optional)"
+                    value={patientNameInputValue}
                     onChange={(event) => setPatientLabel(event.target.value || WALK_IN_LABEL)}
-                    placeholder="Enter name to register a new patient"
+                    placeholder="Loyal customer name"
                   />
                   {sessionMatches.length > 0 && (
                     <div className="absolute left-0 right-0 top-full z-20 mt-1 rounded-2xl border border-[#D6F0E8] bg-white shadow-lg">
@@ -757,10 +758,10 @@ export const DispensingScreen: React.FC = () => {
 
                 <div className="relative">
                   <Input
-                    label="Patient name / label"
-                    value={patientLabel}
+                    label="Customer name (optional)"
+                    value={patientNameInputValue}
                     onChange={(event) => setPatientLabel(event.target.value || WALK_IN_LABEL)}
-                    placeholder="Enter name to register a new patient"
+                    placeholder="Loyal customer name"
                   />
                   {sessionMatches.length > 0 && (
                     <div className="absolute left-0 right-0 top-full z-20 mt-1 rounded-2xl border border-[#D6F0E8] bg-white shadow-lg">
