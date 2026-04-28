@@ -31,6 +31,7 @@ const productSchema = z.object({
   manufacturer: z.string().optional(),
   therapeuticCategory: z.string().optional(),
   drugMasterId: z.string().optional(),
+  lastSupplierId: z.string().optional(),
 });
 
 const supplierSchema = z.object({
@@ -378,6 +379,18 @@ inventoryRouter.delete('/suppliers/:id', requirePermission('inventory.manage_sto
 inventoryRouter.get('/reports/stock-on-hand', requirePermission('inventory.view_reports'), async (req: AuthRequest, res, next) => {
   try {
     res.json({ data: await svc.stockOnHand(pid(req)) });
+  } catch (e) {
+    next(e);
+  }
+});
+
+inventoryRouter.get('/reports/dashboard-summary', requirePermission('inventory.view_reports'), async (req: AuthRequest, res, next) => {
+  try {
+    const params = z.object({
+      dateFrom: z.string().optional(),
+      dateTo: z.string().optional(),
+    }).parse(req.query);
+    res.json({ data: await svc.dashboardSummary(pid(req), params) });
   } catch (e) {
     next(e);
   }

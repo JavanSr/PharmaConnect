@@ -35,7 +35,7 @@ catalogueImportRouter.post(
       const pdfBase64 = req.file.buffer.toString('base64');
 
       const message = await client.messages.create({
-        model: 'claude-opus-4-5',
+        model: 'claude-opus-4-7',
         max_tokens: 4096,
         messages: [
           {

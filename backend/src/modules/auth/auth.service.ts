@@ -1,9 +1,14 @@
+import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import { prisma } from '../../lib/prisma';
 import { withPrismaRetry } from '../../lib/prisma-retry';
 import { verifyRefresh } from '../../lib/jwt';
 import { normalizeRole, type KnownRole } from '../../types/roles';
 import { issueAuthTokens, listAccessiblePharmacies, resolveActiveMembership } from './pharmacy-membership.service';
+
+function hashToken(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
 
 function initialSubscriptionTier(pharmacyType: 'RETAIL' | 'ADDO' | 'WHOLESALE') {
   if (pharmacyType === 'ADDO') {
@@ -18,6 +23,22 @@ function initialSubscriptionTier(pharmacyType: 'RETAIL' | 'ADDO' | 'WHOLESALE') 
 }
 
 type LoginMembership = Awaited<ReturnType<typeof listAccessiblePharmacies>>[number];
+type LoginTimings = Record<string, number>;
+
+const loginSlowLogMs = Number(process.env.LOGIN_SLOW_LOG_MS ?? 1000);
+
+async function measureLoginStep<T>(
+  timings: LoginTimings,
+  name: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const startedAt = Date.now();
+  try {
+    return await fn();
+  } finally {
+    timings[name] = Date.now() - startedAt;
+  }
+}
 
 function chooseLoginMembership(
   memberships: LoginMembership[],
@@ -38,16 +59,18 @@ function chooseLoginMembership(
 }
 
 export async function loginService(email: string, password: string, preferredPharmacyId?: string) {
-  const user = await withPrismaRetry(() => prisma.user.findUnique({
-    where: { email: email.toLowerCase() },
-    include: { pharmacy: true },
-  }));
+  const startedAt = Date.now();
+  const timings: LoginTimings = {};
+  const user = await measureLoginStep(timings, 'userLookupMs', () => withPrismaRetry(() => prisma.user.findUnique({
+      where: { email: email.toLowerCase() },
+      include: { pharmacy: true },
+    })));
 
   if (!user || !user.isActive) {
     throw Object.assign(new Error('Invalid email or password'), { status: 401 });
   }
 
-  const valid = await bcrypt.compare(password, user.password);
+  const valid = await measureLoginStep(timings, 'passwordCompareMs', () => bcrypt.compare(password, user.password));
   if (!valid) {
     throw Object.assign(new Error('Invalid email or password'), { status: 401 });
   }
@@ -55,7 +78,7 @@ export async function loginService(email: string, password: string, preferredPha
   const normalizedRole = normalizeRole(user.role);
   const rawMemberships = normalizedRole === 'SUPER_ADMIN'
     ? []
-    : await listAccessiblePharmacies(user.id);
+    : await measureLoginStep(timings, 'membershipsMs', () => listAccessiblePharmacies(user.id));
   const membership = normalizedRole === 'SUPER_ADMIN'
     ? null
     : chooseLoginMembership(rawMemberships, preferredPharmacyId ?? user.pharmacyId);
@@ -66,25 +89,37 @@ export async function loginService(email: string, password: string, preferredPha
 
   const selectedPharmacyId = membership?.pharmacyId ?? user.pharmacyId;
 
-  const [{ accessToken, refreshToken }] = await Promise.all([
-    issueAuthTokens({
+  const { accessToken, refreshToken } = await measureLoginStep(timings, 'tokenIssueMs', () => issueAuthTokens({
       userId: user.id,
       role: user.role,
       pharmacyId: selectedPharmacyId,
-    }),
-    withPrismaRetry(() => prisma.user.update({
-      where: { id: user.id },
-      data: {
-        lastLogin: new Date(),
-        ...(selectedPharmacyId ? { pharmacyId: selectedPharmacyId } : {}),
-      },
-    })),
-  ]);
+    }));
+
+  void withPrismaRetry(() => prisma.user.update({
+    where: { id: user.id },
+    data: {
+      lastLogin: new Date(),
+      ...(selectedPharmacyId ? { pharmacyId: selectedPharmacyId } : {}),
+    },
+  })).catch((error) => {
+    console.error('[auth.login.lastLoginUpdateFailed]', error);
+  });
 
   const memberships = rawMemberships.map((entry) => ({
       ...entry,
       selected: entry.pharmacyId === selectedPharmacyId,
     }));
+
+  const totalMs = Date.now() - startedAt;
+  if (totalMs >= loginSlowLogMs) {
+    console.warn('[auth.login.slow]', {
+      totalMs,
+      ...timings,
+      userId: user.id,
+      membershipCount: rawMemberships.length,
+      selectedPharmacyId,
+    });
+  }
 
   const { password: _pw, ...safeUser } = user;
   return {
@@ -172,14 +207,15 @@ export async function registerService(payload: {
 
 export async function refreshTokenService(token: string) {
   const payload = verifyRefresh(token);
+  const tokenHash = hashToken(token);
 
-  const stored = await withPrismaRetry(() => prisma.refreshToken.findUnique({ where: { token } }));
+  const stored = await withPrismaRetry(() => prisma.refreshToken.findUnique({ where: { token: tokenHash } }));
   if (!stored || stored.expiresAt < new Date()) {
     throw Object.assign(new Error('Invalid refresh token'), { status: 401 });
   }
 
   // Rotate: delete old, issue new
-  await withPrismaRetry(() => prisma.refreshToken.delete({ where: { token } }));
+  await withPrismaRetry(() => prisma.refreshToken.delete({ where: { token: tokenHash } }));
 
   const user = await withPrismaRetry(() => prisma.user.findUnique({
     where: { id: payload.userId },
@@ -213,5 +249,5 @@ export async function refreshTokenService(token: string) {
 }
 
 export async function logoutService(token: string) {
-  await withPrismaRetry(() => prisma.refreshToken.deleteMany({ where: { token } }));
+  await withPrismaRetry(() => prisma.refreshToken.deleteMany({ where: { token: hashToken(token) } }));
 }

@@ -62,3 +62,4 @@ website/build-output/
 backend/task*.json
 backend/task*.md
 frontend/task*.json
+.gstack/

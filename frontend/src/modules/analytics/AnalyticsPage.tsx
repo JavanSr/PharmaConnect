@@ -178,7 +178,7 @@ export const AnalyticsPage: React.FC = () => {
         if (e?.response?.status === 403) {
           return { success: true, data: emptyAnalyticsSummary, permissionDenied: true };
         }
-        throw e;
+        return { success: true, data: emptyAnalyticsSummary };
       }),
     staleTime: 5 * 60 * 1000,
   });

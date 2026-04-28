@@ -64,9 +64,14 @@ export const InventoryDashboardPage: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card header={
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-3">
             <span className="text-sm font-semibold text-[#0D4035]">Low Stock Items</span>
-            <Link to="/inventory/products?filter=low-stock" className="text-xs text-[#1A6B5C] hover:underline flex items-center gap-1">View all <ArrowRight size={12} /></Link>
+            <div className="flex items-center gap-2">
+              <Link to="/inventory/stock-orders/new?prefill=low-stock">
+                <Button size="sm" variant="secondary">Prepare Restock Order</Button>
+              </Link>
+              <Link to="/inventory/products?filter=low-stock" className="text-xs text-[#1A6B5C] hover:underline flex items-center gap-1">View all <ArrowRight size={12} /></Link>
+            </div>
           </div>
         } padding={false}>
           {lowStock.length === 0 ? (

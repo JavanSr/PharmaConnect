@@ -3,7 +3,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { prisma } from '../../lib/prisma';
 import { withPrismaRetry } from '../../lib/prisma-retry';
-import { Prisma, type SyncConflictStatus } from '@prisma/client';
+import { Prisma, type MovementType, type SyncConflictStatus } from '@prisma/client';
 
 type ProductWriteInput = {
   name: string;
@@ -28,6 +28,7 @@ type ProductWriteInput = {
   manufacturer?: string;
   therapeuticCategory?: string;
   drugMasterId?: string;
+  lastSupplierId?: string;
 };
 
 type ProductVerificationStatus = 'MASTER_CATALOG_MATCHED' | 'UNVERIFIED';
@@ -177,6 +178,7 @@ function toProductData(pharmacyId: string, data: ProductWriteInput): Prisma.Prod
     manufacturer: data.manufacturer?.trim() || undefined,
     therapeuticCategory: data.therapeuticCategory?.trim() || undefined,
     drugMasterId: data.drugMasterId || undefined,
+    lastSupplierId: data.lastSupplierId?.trim() || undefined,
   };
 }
 
@@ -1044,6 +1046,7 @@ export async function updateProduct(id: string, pharmacyId: string, data: Partia
       manufacturer: data.manufacturer ?? product.manufacturer ?? undefined,
       therapeuticCategory: data.therapeuticCategory ?? product.therapeuticCategory ?? undefined,
       drugMasterId: data.drugMasterId ?? product.drugMasterId ?? undefined,
+      lastSupplierId: data.lastSupplierId ?? product.lastSupplierId ?? undefined,
   });
 
   return withPrismaRetry(() => prisma.$transaction(async (tx) => {
@@ -1072,6 +1075,7 @@ export async function updateProduct(id: string, pharmacyId: string, data: Partia
         manufacturer: resolvedData.manufacturer,
         therapeuticCategory: resolvedData.therapeuticCategory,
         drugMasterId: resolvedData.drugMasterId,
+        lastSupplierId: resolvedData.lastSupplierId,
       }),
     });
 
@@ -1192,10 +1196,13 @@ export async function receiveBatch(
       }
     }
 
-    if (data.sellingPrice) {
+    if (data.sellingPrice || supplierId) {
       await tx.product.update({
         where: { id: data.productId },
-        data: { sellingPrice: data.sellingPrice },
+        data: {
+          ...(data.sellingPrice ? { sellingPrice: data.sellingPrice } : {}),
+          ...(supplierId ? { lastSupplierId: supplierId } : {}),
+        },
       });
     }
 
@@ -1705,6 +1712,135 @@ export async function stockOnHand(pharmacyId: string) {
       nextExpiringBatch: product.batches[0] ?? null,
     };
   });
+}
+
+export async function dashboardSummary(
+  pharmacyId: string,
+  params: {
+    dateFrom?: string;
+    dateTo?: string;
+  } = {},
+) {
+  const now = Date.now();
+  const expiryCutoff = new Date(now + 30 * 86400000);
+  const todayStart = params.dateFrom ? new Date(params.dateFrom) : new Date(new Date().setHours(0, 0, 0, 0));
+  const todayEnd = params.dateTo ? new Date(params.dateTo) : new Date(new Date().setHours(23, 59, 59, 999));
+
+  const [products, stockGroups, expiryBatches, expiryCount, recentMovements, todayGroups] = await Promise.all([
+    prisma.product.findMany({
+      where: { pharmacyId, isActive: true },
+      select: {
+        id: true,
+        name: true,
+        reorderLevel: true,
+      },
+      orderBy: { name: 'asc' },
+    }),
+    prisma.batch.groupBy({
+      by: ['productId'],
+      where: {
+        pharmacyId,
+        quantityRemaining: { gt: 0 },
+      },
+      _sum: {
+        quantityRemaining: true,
+      },
+    }),
+    prisma.batch.findMany({
+      where: {
+        pharmacyId,
+        quantityRemaining: { gt: 0 },
+        expiryDate: { lte: expiryCutoff },
+      },
+      include: {
+        product: {
+          select: {
+            id: true,
+            name: true,
+            genericName: true,
+            coldChainRequired: true,
+          },
+        },
+      },
+      orderBy: [{ expiryDate: 'asc' }, { receivedAt: 'asc' }],
+      take: 6,
+    }),
+    prisma.batch.count({
+      where: {
+        pharmacyId,
+        quantityRemaining: { gt: 0 },
+        expiryDate: { lte: expiryCutoff },
+      },
+    }),
+    prisma.stockMovement.findMany({
+      where: { pharmacyId },
+      take: 8,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        product: { select: { id: true, name: true, genericName: true } },
+        user: { select: { id: true, firstName: true, lastName: true } },
+        batch: { select: { id: true, batchNumber: true, expiryDate: true } },
+      },
+    }),
+    prisma.stockMovement.groupBy({
+      by: ['type'],
+      where: {
+        pharmacyId,
+        createdAt: {
+          gte: todayStart,
+          lte: todayEnd,
+        },
+      },
+      _sum: {
+        quantity: true,
+      },
+      _count: {
+        _all: true,
+      },
+    }),
+  ]);
+
+  const stockByProduct = new Map(
+    stockGroups.map((group) => [group.productId, group._sum.quantityRemaining ?? 0]),
+  );
+  const lowStockProducts = products
+    .map((product) => ({
+      ...product,
+      currentStock: stockByProduct.get(product.id) ?? 0,
+    }))
+    .filter((product) => product.currentStock < product.reorderLevel)
+    .sort((a, b) => {
+      const aRatio = a.currentStock / Math.max(a.reorderLevel || 1, 1);
+      const bRatio = b.currentStock / Math.max(b.reorderLevel || 1, 1);
+      return aRatio - bRatio;
+    });
+
+  const todayByType = new Map<MovementType, { quantity: number; count: number }>(
+    todayGroups.map((group) => [
+      group.type,
+      {
+        quantity: group._sum.quantity ?? 0,
+        count: group._count._all,
+      },
+    ]),
+  );
+  const todayAdjustments = (['ADJUSTED', 'DAMAGED', 'EXPIRED_REMOVED'] as MovementType[])
+    .reduce((sum, type) => sum + (todayByType.get(type)?.count ?? 0), 0);
+
+  return {
+    totalProducts: products.length,
+    lowStockCount: lowStockProducts.length,
+    lowStockProducts: lowStockProducts.slice(0, 6),
+    expiryCount,
+    expiryBatches,
+    recentMovements,
+    today: {
+      dispensed: todayByType.get('DISPENSED')?.quantity ?? 0,
+      received: todayByType.get('RECEIVED')?.quantity ?? 0,
+      adjustments: todayAdjustments,
+      events: todayGroups.reduce((sum, group) => sum + group._count._all, 0),
+    },
+  };
 }
 
 export async function expiryReport(pharmacyId: string, days = 30) {

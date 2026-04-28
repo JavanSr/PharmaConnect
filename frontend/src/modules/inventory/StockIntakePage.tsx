@@ -129,7 +129,10 @@ const lineSchema = z.object({
   expiryDate: z.string().min(1, 'Required'),
   quantity: z.coerce.number().int().positive('Must be > 0'),
   enteredPrice: z.coerce.number().positive('Must be > 0'),
-  sellingPrice: z.coerce.number().positive('Must be > 0').optional(),
+  sellingPrice: z.preprocess(
+    (value) => (value === '' || value == null ? undefined : value),
+    z.coerce.number().positive('Must be > 0').optional(),
+  ),
   priceMode: z.enum(['UNIT', 'PACK']),
   packSize: z.coerce.number().int().min(1, 'Min 1').default(1),
 });
@@ -249,11 +252,19 @@ export const StockIntakePage: React.FC = () => {
       if (lookup.product) {
         selectProduct(lookup.product);
         setShowScanner(false);
-        toast.success(`Matched ${productName(lookup.product)}`);
+        toast.success(
+          lookup.source === 'USER_MAP'
+            ? `Loaded saved mapping for ${lookup.product.genericName || productName(lookup.product)}`
+            : `Matched ${productName(lookup.product)}`,
+        );
         return;
       }
       setShowScanner(false);
-      toast.warning(`No local product for barcode ${barcode}. Search to select manually.`);
+      toast.warning(
+        lookup.source === 'GS1'
+          ? 'GS1 barcode captured. Search to select manually.'
+          : `No local product for barcode ${barcode}. Search to select manually.`,
+      );
     } catch (e: any) {
       toast.error(e.response?.data?.error || 'Barcode lookup failed');
     }
@@ -261,19 +272,21 @@ export const StockIntakePage: React.FC = () => {
 
   const saveMappingMutation = useMutation({
     mutationFn: (p: { barcode: string; productId: string }) => api.post('/inventory/barcode-mappings', { ...p, source: 'USER_MAP' }),
-    onSuccess: () => toast.success('Barcode mapping saved'),
+    onSuccess: () => {
+      const productLabel = selectedProduct?.genericName || (selectedProduct ? productName(selectedProduct) : 'product');
+      toast.success(`Saved barcode mapping for ${productLabel}`);
+    },
     onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to save barcode mapping'),
   });
 
-  // add line to cart
-  const onAddLine = (data: LineFormData) => {
+  const makeCartLine = (data: LineFormData): CartLine | null => {
     if (!selectedProduct) {
       toast.error('Select a product first');
-      return;
+      return null;
     }
     const unitPrice = computeUnitPrice(data.enteredPrice, data.priceMode as PriceMode, data.packSize);
     const hint = computePriceHint(unitPrice, existingPrices);
-    setCart(prev => [...prev, {
+    return {
       id: uid(),
       product: selectedProduct,
       catalogProduct: selectedCatalogProduct ?? undefined,
@@ -286,17 +299,25 @@ export const StockIntakePage: React.FC = () => {
       unitPrice,
       sellingPrice: data.sellingPrice,
       priceHint: hint,
-    }]);
+    };
+  };
+
+  // add line to cart
+  const onAddLine = (data: LineFormData) => {
+    const line = makeCartLine(data);
+    if (!line) return;
+    setCart(prev => [...prev, line]);
     clearProductSearch();
-    toast.success(`${productName(selectedProduct)} added to intake cart`);
+    toast.success(`${productName(line.product)} added to intake cart`);
   };
 
   // receive all
   const receiveAllMutation = useMutation({
     networkMode: 'always',
-    mutationFn: async () => {
+    mutationFn: async (linesOverride?: CartLine[]) => {
+      const linesToReceive = linesOverride ?? cart;
       const results = [];
-      for (const line of cart) {
+      for (const line of linesToReceive) {
         const payload = {
           productId: line.product.id,
           batchNumber: line.batchNumber,
@@ -348,7 +369,11 @@ export const StockIntakePage: React.FC = () => {
       } else {
         toast.success(`${online} batch(es) received successfully`);
       }
+      if (offline > 0) {
+        toast.success('Stock saved locally and queued for sync!');
+      }
       setCart([]);
+      clearProductSearch();
     },
     onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to receive stock'),
   });
@@ -383,16 +408,16 @@ export const StockIntakePage: React.FC = () => {
       </Card>
 
       {/* Offline sync banner */}
-      {pendingWrites > 0 && (
-        <Card>
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <p className="text-sm text-[#64748B]">{pendingWrites} pending write{pendingWrites > 1 ? 's' : ''} queued offline</p>
-            <Button type="button" variant="secondary" size="sm" onClick={() => void flush()} loading={isSyncing} disabled={!isOnline}>
-              Sync now
-            </Button>
-          </div>
-        </Card>
-      )}
+      <Card>
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <p className="text-sm text-[#64748B]">
+            {pendingWrites} pending write{pendingWrites === 1 ? '' : 's'} waiting in the local queue.
+          </p>
+          <Button type="button" variant="secondary" size="sm" onClick={() => void flush()} loading={isSyncing} disabled={!isOnline || pendingWrites === 0}>
+            Sync now
+          </Button>
+        </div>
+      </Card>
 
       {/* ── Add item form ───────────────────────────────────────────────────── */}
       <Card header={<span className="text-sm font-semibold text-[#0D4035]">Add item to cart</span>}>
@@ -400,11 +425,9 @@ export const StockIntakePage: React.FC = () => {
         <div className="space-y-2 mb-5">
           <div className="flex items-center justify-between gap-3">
             <span className="text-sm font-medium text-[#0D4035]">Product <span className="text-[#DC2626]">*</span></span>
-            {!selectedProduct && (
-              <Button type="button" variant="ghost" size="sm" leftIcon={<ScanLine size={16} />} onClick={() => setShowScanner(p => !p)}>
-                {showScanner ? 'Hide scanner' : 'Scan'}
-              </Button>
-            )}
+            <Button type="button" variant="ghost" size="sm" leftIcon={<ScanLine size={16} />} onClick={() => setShowScanner(p => !p)}>
+              {showScanner ? 'Hide scanner' : 'Scan'}
+            </Button>
             {selectedProduct && (
               <button type="button" onClick={clearProductSearch} className="text-xs text-[#64748B] hover:text-[#DC2626]">
                 Clear
@@ -415,22 +438,24 @@ export const StockIntakePage: React.FC = () => {
           {!selectedProduct && (
             <>
               <Input
-                label="Search product"
+                label="Product search"
                 placeholder="Brand, generic, strength, SKU…"
                 value={productSearch}
                 onChange={e => setProductSearch(e.target.value)}
                 leftIcon={<Search size={16} />}
               />
-              {showScanner && (
-                <div className="rounded-2xl border border-dashed border-[#D6F0E8] bg-[#F8FCFA] p-4">
-                  <BarcodeScanner label="Scan barcode" placeholder="Scan or type barcode" onDetected={handleBarcodeDetected} />
-                </div>
-              )}
             </>
+          )}
+
+          {showScanner && (
+            <div className="rounded-2xl border border-dashed border-[#D6F0E8] bg-[#F8FCFA] p-4">
+              <BarcodeScanner label="Scan barcode" placeholder="Scan or type barcode" onDetected={handleBarcodeDetected} />
+            </div>
           )}
 
           {selectedProduct && (
             <div className="rounded-2xl border border-[#D6F0E8] bg-[#EDF7F3] px-4 py-3">
+              <input type="hidden" name="productId" value={selectedProduct.id} readOnly />
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-[#0D4035]">{productName(selectedProduct)}</p>
@@ -506,7 +531,7 @@ export const StockIntakePage: React.FC = () => {
               <p className="text-xs text-[#64748B]">Map barcode {pendingBarcode.barcode} → {productName(selectedProduct)}</p>
               <Button type="button" size="sm" variant="secondary" loading={saveMappingMutation.isPending}
                 onClick={() => saveMappingMutation.mutate({ barcode: pendingBarcode.barcode, productId: selectedProduct.id })}>
-                Save mapping
+                Save barcode mapping
               </Button>
             </div>
           )}
@@ -515,9 +540,9 @@ export const StockIntakePage: React.FC = () => {
         {/* Batch + pricing form */}
         <form onSubmit={handleSubmit(onAddLine)} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Input label="Batch number" placeholder="e.g. BATCH-2025-0001" {...register('batchNumber')} error={errors.batchNumber?.message} required />
-            <Input label="Expiry date" type="date" {...register('expiryDate')} error={errors.expiryDate?.message} required />
-            <Input label="Quantity" type="number" min="1" placeholder="100" {...register('quantity')} error={errors.quantity?.message} required />
+            <Input label="Batch Number" placeholder="e.g. BATCH-2025-0001" {...register('batchNumber')} error={errors.batchNumber?.message} required />
+            <Input label="Expiry Date" type="date" {...register('expiryDate')} error={errors.expiryDate?.message} required />
+            <Input label="Quantity Received" type="number" min="1" placeholder="100" {...register('quantity')} error={errors.quantity?.message} required />
           </div>
 
           {/* Unit/pack price toggle */}
@@ -542,7 +567,7 @@ export const StockIntakePage: React.FC = () => {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Input
-                label={watchedPriceMode === 'PACK' ? 'Pack price (TZS)' : 'Unit price (TZS)'}
+                label={watchedPriceMode === 'PACK' ? 'Pack Price (TZS)' : 'Purchase Price (TZS)'}
                 type="number" step="0.01" min="0.01" placeholder="1500.00"
                 {...register('enteredPrice')}
                 error={errors.enteredPrice?.message}
@@ -593,9 +618,23 @@ export const StockIntakePage: React.FC = () => {
             )}
           </div>
 
-          <Button type="submit" disabled={!selectedProduct} leftIcon={<Package size={16} />}>
-            Add to cart
-          </Button>
+          <div className="flex flex-wrap gap-3">
+            <Button type="submit" disabled={!selectedProduct} leftIcon={<Package size={16} />}>
+              Add to cart
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={!selectedProduct}
+              loading={receiveAllMutation.isPending}
+              onClick={handleSubmit((data) => {
+                const line = makeCartLine(data);
+                if (line) receiveAllMutation.mutate([line]);
+              })}
+            >
+              Receive Stock
+            </Button>
+          </div>
         </form>
       </Card>
 
@@ -643,10 +682,11 @@ export const StockIntakePage: React.FC = () => {
 
           <div className="border-t border-[#D6F0E8] px-5 py-4">
             <Button
-              onClick={() => receiveAllMutation.mutate()}
+              onClick={() => receiveAllMutation.mutate(undefined)}
               loading={receiveAllMutation.isPending}
               leftIcon={<PackageCheck size={16} />}
               className="w-full"
+              aria-label="Receive Stock"
             >
               Receive all {cart.length} item{cart.length > 1 ? 's' : ''}
             </Button>

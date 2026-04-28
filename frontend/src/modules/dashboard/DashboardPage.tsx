@@ -47,61 +47,24 @@ export const DashboardPage: React.FC = () => {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
-  const { data: stockData } = useQuery({
-    queryKey: ['dashboard-stock'],
-    queryFn: () => api.get('/inventory/reports/stock-on-hand').then(r => r.data),
-  });
-
-  const { data: expiryData } = useQuery({
-    queryKey: ['dashboard-expiry'],
-    queryFn: () => api.get('/inventory/reports/expiry?days=30').then(r => r.data),
-  });
-
-  const { data: movementsData } = useQuery({
-    queryKey: ['dashboard-movements'],
-    queryFn: () => api.get('/inventory/movements?limit=8').then(r => r.data),
-  });
-
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
   const todayEnd = new Date();
   todayEnd.setHours(23, 59, 59, 999);
 
-  const { data: todayData } = useQuery({
-    queryKey: ['dashboard-today'],
+  const { data: summaryData } = useQuery({
+    queryKey: ['dashboard-summary', todayStart.toISOString(), todayEnd.toISOString()],
     queryFn: () =>
       api
-        .get(`/inventory/movements?dateFrom=${todayStart.toISOString()}&dateTo=${todayEnd.toISOString()}&limit=100`)
+        .get(`/inventory/reports/dashboard-summary?dateFrom=${todayStart.toISOString()}&dateTo=${todayEnd.toISOString()}`)
         .then(r => r.data),
   });
 
-  const expiryBatches = expiryData?.data || [];
-  const allProducts = stockData?.data || [];
-  const lowStockCount = allProducts.filter((product: any) =>
-    (product.currentStock || 0) < product.reorderLevel
-  ).length;
-
-  const lowStockProducts = [...allProducts]
-    .filter((product: any) => (product.currentStock || 0) < product.reorderLevel)
-    .sort((a: any, b: any) => {
-      const aRatio = (a.currentStock || 0) / Math.max(a.reorderLevel || 1, 1);
-      const bRatio = (b.currentStock || 0) / Math.max(b.reorderLevel || 1, 1);
-      return aRatio - bRatio;
-    })
-    .slice(0, 6);
-
-  const recentMovements = movementsData?.data || [];
-  const todayMovements = todayData?.data || [];
-  const todayDispensed = todayMovements
-    .filter((movement: any) => movement.type === 'DISPENSED')
-    .reduce((sum: number, movement: any) => sum + movement.quantity, 0);
-  const todayReceived = todayMovements
-    .filter((movement: any) => movement.type === 'RECEIVED')
-    .reduce((sum: number, movement: any) => sum + movement.quantity, 0);
-  const todayAdjustments = todayMovements.filter((movement: any) =>
-    ['ADJUSTED', 'DAMAGED', 'EXPIRED_REMOVED'].includes(movement.type)
-  ).length;
-  const todayEvents = todayMovements.length;
+  const summary = summaryData?.data;
+  const expiryBatches = summary?.expiryBatches || [];
+  const lowStockProducts = summary?.lowStockProducts || [];
+  const recentMovements = summary?.recentMovements || [];
+  const todayStats = summary?.today || {};
 
   return (
     <div className="space-y-6">
@@ -123,21 +86,21 @@ export const DashboardPage: React.FC = () => {
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         <StatCardEl
           label="Total Products"
-          value={allProducts.length || '--'}
+          value={summary?.totalProducts ?? '--'}
           icon={<Package size={20} className="text-[#1A6B5C]" />}
           color="bg-[#D6F0E8]"
           link="/inventory/products"
         />
         <StatCardEl
           label="Low Stock Items"
-          value={lowStockCount}
+          value={summary?.lowStockCount ?? '--'}
           icon={<AlertTriangle size={20} className="text-[#D97706]" />}
           color="bg-amber-50"
           link="/inventory"
         />
         <StatCardEl
           label="Expiring <=30 Days"
-          value={expiryBatches.length}
+          value={summary?.expiryCount ?? '--'}
           icon={<Clock size={20} className="text-[#DC2626]" />}
           color="bg-red-50"
           link="/inventory/expiry"
@@ -245,7 +208,7 @@ export const DashboardPage: React.FC = () => {
                 </div>
                 <span className="text-sm text-[#0D4035]">Dispensed</span>
               </div>
-              <span className="text-lg font-bold text-[#1A6B5C]">{todayDispensed}</span>
+              <span className="text-lg font-bold text-[#1A6B5C]">{todayStats.dispensed ?? 0}</span>
             </div>
 
             <div className="flex items-center justify-between p-3 bg-[#EDF7F3] rounded-2xl">
@@ -255,7 +218,7 @@ export const DashboardPage: React.FC = () => {
                 </div>
                 <span className="text-sm text-[#0D4035]">Received</span>
               </div>
-              <span className="text-lg font-bold text-[#1D9E75]">{todayReceived}</span>
+              <span className="text-lg font-bold text-[#1D9E75]">{todayStats.received ?? 0}</span>
             </div>
 
             <div className="flex items-center justify-between p-3 bg-amber-50 rounded-2xl">
@@ -265,7 +228,7 @@ export const DashboardPage: React.FC = () => {
                 </div>
                 <span className="text-sm text-[#0D4035]">Adjustments</span>
               </div>
-              <span className="text-lg font-bold text-[#D97706]">{todayAdjustments}</span>
+              <span className="text-lg font-bold text-[#D97706]">{todayStats.adjustments ?? 0}</span>
             </div>
 
             <div className="flex items-center justify-between p-3 bg-[#EDF7F3] rounded-2xl">
@@ -275,7 +238,7 @@ export const DashboardPage: React.FC = () => {
                 </div>
                 <span className="text-sm text-[#0D4035]">Total Events</span>
               </div>
-              <span className="text-lg font-bold text-[#0D4035]">{todayEvents}</span>
+              <span className="text-lg font-bold text-[#0D4035]">{todayStats.events ?? 0}</span>
             </div>
           </div>
         </Card>

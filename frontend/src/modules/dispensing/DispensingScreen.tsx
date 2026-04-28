@@ -113,7 +113,7 @@ export const DispensingScreen: React.FC = () => {
   const [discountReason, setDiscountReason] = useState('');
   const [receipt, setReceipt] = useState<DispensingReceipt | null>(null);
 
-  const [showPatientPanel, setShowPatientPanel] = useState(false);
+  const [showPatientPanel, setShowPatientPanel] = useState(true);
   const [patientLabel, setPatientLabel] = useState(WALK_IN_LABEL);
   const [patientPhone, setPatientPhone] = useState('');
   const [ageYears, setAgeYears] = useState('');
@@ -132,10 +132,13 @@ export const DispensingScreen: React.FC = () => {
   }>({ review: null, requiresOverride: false });
 
   const debouncedDrugSearch = useDebounce(drugSearch, 250);
-  const cartTotal = useMemo(() => cartItems.reduce((sum, item) => sum + item.lineTotal, 0), [cartItems]);
+  const cartTotal = useMemo(
+    () => cartItems.reduce((sum, item) => sum + (item.unitPrice ?? 0) * item.quantity, 0),
+    [cartItems],
+  );
   const parsedDiscount = Number(discountAmount || 0);
   const totalDue = Math.max(0, cartTotal - (Number.isFinite(parsedDiscount) ? parsedDiscount : 0));
-  const canApplyDiscount = ['OWNER', 'PHARMACIST_IN_CHARGE', 'SUPER_ADMIN'].includes(user?.role || '');
+  const canApplyDiscount = ['OWNER', 'PHARMACIST_IN_CHARGE', 'LOCUM', 'SUPER_ADMIN'].includes(user?.role || '');
   const normalizedPatientPhone = useMemo(() => normalizePatientPhone(patientPhone), [patientPhone]);
   const safetyEnabled =
     isRetailSafetyTier(pharmacy?.subscriptionTier) &&
@@ -321,6 +324,7 @@ export const DispensingScreen: React.FC = () => {
       resetPatientProfile();
       toast.success('Dispensing completed');
       queryClient.invalidateQueries({ queryKey: ['dashboard-stock'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
       queryClient.invalidateQueries({ queryKey: ['products'] });
     },
     onError: (error: any) => {
@@ -345,12 +349,17 @@ export const DispensingScreen: React.FC = () => {
     let latestSelectedDrug = selectedDrug;
     try {
       const response = await api.get(`/inventory/products/${selectedDrug.id}`);
-      if (response.data?.data) {
+      if (response.data?.data && !Array.isArray(response.data.data)) {
         latestSelectedDrug = response.data.data as Product;
         setSelectedDrug(latestSelectedDrug);
       }
     } catch {
       // Keep the current selection if the refresh fails; the existing validation below still applies.
+    }
+
+    if (!latestSelectedDrug.sellingPrice) {
+      toast.error('This product has no selling price set. Update it in Inventory first.');
+      return;
     }
 
     const currentStock = latestSelectedDrug.currentStock ?? 0;
@@ -562,6 +571,9 @@ export const DispensingScreen: React.FC = () => {
                 <span className={`text-sm font-medium ${patientLabel === WALK_IN_LABEL ? 'text-[#64748B]' : 'text-[#0D4035]'}`}>
                   {patientLabel === WALK_IN_LABEL ? 'Walk-in' : patientLabel}
                 </span>
+                {patientLabel === WALK_IN_LABEL && (
+                  <span className="text-xs text-[#94A3B8]">Walk-in default</span>
+                )}
                 {patientPhone && patientLabel !== WALK_IN_LABEL && (
                   <span className="text-xs text-[#94A3B8]">{patientPhone}</span>
                 )}
@@ -595,7 +607,8 @@ export const DispensingScreen: React.FC = () => {
                       placeholder="Search or register by phone"
                     />
                   </div>
-                  <Button onClick={handleSearchOrRegister}>Search / Register</Button>
+                  <Button onClick={handleSearchOrRegister}>Search/Register</Button>
+                  <Button variant="ghost" onClick={resetPatientProfile}>Use walk-in</Button>
                 </div>
 
                 {phoneMatches.length > 0 && (
@@ -619,8 +632,8 @@ export const DispensingScreen: React.FC = () => {
 
                 <div className="relative">
                   <Input
-                    label="Patient name"
-                    value={patientLabel === WALK_IN_LABEL ? '' : patientLabel}
+                    label="Patient name / label"
+                    value={patientLabel}
                     onChange={(event) => setPatientLabel(event.target.value || WALK_IN_LABEL)}
                     placeholder="Enter name to register a new patient"
                   />

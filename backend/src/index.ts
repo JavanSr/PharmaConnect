@@ -1,5 +1,7 @@
 import 'dotenv/config';
+import fs from 'fs';
 import express from 'express';
+import type { Request, Response } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
@@ -8,9 +10,11 @@ import rateLimit from 'express-rate-limit';
 import path from 'node:path';
 
 import { errorHandler, notFound } from './middleware/errorHandler';
+import { authenticate } from './middleware/auth';
 import { authRouter } from './modules/auth/auth.router';
 import { meRouter } from './modules/me/me.router';
 import { inventoryRouter } from './modules/inventory/inventory.router';
+import { stockOrderRouter } from './modules/inventory/stock-order.router';
 import { complianceRouter } from './modules/compliance/compliance.router';
 import { patientsRouter } from './modules/patients/patients.router';
 import { nhifRouter } from './modules/nhif/nhif.router';
@@ -38,6 +42,23 @@ import { registerWeeklyDigestJob } from './jobs/weekly-digest';
 import { registerVfdRetryJob } from './jobs/vfd-retry';
 import { registerPredictionsJob } from './jobs/predictions';
 
+if (!process.env.NODE_ENV) {
+  console.warn('[startup] NODE_ENV not set - defaulting to development. Set NODE_ENV=production in production.');
+  process.env.NODE_ENV = 'development';
+}
+
+const validEnvs = ['development', 'test', 'production'];
+if (!validEnvs.includes(process.env.NODE_ENV)) {
+  console.error(
+    `[startup] Invalid NODE_ENV: "${process.env.NODE_ENV}". Must be one of: ${validEnvs.join(', ')}`
+  );
+  process.exit(1);
+}
+
+if (!process.env.ANTHROPIC_API_KEY) {
+  console.warn('[startup] ANTHROPIC_API_KEY not set - AI catalogue import will be unavailable.');
+}
+
 const app = express();
 const PORT = parseInt(process.env.PORT || '3000', 10);
 
@@ -52,16 +73,41 @@ app.use(cors({
 app.use(compression());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
-app.use('/uploads', express.static(path.resolve(process.cwd(), process.env.UPLOAD_DIR ?? './uploads')));
+app.get('/uploads/:filename', authenticate, (req: Request, res: Response) => {
+  const filename = path.basename(req.params.filename);
+  const filePath = path.join(path.resolve(process.cwd(), process.env.UPLOAD_DIR ?? './uploads'), filename);
+  if (!fs.existsSync(filePath)) {
+    res.status(404).json({ error: 'Not found' });
+    return;
+  }
+  res.sendFile(filePath);
+});
 
 if (process.env.NODE_ENV !== 'test') {
   app.use(morgan('combined'));
 }
 
 // ── Rate limiting ────────────────────────────────────────────────────────────
+const slowRequestLogMs = Number(process.env.SLOW_REQUEST_LOG_MS ?? 1000);
+app.use((req, res, next) => {
+  const startedAt = Date.now();
+  res.on('finish', () => {
+    const durationMs = Date.now() - startedAt;
+    if (durationMs >= slowRequestLogMs || req.originalUrl === '/api/v1/auth/login') {
+      console.log('[http.timing]', {
+        method: req.method,
+        path: req.originalUrl,
+        status: res.statusCode,
+        durationMs,
+      });
+    }
+  });
+  next();
+});
+
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 300,
+  max: 60,
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -86,6 +132,7 @@ app.use(`${v1}/auth`,       authRouter);
 app.use(`${v1}/me`,         meRouter);
 app.use(`${v1}/waitlist`,   waitlistRouter);
 app.use(`${v1}/inventory`,  inventoryRouter);
+app.use(`${v1}/stock-orders`, authenticate, stockOrderRouter);
 app.use(`${v1}/compliance`, complianceRouter);
 app.use(`${v1}/patients`,   patientsRouter);
 app.use(`${v1}/nhif`,       nhifRouter);

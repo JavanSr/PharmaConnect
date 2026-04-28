@@ -274,6 +274,28 @@ The following must NOT be built. Render a "coming soon" placeholder only:
 | PC-Accredited CPD | Pharmacy Council MOU |
 | Controlled Substances TMDA Reporting | TMDA notification |
 
+## GStack usage for this project
+
+Use gstack skills when helpful.
+
+Important:
+- This is an existing Codex + Claude Code project.
+- Do not rebuild from scratch.
+- Do not rewrite the whole app.
+- Work incrementally.
+- Preserve current UI, database schema, auth flow, and existing working features unless explicitly told otherwise.
+- Before editing, inspect the codebase and explain the plan.
+- For risky changes, create a small task plan first.
+- Prefer small commits.
+- After every change, explain files changed and how to test.
+
+Recommended commands:
+- /review for code review
+- /qa for testing flows
+- /cso for security review
+- /codex for creating implementation-ready Codex tasks
+- /ship for release readiness
+
 ---
 
 ## Language

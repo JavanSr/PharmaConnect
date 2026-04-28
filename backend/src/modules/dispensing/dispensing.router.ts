@@ -3,10 +3,11 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { Router } from 'express';
 import multer from 'multer';
+import rateLimit from 'express-rate-limit';
 import { PaymentMethod, Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { authenticate, requireRole, type AuthRequest } from '../../middleware/auth';
-import { requirePermission } from '../../middleware/permissions';
+import { hasPermission, requirePermission } from '../../middleware/permissions';
 import { enforceTrialRestrictions } from '../../middleware/trial';
 import { verifyPicPinForPharmacy } from '../../middleware/pic-pin';
 import { prisma } from '../../lib/prisma';
@@ -29,6 +30,28 @@ const paymentMethodLabels: Record<PaymentMethod, string> = {
   HALOPESA: 'Halo Pesa',
   INSURANCE: 'Insurance',
 };
+
+function requestHasPicPin(req: AuthRequest) {
+  if (typeof req.body?.checkout === 'string') {
+    try {
+      return Boolean(JSON.parse(req.body.checkout)?.override?.pic_pin);
+    } catch {
+      return false;
+    }
+  }
+
+  return Boolean(req.body?.override?.pic_pin);
+}
+
+const picPinLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  keyGenerator: (req) => `pic-pin:${(req as AuthRequest).user?.pharmacyId ?? (req as AuthRequest).user?.userId ?? 'anonymous'}`,
+  message: { error: 'Too many PIN attempts. Try again in 15 minutes.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => !requestHasPicPin(req as AuthRequest),
+});
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -133,8 +156,10 @@ type DispensingEventLookupRow = {
   items: Prisma.JsonValue;
 };
 
-function getPharmacyId(req: AuthRequest) {
-  return req.user!.pharmacyId!;
+function getPharmacyId(req: AuthRequest): string {
+  const pid = req.user?.pharmacyId;
+  if (!pid) throw Object.assign(new Error('Pharmacy context required'), { status: 400 });
+  return pid;
 }
 
 function getUserId(req: AuthRequest) {
@@ -381,7 +406,7 @@ dispensingRouter.get('/payment-methods', requirePermission('dispensing.access'),
   }
 });
 
-dispensingRouter.post('/checkout', requirePermission('dispensing.access'), upload.single('prescriptionPhoto'), async (req: AuthRequest, res, next) => {
+dispensingRouter.post('/checkout', requirePermission('dispensing.access'), upload.single('prescriptionPhoto'), picPinLimiter, async (req: AuthRequest, res, next) => {
   try {
     const payload = parseCheckoutPayload(req);
     const pharmacyId = getPharmacyId(req);
@@ -404,7 +429,7 @@ dispensingRouter.post('/checkout', requirePermission('dispensing.access'), uploa
     }
 
     if (discountAmount > 0 || discountReason) {
-      const canDiscount = ['OWNER', 'PHARMACIST_IN_CHARGE', 'SUPER_ADMIN'].includes(req.user!.normalizedRole);
+      const canDiscount = hasPermission(req.user!.role, 'dispensing.apply_discount', req.user!.pharmacy);
       if (!canDiscount) {
         res.status(403).json({ error: 'ROLE_INSUFFICIENT', permission: 'dispensing.apply_discount' });
         return;

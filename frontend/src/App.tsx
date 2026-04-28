@@ -31,6 +31,9 @@ const ProductFormPage = lazy(() => import('@/modules/inventory/ProductFormPage')
 const DrugCataloguePage = lazy(() => import('@/modules/inventory/DrugCataloguePage').then(m => ({ default: m.DrugCataloguePage })));
 const StockIntakePage = lazy(() => import('@/modules/inventory/StockIntakePage').then(m => ({ default: m.StockIntakePage })));
 const CatalogueImportPage = lazy(() => import('@/modules/inventory/CatalogueImportPage').then(m => ({ default: m.CatalogueImportPage })));
+const StockOrderListPage = lazy(() => import('@/modules/inventory/StockOrderListPage').then(m => ({ default: m.StockOrderListPage })));
+const StockOrderPreparePage = lazy(() => import('@/modules/inventory/StockOrderPreparePage').then(m => ({ default: m.StockOrderPreparePage })));
+const StockOrderViewPage = lazy(() => import('@/modules/inventory/StockOrderViewPage').then(m => ({ default: m.StockOrderViewPage })));
 const StockAdjustPage = lazy(() => import('@/modules/inventory/StockAdjustPage').then(m => ({ default: m.StockAdjustPage })));
 const BatchManagerPage = lazy(() => import('@/modules/inventory/BatchManagerPage').then(m => ({ default: m.BatchManagerPage })));
 const ExpiryDashboardPage = lazy(() => import('@/modules/inventory/ExpiryDashboardPage').then(m => ({ default: m.ExpiryDashboardPage })));
@@ -115,6 +118,10 @@ export const App: React.FC = () => (
           <Route path="/inventory/products/:id" element={<Suspense fallback={<PageLoader />}><ProductFormPage /></Suspense>} />
           <Route path="/inventory/drug-master" element={<Suspense fallback={<PageLoader />}><DrugCataloguePage /></Suspense>} />
           <Route path="/inventory/receive" element={<Suspense fallback={<PageLoader />}><StockIntakePage /></Suspense>} />
+          <Route path="/inventory/stock-orders" element={<Suspense fallback={<PageLoader />}><StockOrderListPage /></Suspense>} />
+          <Route path="/inventory/stock-orders/new" element={<Suspense fallback={<PageLoader />}><StockOrderPreparePage /></Suspense>} />
+          <Route path="/inventory/stock-orders/:id/edit" element={<Suspense fallback={<PageLoader />}><StockOrderPreparePage /></Suspense>} />
+          <Route path="/inventory/stock-orders/:id" element={<Suspense fallback={<PageLoader />}><StockOrderViewPage /></Suspense>} />
           <Route path="/inventory/adjust" element={<Suspense fallback={<PageLoader />}><StockAdjustPage /></Suspense>} />
           <Route path="/inventory/batches" element={<Suspense fallback={<PageLoader />}><BatchManagerPage /></Suspense>} />
           <Route path="/inventory/expiry" element={<Suspense fallback={<PageLoader />}><ExpiryDashboardPage /></Suspense>} />
@@ -147,6 +154,7 @@ export const App: React.FC = () => (
           <Route path="/cpd" element={<Suspense fallback={<PageLoader />}><CpdDashboardPage /></Suspense>} />
           <Route path="/cpd/log" element={<Suspense fallback={<PageLoader />}><LogActivityPage /></Suspense>} />
           <Route path="/cpd/courses/:slug" element={<Suspense fallback={<PageLoader />}><CourseDetailPage /></Suspense>} />
+          <Route path="/settings" element={<Navigate to="/settings/profile" replace />} />
           <Route path="/settings/profile" element={<Suspense fallback={<PageLoader />}><ProfilePage /></Suspense>} />
           <Route path="/settings/team" element={<Suspense fallback={<PageLoader />}><TeamManagementPage /></Suspense>} />
           <Route path="/settings/subscription" element={<Suspense fallback={<PageLoader />}><SubscriptionPage /></Suspense>} />

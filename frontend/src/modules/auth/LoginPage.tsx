@@ -18,7 +18,8 @@ const schema = z.object({
 });
 type FormData = z.infer<typeof schema>;
 
-const DEMO_ACCOUNTS = [
+const isDev = import.meta.env.DEV;
+const DEMO_ACCOUNTS = isDev ? [
   { label: 'Super Admin', email: 'founder@pharmaconnect.tz' },
   { label: 'Pharmacy Admin', email: 'admin@pharmaconnect.tz' },
   { label: 'Staff', email: 'staff@pharmaconnect.tz' },
@@ -26,8 +27,8 @@ const DEMO_ACCOUNTS = [
   { label: 'Dispenser 2', email: 'dispenser2@amani.co.tz' },
   { label: 'Data Entry Clerk', email: 'clerk@amani.co.tz' },
   { label: 'Wholesale Seller', email: 'seller@amani.co.tz' },
-];
-const DEMO_PASSWORD = 'Demo123!';
+] : [];
+const DEMO_PASSWORD = isDev ? 'Demo123!' : '';
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -160,6 +161,7 @@ export const LoginPage: React.FC = () => {
             </Button>
           </form>
 
+          {isDev && (
           <div className="mt-5 space-y-1 text-xs text-[#64748B]">
             <p className="font-semibold text-[#0D4035] mb-2">Demo accounts — click to fill</p>
             {DEMO_ACCOUNTS.map(account => (
@@ -174,6 +176,7 @@ export const LoginPage: React.FC = () => {
               </button>
             ))}
           </div>
+          )}
 
           <p className="mt-6 text-center text-sm text-[#64748B]">
             New pharmacy?{' '}

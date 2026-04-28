@@ -52,6 +52,7 @@ export const Layout: React.FC = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const location = useLocation();
   const pharmacy = usePharmacyStore((state) => state.pharmacy);
+  const memberships = usePharmacyStore((state) => state.memberships);
   const setPharmacy = usePharmacyStore((state) => state.setPharmacy);
   const setMemberships = usePharmacyStore((state) => state.setMemberships);
 
@@ -63,6 +64,7 @@ export const Layout: React.FC = () => {
   const membershipsQuery = useQuery({
     queryKey: ['me-pharmacies'],
     queryFn: loadMemberships,
+    enabled: memberships.length === 0,
     staleTime: 60_000,
   });
 

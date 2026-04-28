@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { type PharmacyMembershipRole } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 import { withPrismaRetry } from '../../lib/prisma-retry';
@@ -20,6 +21,10 @@ const activeMembershipWhere = (userId: string) => ({
     },
   ],
 });
+
+function hashToken(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
 
 export type ActiveMembershipRecord = {
   id: string;
@@ -162,7 +167,7 @@ export async function issueAuthTokens(payload: JwtPayload) {
   await withPrismaRetry(() => prisma.refreshToken.create({
     data: {
       userId: payload.userId,
-      token: refreshToken,
+      token: hashToken(refreshToken),
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     },
   }));

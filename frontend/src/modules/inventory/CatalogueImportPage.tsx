@@ -79,9 +79,31 @@ export const CatalogueImportPage: React.FC = () => {
     const pending = rows.filter(r => !r._saved);
     if (pending.length === 0) return;
     setSaving(true);
+    const existingRes = await api.get('/inventory/products', { params: { limit: 1000 } });
+    const existingNames = new Set(
+      (existingRes.data.data ?? []).map((p: any) => String(p.name ?? '').toLowerCase().trim()).filter(Boolean),
+    );
+    const seenNames = new Set(existingNames);
+    const newRows = pending.filter((row) => {
+      const name = row.productName.toLowerCase().trim();
+      if (!name || seenNames.has(name)) {
+        return false;
+      }
+      seenNames.add(name);
+      return true;
+    });
+    const duplicateCount = pending.length - newRows.length;
+    if (duplicateCount > 0) {
+      toast.warning(`${duplicateCount} duplicate product${duplicateCount > 1 ? 's' : ''} skipped.`);
+    }
+    if (newRows.length === 0) {
+      setSaving(false);
+      toast.info('All products already exist in your catalogue.');
+      return;
+    }
     let saved = 0;
     const updated = [...rows];
-    for (const row of pending) {
+    for (const row of newRows) {
       const idx = updated.findIndex(r => r._id === row._id);
       try {
         await api.post('/inventory/products', {

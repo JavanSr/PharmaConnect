@@ -14,6 +14,53 @@ type OverrideDraft = {
   pic_pin: string;
 };
 
+type CounsellingSuggestion = {
+  id: string;
+  suggestionText: string;
+  severity?: string;
+  drug?: string;
+  cached?: boolean;
+};
+
+const normalizeReview = (raw: SafetyReviewResponse | null): SafetyReviewResponse | null => {
+  if (!raw) {
+    return null;
+  }
+
+  const interactions = raw.interactions ?? [];
+  const contraindications = raw.contraindications ?? [];
+  const precautions = raw.precautions ?? [];
+  const alerts = [...interactions, ...contraindications, ...precautions];
+  const severitySummary = raw.severitySummary ?? alerts.reduce(
+    (summary, alert) => {
+      const severity = alert.severity?.toUpperCase();
+      if (severity === 'HIGH' || severity === 'MAJOR' || severity === 'SEVERE') {
+        summary.high += 1;
+      } else if (severity === 'MODERATE' || severity === 'MEDIUM') {
+        summary.moderate += 1;
+      } else {
+        summary.informational += 1;
+      }
+      return summary;
+    },
+    { high: 0, moderate: 0, informational: 0 },
+  );
+
+  return {
+    ...raw,
+    resolvedDrugs: raw.resolvedDrugs ?? [],
+    interactions,
+    contraindications,
+    precautions,
+    severitySummary,
+    diagnosisMatches: raw.diagnosisMatches ?? [],
+    ncdHints: raw.ncdHints ?? [],
+    dosageSuggestions: raw.dosageSuggestions ?? [],
+    requiredPatientInputs: raw.requiredPatientInputs ?? [],
+    requiresPicPin: raw.requiresPicPin ?? false,
+  };
+};
+
 export const PatientSafetyPanel: React.FC<{
   enabled: boolean;
   cartItems: DispensingCartItem[];
@@ -41,7 +88,25 @@ export const PatientSafetyPanel: React.FC<{
     staleTime: 10_000,
   });
 
-  const review = (reviewQuery.data?.data ?? null) as SafetyReviewResponse | null;
+  const review = normalizeReview((reviewQuery.data?.data ?? null) as SafetyReviewResponse | null);
+  const counsellingQuery = useQuery({
+    queryKey: ['patient-safety-counselling-suggestions', review, sessionPayload],
+    queryFn: () =>
+      api
+        .post('/patient-safety/counselling-suggestions', {
+          review,
+          flags: sessionPayload,
+        })
+        .then((response) => response.data),
+    enabled:
+      Boolean(review) &&
+      (Boolean(review?.interactions.length) ||
+        Boolean(review?.contraindications.length) ||
+        Boolean(review?.precautions.length) ||
+        Boolean(review?.requiredPatientInputs.length)),
+    staleTime: 10_000,
+  });
+  const counsellingSuggestions = (counsellingQuery.data?.data ?? []) as CounsellingSuggestion[];
   const riskSignature = useMemo(() => {
     if (!review) {
       return 'none';
@@ -98,8 +163,7 @@ export const PatientSafetyPanel: React.FC<{
         }
       >
         <p className="text-sm text-[#64748B]">
-          Add medicines to start interaction checks, contraindication review, precaution alerts, dosage suggestions,
-          and NCD hints.
+          Add medicines to start interaction checks, contraindication review, and precaution alerts.
         </p>
       </Card>
     );
@@ -205,6 +269,24 @@ export const PatientSafetyPanel: React.FC<{
           />
 
           <NCDHints hints={review.ncdHints} />
+
+          {counsellingSuggestions.length > 0 && (
+            <div className="rounded-2xl border border-[#D6F0E8] bg-[#F8FAFC] px-4 py-4">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-semibold text-[#0D4035]">AI counselling suggestions</p>
+                {counsellingSuggestions.some((suggestion) => suggestion.cached) && (
+                  <Badge variant="info" size="sm">Cached</Badge>
+                )}
+              </div>
+              <div className="mt-3 space-y-2">
+                {counsellingSuggestions.map((suggestion) => (
+                  <p key={suggestion.id} className="text-sm text-[#475569]">
+                    {suggestion.suggestionText}
+                  </p>
+                ))}
+              </div>
+            </div>
+          )}
 
         </div>
       )}

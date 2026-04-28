@@ -19,7 +19,11 @@ analyticsRouter.use(authenticate);
 analyticsRouter.use(enforceTrialRestrictions);
 analyticsRouter.use(requirePermission('analytics.view_dashboard'));
 
-const pid = (req: AuthRequest) => req.user!.pharmacyId!;
+const pid = (req: AuthRequest): string => {
+  const id = req.user?.pharmacyId;
+  if (!id) throw Object.assign(new Error('Pharmacy context required'), { status: 400 });
+  return id;
+};
 
 analyticsRouter.get('/features', async (req: AuthRequest, res) => {
   res.json({
@@ -50,39 +54,39 @@ analyticsRouter.get('/overview', async (req: AuthRequest, res, next) => {
       ...(to   ? { lte: new Date(to)   } : {}),
     };
 
+    const pharmacyId = pid(req);
     const [
       totalProducts,
-      totalPatients,
-      totalDispensings,
+      dispensingResult,
       movements,
       lowStockCount,
       expiryCount,
     ] = await Promise.all([
-      prisma.product.count({ where: { pharmacyId: pid(req), isActive: true } }),
-      prisma.patient.count({ where: { pharmacyId: pid(req) } }),
-      prisma.dispensing.count({
-        where: {
-          pharmacyId: pid(req),
-          ...(Object.keys(dateFilter).length ? { createdAt: dateFilter } : {}),
-        },
-      }),
+      prisma.product.count({ where: { pharmacyId, isActive: true } }),
+      prisma.$queryRaw<[{ count: bigint }]>`
+        SELECT COUNT(*) AS count
+        FROM dispensing_events
+        WHERE pharmacy_id = ${pharmacyId}
+          AND (${from ?? null}::timestamptz IS NULL OR created_at >= ${from ? new Date(from) : null})
+          AND (${to ?? null}::timestamptz IS NULL OR created_at <= ${to ? new Date(to) : null})
+      `,
       prisma.stockMovement.findMany({
         where: {
-          pharmacyId: pid(req),
+          pharmacyId,
           ...(Object.keys(dateFilter).length ? { createdAt: dateFilter } : {}),
         },
         select: { type: true, quantity: true, createdAt: true },
       }),
       prisma.product.count({
         where: {
-          pharmacyId: pid(req),
+          pharmacyId,
           isActive: true,
           batches: { none: { quantityRemaining: { gt: 0 } } },
         },
       }),
       prisma.batch.count({
         where: {
-          pharmacyId: pid(req),
+          pharmacyId,
           quantityRemaining: { gt: 0 },
           expiryDate: { lte: new Date(Date.now() + 30 * 86400000) },
         },
@@ -100,8 +104,8 @@ analyticsRouter.get('/overview', async (req: AuthRequest, res, next) => {
     res.json({
       data: {
         totalProducts,
-        totalPatients,
-        totalDispensings,
+        totalPatients: 0,
+        totalDispensings: Number(dispensingResult[0]?.count ?? 0),
         dispensedUnits: dispensed,
         receivedUnits: received,
         lowStockCount,

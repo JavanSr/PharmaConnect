@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Router } from 'express';
+import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { authenticate, type AuthRequest } from '../../middleware/auth';
 import { requirePermission } from '../../middleware/permissions';
@@ -13,7 +14,6 @@ import {
   generateCertificatePdf,
   mapArticle,
   nextCertificateId,
-  renderArticleBody,
   shuffleItems,
 } from './knowledge.service';
 
@@ -41,22 +41,56 @@ type PublicationRow = {
 
 const knowledgeRouter = Router();
 
+function escHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function sanitizeArticleHtml(html: string): string {
+  return html
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/\son\w+=(["']).*?\1/gi, '')
+    .replace(/\s(href|src)=(["'])\s*javascript:.*?\2/gi, '');
+}
+
+function renderSafeArticleBody(body: unknown): string {
+  if (!body || typeof body !== 'object' || !Array.isArray((body as any).content)) {
+    return '';
+  }
+
+  return (body as any).content
+    .map((node: any) => {
+      if (node.type === 'paragraph' && Array.isArray(node.content)) {
+        const text = node.content.map((contentNode: any) => contentNode.text || '').join('');
+        return `<p>${escHtml(text)}</p>`;
+      }
+      if (node.type === 'heading' && Array.isArray(node.content)) {
+        const level = Math.min(Math.max(Number(node.attrs?.level) || 2, 1), 6);
+        const text = node.content.map((contentNode: any) => contentNode.text || '').join('');
+        return `<h${level}>${escHtml(text)}</h${level}>`;
+      }
+      return '';
+    })
+    .join('\n');
+}
+
 function isPremiumKnowledgeTier(req: AuthRequest) {
   const tier = req.user?.pharmacy?.subscriptionTier;
   return tier === 'PREMIUM' || tier === 'ENTERPRISE';
 }
 
 async function fetchCourse(courseIdOrSlug: string) {
-  const rows = await prisma.$queryRawUnsafe<CourseRow[]>(
-    `
+  const rows = await prisma.$queryRaw<CourseRow[]>(Prisma.sql`
       SELECT *
       FROM "courses"
-      WHERE ("id" = $1 OR "slug" = $1)
+      WHERE ("id" = ${courseIdOrSlug} OR "slug" = ${courseIdOrSlug})
         AND "is_published" = true
       LIMIT 1
-    `,
-    courseIdOrSlug,
-  );
+    `);
 
   return rows[0] ?? null;
 }
@@ -97,7 +131,7 @@ knowledgeRouter.get('/unsubscribe/:token', async (req, res, next) => {
 
 knowledgeRouter.get('/verify/:certificateId', async (req, res, next) => {
   try {
-    const rows = await prisma.$queryRawUnsafe<Array<{
+    const rows = await prisma.$queryRaw<Array<{
       title: string;
       certificate_id: string | null;
       completed_at: Date | null;
@@ -106,8 +140,7 @@ knowledgeRouter.get('/verify/:certificateId', async (req, res, next) => {
       is_pc_accredited: boolean;
       first_name: string;
       last_name: string;
-    }>>(
-      `
+    }>>(Prisma.sql`
         SELECT
           c."title",
           ce."certificate_id",
@@ -120,11 +153,9 @@ knowledgeRouter.get('/verify/:certificateId', async (req, res, next) => {
         FROM "course_enrolments" ce
         INNER JOIN "courses" c ON c."id" = ce."course_id"
         INNER JOIN "users" u ON u."id" = ce."user_id"
-        WHERE ce."certificate_id" = $1
+        WHERE ce."certificate_id" = ${req.params.certificateId}
         LIMIT 1
-      `,
-      req.params.certificateId,
-    );
+      `);
 
     const row = rows[0];
     if (!row) {
@@ -148,6 +179,10 @@ knowledgeRouter.get('/verify/:certificateId', async (req, res, next) => {
   }
 });
 
+knowledgeRouter.use(authenticate);
+knowledgeRouter.use(enforceTrialRestrictions);
+knowledgeRouter.use(requirePermission('knowledge.view'));
+
 knowledgeRouter.get('/articles/:slug/html', async (req, res, next) => {
   try {
     const article = await prisma.article.findUnique({ where: { slug: req.params.slug } });
@@ -165,7 +200,7 @@ knowledgeRouter.get('/articles/:slug/html', async (req, res, next) => {
       <html>
         <head>
           <meta charset="utf-8" />
-          <title>${article.title}</title>
+          <title>${escHtml(article.title)}</title>
           <style>
             body { font-family: "DM Sans", Arial, sans-serif; padding: 40px; color: #0D4035; }
             .sponsored-badge { display: inline-block; background: #FBBF24; color: #111827; padding: 6px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; letter-spacing: 0.12em; }
@@ -173,8 +208,8 @@ knowledgeRouter.get('/articles/:slug/html', async (req, res, next) => {
         </head>
         <body>
           ${badge}
-          <h1>${article.title}</h1>
-          <article>${(article as any).htmlContent || renderArticleBody(article.body)}</article>
+          <h1>${escHtml(article.title)}</h1>
+          <article>${(article as any).htmlContent ? sanitizeArticleHtml((article as any).htmlContent) : renderSafeArticleBody(article.body)}</article>
         </body>
       </html>
     `;
@@ -184,10 +219,6 @@ knowledgeRouter.get('/articles/:slug/html', async (req, res, next) => {
     next(error);
   }
 });
-
-knowledgeRouter.use(authenticate);
-knowledgeRouter.use(enforceTrialRestrictions);
-knowledgeRouter.use(requirePermission('knowledge.view'));
 
 knowledgeRouter.get('/articles', async (req: AuthRequest, res, next) => {
   try {
@@ -201,30 +232,26 @@ knowledgeRouter.get('/articles', async (req: AuthRequest, res, next) => {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
     const offset = (page - 1) * limit;
-    const clauses: string[] = ['a."isPublished" = true'];
-    const filters: unknown[] = [];
+    const conditions: Prisma.Sql[] = [Prisma.sql`a."isPublished" = true`];
 
     if (query.category) {
-      filters.push(query.category);
-      clauses.push(`a."category" = $${filters.length}`);
+      conditions.push(Prisma.sql`a."category" = ${query.category}`);
     }
 
     if (query.search) {
-      filters.push(query.search);
-      clauses.push(`
+      conditions.push(Prisma.sql`
         to_tsvector(
           'english',
           coalesce(a."title", '') || ' ' ||
           coalesce(a."summary", '') || ' ' ||
           array_to_string(a."tags", ' ') || ' ' ||
           coalesce(a."body"::text, '')
-        ) @@ plainto_tsquery('english', $${filters.length})
+        ) @@ plainto_tsquery('english', ${query.search})
       `);
     }
 
-    const whereClause = clauses.join(' AND ');
-    const rows = await prisma.$queryRawUnsafe<ArticleRow[]>(
-      `
+    const whereClause = Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}`;
+    const rows = await prisma.$queryRaw<ArticleRow[]>(Prisma.sql`
         WITH ranked AS (
           SELECT
             a.*,
@@ -237,7 +264,7 @@ knowledgeRouter.get('/articles', async (req: AuthRequest, res, next) => {
             END AS sponsored_rank
           FROM "articles" a
           LEFT JOIN "users" u ON u."id" = a."authorId"
-          WHERE ${whereClause}
+          ${whereClause}
         )
         SELECT
           "id",
@@ -263,9 +290,7 @@ knowledgeRouter.get('/articles', async (req: AuthRequest, res, next) => {
         ORDER BY "isSponsored" DESC, "publishedAt" DESC NULLS LAST, "createdAt" DESC
         OFFSET ${offset}
         LIMIT ${limit}
-      `,
-      ...filters,
-    );
+      `);
 
     res.json({
       data: rows.map(mapArticle),
