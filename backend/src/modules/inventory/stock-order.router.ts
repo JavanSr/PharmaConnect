@@ -60,6 +60,7 @@ const receiptSchema = z.object({
   batchNumber: z.string().trim().min(1),
   expiryDate: futureIsoDate,
   unitCost: z.coerce.number().positive(),
+  sellingPrice: z.coerce.number().positive().optional(),
 });
 
 export const stockOrderRouter = Router();

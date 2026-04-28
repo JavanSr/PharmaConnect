@@ -17,6 +17,15 @@ type ReceiptDraft = {
   expiryDate: string;
   quantityReceived: string;
   unitCost: string;
+  sellingPrice: string;
+};
+
+const emptyReceiptDraft: ReceiptDraft = {
+  batchNumber: '',
+  expiryDate: '',
+  quantityReceived: '',
+  unitCost: '',
+  sellingPrice: '',
 };
 
 function money(value: number | string | null | undefined) {
@@ -54,6 +63,7 @@ export const StockOrderViewPage: React.FC = () => {
           expiryDate: receipt.expiryDate,
           quantityReceived: Number(receipt.quantityReceived),
           unitCost: Number(receipt.unitCost),
+          sellingPrice: receipt.sellingPrice ? Number(receipt.sellingPrice) : undefined,
         }));
       if (payload.length === 0) {
         throw Object.assign(new Error('Fill at least one receipt form'), { local: true });
@@ -64,6 +74,9 @@ export const StockOrderViewPage: React.FC = () => {
       setReceipts({});
       queryClient.invalidateQueries({ queryKey: ['stock-order', id] });
       queryClient.invalidateQueries({ queryKey: ['stock-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['stock-on-hand'] });
+      queryClient.invalidateQueries({ queryKey: ['inventory-dashboard-summary'] });
       toast.success('Receipt recorded');
     },
     onError: (e: any) => toast.error(e.local ? e.message : e.response?.data?.error || e.response?.data?.message || 'Failed to receive stock'),
@@ -82,7 +95,7 @@ export const StockOrderViewPage: React.FC = () => {
   const updateReceipt = (itemId: string, patch: Partial<ReceiptDraft>) => {
     setReceipts((prev) => ({
       ...prev,
-      [itemId]: { ...(prev[itemId] ?? { batchNumber: '', expiryDate: '', quantityReceived: '', unitCost: '' }), ...patch },
+      [itemId]: { ...(prev[itemId] ?? emptyReceiptDraft), ...patch },
     }));
   };
 
@@ -202,7 +215,7 @@ export const StockOrderViewPage: React.FC = () => {
           <div className="divide-y divide-[#D6F0E8]">
             {group.items.map((item) => {
               const remaining = outstanding(item);
-              const receipt = receipts[item.id] ?? { batchNumber: '', expiryDate: '', quantityReceived: '', unitCost: '' };
+              const receipt = receipts[item.id] ?? emptyReceiptDraft;
               return (
                 <div key={item.id} className="space-y-3 px-5 py-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
@@ -219,11 +232,12 @@ export const StockOrderViewPage: React.FC = () => {
                   </div>
 
                   {canReceive && remaining > 0 && item.productId && (
-                    <div className="grid gap-3 rounded-xl border border-[#D6F0E8] bg-[#F8FCFA] p-3 sm:grid-cols-4">
+                    <div className="grid gap-3 rounded-xl border border-[#D6F0E8] bg-[#F8FCFA] p-3 sm:grid-cols-5">
                       <Input label="Batch number" value={receipt.batchNumber} onChange={(e) => updateReceipt(item.id, { batchNumber: e.target.value })} />
                       <Input label="Expiry date" type="date" value={receipt.expiryDate} onChange={(e) => updateReceipt(item.id, { expiryDate: e.target.value })} />
                       <Input label="Qty received" type="number" min="1" max={remaining} value={receipt.quantityReceived} onChange={(e) => updateReceipt(item.id, { quantityReceived: e.target.value })} />
                       <Input label="Unit cost" type="number" min="0.01" step="0.01" value={receipt.unitCost} onChange={(e) => updateReceipt(item.id, { unitCost: e.target.value })} />
+                      <Input label="Selling price" type="number" min="0.01" step="0.01" placeholder={item.product?.sellingPrice ? String(item.product.sellingPrice) : undefined} value={receipt.sellingPrice} onChange={(e) => updateReceipt(item.id, { sellingPrice: e.target.value })} />
                     </div>
                   )}
                 </div>

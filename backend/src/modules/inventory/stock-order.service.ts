@@ -32,6 +32,7 @@ type ReceiptInput = {
   batchNumber: string;
   expiryDate: string;
   unitCost: number;
+  sellingPrice?: number;
 };
 
 function fullOrderInclude() {
@@ -53,6 +54,7 @@ function fullOrderInclude() {
             brandName: true,
             strength: true,
             dosageForm: true,
+            sellingPrice: true,
             reorderLevel: true,
           },
         },
@@ -448,10 +450,13 @@ export async function receiveStockOrderItems(
       item.quantityReceived = cumulativeReceived;
       item.status = cumulativeReceived >= item.quantityOrdered ? 'RECEIVED' : 'PARTIALLY_RECEIVED';
 
-      if (item.supplierId) {
+      if (item.supplierId || receipt.sellingPrice) {
         await tx.product.update({
           where: { id: item.productId },
-          data: { lastSupplierId: item.supplierId },
+          data: {
+            ...(item.supplierId ? { lastSupplierId: item.supplierId } : {}),
+            ...(receipt.sellingPrice ? { sellingPrice: receipt.sellingPrice } : {}),
+          },
         });
       }
     }

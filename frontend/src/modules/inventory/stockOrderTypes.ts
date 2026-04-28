@@ -12,7 +12,7 @@ export type StockOrderItem = {
   dosageForm: string | null;
   supplierId: string | null;
   supplier?: Pick<Supplier, 'id' | 'name' | 'phone' | 'email'> | null;
-  product?: Pick<Product, 'id' | 'name' | 'genericName' | 'brandName' | 'strength' | 'dosageForm'> | null;
+  product?: Pick<Product, 'id' | 'name' | 'genericName' | 'brandName' | 'strength' | 'dosageForm' | 'sellingPrice'> | null;
   quantityOrdered: number;
   quantityReceived: number;
   expectedUnitCost: number | string | null;
