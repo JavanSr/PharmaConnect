@@ -8,7 +8,11 @@ export const notificationsRouter = Router();
 notificationsRouter.use(authenticate);
 
 const uid = (req: AuthRequest) => req.user!.userId;
-const pid = (req: AuthRequest) => req.user!.pharmacyId!;
+function pid(req: AuthRequest): string {
+  const p = req.user?.pharmacyId;
+  if (!p) throw Object.assign(new Error('Pharmacy context required'), { status: 400 });
+  return p;
+}
 
 notificationsRouter.get('/', async (req: AuthRequest, res, next) => {
   try {

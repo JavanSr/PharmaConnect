@@ -49,7 +49,11 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 },
 });
 
-const pid = (req: AuthRequest) => req.user!.pharmacyId!;
+function pid(req: AuthRequest): string {
+  const p = req.user?.pharmacyId;
+  if (!p) throw Object.assign(new Error('Pharmacy context required'), { status: 400 });
+  return p;
+}
 const uid = (req: AuthRequest) => req.user!.userId;
 const canReviewStockAdjustmentSuggestions = (req: AuthRequest) =>
   ['OWNER', 'PHARMACIST_IN_CHARGE', 'SUPER_ADMIN'].includes(req.user?.normalizedRole ?? '');

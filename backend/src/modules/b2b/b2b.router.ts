@@ -50,7 +50,11 @@ export const b2bRouter = Router();
 b2bRouter.use(authenticate);
 b2bRouter.use(enforceTrialRestrictions);
 
-const pid = (req: AuthRequest) => req.user!.pharmacyId!;
+function pid(req: AuthRequest): string {
+  const p = req.user?.pharmacyId;
+  if (!p) throw Object.assign(new Error('Pharmacy context required'), { status: 400 });
+  return p;
+}
 const uid = (req: AuthRequest) => req.user!.userId;
 const orderStatusSchema = z.enum(ORDER_STATUSES);
 const wholesaleReturnReasonSchema = z.enum(WHOLESALE_RETURN_REASONS);

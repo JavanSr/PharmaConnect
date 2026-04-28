@@ -86,6 +86,12 @@ function isPremiumKnowledgeTier(req: AuthRequest) {
   return tier === 'PREMIUM' || tier === 'ENTERPRISE';
 }
 
+function pid(req: AuthRequest): string {
+  const p = req.user?.pharmacyId;
+  if (!p) throw Object.assign(new Error('Pharmacy context required'), { status: 400 });
+  return p;
+}
+
 async function fetchCourse(courseIdOrSlug: string) {
   const rows = await prisma.$queryRaw<CourseRow[]>(Prisma.sql`
       SELECT *
@@ -481,7 +487,7 @@ knowledgeRouter.post('/courses/:id/enrol', async (req: AuthRequest, res, next) =
 
     const rows = await prisma.$queryRaw<Array<{ id: string }>>`
       INSERT INTO "course_enrolments" ("course_id", "user_id", "pharmacy_id")
-      VALUES (${course.id}, ${req.user!.userId}, ${req.user!.pharmacyId!})
+      VALUES (${course.id}, ${req.user!.userId}, ${pid(req)})
       ON CONFLICT ("course_id", "user_id")
       DO UPDATE SET "updated_at" = NOW()
       RETURNING "id"

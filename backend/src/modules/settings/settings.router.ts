@@ -17,7 +17,11 @@ export const settingsRouter = Router();
 settingsRouter.use(authenticate);
 
 const uid = (req: AuthRequest) => req.user!.userId;
-const pid = (req: AuthRequest) => req.user!.pharmacyId!;
+function pid(req: AuthRequest): string {
+  const p = req.user?.pharmacyId;
+  if (!p) throw Object.assign(new Error('Pharmacy context required'), { status: 400 });
+  return p;
+}
 const jsonValueSchema: z.ZodType = z.lazy(() => z.union([
   z.string(),
   z.number(),

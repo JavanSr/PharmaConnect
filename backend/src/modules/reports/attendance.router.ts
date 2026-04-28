@@ -7,6 +7,12 @@ export const attendanceRouter = Router();
 attendanceRouter.use(authenticate);
 attendanceRouter.use(enforceTrialRestrictions);
 
+function pid(req: AuthRequest): string {
+  const p = req.user?.pharmacyId;
+  if (!p) throw Object.assign(new Error('Pharmacy context required'), { status: 400 });
+  return p;
+}
+
 attendanceRouter.get('/my-records', async (req: AuthRequest, res, next) => {
   try {
     res.json({ data: await listAttendanceForUser(req.user!.userId) });
@@ -17,7 +23,7 @@ attendanceRouter.get('/my-records', async (req: AuthRequest, res, next) => {
 
 attendanceRouter.get('/pharmacy-records', requireRole('PHARMACIST_IN_CHARGE', 'OWNER', 'SUPER_ADMIN'), async (req: AuthRequest, res, next) => {
   try {
-    res.json({ data: await listAttendanceForPharmacy(req.user!.pharmacyId!) });
+    res.json({ data: await listAttendanceForPharmacy(pid(req)) });
   } catch (error) {
     next(error);
   }

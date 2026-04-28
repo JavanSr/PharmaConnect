@@ -22,7 +22,11 @@ export const reportsRouter = Router();
 reportsRouter.use(authenticate);
 reportsRouter.use(enforceTrialRestrictions);
 
-const pid = (req: AuthRequest) => req.user!.pharmacyId!;
+function pid(req: AuthRequest): string {
+  const p = req.user?.pharmacyId;
+  if (!p) throw Object.assign(new Error('Pharmacy context required'), { status: 400 });
+  return p;
+}
 
 reportsRouter.get('/inventory', requirePermission('inventory.view_reports'), async (req: AuthRequest, res, next) => {
   try {

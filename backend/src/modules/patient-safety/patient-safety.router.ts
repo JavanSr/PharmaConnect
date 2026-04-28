@@ -28,6 +28,11 @@ function requirePatientSafetyAccess(req: AuthRequest, res: any, next: any) {
     return;
   }
 
+  if (!req.user.pharmacyId) {
+    res.status(400).json({ error: 'Pharmacy context required' });
+    return;
+  }
+
   const currentTier = normalizeTier(req.user.pharmacy?.subscriptionTier ?? null);
   if (!currentTier || !ACCESS_TIERS.has(currentTier)) {
     res.status(403).json({
@@ -44,6 +49,12 @@ function requirePatientSafetyAccess(req: AuthRequest, res: any, next: any) {
   }
 
   next();
+}
+
+function pid(req: AuthRequest): string {
+  const p = req.user?.pharmacyId;
+  if (!p) throw Object.assign(new Error('Pharmacy context required'), { status: 400 });
+  return p;
 }
 
 const sessionSchema = z.object({
@@ -158,13 +169,13 @@ patientSafetyRouter.post('/counselling-suggestions', async (req: AuthRequest, re
     }).parse(req.body);
 
     const data = await getCounsellingSuggestions({
-      pharmacyId: req.user!.pharmacyId!,
+      pharmacyId: pid(req),
       userId: req.user!.userId,
       triggers: payload.triggers,
     });
 
     await trackFeatureTelemetry({
-      pharmacyId: req.user!.pharmacyId!,
+      pharmacyId: pid(req),
       userId: req.user!.userId,
       featureKey: 'ai_counselling',
       eventType: 'USED',
@@ -187,7 +198,7 @@ patientSafetyRouter.get('/override-log', async (req: AuthRequest, res, next) => 
     }).parse(req.query);
 
     const skip = (page - 1) * limit;
-    const pharmacyId = req.user!.pharmacyId!;
+    const pharmacyId = pid(req);
 
     const [logs, total] = await Promise.all([
       prisma.overrideLog.findMany({
@@ -224,7 +235,7 @@ patientSafetyRouter.post('/override', requirePicPin, async (req: AuthRequest, re
     }).parse(req.body);
 
     const data = await createOverrideLog({
-      pharmacyId: req.user!.pharmacyId!,
+      pharmacyId: pid(req),
       userId: req.user!.userId,
       picUserId: req.picVerifiedUser!.userId,
       alertType: payload.alertType,

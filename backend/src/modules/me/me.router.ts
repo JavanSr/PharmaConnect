@@ -33,7 +33,7 @@ meRouter.get('/pharmacies', async (req: AuthRequest, res, next) => {
     res.json({
       data: memberships.map((membership) => ({
         ...membership,
-        selected: membership.pharmacyId === req.user!.pharmacyId,
+        selected: membership.pharmacyId === req.user?.pharmacyId,
       })),
     });
   } catch (error) {

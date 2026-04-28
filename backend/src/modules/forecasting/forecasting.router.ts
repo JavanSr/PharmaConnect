@@ -17,7 +17,11 @@ forecastingRouter.use(authenticate);
 forecastingRouter.use(enforceTrialRestrictions);
 forecastingRouter.use(requirePermission('analytics.view_dashboard'));
 
-const pid = (req: AuthRequest) => req.user!.pharmacyId!;
+function pid(req: AuthRequest): string {
+  const p = req.user?.pharmacyId;
+  if (!p) throw Object.assign(new Error('Pharmacy context required'), { status: 400 });
+  return p;
+}
 
 forecastingRouter.get('/stockout', requireTier('STANDARD'), async (req: AuthRequest, res, next) => {
   try {

@@ -68,7 +68,9 @@ const listQuerySchema = z.object({
 });
 
 function pharmacyId(req: AuthRequest): string {
-  return req.user!.pharmacyId!;
+  const p = req.user?.pharmacyId;
+  if (!p) throw Object.assign(new Error('Pharmacy context required'), { status: 400 });
+  return p;
 }
 
 function complianceRole(req: AuthRequest) {
