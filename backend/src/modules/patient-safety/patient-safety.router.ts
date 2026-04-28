@@ -4,7 +4,7 @@ import type { Prisma } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 import { authenticate, hasRoleAccess, type AuthRequest } from '../../middleware/auth';
 import { enforceTrialRestrictions } from '../../middleware/trial';
-import { requirePicPin } from '../../middleware/pic-pin';
+import { picPinLimiter, requirePicPin } from '../../middleware/pic-pin';
 import { normalizeTier } from '../../types/roles';
 import {
   calculateDose,
@@ -224,7 +224,7 @@ patientSafetyRouter.get('/override-log', async (req: AuthRequest, res, next) => 
   }
 });
 
-patientSafetyRouter.post('/override', requirePicPin, async (req: AuthRequest, res, next) => {
+patientSafetyRouter.post('/override', picPinLimiter, requirePicPin, async (req: AuthRequest, res, next) => {
   try {
     const payload = z.object({
       alertType: z.string().min(1),

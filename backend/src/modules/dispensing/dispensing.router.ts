@@ -1,15 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { Router } from 'express';
+import { Router, type NextFunction, type Response } from 'express';
 import multer from 'multer';
-import rateLimit from 'express-rate-limit';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { authenticate, requireRole, type AuthRequest } from '../../middleware/auth';
 import { hasPermission, requirePermission } from '../../middleware/permissions';
 import { enforceTrialRestrictions } from '../../middleware/trial';
-import { verifyPicPinForPharmacy } from '../../middleware/pic-pin';
+import { picPinLimiter, verifyPicPinForPharmacy } from '../../middleware/pic-pin';
 import { prisma } from '../../lib/prisma';
 import { resolveFefoBatch } from '../inventory/inventory.service';
 import { sessionReview } from '../patient-safety/patient-safety.service';
@@ -44,15 +43,14 @@ function requestHasPicPin(req: AuthRequest) {
   return Boolean(req.body?.override?.pic_pin);
 }
 
-const picPinLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 5,
-  keyGenerator: (req) => `pic-pin:${(req as AuthRequest).user?.pharmacyId ?? (req as AuthRequest).user?.userId ?? 'anonymous'}`,
-  message: { error: 'Too many PIN attempts. Try again in 15 minutes.' },
-  standardHeaders: true,
-  legacyHeaders: false,
-  skip: (req) => !requestHasPicPin(req as AuthRequest),
-});
+function dispensingPicPinLimiter(req: AuthRequest, res: Response, next: NextFunction) {
+  if (!requestHasPicPin(req)) {
+    next();
+    return;
+  }
+
+  picPinLimiter(req, res, next);
+}
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -407,7 +405,7 @@ dispensingRouter.get('/payment-methods', requirePermission('dispensing.access'),
   }
 });
 
-dispensingRouter.post('/checkout', requirePermission('dispensing.access'), upload.single('prescriptionPhoto'), picPinLimiter, async (req: AuthRequest, res, next) => {
+dispensingRouter.post('/checkout', requirePermission('dispensing.access'), upload.single('prescriptionPhoto'), dispensingPicPinLimiter, async (req: AuthRequest, res, next) => {
   try {
     const payload = parseCheckoutPayload(req);
     const pharmacyId = getPharmacyId(req);

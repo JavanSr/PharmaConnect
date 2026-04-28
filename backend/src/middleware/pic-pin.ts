@@ -1,9 +1,22 @@
 import bcrypt from 'bcryptjs';
 import type { NextFunction, Response } from 'express';
+import rateLimit from 'express-rate-limit';
 import { prisma } from '../lib/prisma';
 import type { AuthRequest, VerifiedPicUser } from './auth';
 
 const PIC_ROLES = ['PHARMACIST_IN_CHARGE', 'OWNER', 'SUPER_ADMIN'];
+
+export const picPinLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  keyGenerator: (req) => {
+    const r = req as AuthRequest;
+    return `pic-pin:${r.user?.pharmacyId ?? r.user?.userId ?? 'anonymous'}`;
+  },
+  message: { error: 'Too many PIN attempts. Try again in 15 minutes.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 export async function verifyPicPinForPharmacy(input: {
   pharmacyId: string;
