@@ -9,28 +9,48 @@ import { Button } from '@/components/ui/Button';
 import { api } from '@/lib/api';
 import { usePharmacyStore } from '@/stores/pharmacyStore';
 
+type DashboardSummary = {
+  totalProducts?: number;
+  lowStockCount?: number;
+  expiryCount?: number;
+};
+
+type StatValue = number | string;
+
+const getProductStock = (product: any) => {
+  if (typeof product.currentStock === 'number') return product.currentStock;
+  if (typeof product.totalQuantity === 'number') return product.totalQuantity;
+  if (typeof product.quantityRemaining === 'number') return product.quantityRemaining;
+  if (Array.isArray(product.batches)) {
+    return product.batches.reduce((sum: number, batch: any) => sum + (Number(batch.quantityRemaining) || 0), 0);
+  }
+  return 0;
+};
+
 export const InventoryDashboardPage: React.FC = () => {
   const pharmacy = usePharmacyStore((state) => state.pharmacy);
+  const { data: summaryData } = useQuery({ queryKey: ['inventory-dashboard-summary'], queryFn: () => api.get('/inventory/reports/dashboard-summary').then(r => r.data) });
   const { data: stockData } = useQuery({ queryKey: ['stock-on-hand'], queryFn: () => api.get('/inventory/reports/stock-on-hand').then(r => r.data) });
   const { data: expiryData } = useQuery({ queryKey: ['expiry-30'], queryFn: () => api.get('/inventory/reports/expiry?days=30').then(r => r.data) });
   const { data: lowStockData } = useQuery({ queryKey: ['low-stock'], queryFn: () => api.get('/inventory/reports/low-stock').then(r => r.data) });
   const isEnterprise = pharmacy?.subscriptionTier === 'ENTERPRISE';
 
+  const summary: DashboardSummary | undefined = summaryData?.data;
   const products = useMemo(() => stockData?.data || [], [stockData?.data]);
   const expiryBatches = useMemo(() => expiryData?.data || [], [expiryData?.data]);
   const lowStock = useMemo(() => lowStockData?.data || [], [lowStockData?.data]);
   const totalUnits = useMemo(
-    () => products.reduce((s: number, p: any) => s + (p.currentStock || 0), 0),
+    () => products.reduce((s: number, p: any) => s + getProductStock(p), 0),
     [products]
   );
   const stats = useMemo(
     () => [
-      { label: 'Total SKUs', value: products.length, icon: <Package size={20} />, color: 'bg-[#D6F0E8] text-[#1A6B5C]' },
-      { label: 'Total Units', value: totalUnits.toLocaleString(), icon: <Package size={20} />, color: 'bg-[#D6F0E8] text-[#1A6B5C]' },
-      { label: 'Low Stock', value: lowStock.length, icon: <AlertTriangle size={20} />, color: 'bg-amber-50 text-[#D97706]' },
-      { label: 'Expiring <=30d', value: expiryBatches.length, icon: <Clock size={20} />, color: 'bg-red-50 text-[#DC2626]' },
+      { label: 'Total SKUs', value: summary?.totalProducts ?? (stockData ? products.length : '-') as StatValue, icon: <Package size={20} />, color: 'bg-[#D6F0E8] text-[#1A6B5C]' },
+      { label: 'Total Units', value: stockData ? totalUnits.toLocaleString() : '-', icon: <Package size={20} />, color: 'bg-[#D6F0E8] text-[#1A6B5C]' },
+      { label: 'Low Stock', value: summary?.lowStockCount ?? (lowStockData ? lowStock.length : '-') as StatValue, icon: <AlertTriangle size={20} />, color: 'bg-amber-50 text-[#D97706]' },
+      { label: 'Expiring <=30d', value: summary?.expiryCount ?? (expiryData ? expiryBatches.length : '-') as StatValue, icon: <Clock size={20} />, color: 'bg-red-50 text-[#DC2626]' },
     ],
-    [expiryBatches, lowStock, products, totalUnits]
+    [expiryBatches, expiryData, lowStock, lowStockData, products, stockData, summary, totalUnits]
   );
 
   return (
