@@ -142,7 +142,7 @@ type LineFormData = z.infer<typeof lineSchema>;
 
 export const StockIntakePage: React.FC = () => {
   const toast = useNotificationStore(s => s.toast);
-  const { isOnline, pendingWrites, isSyncing, flush } = useOfflineSync(false);
+  useOfflineSync(false);
 
   // session-level supplier (applies to all lines in this receipt)
   const [sessionSupplierId, setSessionSupplierId] = useState<string>('');
@@ -405,18 +405,6 @@ export const StockIntakePage: React.FC = () => {
           )}
         </div>
         <p className="mt-2 text-xs text-[#64748B]">All items added to this cart will be attributed to this supplier.</p>
-      </Card>
-
-      {/* Offline sync banner */}
-      <Card>
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <p className="text-sm text-[#64748B]">
-            {pendingWrites} pending write{pendingWrites === 1 ? '' : 's'} waiting in the local queue.
-          </p>
-          <Button type="button" variant="secondary" size="sm" onClick={() => void flush()} loading={isSyncing} disabled={!isOnline || pendingWrites === 0}>
-            Sync now
-          </Button>
-        </div>
       </Card>
 
       {/* ── Add item form ───────────────────────────────────────────────────── */}
