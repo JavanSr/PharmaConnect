@@ -871,7 +871,7 @@ dispensingRouter.post(
 
 dispensingRouter.get(
   '/controlled-register',
-  requireRole('OWNER', 'PHARMACIST_IN_CHARGE', 'LOCUM', 'SUPER_ADMIN'),
+  requireRole('OWNER', 'PHARMACIST_IN_CHARGE', 'SUPER_ADMIN'),
   async (req: AuthRequest, res, next) => {
     try {
       const pharmacyId = getPharmacyId(req);

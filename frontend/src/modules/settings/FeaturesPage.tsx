@@ -17,7 +17,7 @@ type SubFeature = {
   label: string;
   description: string;
   /** Roles that CAN use this subfeature. Owners/PIC/SUPER_ADMIN always have access. */
-  grantableRoles: Array<'DISPENSER' | 'CASHIER' | 'DATA_ENTRY_CLERK' | 'LOCUM' | 'ACCOUNTANT'>;
+  grantableRoles: Array<'DISPENSER' | 'CASHIER' | 'DATA_ENTRY_CLERK' | 'ACCOUNTANT'>;
 };
 
 type ModuleDefinition = {
@@ -33,9 +33,9 @@ const MODULES: ModuleDefinition[] = [
     label: 'Dispensing',
     description: 'Point-of-sale dispensing workflow, sale history, and daily close.',
     subs: [
-      { key: 'dispensing.discounts', label: 'Apply discounts', description: 'Allow staff to apply discounts at point of sale.', grantableRoles: ['DISPENSER', 'CASHIER', 'LOCUM'] },
-      { key: 'dispensing.voids', label: 'Void sales', description: 'Allow staff to void completed sales.', grantableRoles: ['DISPENSER', 'LOCUM'] },
-      { key: 'dispensing.returns', label: 'Process returns', description: 'Allow staff to process returned medicines.', grantableRoles: ['DISPENSER', 'CASHIER', 'LOCUM'] },
+      { key: 'dispensing.discounts', label: 'Apply discounts', description: 'Allow staff to apply discounts at point of sale.', grantableRoles: ['DISPENSER', 'CASHIER'] },
+      { key: 'dispensing.voids', label: 'Void sales', description: 'Allow staff to void completed sales.', grantableRoles: ['DISPENSER'] },
+      { key: 'dispensing.returns', label: 'Process returns', description: 'Allow staff to process returned medicines.', grantableRoles: ['DISPENSER', 'CASHIER'] },
     ],
   },
   {
@@ -43,7 +43,7 @@ const MODULES: ModuleDefinition[] = [
     label: 'Patient Safety',
     description: 'Drug interaction checks, contraindication alerts, dosage guidance, NCD hints.',
     subs: [
-      { key: 'patient_safety.override', label: 'PIC override', description: 'Allow PIC-level staff to override major alerts with a PIN.', grantableRoles: ['LOCUM'] },
+      { key: 'patient_safety.override', label: 'PIC override', description: 'Allow PIC-level staff to override major alerts with a PIN.', grantableRoles: [] },
     ],
   },
   {
@@ -51,8 +51,8 @@ const MODULES: ModuleDefinition[] = [
     label: 'Inventory',
     description: 'Stock management, batch tracking, expiry monitoring.',
     subs: [
-      { key: 'inventory.receive_stock', label: 'Receive stock', description: 'Allow staff to add incoming batches.', grantableRoles: ['DISPENSER', 'DATA_ENTRY_CLERK', 'LOCUM'] },
-      { key: 'inventory.adjust_stock', label: 'Adjust stock', description: 'Allow staff to submit stock adjustment requests.', grantableRoles: ['DISPENSER', 'DATA_ENTRY_CLERK', 'LOCUM'] },
+      { key: 'inventory.receive_stock', label: 'Receive stock', description: 'Allow staff to add incoming batches.', grantableRoles: ['DISPENSER', 'DATA_ENTRY_CLERK'] },
+      { key: 'inventory.adjust_stock', label: 'Adjust stock', description: 'Allow staff to submit stock adjustment requests.', grantableRoles: ['DISPENSER', 'DATA_ENTRY_CLERK'] },
     ],
   },
   {
@@ -68,7 +68,7 @@ const MODULES: ModuleDefinition[] = [
     label: 'Analytics',
     description: 'Inventory movements, compliance score, expiry risk, forecasting.',
     subs: [
-      { key: 'analytics.view', label: 'View analytics', description: 'Allow dispensers and locums to see the analytics dashboard.', grantableRoles: ['DISPENSER', 'LOCUM', 'CASHIER'] },
+      { key: 'analytics.view', label: 'View analytics', description: 'Allow dispensers and cashiers to see the analytics dashboard.', grantableRoles: ['DISPENSER', 'CASHIER'] },
     ],
   },
   {
@@ -77,7 +77,7 @@ const MODULES: ModuleDefinition[] = [
     description: 'Financial reports, sales summaries, and staff attendance.',
     subs: [
       { key: 'reports.financial', label: 'Financial reports', description: 'Allow accountants to access revenue and financial summaries.', grantableRoles: ['ACCOUNTANT'] },
-      { key: 'reports.attendance', label: 'Attendance', description: 'Allow all staff to view the attendance module.', grantableRoles: ['DISPENSER', 'CASHIER', 'DATA_ENTRY_CLERK', 'LOCUM'] },
+      { key: 'reports.attendance', label: 'Attendance', description: 'Allow all staff to view the attendance module.', grantableRoles: ['DISPENSER', 'CASHIER', 'DATA_ENTRY_CLERK'] },
     ],
   },
   {

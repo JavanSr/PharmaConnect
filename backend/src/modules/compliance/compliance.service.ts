@@ -23,7 +23,6 @@ export type ComplianceRole =
   | 'OWNER'
   | 'PHARMACIST_IN_CHARGE'
   | 'DISPENSER'
-  | 'LOCUM'
   | 'ACCOUNTANT'
   | 'DATA_ENTRY_CLERK'
   | 'CASHIER'

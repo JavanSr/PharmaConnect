@@ -138,7 +138,7 @@ export const DispensingScreen: React.FC = () => {
   );
   const parsedDiscount = Number(discountAmount || 0);
   const totalDue = Math.max(0, cartTotal - (Number.isFinite(parsedDiscount) ? parsedDiscount : 0));
-  const canApplyDiscount = ['OWNER', 'PHARMACIST_IN_CHARGE', 'LOCUM', 'SUPER_ADMIN'].includes(user?.role || '');
+  const canApplyDiscount = ['OWNER', 'PHARMACIST_IN_CHARGE', 'SUPER_ADMIN'].includes(user?.role || '');
   const normalizedPatientPhone = useMemo(() => normalizePatientPhone(patientPhone), [patientPhone]);
   const patientNameInputValue = patientLabel === WALK_IN_LABEL ? '' : patientLabel;
   const safetyEnabled =

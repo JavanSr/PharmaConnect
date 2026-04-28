@@ -43,8 +43,6 @@ export function mapUserRoleToMembershipRole(role: string): PharmacyMembershipRol
       return 'PHARMACIST_IN_CHARGE';
     case 'DISPENSER':
       return 'DISPENSER';
-    case 'LOCUM':
-      return 'LOCUM';
     case 'ACCOUNTANT':
       return 'ACCOUNTANT';
     case 'DATA_ENTRY_CLERK':
