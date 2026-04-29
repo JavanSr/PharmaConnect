@@ -1,10 +1,29 @@
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+let resend: Resend | null = null;
 
 const FROM = process.env.EMAIL_FROM ?? 'PharmaConnect <onboarding@resend.dev>';
 const FOUNDER_EMAIL = 'godright.turner@gmail.com';
 const APP_URL = process.env.FRONTEND_URL ?? 'https://pharma-connect-rouge.vercel.app';
+
+function getResendClient() {
+  if (!process.env.RESEND_API_KEY) {
+    console.warn('[email] RESEND_API_KEY not set; skipping email send.');
+    return null;
+  }
+
+  resend ??= new Resend(process.env.RESEND_API_KEY);
+  return resend;
+}
+
+async function sendEmail(params: Parameters<Resend['emails']['send']>[0]) {
+  const client = getResendClient();
+  if (!client) {
+    return;
+  }
+
+  await client.emails.send(params);
+}
 
 function baseLayout(bodyHtml: string): string {
   return `<!DOCTYPE html>
@@ -66,7 +85,7 @@ export async function sendVerificationEmail(opts: {
     </div>
   `);
 
-  await resend.emails.send({
+  await sendEmail({
     from: FROM,
     to: opts.to,
     replyTo: FOUNDER_EMAIL,
@@ -102,7 +121,7 @@ export async function sendWelcomeEmail(opts: {
     <p style="font-size:13px;color:#64748B;">Questions? Reply to this email — Javan reads every message personally.</p>
   `);
 
-  await resend.emails.send({
+  await sendEmail({
     from: FROM,
     to: opts.to,
     replyTo: FOUNDER_EMAIL,
@@ -131,7 +150,7 @@ export async function sendFounderNotification(opts: {
     <a href="${APP_URL}/founder" class="btn">Open Founder Dashboard</a>
   `);
 
-  await resend.emails.send({
+  await sendEmail({
     from: FROM,
     to: FOUNDER_EMAIL,
     subject: `New registration: ${opts.pharmacyName} (${opts.region})`,
@@ -152,7 +171,7 @@ export async function sendPasswordResetEmail(opts: {
     <p style="font-size:13px;color:#64748B;">This link expires in 1 hour. If you didn't request a reset, ignore this email — your password won't change.</p>
   `);
 
-  await resend.emails.send({
+  await sendEmail({
     from: FROM,
     to: opts.to,
     replyTo: FOUNDER_EMAIL,
