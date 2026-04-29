@@ -219,7 +219,7 @@ if (process.env.NODE_ENV !== 'test') {
   registerWeeklyDigestJob();
   registerVfdRetryJob();
   registerPredictionsJob();
-  const server = app.listen(PORT, () => {
+  const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`PharmaConnect API running on port ${PORT} [${process.env.NODE_ENV || 'development'}]`);
     console.log('[startup.config]', {
       port: PORT,
