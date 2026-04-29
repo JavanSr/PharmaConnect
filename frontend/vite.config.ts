@@ -17,6 +17,15 @@ function isPlaceholderUrl(value: string): boolean {
   return value.includes('YOUR_BACKEND_HOST');
 }
 
+function isAbsoluteHttpsApiUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && url.pathname.replace(/\/$/, '').endsWith('/api/v1');
+  } catch {
+    return false;
+  }
+}
+
 export default defineConfig(({ mode }) => {
   const env = { ...loadEnv(mode, process.cwd(), ''), ...process.env };
   const apiUrl = env.VITE_API_URL?.trim();
@@ -28,9 +37,9 @@ export default defineConfig(({ mode }) => {
       );
     }
 
-    if (isLoopbackUrl(apiUrl) || isPlaceholderUrl(apiUrl)) {
+    if (isLoopbackUrl(apiUrl) || isPlaceholderUrl(apiUrl) || !isAbsoluteHttpsApiUrl(apiUrl)) {
       throw new Error(
-        'Refusing to build production frontend with invalid VITE_API_URL. Set VITE_API_URL to the deployed backend URL ending in /api/v1.',
+        'Refusing to build production frontend with invalid VITE_API_URL. Set VITE_API_URL to the HTTPS deployed backend URL ending in /api/v1.',
       );
     }
   }
