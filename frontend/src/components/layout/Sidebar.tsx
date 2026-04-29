@@ -4,7 +4,7 @@ import {
   LayoutDashboard, BookOpen, Package, Shield, Pill, FileCheck, GraduationCap,
   Lock, ChevronLeft, ChevronRight, Settings, LogOut, BarChart3, Repeat2,
   AlertTriangle, ClipboardList, Users,
-  Building2, Smartphone, Brain, Database, X, ShieldAlert
+  Building2, Smartphone, Brain, Database, X, ShieldAlert, Telescope
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { usePharmacyStore } from '@/stores/pharmacyStore';
@@ -36,6 +36,7 @@ const phase1Nav: NavItem[] = [
   { label: 'Reports', path: '/reports', icon: <BarChart3 size={18} />, roles: ['OWNER','PHARMACIST_IN_CHARGE','CASHIER','WHOLESALE_MANAGER','SUPER_ADMIN'] },
   { label: 'Attendance', path: '/attendance', icon: <Users size={18} /> },
   { label: 'Sync Conflicts', path: '/inventory/conflicts', icon: <AlertTriangle size={18} />, roles: ['OWNER','PHARMACIST_IN_CHARGE','SUPER_ADMIN'] },
+  { label: 'Founder', path: '/founder', icon: <Telescope size={18} />, roles: ['SUPER_ADMIN'] },
 ];
 
 const phase2Nav: NavItem[] = [

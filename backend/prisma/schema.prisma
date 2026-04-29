@@ -313,11 +313,14 @@ model User {
   lastName             String
   role                 UserRole  @default(DISPENSER)
   phone                String?
-  picPinHash           String?   @map("pic_pin_hash")
-  lastPasswordChangeAt DateTime? @map("last_password_change_at")
-  mustChangePassword   Boolean   @default(false) @map("must_change_password")
-  isActive             Boolean   @default(true)
-  lastLogin            DateTime?
+  picPinHash               String?   @map("pic_pin_hash")
+  lastPasswordChangeAt     DateTime? @map("last_password_change_at")
+  mustChangePassword       Boolean   @default(false) @map("must_change_password")
+  isActive                 Boolean   @default(true)
+  lastLogin                DateTime?
+  emailVerifiedAt          DateTime? @map("email_verified_at")
+  emailVerificationToken   String?   @unique @map("email_verification_token") @db.VarChar(64)
+  emailVerificationExpiry  DateTime? @map("email_verification_expiry")
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 

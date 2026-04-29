@@ -5,6 +5,7 @@ import { withPrismaRetry } from '../../lib/prisma-retry';
 import { verifyRefresh } from '../../lib/jwt';
 import { normalizeRole, type KnownRole } from '../../types/roles';
 import { issueAuthTokens, listAccessiblePharmacies, resolveActiveMembership } from './pharmacy-membership.service';
+import { sendVerificationEmail, sendWelcomeEmail, sendFounderNotification } from '../../lib/email';
 
 function hashToken(token: string): string {
   return crypto.createHash('sha256').update(token).digest('hex');
@@ -154,6 +155,9 @@ export async function registerService(payload: {
 
   const hashed = await bcrypt.hash(payload.password, 12);
 
+  const verificationToken = crypto.randomBytes(32).toString('hex');
+  const verificationExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 h
+
   const result = await prisma.$transaction(async (tx) => {
     const pharmacy = await tx.pharmacy.create({
       data: {
@@ -177,6 +181,8 @@ export async function registerService(payload: {
         role: 'OWNER',
         pharmacyId: pharmacy.id,
         lastPasswordChangeAt: new Date(),
+        emailVerificationToken: verificationToken,
+        emailVerificationExpiry: verificationExpiry,
       },
     });
 
@@ -194,15 +200,108 @@ export async function registerService(payload: {
     return { user, pharmacy };
   });
 
-  const jwtPayload = {
-    userId: result.user.id,
-    role: result.user.role,
-    pharmacyId: result.user.pharmacyId,
-  };
-  const { accessToken, refreshToken } = await issueAuthTokens(jwtPayload);
+  // Fire emails in background — don't let email failure break registration
+  Promise.all([
+    sendVerificationEmail({
+      to: result.user.email,
+      firstName: result.user.firstName,
+      pharmacyName: result.pharmacy.name,
+      token: verificationToken,
+    }),
+    sendFounderNotification({
+      pharmacyName: result.pharmacy.name,
+      ownerName: `${result.user.firstName} ${result.user.lastName}`,
+      ownerEmail: result.user.email,
+      region: result.pharmacy.region,
+      pharmacyType: result.pharmacy.pharmacyType,
+      tier: result.pharmacy.subscriptionTier,
+    }),
+  ]).catch(err => console.error('[register] email send failed:', err));
 
-  const { password: _pw, ...safeUser } = result.user;
-  return { user: safeUser, accessToken, refreshToken, pharmacy: result.pharmacy };
+  return { pending: true, email: result.user.email };
+}
+
+export async function verifyEmailService(token: string) {
+  const user = await prisma.user.findUnique({
+    where: { emailVerificationToken: token },
+    include: { pharmacy: { select: { id: true, name: true, region: true, subscriptionTier: true } } },
+  });
+
+  if (!user) {
+    throw Object.assign(new Error('Invalid or expired verification link'), { status: 400 });
+  }
+
+  if (user.emailVerificationExpiry && user.emailVerificationExpiry < new Date()) {
+    throw Object.assign(new Error('Verification link has expired. Request a new one.'), { status: 410 });
+  }
+
+  if (user.emailVerifiedAt) {
+    // Already verified — just issue tokens so they can log in
+  } else {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        emailVerifiedAt: new Date(),
+        emailVerificationToken: null,
+        emailVerificationExpiry: null,
+      },
+    });
+
+    // Send welcome email in background
+    if (user.pharmacy) {
+      sendWelcomeEmail({
+        to: user.email,
+        firstName: user.firstName,
+        pharmacyName: user.pharmacy.name,
+        region: user.pharmacy.region,
+        tier: user.pharmacy.subscriptionTier,
+      }).catch(err => console.error('[verify] welcome email failed:', err));
+    }
+  }
+
+  const jwtPayload = { userId: user.id, role: user.role, pharmacyId: user.pharmacyId };
+  const { accessToken, refreshToken } = await issueAuthTokens(jwtPayload);
+  const { password: _pw, emailVerificationToken: _t, emailVerificationExpiry: _e, ...safeUser } = user;
+
+  return {
+    user: safeUser,
+    accessToken,
+    refreshToken,
+    pharmacy: user.pharmacy,
+    isNewVerification: !user.emailVerifiedAt,
+  };
+}
+
+export async function resendVerificationService(email: string) {
+  const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+
+  if (!user) {
+    // Return success anyway to prevent email enumeration
+    return;
+  }
+
+  if (user.emailVerifiedAt) {
+    throw Object.assign(new Error('Email already verified'), { status: 409 });
+  }
+
+  const newToken = crypto.randomBytes(32).toString('hex');
+  const newExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { emailVerificationToken: newToken, emailVerificationExpiry: newExpiry },
+  });
+
+  const pharmacy = user.pharmacyId
+    ? await prisma.pharmacy.findUnique({ where: { id: user.pharmacyId }, select: { name: true } })
+    : null;
+
+  sendVerificationEmail({
+    to: user.email,
+    firstName: user.firstName,
+    pharmacyName: pharmacy?.name ?? 'your pharmacy',
+    token: newToken,
+  }).catch(err => console.error('[resend-verification] email failed:', err));
 }
 
 export async function refreshTokenService(token: string) {

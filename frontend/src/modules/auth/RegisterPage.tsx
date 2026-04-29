@@ -9,7 +9,6 @@ import { Select } from '@/components/ui/Select';
 import { useAuthStore } from '@/stores/authStore';
 import { usePharmacyStore } from '@/stores/pharmacyStore';
 import { api } from '@/lib/api';
-import { loadMemberships } from '@/lib/pharmacySelection';
 
 const schema = z.object({
   pharmacyName: z.string().min(2, 'Pharmacy name is required'),
@@ -45,25 +44,20 @@ export const RegisterPage: React.FC = () => {
     try {
       const { confirmPassword, ...payload } = data;
       const res = await api.post('/auth/register', payload);
-      const { user, accessToken, refreshToken, pharmacy } = res.data.data;
-      setAuth(user, accessToken, refreshToken);
-      if (pharmacy) {
-        setPharmacy(pharmacy);
-      }
+      const result = res.data.data;
 
-      const memberships = await loadMemberships();
-      if (memberships.length > 1) {
-        navigate('/select-pharmacy');
+      if (result.pending) {
+        navigate('/auth/check-email', { state: { email: result.email }, replace: true });
         return;
       }
 
-      if (memberships[0]) {
-        setPharmacy(memberships[0].pharmacy);
-        setDeviceSelectedPharmacyId(memberships[0].pharmacyId);
-      } else if (pharmacy) {
+      // Legacy fallback — should not happen with new backend
+      const { user, accessToken, refreshToken, pharmacy } = result;
+      setAuth(user, accessToken, refreshToken);
+      if (pharmacy) {
+        setPharmacy(pharmacy);
         setDeviceSelectedPharmacyId(pharmacy.id);
       }
-
       navigate('/dashboard');
     } catch (err: any) {
       setError(err.response?.data?.error || 'Registration failed. Please try again.');

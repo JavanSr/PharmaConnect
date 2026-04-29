@@ -8,6 +8,9 @@ import { useOfflineSync } from '@/hooks/useOfflineSync';
 import { LoginPage } from '@/modules/auth/LoginPage';
 import { PharmacySelectorPage } from '@/modules/auth/PharmacySelectorPage';
 import { RegisterPage } from '@/modules/auth/RegisterPage';
+import { CheckEmailPage } from '@/modules/auth/CheckEmailPage';
+import { VerifyEmailPage } from '@/modules/auth/VerifyEmailPage';
+import { TrialConfirmPage } from '@/modules/auth/TrialConfirmPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -93,6 +96,9 @@ export const App: React.FC = () => (
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/auth/check-email" element={<CheckEmailPage />} />
+        <Route path="/auth/verify-email" element={<VerifyEmailPage />} />
+        <Route path="/auth/trial-confirmed" element={<AuthGuard><TrialConfirmPage /></AuthGuard>} />
         <Route path="/select-pharmacy" element={<AuthGuard><PharmacySelectorPage /></AuthGuard>} />
         <Route path="/nhif-claims" element={<Suspense fallback={<PageLoader />}><NhifClaimsPage /></Suspense>} />
         <Route path="/prescriptions" element={<Suspense fallback={<PageLoader />}><PrescriptionManagementPage /></Suspense>} />

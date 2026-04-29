@@ -6,6 +6,63 @@ export const founderRouter = Router();
 founderRouter.use(authenticate);
 founderRouter.use(requireRole('SUPER_ADMIN'));
 
+founderRouter.get('/registrations', async (_req: AuthRequest, res, next) => {
+  try {
+    const pharmacies = await prisma.pharmacy.findMany({
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        name: true,
+        region: true,
+        pharmacyType: true,
+        subscriptionTier: true,
+        status: true,
+        trialActive: true,
+        createdAt: true,
+        memberships: {
+          where: { role: 'OWNER', active: true },
+          take: 1,
+          select: {
+            user: {
+              select: {
+                firstName: true,
+                lastName: true,
+                email: true,
+                emailVerifiedAt: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const rows = pharmacies.map(p => {
+      const ownerUser = p.memberships[0]?.user ?? null;
+      return {
+        id: p.id,
+        name: p.name,
+        region: p.region,
+        pharmacyType: p.pharmacyType,
+        tier: p.subscriptionTier,
+        status: p.status,
+        trialActive: p.trialActive,
+        createdAt: p.createdAt,
+        owner: ownerUser
+          ? {
+              name: `${ownerUser.firstName} ${ownerUser.lastName}`,
+              email: ownerUser.email,
+              emailVerified: Boolean(ownerUser.emailVerifiedAt),
+            }
+          : null,
+      };
+    });
+
+    res.json({ data: rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
 founderRouter.get('/stats', async (_req: AuthRequest, res, next) => {
   try {
     const [

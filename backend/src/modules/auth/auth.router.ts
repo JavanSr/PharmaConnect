@@ -7,6 +7,8 @@ import {
   registerService,
   refreshTokenService,
   logoutService,
+  verifyEmailService,
+  resendVerificationService,
 } from './auth.service';
 import type { AuthRequest } from '../../middleware/auth';
 
@@ -45,6 +47,26 @@ authRouter.post('/register', async (req, res, next) => {
     const payload = registerSchema.parse(req.body);
     const result = await registerService(payload);
     res.status(201).json({ data: result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+authRouter.get('/verify-email', async (req, res, next) => {
+  try {
+    const { token } = z.object({ token: z.string().min(1) }).parse(req.query);
+    const result = await verifyEmailService(token);
+    res.json({ data: result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+authRouter.post('/resend-verification', async (req, res, next) => {
+  try {
+    const { email } = z.object({ email: z.string().email() }).parse(req.body);
+    await resendVerificationService(email);
+    res.json({ data: { message: 'If that email is registered and unverified, a new link has been sent.' } });
   } catch (err) {
     next(err);
   }
