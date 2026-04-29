@@ -1,8 +1,8 @@
 [build]
 builder = "nixpacks"
-buildCommand = "npm install && npm run build && npx prisma generate"
+buildCommand = "npm install && npx prisma generate && npm run build"
 
 [deploy]
-startCommand = "npx prisma migrate deploy && node dist/index.js"
+startCommand = "npx prisma migrate deploy && echo Starting PharmaConnect API && node dist/index.js"
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
