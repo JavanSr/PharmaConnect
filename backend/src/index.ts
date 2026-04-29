@@ -147,6 +147,10 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+app.get('/', (_req, res) => {
+  res.json({ service: 'PharmaConnect API', status: 'ok' });
+});
+
 // ── Routes ────────────────────────────────────────────────────────────────────
 const v1 = '/api/v1';
 app.use(`${v1}/auth`,       authRouter);
@@ -193,8 +197,22 @@ if (process.env.NODE_ENV !== 'test') {
   registerWeeklyDigestJob();
   registerVfdRetryJob();
   registerPredictionsJob();
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     console.log(`PharmaConnect API running on port ${PORT} [${process.env.NODE_ENV || 'development'}]`);
+    console.log('[startup.config]', {
+      port: PORT,
+      nodeEnv: process.env.NODE_ENV,
+      frontendUrl: process.env.FRONTEND_URL ?? null,
+      corsOrigins: configuredCorsOrigins(),
+      hasDatabaseUrl: Boolean(process.env.DATABASE_URL),
+      hasJwtAccessSecret: Boolean(process.env.JWT_SECRET || process.env.JWT_PRIVATE_KEY || process.env.JWT_ACCESS_SECRET),
+      hasJwtRefreshSecret: Boolean(process.env.JWT_REFRESH_SECRET || process.env.JWT_REFRESH_PRIVATE_KEY),
+    });
+  });
+
+  server.on('error', (error) => {
+    console.error('[startup.listenFailed]', error);
+    process.exit(1);
   });
 }
 
