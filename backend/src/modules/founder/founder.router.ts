@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { authenticate, requireRole, type AuthRequest } from '../../middleware/auth';
 import { prisma } from '../../lib/prisma';
+import { sendWelcomeEmail } from '../../lib/email';
 
 export const founderRouter = Router();
 founderRouter.use(authenticate);
@@ -58,6 +59,85 @@ founderRouter.get('/registrations', async (_req: AuthRequest, res, next) => {
     });
 
     res.json({ data: rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+founderRouter.post('/registrations/:pharmacyId/verify-owner', async (req: AuthRequest, res, next) => {
+  try {
+    const { pharmacyId } = req.params;
+
+    const membership = await prisma.pharmacyMembership.findFirst({
+      where: {
+        pharmacyId,
+        role: 'OWNER',
+        active: true,
+      },
+      select: {
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            emailVerifiedAt: true,
+          },
+        },
+        pharmacy: {
+          select: {
+            id: true,
+            name: true,
+            region: true,
+            subscriptionTier: true,
+          },
+        },
+      },
+    });
+
+    if (!membership) {
+      throw Object.assign(new Error('Owner account not found for this pharmacy'), { status: 404 });
+    }
+
+    const verifiedAt = membership.user.emailVerifiedAt ?? new Date();
+    const user = await prisma.user.update({
+      where: { id: membership.user.id },
+      data: {
+        emailVerifiedAt: verifiedAt,
+        emailVerificationToken: null,
+        emailVerificationExpiry: null,
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        emailVerifiedAt: true,
+      },
+    });
+
+    if (!membership.user.emailVerifiedAt) {
+      sendWelcomeEmail({
+        to: user.email,
+        firstName: user.firstName,
+        pharmacyName: membership.pharmacy.name,
+        region: membership.pharmacy.region,
+        tier: membership.pharmacy.subscriptionTier,
+      }).catch(err => console.error('[founder.verify-owner] welcome email failed:', err));
+    }
+
+    res.json({
+      data: {
+        pharmacy: membership.pharmacy,
+        owner: {
+          name: `${user.firstName} ${user.lastName}`,
+          email: user.email,
+          emailVerified: Boolean(user.emailVerifiedAt),
+          emailVerifiedAt: user.emailVerifiedAt,
+        },
+        verifiedBy: req.user?.email ?? null,
+      },
+    });
   } catch (error) {
     next(error);
   }

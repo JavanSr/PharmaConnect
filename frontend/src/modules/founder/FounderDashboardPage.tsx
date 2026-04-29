@@ -1,9 +1,11 @@
 import React from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Building2, Users, Pill, Package, ShieldAlert, CheckCircle, Clock, LayoutDashboard, ClipboardList } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Building2, Users, Pill, Package, ShieldAlert, CheckCircle, Clock, LayoutDashboard, ClipboardList, ShieldCheck } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
 import { api } from '@/lib/api';
+import { useNotificationStore } from '@/stores/notificationStore';
 
 type OverrideEntry = {
   id: string;
@@ -51,6 +53,8 @@ const TIER_ORDER = ['ADDO', 'STANDARD', 'PREMIUM', 'WHOLESALE', 'ENTERPRISE'];
 
 export const FounderDashboardPage: React.FC = () => {
   const [tab, setTab] = React.useState<Tab>('overview');
+  const queryClient = useQueryClient();
+  const toast = useNotificationStore(state => state.toast);
 
   const statsQuery = useQuery<{ data: FounderStats }>({
     queryKey: ['founder-stats'],
@@ -69,6 +73,20 @@ export const FounderDashboardPage: React.FC = () => {
   const registrations = regsQuery.data?.data ?? [];
 
   const pendingVerification = registrations.filter(r => r.owner && !r.owner.emailVerified).length;
+
+  const verifyOwnerMutation = useMutation({
+    mutationFn: (pharmacyId: string) => api.post(`/founder/registrations/${pharmacyId}/verify-owner`),
+    onSuccess: async () => {
+      toast.success('Owner account verified');
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['founder-registrations'] }),
+        queryClient.invalidateQueries({ queryKey: ['founder-stats'] }),
+      ]);
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Could not verify owner account');
+    },
+  });
 
   return (
     <div className="space-y-6">
@@ -230,9 +248,20 @@ export const FounderDashboardPage: React.FC = () => {
                           Verified
                         </div>
                       ) : (
-                        <div className="flex items-center gap-1.5 text-xs font-medium text-amber-600">
-                          <Clock size={13} />
-                          Pending
+                        <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-1.5 text-xs font-medium text-amber-600">
+                            <Clock size={13} />
+                            Pending
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            leftIcon={<ShieldCheck size={14} />}
+                            loading={verifyOwnerMutation.isPending && verifyOwnerMutation.variables === r.id}
+                            onClick={() => verifyOwnerMutation.mutate(r.id)}
+                          >
+                            Verify owner
+                          </Button>
                         </div>
                       )}
                     </div>
