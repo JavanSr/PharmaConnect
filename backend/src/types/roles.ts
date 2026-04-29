@@ -70,7 +70,9 @@ export type PharmacyAccessSnapshot = {
   billingCycle?: BillingCycle | null;
   status?: PharmacyAccountStatus | null;
   trialActive?: boolean | null;
+  trialEndsAt?: Date | string | null;
   isHybrid?: boolean | null;
+  isActive?: boolean | null;
 };
 
 export function normalizeRole(role: string | null | undefined): AppRole | null {

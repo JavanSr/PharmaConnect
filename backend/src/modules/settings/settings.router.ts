@@ -58,9 +58,18 @@ settingsRouter.get('/subscription', async (req: AuthRequest, res, next) => {
       return;
     }
 
+    const trialEndedByDate = pharmacy.status === 'TRIAL' && pharmacy.trialEndsAt < new Date();
+    if (trialEndedByDate && pharmacy.trialActive) {
+      void prisma.pharmacy.update({
+        where: { id: pharmacy.id },
+        data: { trialActive: false },
+      }).catch((error) => console.error('[settings.subscription.trialExpireUpdateFailed]', error));
+    }
+
     res.json({
       data: {
         ...pharmacy,
+        trialActive: pharmacy.trialActive && !trialEndedByDate,
         dashboardAccess: canAccessHybridDashboards(req.user!.role, pharmacy),
       },
     });

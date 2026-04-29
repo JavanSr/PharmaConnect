@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useLocation, Link } from 'react-router-dom';
 import { Mail, RefreshCw, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
@@ -10,6 +10,43 @@ export const CheckEmailPage: React.FC = () => {
   const [resent, setResent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const continueAfterVerification = () => {
+    window.location.replace('/dashboard');
+  };
+
+  useEffect(() => {
+    const isVerified = () => {
+      try {
+        const raw = window.localStorage.getItem('pc-email-verified');
+        if (!raw) return false;
+        const parsed = JSON.parse(raw) as { email?: string; at?: number };
+        const recent = parsed.at ? Date.now() - parsed.at < 10 * 60 * 1000 : true;
+        return recent && (!email || parsed.email?.toLowerCase() === email.toLowerCase());
+      } catch {
+        return false;
+      }
+    };
+
+    const maybeContinue = () => {
+      if (isVerified()) {
+        continueAfterVerification();
+      }
+    };
+
+    maybeContinue();
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === 'pc-email-verified') {
+        maybeContinue();
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    window.addEventListener('focus', maybeContinue);
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener('focus', maybeContinue);
+    };
+  }, [email]);
 
   const handleResend = async () => {
     if (!email) return;
@@ -49,7 +86,7 @@ export const CheckEmailPage: React.FC = () => {
               <span className="font-semibold text-[#1A6B5C]">2.</span> Click <strong>Verify my email address</strong>
             </p>
             <p className="text-sm text-[#374151]">
-              <span className="font-semibold text-[#1A6B5C]">3.</span> Your 14-day trial starts immediately
+              <span className="font-semibold text-[#1A6B5C]">3.</span> Your 30-day trial starts immediately
             </p>
           </div>
 
@@ -70,6 +107,14 @@ export const CheckEmailPage: React.FC = () => {
               >
                 <RefreshCw size={14} className="mr-2" />
                 Resend verification email
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={continueAfterVerification}
+                className="w-full mb-3"
+              >
+                I verified my email
               </Button>
             </>
           )}

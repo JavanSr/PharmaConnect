@@ -101,9 +101,32 @@ export const DrugCataloguePage: React.FC = () => {
         </Link>
         <div className="flex-1">
           <h1 className="text-xl font-bold text-[#0D4035]">Drug Catalogue</h1>
-          <p className="text-sm text-[#64748B]">System-wide master drug catalogue for product activation.</p>
+          <p className="text-sm text-[#64748B]">System-wide medicine reference list for cleaner product activation.</p>
         </div>
       </div>
+
+      <Card>
+        <div className="grid gap-4 md:grid-cols-3">
+          <div>
+            <p className="text-sm font-semibold text-[#0D4035]">What this is</p>
+            <p className="mt-1 text-sm text-[#64748B]">
+              A reference catalogue shared by PharmaConnect. It is not your stock list and does not mean the item is available in your pharmacy.
+            </p>
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-[#0D4035]">How to use it</p>
+            <p className="mt-1 text-sm text-[#64748B]">
+              Search generic, brand, manufacturer, or TMDA number, then use matches when creating or receiving products.
+            </p>
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-[#0D4035]">Other inventory options</p>
+            <p className="mt-1 text-sm text-[#64748B]">
+              Use Products for your local items, Receive Stock for batches, Import Catalogue for supplier PDFs, and Conflicts for offline sync review.
+            </p>
+          </div>
+        </div>
+      </Card>
 
       <Card>
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_220px_auto] gap-3">

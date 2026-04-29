@@ -22,10 +22,10 @@ const loginSchema = z.object({
 
 const registerSchema = z.object({
   pharmacyName:  z.string().min(2),
-  licenceNumber: z.string().min(1),
+  licenceNumber: z.string().min(1).optional(),
   address:       z.string().min(5),
   region:        z.string().min(1),
-  pharmacyType:  z.enum(['RETAIL', 'ADDO', 'WHOLESALE']),
+  pharmacyType:  z.enum(['RETAIL', 'ADDO', 'WHOLESALE', 'RETAIL_WHOLESALE']),
   firstName:     z.string().min(1),
   lastName:      z.string().min(1),
   email:         z.string().email(),

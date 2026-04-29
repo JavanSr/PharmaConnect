@@ -1,7 +1,7 @@
 import React from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, Link } from 'react-router-dom';
-import { Menu, Plus, WifiOff, Clock } from 'lucide-react';
+import { ArrowLeft, Menu, Plus, WifiOff, Clock } from 'lucide-react';
 import { useConnectivityStore } from '@/stores/connectivityStore';
 import { useNotificationStore } from '@/stores/notificationStore';
 import { usePharmacyStore } from '@/stores/pharmacyStore';
@@ -60,6 +60,21 @@ export const TopBar: React.FC<TopBarProps> = ({ onMenuClick, title }) => {
       <div className="flex items-center gap-3">
         <button onClick={onMenuClick} className="lg:hidden p-2 rounded-lg hover:bg-[#EDF7F3] text-[#64748B]">
           <Menu size={20} />
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            if (window.history.length > 1) {
+              navigate(-1);
+            } else {
+              navigate('/dashboard');
+            }
+          }}
+          className="p-2 rounded-lg hover:bg-[#EDF7F3] text-[#64748B]"
+          aria-label="Go back"
+          title="Back"
+        >
+          <ArrowLeft size={18} />
         </button>
         {title && <h1 className="text-base font-semibold text-[#0D4035] hidden sm:block">{title}</h1>}
       </div>

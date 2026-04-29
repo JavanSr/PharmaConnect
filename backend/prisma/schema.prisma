@@ -264,7 +264,7 @@ model Pharmacy {
   status                PharmacyAccountStatus @default(TRIAL)
   trialActive           Boolean               @default(true) @map("trial_active")
   trialStartsAt         DateTime              @default(now()) @map("trial_starts_at")
-  trialEndsAt           DateTime              @default(now()) @map("trial_ends_at")
+  trialEndsAt           DateTime              @default(dbgenerated("now() + interval '30 days'")) @map("trial_ends_at")
   isHybrid              Boolean               @default(false) @map("is_hybrid")
   hybridAddonActive     Boolean               @default(false) @map("hybrid_addon_active")
   hybridEnabledAt       DateTime?             @map("hybrid_enabled_at")

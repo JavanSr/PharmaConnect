@@ -11,7 +11,29 @@ function hashToken(token: string): string {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
 
-function initialSubscriptionTier(pharmacyType: 'RETAIL' | 'ADDO' | 'WHOLESALE') {
+const TRIAL_DAYS = 30;
+
+type RegistrationPharmacyType = 'RETAIL' | 'ADDO' | 'WHOLESALE' | 'RETAIL_WHOLESALE';
+
+function addDays(date: Date, days: number): Date {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function generatePendingLicenceNumber(): string {
+  return `PENDING-${crypto.randomUUID()}`;
+}
+
+function storedPharmacyType(pharmacyType: RegistrationPharmacyType): 'RETAIL' | 'ADDO' | 'WHOLESALE' {
+  return pharmacyType === 'RETAIL_WHOLESALE' ? 'RETAIL' : pharmacyType;
+}
+
+function isRetailWholesale(pharmacyType: RegistrationPharmacyType): boolean {
+  return pharmacyType === 'RETAIL_WHOLESALE';
+}
+
+function initialSubscriptionTier(pharmacyType: RegistrationPharmacyType) {
   if (pharmacyType === 'ADDO') {
     return 'ADDO' as const;
   }
@@ -137,10 +159,10 @@ export async function loginService(email: string, password: string, preferredPha
 
 export async function registerService(payload: {
   pharmacyName: string;
-  licenceNumber: string;
+  licenceNumber?: string;
   address: string;
   region: string;
-  pharmacyType: 'RETAIL' | 'ADDO' | 'WHOLESALE';
+  pharmacyType: RegistrationPharmacyType;
   firstName: string;
   lastName: string;
   email: string;
@@ -157,18 +179,27 @@ export async function registerService(payload: {
 
   const verificationToken = crypto.randomBytes(32).toString('hex');
   const verificationExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 h
+  const trialStartsAt = new Date();
+  const trialEndsAt = addDays(trialStartsAt, TRIAL_DAYS);
+  const savedPharmacyType = storedPharmacyType(payload.pharmacyType);
+  const retailWholesale = isRetailWholesale(payload.pharmacyType);
 
   const result = await prisma.$transaction(async (tx) => {
     const pharmacy = await tx.pharmacy.create({
       data: {
         name: payload.pharmacyName,
-        licenceNumber: payload.licenceNumber,
+        licenceNumber: payload.licenceNumber?.trim() || generatePendingLicenceNumber(),
         address: payload.address,
         region: payload.region,
-        pharmacyType: payload.pharmacyType,
+        pharmacyType: savedPharmacyType,
         subscriptionTier: initialSubscriptionTier(payload.pharmacyType),
         status: 'TRIAL',
         trialActive: true,
+        trialStartsAt,
+        trialEndsAt,
+        isHybrid: retailWholesale,
+        hybridAddonActive: retailWholesale,
+        hybridEnabledAt: retailWholesale ? trialStartsAt : undefined,
       },
     });
 
@@ -213,7 +244,7 @@ export async function registerService(payload: {
       ownerName: `${result.user.firstName} ${result.user.lastName}`,
       ownerEmail: result.user.email,
       region: result.pharmacy.region,
-      pharmacyType: result.pharmacy.pharmacyType,
+      pharmacyType: result.pharmacy.isHybrid ? 'RETAIL + WHOLESALE' : result.pharmacy.pharmacyType,
       tier: result.pharmacy.subscriptionTier,
     }),
   ]).catch(err => console.error('[register] email send failed:', err));

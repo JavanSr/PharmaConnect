@@ -100,7 +100,8 @@ export const Layout: React.FC = () => {
     subscription?.trialEndsAt
       ? Math.max(0, differenceInCalendarDays(new Date(subscription.trialEndsAt), new Date()))
       : null;
-  const isTrialExpired = subscription?.status === 'TRIAL' && subscription?.trialActive === false;
+  const trialEndedByDate = subscription?.trialEndsAt ? new Date(subscription.trialEndsAt) < new Date() : false;
+  const isTrialExpired = subscription?.status === 'TRIAL' && (subscription?.trialActive === false || trialEndedByDate);
 
   return (
     <div className="flex h-screen bg-[#EDF7F3] overflow-hidden print:block print:h-auto print:overflow-visible print:bg-white">

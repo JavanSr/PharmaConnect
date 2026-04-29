@@ -33,6 +33,7 @@ export const VerifyEmailPage: React.FC = () => {
       .then(res => {
         const { user, accessToken, refreshToken, pharmacy } = res.data.data;
         setAuth(user, accessToken, refreshToken);
+        window.localStorage.setItem('pc-email-verified', JSON.stringify({ email: user.email, at: Date.now() }));
         if (pharmacy) {
           setPharmacy(pharmacy);
           setDeviceSelectedPharmacyId(pharmacy.id);

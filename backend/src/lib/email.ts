@@ -81,7 +81,7 @@ export async function sendVerificationEmail(opts: {
     <p style="font-size:12px;color:#94A3B8;word-break:break-all;">${link}</p>
     <hr class="divider" />
     <div class="info-box">
-      <p>Once verified, your 14-day free trial starts automatically. No credit card required.</p>
+      <p>Once verified, your 30-day free trial starts automatically. No credit card required.</p>
     </div>
   `);
 
@@ -103,7 +103,7 @@ export async function sendWelcomeEmail(opts: {
 }) {
   const html = baseLayout(`
     <p>Hi <strong>${opts.firstName}</strong>,</p>
-    <p>Welcome to PharmaConnect! Your account for <strong>${opts.pharmacyName}</strong> is now active. Your 14-day free trial has started.</p>
+    <p>Welcome to PharmaConnect! Your account for <strong>${opts.pharmacyName}</strong> is now active. Your 30-day free trial has started.</p>
     <div class="info-box">
       <p><strong>Pharmacy:</strong> ${opts.pharmacyName}</p>
       <p style="margin-top:6px;"><strong>Region:</strong> ${opts.region}</p>

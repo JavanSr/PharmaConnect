@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import type { NextFunction, Response } from 'express';
 import multer from 'multer';
 import { z } from 'zod';
 import { authenticate } from '../../middleware/auth';
@@ -6,6 +7,7 @@ import type { AuthRequest } from '../../middleware/auth';
 import { requirePermission } from '../../middleware/permissions';
 import { requireTier } from '../../middleware/tier';
 import { enforceTrialRestrictions } from '../../middleware/trial';
+import { prisma } from '../../lib/prisma';
 import * as svc from './inventory.service';
 
 const productSchema = z.object({
@@ -57,6 +59,43 @@ function pid(req: AuthRequest): string {
 const uid = (req: AuthRequest) => req.user!.userId;
 const canReviewStockAdjustmentSuggestions = (req: AuthRequest) =>
   ['OWNER', 'PHARMACIST_IN_CHARGE', 'SUPER_ADMIN'].includes(req.user?.normalizedRole ?? '');
+const DISPENSER_SUPPLIER_WRITE_KEY = 'inventory.dispenser_supplier_write';
+
+async function requireDispenserSupplierWrite(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    if (req.user?.normalizedRole !== 'DISPENSER') {
+      next();
+      return;
+    }
+
+    const setting = await prisma.pharmacySetting.findUnique({
+      where: {
+        pharmacyId_key: {
+          pharmacyId: pid(req),
+          key: DISPENSER_SUPPLIER_WRITE_KEY,
+        },
+      },
+      select: { value: true },
+    });
+
+    const value = setting?.value;
+    const enabled = value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>).enabled !== false
+      : true;
+
+    if (!enabled) {
+      res.status(403).json({
+        error: 'SUPPLIER_WRITE_DISABLED',
+        message: 'Owner has disabled supplier changes for dispensers.',
+      });
+      return;
+    }
+
+    next();
+  } catch (error) {
+    next(error);
+  }
+}
 
 inventoryRouter.get('/products', requirePermission('inventory.view_products'), async (req: AuthRequest, res, next) => {
   try {
@@ -354,7 +393,7 @@ inventoryRouter.get('/suppliers', requirePermission('inventory.manage_stock'), a
   }
 });
 
-inventoryRouter.post('/suppliers', requirePermission('inventory.manage_stock'), async (req: AuthRequest, res, next) => {
+inventoryRouter.post('/suppliers', requirePermission('inventory.manage_stock'), requireDispenserSupplierWrite, async (req: AuthRequest, res, next) => {
   try {
     const data = supplierSchema.parse(req.body);
     res.status(201).json({ data: await svc.createSupplier(pid(req), data) });
@@ -363,7 +402,7 @@ inventoryRouter.post('/suppliers', requirePermission('inventory.manage_stock'), 
   }
 });
 
-inventoryRouter.put('/suppliers/:id', requirePermission('inventory.manage_stock'), async (req: AuthRequest, res, next) => {
+inventoryRouter.put('/suppliers/:id', requirePermission('inventory.manage_stock'), requireDispenserSupplierWrite, async (req: AuthRequest, res, next) => {
   try {
     const data = supplierSchema.parse(req.body);
     res.json({ data: await svc.updateSupplier(pid(req), req.params.id, data) });
@@ -372,7 +411,7 @@ inventoryRouter.put('/suppliers/:id', requirePermission('inventory.manage_stock'
   }
 });
 
-inventoryRouter.delete('/suppliers/:id', requirePermission('inventory.manage_stock'), async (req: AuthRequest, res, next) => {
+inventoryRouter.delete('/suppliers/:id', requirePermission('inventory.manage_stock'), requireDispenserSupplierWrite, async (req: AuthRequest, res, next) => {
   try {
     res.json({ data: await svc.deactivateSupplier(pid(req), req.params.id) });
   } catch (e) {

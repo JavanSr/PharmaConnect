@@ -24,11 +24,11 @@ import { SettingsNav } from './SettingsNav';
 const FOUNDER_WHATSAPP = '255764591374';
 
 const plans = [
-  { tier: 'ADDO', monthly: 'TZS 20,000', annual: 'TZS 200,000', users: '2 users', features: ['Basic sale recording', 'Inventory and compliance', 'Knowledge Hub read access'] },
-  { tier: 'STANDARD', monthly: 'TZS 55,000', annual: 'TZS 550,000', users: '4 users', features: ['Full dispensing workflow', 'Patient safety tools', 'Inventory, compliance, and reports'] },
-  { tier: 'PREMIUM', monthly: 'TZS 75,000', annual: 'TZS 750,000', users: '6 users', features: ['Everything in Standard', 'Advanced analytics and forecasting', 'Priority support'] },
-  { tier: 'WHOLESALE', monthly: 'TZS 100,000', annual: 'TZS 1,000,000', users: '8 users + delivery', features: ['Wholesale catalogue and B2B', 'Delivery workflow', 'Wholesale operations'] },
-  { tier: 'ENTERPRISE', monthly: 'Negotiated', annual: 'Negotiated', users: 'Unlimited', features: ['Enterprise reporting', 'Multi-outlet visibility', 'Custom rollout support'] },
+  { tier: 'ADDO', monthly: 'TZS 20,000', annual: 'TZS 200,000', users: '2 users', bestFor: 'Small ADDO shops', description: 'Lean daily sales, basic stock, compliance reminders, and read-only knowledge access.', features: ['Basic sale recording', 'Inventory and compliance', 'Knowledge Hub read access'] },
+  { tier: 'STANDARD', monthly: 'TZS 55,000', annual: 'TZS 550,000', users: '4 users', bestFor: 'Independent retail pharmacies', description: 'Core pharmacy operations for dispensing, patient safety, stock control, and management reports.', features: ['Full dispensing workflow', 'Patient safety tools', 'Inventory, compliance, and reports'] },
+  { tier: 'PREMIUM', monthly: 'TZS 75,000', annual: 'TZS 750,000', users: '6 users', bestFor: 'Growing retail teams', description: 'Standard plus stronger forecasting, analytics, and faster support for higher-volume outlets.', features: ['Everything in Standard', 'Advanced analytics and forecasting', 'Priority support'] },
+  { tier: 'WHOLESALE', monthly: 'TZS 100,000', annual: 'TZS 1,000,000', users: '8 users + delivery', bestFor: 'Wholesale distributors', description: 'B2B ordering, supplier catalogues, delivery workflow, and wholesale operations controls.', features: ['Wholesale catalogue and B2B', 'Delivery workflow', 'Wholesale operations'] },
+  { tier: 'ENTERPRISE', monthly: 'Negotiated', annual: 'Negotiated', users: 'Unlimited', bestFor: 'Multi-outlet groups', description: 'Custom rollout support, cross-outlet visibility, enterprise reporting, and negotiated limits.', features: ['Enterprise reporting', 'Multi-outlet visibility', 'Custom rollout support'] },
 ];
 
 export const SubscriptionPage: React.FC = () => {
@@ -41,6 +41,7 @@ export const SubscriptionPage: React.FC = () => {
   const pharmacyRef = React.useRef(pharmacy);
   React.useLayoutEffect(() => { pharmacyRef.current = pharmacy; }, [pharmacy]);
   const canManagePaymentSettings = ['OWNER', 'SUPER_ADMIN'].includes(user?.role || '');
+  const canManageSubscription = ['OWNER', 'SUPER_ADMIN'].includes(user?.role || '');
   const [paymentMethodsDraft, setPaymentMethodsDraft] = React.useState<PaymentMethodSetting[]>(
     () => normalizePaymentMethodConfig(null).methods,
   );
@@ -145,7 +146,7 @@ export const SubscriptionPage: React.FC = () => {
           <h1 className="text-xl font-bold text-[#0D4035]">Subscription</h1>
           <SettingsNav />
           <p className="mt-1 text-sm text-[#64748B]">
-            Review your current tier, trial status, and upgrade path. Payments are confirmed manually after M-Pesa or bank transfer.
+            Review your current tier and trial status{canManageSubscription ? ', then choose an upgrade path' : ''}. Payments are confirmed manually after M-Pesa or bank transfer.
           </p>
         </div>
         {subscription && (
@@ -194,6 +195,23 @@ export const SubscriptionPage: React.FC = () => {
             Send payment by M-Pesa or request bank transfer details from the founder. Once payment is confirmed, access is restored within 24 hours.
           </p>
           <p className="mt-2 text-sm font-medium text-[#0D4035]">M-Pesa contact: +255 764 591 374</p>
+        </div>
+      </Card>
+
+      <Card>
+        <div className="grid gap-4 md:grid-cols-3">
+          <div>
+            <p className="text-sm font-semibold text-[#0D4035]">How tiers work</p>
+            <p className="mt-1 text-sm text-[#64748B]">Tiers are based on pharmacy size and operating model, not just feature names.</p>
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-[#0D4035]">Retail path</p>
+            <p className="mt-1 text-sm text-[#64748B]">ADDO covers smaller shops. Standard and Premium cover full retail pharmacy workflows.</p>
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-[#0D4035]">Wholesale path</p>
+            <p className="mt-1 text-sm text-[#64748B]">Wholesale is for B2B and delivery operations. Enterprise is for chains or custom rollouts.</p>
+          </div>
         </div>
       </Card>
 
@@ -341,10 +359,11 @@ export const SubscriptionPage: React.FC = () => {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-[#0D4035]">{plan.tier}</p>
-                  <p className="mt-1 text-xs text-[#64748B]">{plan.users}</p>
+                  <p className="mt-1 text-xs text-[#64748B]">{plan.bestFor} | {plan.users}</p>
                 </div>
                 {isCurrent ? <Badge variant="success" size="sm">Current plan</Badge> : null}
               </div>
+              <p className="mt-3 text-sm text-[#475569]">{plan.description}</p>
               <div className="mt-4">
                 <p className="text-2xl font-bold text-[#0D4035]">{plan.monthly}</p>
                 <p className="text-xs text-[#64748B]">Annual: {plan.annual}</p>
@@ -357,17 +376,19 @@ export const SubscriptionPage: React.FC = () => {
                   </div>
                 ))}
               </div>
-              <div className="mt-5 flex flex-wrap gap-3">
-                <a href={`https://wa.me/${FOUNDER_WHATSAPP}?text=${message}`} target="_blank" rel="noreferrer">
-                  <Button leftIcon={<MessageCircle size={16} />}>Contact us to upgrade</Button>
-                </a>
-              </div>
+              {canManageSubscription && (
+                <div className="mt-5 flex flex-wrap gap-3">
+                  <a href={`https://wa.me/${FOUNDER_WHATSAPP}?text=${message}`} target="_blank" rel="noreferrer">
+                    <Button leftIcon={<MessageCircle size={16} />}>Contact us to upgrade</Button>
+                  </a>
+                </div>
+              )}
             </Card>
           );
         })}
       </div>
 
-      {(subscription?.pharmacyType === 'RETAIL' || subscription?.pharmacyType === 'ADDO') && (
+      {canManageSubscription && (subscription?.pharmacyType === 'RETAIL' || subscription?.pharmacyType === 'ADDO') && (
         <Card>
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>

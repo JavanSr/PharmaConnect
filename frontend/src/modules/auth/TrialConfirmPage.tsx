@@ -44,7 +44,7 @@ export const TrialConfirmPage: React.FC = () => {
           <div className="bg-gradient-to-r from-[#D6F0E8] to-[#EDF7F3] rounded-xl p-4 mb-6 flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold text-[#1A6B5C] uppercase tracking-wide">Free trial</p>
-              <p className="text-2xl font-bold text-[#0D4035]">14 days</p>
+              <p className="text-2xl font-bold text-[#0D4035]">30 days</p>
               <p className="text-xs text-[#64748B]">No credit card required</p>
             </div>
             <div className="text-right">

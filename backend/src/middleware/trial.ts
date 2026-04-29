@@ -28,7 +28,21 @@ export function enforceTrialRestrictions(req: AuthRequest, res: Response, next: 
     return;
   }
 
-  const isTrialExpired = pharmacy.status === 'TRIAL' && pharmacy.trialActive === false;
+  if (pharmacy.isActive === false || pharmacy.status === 'SUSPENDED' || pharmacy.status === 'CANCELLED') {
+    if (isSubscriptionException(req)) {
+      next();
+      return;
+    }
+
+    res.status(403).json({
+      error: 'PHARMACY_SUSPENDED',
+      subscribeUrl: SUBSCRIPTION_URL,
+    });
+    return;
+  }
+
+  const trialEndedByDate = pharmacy.trialEndsAt ? new Date(pharmacy.trialEndsAt) < new Date() : false;
+  const isTrialExpired = pharmacy.status === 'TRIAL' && (pharmacy.trialActive === false || trialEndedByDate);
   if (!isTrialExpired) {
     next();
     return;

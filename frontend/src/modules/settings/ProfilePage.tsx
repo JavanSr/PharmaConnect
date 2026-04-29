@@ -2,6 +2,7 @@ import React from 'react';
 import { useForm } from 'react-hook-form';
 import { useMutation } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
+import { Eye, EyeOff } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
@@ -17,6 +18,10 @@ export const ProfilePage: React.FC = () => {
   const pharmacy = usePharmacyStore(s => s.pharmacy);
   const memberships = usePharmacyStore(s => s.memberships);
   const toast = useNotificationStore(s => s.toast);
+  const canManageSubscription = ['OWNER', 'SUPER_ADMIN'].includes(user?.role || '');
+  const [showCurrentPassword, setShowCurrentPassword] = React.useState(false);
+  const [showNewPassword, setShowNewPassword] = React.useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = React.useState(false);
 
   const { register, handleSubmit, formState: { errors } } = useForm({
     defaultValues: { currentPassword: '', newPassword: '', confirmPassword: '' },
@@ -80,27 +85,56 @@ export const ProfilePage: React.FC = () => {
         </Card>
       )}
 
-      <Card header={<span className="text-sm font-semibold text-[#0D4035]">Subscription</span>}>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm font-medium text-[#0D4035]">
-              {pharmacy?.subscriptionTier || 'STANDARD'} plan
-            </p>
-            <p className="text-sm text-[#64748B]">
-              Review trial status, pricing, and upgrade options.
-            </p>
+      {canManageSubscription && (
+        <Card header={<span className="text-sm font-semibold text-[#0D4035]">Subscription</span>}>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-medium text-[#0D4035]">
+                {pharmacy?.subscriptionTier || 'STANDARD'} plan
+              </p>
+              <p className="text-sm text-[#64748B]">
+                Review trial status, pricing, and upgrade options.
+              </p>
+            </div>
+            <Link to="/settings/subscription">
+              <Button variant="secondary">Manage subscription</Button>
+            </Link>
           </div>
-          <Link to="/settings/subscription">
-            <Button variant="secondary">Manage subscription</Button>
-          </Link>
-        </div>
-      </Card>
+        </Card>
+      )}
 
       <Card header={<span className="text-sm font-semibold text-[#0D4035]">Change Password</span>}>
         <form onSubmit={handleSubmit(d => pwMutation.mutate(d))} className="space-y-4">
-          <Input label="Current Password" type="password" {...register('currentPassword', { required: true })} />
-          <Input label="New Password" type="password" {...register('newPassword', { required: true, minLength: 8 })} />
-          <Input label="Confirm New Password" type="password" {...register('confirmPassword', { required: true })} />
+          <Input
+            label="Current Password"
+            type={showCurrentPassword ? 'text' : 'password'}
+            {...register('currentPassword', { required: true })}
+            rightIcon={
+              <button type="button" onClick={() => setShowCurrentPassword(value => !value)} aria-label={showCurrentPassword ? 'Hide current password' : 'Show current password'}>
+                {showCurrentPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            }
+          />
+          <Input
+            label="New Password"
+            type={showNewPassword ? 'text' : 'password'}
+            {...register('newPassword', { required: true, minLength: 8 })}
+            rightIcon={
+              <button type="button" onClick={() => setShowNewPassword(value => !value)} aria-label={showNewPassword ? 'Hide new password' : 'Show new password'}>
+                {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            }
+          />
+          <Input
+            label="Confirm New Password"
+            type={showConfirmPassword ? 'text' : 'password'}
+            {...register('confirmPassword', { required: true })}
+            rightIcon={
+              <button type="button" onClick={() => setShowConfirmPassword(value => !value)} aria-label={showConfirmPassword ? 'Hide password confirmation' : 'Show password confirmation'}>
+                {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            }
+          />
           <Button type="submit" loading={pwMutation.isPending}>Update Password</Button>
         </form>
       </Card>

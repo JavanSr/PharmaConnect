@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { UserPlus, Mail, ShieldCheck } from 'lucide-react';
+import { Eye, EyeOff, UserPlus, Mail, ShieldCheck } from 'lucide-react';
 import { format } from 'date-fns';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -33,6 +33,8 @@ const INVITE_ROLES = [
   { value: 'DELIVERY_STAFF', label: 'Delivery Staff' },
 ];
 
+const DISPENSER_SUPPLIER_WRITE_KEY = 'inventory.dispenser_supplier_write';
+
 export const TeamManagementPage: React.FC = () => {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [changeRoleOpen, setChangeRoleOpen] = useState(false);
@@ -42,15 +44,38 @@ export const TeamManagementPage: React.FC = () => {
   const [inviteFirst, setInviteFirst] = useState('');
   const [inviteLast, setInviteLast] = useState('');
   const [invitePassword, setInvitePassword] = useState('');
+  const [showInvitePassword, setShowInvitePassword] = useState(false);
   const [newRole, setNewRole] = useState('');
   const toast = useNotificationStore(s => s.toast);
   const qc = useQueryClient();
   const { hasRole, user: currentUser } = useAuth();
   const canManage = hasRole(['OWNER', 'SUPER_ADMIN']);
+  const canManageOwnerControls = hasRole(['OWNER', 'SUPER_ADMIN']);
 
   const { data, isLoading } = useQuery({
     queryKey: ['pharmacy-team'],
     queryFn: () => api.get('/settings/team').then(r => r.data),
+  });
+  const dispenserSupplierSettingQuery = useQuery({
+    queryKey: ['settings-config', DISPENSER_SUPPLIER_WRITE_KEY],
+    queryFn: () => api.get(`/settings/config/${DISPENSER_SUPPLIER_WRITE_KEY}`).then(r => r.data),
+    enabled: canManageOwnerControls,
+  });
+
+  const dispenserSupplierEnabled = (() => {
+    const value = dispenserSupplierSettingQuery.data?.data?.value;
+    return value && typeof value === 'object'
+      ? (value as Record<string, unknown>).enabled !== false
+      : true;
+  })();
+
+  const dispenserSupplierMutation = useMutation({
+    mutationFn: (enabled: boolean) => api.put(`/settings/config/${DISPENSER_SUPPLIER_WRITE_KEY}`, { value: { enabled } }),
+    onSuccess: () => {
+      toast.success('Dispenser supplier access updated');
+      qc.invalidateQueries({ queryKey: ['settings-config', DISPENSER_SUPPLIER_WRITE_KEY] });
+    },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Could not update supplier access'),
   });
 
   const inviteMutation = useMutation({
@@ -100,6 +125,26 @@ export const TeamManagementPage: React.FC = () => {
           )}
         </div>
       </div>
+
+      {canManageOwnerControls && (
+        <Card>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-[#0D4035]">Dispenser supplier access</p>
+              <p className="mt-1 text-sm text-[#64748B]">
+                Choose whether dispensers can add, edit, or remove supplier records. They can still select existing suppliers for stock work.
+              </p>
+            </div>
+            <Button
+              variant={dispenserSupplierEnabled ? 'secondary' : 'ghost'}
+              loading={dispenserSupplierMutation.isPending || dispenserSupplierSettingQuery.isLoading}
+              onClick={() => dispenserSupplierMutation.mutate(!dispenserSupplierEnabled)}
+            >
+              {dispenserSupplierEnabled ? 'Allowed' : 'Blocked'}
+            </Button>
+          </div>
+        </Card>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -186,7 +231,18 @@ export const TeamManagementPage: React.FC = () => {
             <Input label="Last Name *" value={inviteLast} onChange={e => setInviteLast(e.target.value)} />
           </div>
           <Input label="Email *" type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} />
-          <Input label="Temporary Password *" type="password" value={invitePassword} onChange={e => setInvitePassword(e.target.value)} placeholder="Min. 8 characters" />
+          <Input
+            label="Temporary Password *"
+            type={showInvitePassword ? 'text' : 'password'}
+            value={invitePassword}
+            onChange={e => setInvitePassword(e.target.value)}
+            placeholder="Min. 8 characters"
+            rightIcon={
+              <button type="button" onClick={() => setShowInvitePassword(value => !value)} aria-label={showInvitePassword ? 'Hide temporary password' : 'Show temporary password'}>
+                {showInvitePassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            }
+          />
           <p className="text-xs text-[#64748B]">The team member will be prompted to change this on first login.</p>
           <Select label="Role" value={inviteRole} onChange={e => setInviteRole(e.target.value)} options={INVITE_ROLES} />
         </div>

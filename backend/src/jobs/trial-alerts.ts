@@ -54,6 +54,10 @@ export async function runTrialAlerts() {
       channels = [NotificationChannel.IN_APP, NotificationChannel.EMAIL];
       title = 'Trial has ended';
       body = `Your PharmaConnect trial for ${owner.pharmacy.name} has ended. Access remains blocked until payment is confirmed.`;
+      await prisma.pharmacy.update({
+        where: { id: owner.pharmacyId },
+        data: { trialActive: false },
+      });
     }
 
     if (!alertType) {

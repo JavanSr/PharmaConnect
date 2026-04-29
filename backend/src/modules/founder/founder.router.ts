@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { authenticate, requireRole, type AuthRequest } from '../../middleware/auth';
 import { prisma } from '../../lib/prisma';
 import { sendWelcomeEmail } from '../../lib/email';
@@ -19,6 +20,9 @@ founderRouter.get('/registrations', async (_req: AuthRequest, res, next) => {
         subscriptionTier: true,
         status: true,
         trialActive: true,
+        trialStartsAt: true,
+        trialEndsAt: true,
+        isActive: true,
         createdAt: true,
         memberships: {
           where: { role: 'OWNER', active: true },
@@ -47,6 +51,9 @@ founderRouter.get('/registrations', async (_req: AuthRequest, res, next) => {
         tier: p.subscriptionTier,
         status: p.status,
         trialActive: p.trialActive,
+        trialStartsAt: p.trialStartsAt,
+        trialEndsAt: p.trialEndsAt,
+        isActive: p.isActive,
         createdAt: p.createdAt,
         owner: ownerUser
           ? {
@@ -59,6 +66,92 @@ founderRouter.get('/registrations', async (_req: AuthRequest, res, next) => {
     });
 
     res.json({ data: rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+founderRouter.patch('/registrations/:pharmacyId/trial', async (req: AuthRequest, res, next) => {
+  try {
+    const { pharmacyId } = req.params;
+    const { extensionDays } = z.object({
+      extensionDays: z.coerce.number().int().min(1).max(365),
+    }).parse(req.body);
+
+    const pharmacy = await prisma.pharmacy.findUnique({
+      where: { id: pharmacyId },
+      select: { id: true, trialEndsAt: true },
+    });
+
+    if (!pharmacy) {
+      throw Object.assign(new Error('Pharmacy not found'), { status: 404 });
+    }
+
+    const base = pharmacy.trialEndsAt > new Date() ? pharmacy.trialEndsAt : new Date();
+    const trialEndsAt = new Date(base);
+    trialEndsAt.setDate(trialEndsAt.getDate() + extensionDays);
+
+    const updated = await prisma.pharmacy.update({
+      where: { id: pharmacyId },
+      data: {
+        status: 'TRIAL',
+        trialActive: true,
+        trialEndsAt,
+        isActive: true,
+        subscriptionUpdatedAt: new Date(),
+      },
+      select: {
+        id: true,
+        name: true,
+        status: true,
+        trialActive: true,
+        trialStartsAt: true,
+        trialEndsAt: true,
+        isActive: true,
+        subscriptionTier: true,
+      },
+    });
+
+    res.json({ data: updated });
+  } catch (error) {
+    next(error);
+  }
+});
+
+founderRouter.patch('/registrations/:pharmacyId/suspend', async (req: AuthRequest, res, next) => {
+  try {
+    const { pharmacyId } = req.params;
+    const { reason } = z.object({
+      reason: z.string().trim().max(500).optional(),
+    }).parse(req.body);
+
+    const updated = await prisma.pharmacy.update({
+      where: { id: pharmacyId },
+      data: {
+        status: 'SUSPENDED',
+        trialActive: false,
+        isActive: false,
+        subscriptionUpdatedAt: new Date(),
+      },
+      select: {
+        id: true,
+        name: true,
+        status: true,
+        trialActive: true,
+        trialStartsAt: true,
+        trialEndsAt: true,
+        isActive: true,
+        subscriptionTier: true,
+      },
+    });
+
+    console.info('[founder.suspend-pharmacy]', {
+      pharmacyId,
+      founder: req.user?.email,
+      reason: reason || null,
+    });
+
+    res.json({ data: updated });
   } catch (error) {
     next(error);
   }

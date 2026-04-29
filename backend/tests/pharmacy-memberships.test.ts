@@ -72,13 +72,13 @@ describe('pharmacy memberships', () => {
     expect(response.body.error).toBe('PHARMACY_MEMBERSHIP_REQUIRED');
   });
 
-  it('denies access for locum memberships that expired in the past', async () => {
+  it('denies access for memberships that expired in the past', async () => {
     const pharmacy = await createPharmacy();
-    const locum = await createUser({ pharmacyId: pharmacy.id, role: 'LOCUM' });
+    const dispenser = await createUser({ pharmacyId: pharmacy.id, role: 'DISPENSER' });
 
     await prisma.pharmacyMembership.updateMany({
       where: {
-        userId: locum.user.id,
+        userId: dispenser.user.id,
         pharmacyId: pharmacy.id,
       },
       data: {
@@ -87,8 +87,8 @@ describe('pharmacy memberships', () => {
     });
 
     const token = signAccess({
-      userId: locum.user.id,
-      role: locum.user.role,
+      userId: dispenser.user.id,
+      role: dispenser.user.role,
       pharmacyId: pharmacy.id,
     });
 

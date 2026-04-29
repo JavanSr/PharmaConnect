@@ -1,9 +1,11 @@
 import React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Building2, Users, Pill, Package, ShieldAlert, CheckCircle, Clock, LayoutDashboard, ClipboardList, ShieldCheck } from 'lucide-react';
+import { differenceInCalendarDays } from 'date-fns';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
 import { api } from '@/lib/api';
 import { useNotificationStore } from '@/stores/notificationStore';
 
@@ -43,6 +45,9 @@ type Registration = {
   tier: string;
   status: string;
   trialActive: boolean;
+  trialStartsAt: string;
+  trialEndsAt: string;
+  isActive: boolean;
   createdAt: string;
   owner: { name: string; email: string; emailVerified: boolean } | null;
 };
@@ -53,6 +58,7 @@ const TIER_ORDER = ['ADDO', 'STANDARD', 'PREMIUM', 'WHOLESALE', 'ENTERPRISE'];
 
 export const FounderDashboardPage: React.FC = () => {
   const [tab, setTab] = React.useState<Tab>('overview');
+  const [extensionDays, setExtensionDays] = React.useState('7');
   const queryClient = useQueryClient();
   const toast = useNotificationStore(state => state.toast);
 
@@ -85,6 +91,38 @@ export const FounderDashboardPage: React.FC = () => {
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.error || 'Could not verify owner account');
+    },
+  });
+
+  const extendTrialMutation = useMutation({
+    mutationFn: (pharmacyId: string) => api.patch(`/founder/registrations/${pharmacyId}/trial`, {
+      extensionDays: Number(extensionDays) || 7,
+    }),
+    onSuccess: async () => {
+      toast.success('Trial extended');
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['founder-registrations'] }),
+        queryClient.invalidateQueries({ queryKey: ['founder-stats'] }),
+      ]);
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Could not extend trial');
+    },
+  });
+
+  const suspendMutation = useMutation({
+    mutationFn: (pharmacyId: string) => api.patch(`/founder/registrations/${pharmacyId}/suspend`, {
+      reason: 'Founder dashboard manual suspension',
+    }),
+    onSuccess: async () => {
+      toast.success('Pharmacy suspended');
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['founder-registrations'] }),
+        queryClient.invalidateQueries({ queryKey: ['founder-stats'] }),
+      ]);
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Could not suspend pharmacy');
     },
   });
 
@@ -210,9 +248,20 @@ export const FounderDashboardPage: React.FC = () => {
       {/* ── Registrations tab ── */}
       {tab === 'registrations' && (
         <Card padding={false} header={
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <span className="text-sm font-semibold text-[#0D4035]">All Registrations</span>
-            <span className="text-xs text-[#64748B]">{registrations.length} total</span>
+            <div className="flex items-end gap-3">
+              <Input
+                label="Extension days"
+                type="number"
+                min="1"
+                max="365"
+                value={extensionDays}
+                onChange={(event) => setExtensionDays(event.target.value)}
+                className="w-24"
+              />
+              <span className="pb-2 text-xs text-[#64748B]">{registrations.length} total</span>
+            </div>
           </div>
         }>
           {regsQuery.isLoading ? (
@@ -233,6 +282,9 @@ export const FounderDashboardPage: React.FC = () => {
                         <Badge variant={r.status === 'ACTIVE' ? 'success' : 'warning'} size="sm">{r.status}</Badge>
                       </div>
                       <p className="text-xs text-[#64748B] mt-0.5">{r.region} · {r.pharmacyType} · {new Date(r.createdAt).toLocaleDateString()}</p>
+                      <p className="text-xs text-[#64748B] mt-1">
+                        Trial started {new Date(r.trialStartsAt).toLocaleDateString()} · ends {new Date(r.trialEndsAt).toLocaleDateString()} · {Math.max(0, differenceInCalendarDays(new Date(r.trialEndsAt), new Date()))} day(s) left
+                      </p>
                       {r.owner && (
                         <p className="text-xs text-[#374151] mt-1">
                           <span className="font-medium">{r.owner.name}</span>
@@ -241,7 +293,7 @@ export const FounderDashboardPage: React.FC = () => {
                         </p>
                       )}
                     </div>
-                    <div className="shrink-0">
+                    <div className="flex shrink-0 flex-col items-end gap-3">
                       {r.owner?.emailVerified ? (
                         <div className="flex items-center gap-1.5 text-xs font-medium text-[#1A6B5C]">
                           <CheckCircle size={13} />
@@ -264,6 +316,29 @@ export const FounderDashboardPage: React.FC = () => {
                           </Button>
                         </div>
                       )}
+                      <div className="flex flex-wrap justify-end gap-2">
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          loading={extendTrialMutation.isPending && extendTrialMutation.variables === r.id}
+                          onClick={() => extendTrialMutation.mutate(r.id)}
+                        >
+                          Extend trial
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="danger"
+                          loading={suspendMutation.isPending && suspendMutation.variables === r.id}
+                          disabled={!r.isActive && r.status === 'SUSPENDED'}
+                          onClick={() => {
+                            if (window.confirm(`Suspend ${r.name}? This will stop pharmacy access.`)) {
+                              suspendMutation.mutate(r.id);
+                            }
+                          }}
+                        >
+                          Suspend
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </div>

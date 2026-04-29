@@ -118,6 +118,7 @@ export async function resolveActiveMembership(
           trialEndsAt: true,
           isHybrid: true,
           hybridAddonActive: true,
+          isActive: true,
         },
       },
     },
