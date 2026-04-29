@@ -9,13 +9,11 @@ import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { useNotificationStore } from '@/stores/notificationStore';
-import { api } from '@/lib/api';
+import { api, API_ORIGIN } from '@/lib/api';
 
 const statusColor: Record<string, 'success' | 'warning' | 'danger' | 'muted'> = {
   GREEN: 'success', AMBER: 'warning', RED: 'danger', EXPIRED: 'muted',
 };
-
-const BACKEND = import.meta.env.VITE_API_URL?.replace('/api/v1', '') ?? '';
 
 export const ComplianceItemDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -177,7 +175,7 @@ export const ComplianceItemDetailPage: React.FC = () => {
           <div className="divide-y divide-[#D6F0E8]">
             {docs.map((doc: any) => {
               const fileUrl = doc.fileUrl.startsWith('uploads') || doc.fileUrl.startsWith('/uploads')
-                ? `${BACKEND}/${doc.fileUrl.replace(/\\/g, '/')}`
+                ? `${API_ORIGIN}/${doc.fileUrl.replace(/\\/g, '/')}`
                 : doc.fileUrl;
               const isPdf = doc.filename?.toLowerCase().endsWith('.pdf');
               const isImage = /\.(jpg|jpeg|png)$/i.test(doc.filename ?? '');

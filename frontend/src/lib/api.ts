@@ -1,10 +1,38 @@
 import axios from 'axios';
 import { useAuthStore } from '@/stores/authStore';
 
-const BASE_URL = (import.meta.env.VITE_API_URL as string | undefined) || '/api/v1';
+const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '0.0.0.0', '::1']);
+
+function isLoopbackApiUrl(value: string): boolean {
+  try {
+    const url = new URL(value, window.location.origin);
+    return LOOPBACK_HOSTS.has(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
+function resolveApiBaseUrl(): string {
+  const configured = ((import.meta.env.VITE_API_URL as string | undefined) ?? '').trim();
+
+  if (configured && !(import.meta.env.PROD && isLoopbackApiUrl(configured))) {
+    return configured;
+  }
+
+  if (configured && import.meta.env.PROD) {
+    console.error(
+      'Ignoring loopback VITE_API_URL in production. Set VITE_API_URL to the deployed backend URL ending in /api/v1.',
+    );
+  }
+
+  return '/api/v1';
+}
+
+export const API_BASE_URL = resolveApiBaseUrl();
+export const API_ORIGIN = API_BASE_URL.replace(/\/api\/v1\/?$/, '');
 
 export const api = axios.create({
-  baseURL: BASE_URL,
+  baseURL: API_BASE_URL,
   headers: { 'Content-Type': 'application/json' },
   timeout: 30_000,
 });
@@ -54,7 +82,7 @@ api.interceptors.response.use(
       }
 
       try {
-        const { data } = await axios.post(`${BASE_URL}/auth/refresh`, { refreshToken });
+        const { data } = await axios.post(`${API_BASE_URL}/auth/refresh`, { refreshToken });
         const { accessToken: newAccess, refreshToken: newRefresh } = data.data;
         setTokens(newAccess, newRefresh);
         processQueue(null, newAccess);

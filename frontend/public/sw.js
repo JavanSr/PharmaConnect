@@ -4,6 +4,25 @@ self.addEventListener('message', (event) => {
   }
 });
 
+const CACHE_VERSION = '20260429-registration-api-fix';
+const APP_CACHE = `pc-app-shell-${CACHE_VERSION}`;
+const API_READ_CACHE = `pc-api-reads-${CACHE_VERSION}`;
+const LEGACY_CACHES = ['pc-app-shell', 'pc-api-reads', 'pc-api-fallback-v1', 'pc-app-fallback-v1'];
+
+async function clearOldCaches() {
+  const cacheNames = await caches.keys();
+  await Promise.all(
+    cacheNames
+      .filter((name) =>
+        LEGACY_CACHES.includes(name) ||
+        ((name.startsWith('pc-app-shell-') || name.startsWith('pc-api-reads-')) &&
+          name !== APP_CACHE &&
+          name !== API_READ_CACHE),
+      )
+      .map((name) => caches.delete(name)),
+  );
+}
+
 try {
   importScripts('https://storage.googleapis.com/workbox-cdn/releases/6.5.4/workbox-sw.js');
 } catch (error) {
@@ -20,10 +39,28 @@ if (self.workbox) {
   const { ExpirationPlugin } = self.workbox.expiration;
   const { BackgroundSyncPlugin } = self.workbox.backgroundSync;
 
+  self.addEventListener('activate', (event) => {
+    event.waitUntil(clearOldCaches());
+  });
+
   registerRoute(
-    ({ request, url }) => request.method === 'GET' && url.origin === self.location.origin,
+    ({ request }) => request.mode === 'navigate',
+    new NetworkFirst({
+      cacheName: APP_CACHE,
+      networkTimeoutSeconds: 4,
+      plugins: [
+        new ExpirationPlugin({
+          maxEntries: 20,
+          maxAgeSeconds: 24 * 60 * 60,
+        }),
+      ],
+    }),
+  );
+
+  registerRoute(
+    ({ request, url }) => request.method === 'GET' && request.mode !== 'navigate' && url.origin === self.location.origin,
     new StaleWhileRevalidate({
-      cacheName: 'pc-app-shell',
+      cacheName: APP_CACHE,
       plugins: [
         new ExpirationPlugin({
           maxEntries: 80,
@@ -36,7 +73,7 @@ if (self.workbox) {
   registerRoute(
     ({ request, url }) => request.method === 'GET' && url.pathname.startsWith('/api/'),
     new NetworkFirst({
-      cacheName: 'pc-api-reads',
+      cacheName: API_READ_CACHE,
       networkTimeoutSeconds: 5,
       plugins: [
         new ExpirationPlugin({
@@ -61,15 +98,14 @@ if (self.workbox) {
     );
   });
 } else {
-  const API_CACHE = 'pc-api-fallback-v1';
-  const APP_CACHE = 'pc-app-fallback-v1';
+  const API_CACHE = API_READ_CACHE;
 
   self.addEventListener('install', (event) => {
     event.waitUntil(self.skipWaiting());
   });
 
   self.addEventListener('activate', (event) => {
-    event.waitUntil(self.clients.claim());
+    event.waitUntil(Promise.all([clearOldCaches(), self.clients.claim()]));
   });
 
   self.addEventListener('fetch', (event) => {
