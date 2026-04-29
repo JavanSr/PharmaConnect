@@ -66,7 +66,7 @@ function configuredCorsOrigins(): string[] {
   const origins = new Set(
     (process.env.ALLOWED_ORIGINS || 'http://localhost:5173')
       .split(',')
-      .map((origin) => origin.trim())
+      .map((origin) => origin.trim().replace(/\/$/, ''))
       .filter(Boolean),
   );
 
@@ -77,14 +77,26 @@ function configuredCorsOrigins(): string[] {
   return [...origins];
 }
 
+const corsOrigins = configuredCorsOrigins();
+const corsOptions: cors.CorsOptions = {
+  origin: (origin, callback) => {
+    if (!origin || corsOrigins.includes(origin.replace(/\/$/, ''))) {
+      callback(null, true);
+      return;
+    }
+
+    console.warn('[cors.blockedOrigin]', { origin, allowedOrigins: corsOrigins });
+    callback(null, false);
+  },
+  credentials: true,
+};
+
 // ── Security & middleware ─────────────────────────────────────────────────────
 app.set('trust proxy', 1);
 
 app.use(helmet());
-app.use(cors({
-  origin: configuredCorsOrigins(),
-  credentials: true,
-}));
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 app.use(compression());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
@@ -203,7 +215,7 @@ if (process.env.NODE_ENV !== 'test') {
       port: PORT,
       nodeEnv: process.env.NODE_ENV,
       frontendUrl: process.env.FRONTEND_URL ?? null,
-      corsOrigins: configuredCorsOrigins(),
+      corsOrigins,
       hasDatabaseUrl: Boolean(process.env.DATABASE_URL),
       hasJwtAccessSecret: Boolean(process.env.JWT_SECRET || process.env.JWT_PRIVATE_KEY || process.env.JWT_ACCESS_SECRET),
       hasJwtRefreshSecret: Boolean(process.env.JWT_REFRESH_SECRET || process.env.JWT_REFRESH_PRIVATE_KEY),

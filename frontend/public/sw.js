@@ -86,7 +86,10 @@ if (self.workbox) {
 
   ['POST', 'PUT', 'PATCH', 'DELETE'].forEach((method) => {
     registerRoute(
-      ({ request, url }) => request.method === method && url.pathname.startsWith('/api/'),
+      ({ request, url }) =>
+        request.method === method &&
+        url.origin === self.location.origin &&
+        url.pathname.startsWith('/api/'),
       new NetworkOnly({
         plugins: [
           new BackgroundSyncPlugin(`pc-write-queue-${method.toLowerCase()}`, {
