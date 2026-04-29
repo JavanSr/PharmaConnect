@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
 
-const ACCESS_SECRET  = process.env.JWT_SECRET ?? '';
+const ACCESS_SECRET  = process.env.JWT_SECRET ?? process.env.JWT_PRIVATE_KEY ?? '';
 const REFRESH_SECRET = process.env.JWT_REFRESH_SECRET ?? '';
 const ACCESS_EXPIRES  = process.env.JWT_EXPIRES_IN  || '15m';
 const REFRESH_EXPIRES = process.env.JWT_REFRESH_EXPIRES_IN || '7d';

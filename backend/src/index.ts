@@ -62,12 +62,27 @@ if (!process.env.ANTHROPIC_API_KEY) {
 const app = express();
 const PORT = parseInt(process.env.PORT || '3000', 10);
 
+function configuredCorsOrigins(): string[] {
+  const origins = new Set(
+    (process.env.ALLOWED_ORIGINS || 'http://localhost:5173')
+      .split(',')
+      .map((origin) => origin.trim())
+      .filter(Boolean),
+  );
+
+  if (process.env.FRONTEND_URL) {
+    origins.add(process.env.FRONTEND_URL.trim().replace(/\/$/, ''));
+  }
+
+  return [...origins];
+}
+
 // ── Security & middleware ─────────────────────────────────────────────────────
 app.set('trust proxy', 1);
 
 app.use(helmet());
 app.use(cors({
-  origin: (process.env.ALLOWED_ORIGINS || 'http://localhost:5173').split(','),
+  origin: configuredCorsOrigins(),
   credentials: true,
 }));
 app.use(compression());
