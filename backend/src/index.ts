@@ -64,7 +64,14 @@ const PORT = parseInt(process.env.PORT || '3000', 10);
 
 function configuredCorsOrigins(): string[] {
   const origins = new Set(
-    (process.env.ALLOWED_ORIGINS || 'http://localhost:5173')
+    [
+      'https://pharma-connect-rouge.vercel.app',
+      'http://localhost:3000',
+      'http://localhost:5173',
+      'http://localhost:5174',
+      process.env.ALLOWED_ORIGINS || '',
+    ]
+      .join(',')
       .split(',')
       .map((origin) => origin.trim().replace(/\/$/, ''))
       .filter(Boolean),
@@ -89,6 +96,9 @@ const corsOptions: cors.CorsOptions = {
     callback(null, false);
   },
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  optionsSuccessStatus: 204,
 };
 
 // ── Security & middleware ─────────────────────────────────────────────────────
