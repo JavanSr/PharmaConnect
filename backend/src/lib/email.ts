@@ -4,7 +4,7 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 
 const FROM = process.env.EMAIL_FROM ?? 'PharmaConnect <onboarding@resend.dev>';
 const FOUNDER_EMAIL = 'godright.turner@gmail.com';
-const APP_URL = process.env.FRONTEND_URL ?? 'https://pharmaconnect.vercel.app';
+const APP_URL = process.env.FRONTEND_URL ?? 'https://pharma-connect-rouge.vercel.app';
 
 function baseLayout(bodyHtml: string): string {
   return `<!DOCTYPE html>
