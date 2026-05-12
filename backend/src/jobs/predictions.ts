@@ -15,7 +15,7 @@ export async function runPredictionsJob() {
         pharmacyId: pharmacy.id,
         isActive: true,
         batches: {
-          none: { quantityRemaining: { gt: 0 } },
+          none: { pharmacyId: pharmacy.id, quantityRemaining: { gt: 0 } },
         },
       },
       select: { id: true, name: true },

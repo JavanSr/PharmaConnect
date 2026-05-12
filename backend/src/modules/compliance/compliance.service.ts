@@ -284,20 +284,26 @@ export async function refreshComplianceStatuses(pharmacyId?: string): Promise<nu
     },
   });
 
-  let updated = 0;
-
+  // Group items by their new status to batch into updateMany calls
+  const byStatus = new Map<ComplianceStatus, string[]>();
   for (const item of items) {
     const nextStatus = deriveStatus(item);
     if (item.status !== nextStatus) {
-      await prisma.complianceItem.update({
-        where: { id: item.id },
-        data: { status: nextStatus },
-      });
-      updated += 1;
+      const ids = byStatus.get(nextStatus) ?? [];
+      ids.push(item.id);
+      byStatus.set(nextStatus, ids);
     }
   }
 
-  return updated;
+  if (byStatus.size > 0) {
+    await Promise.all(
+      Array.from(byStatus.entries()).map(([status, ids]) =>
+        prisma.complianceItem.updateMany({ where: { id: { in: ids } }, data: { status } }),
+      ),
+    );
+  }
+
+  return Array.from(byStatus.values()).reduce((sum, ids) => sum + ids.length, 0);
 }
 
 export async function listComplianceItems(input: {

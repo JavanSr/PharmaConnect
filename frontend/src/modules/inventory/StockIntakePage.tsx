@@ -10,9 +10,11 @@ import { Select } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
+import { useDebounce } from '@/hooks/useDebounce';
 import { useOfflineSync } from '@/hooks/useOfflineSync';
 import { enqueueOfflineWrite, registerOfflineSync } from '@/lib/offlineSync';
-import { searchCachedProducts } from '@/lib/offlineProducts';
+import { cacheProducts, searchCachedProducts } from '@/lib/offlineProducts';
+import type { Product } from '@/types';
 import { useNotificationStore } from '@/stores/notificationStore';
 import { api } from '@/lib/api';
 
@@ -202,11 +204,12 @@ export const StockIntakePage: React.FC = () => {
 
   // product search
   const [productSearch, setProductSearch] = useState('');
+  const debouncedProductSearch = useDebounce(productSearch, 300);
   const [selectedProduct, setSelectedProduct] = useState<ProductOption | null>(null);
   const [selectedCatalogProduct, setSelectedCatalogProduct] = useState<MasterCatalogOption | null>(null);
   const [showScanner, setShowScanner] = useState(false);
   const [pendingBarcode, setPendingBarcode] = useState<BarcodeLookupResult | null>(null);
-  const trimmedSearch = productSearch.trim();
+  const trimmedSearch = debouncedProductSearch.trim();
   const [cachedProducts, setCachedProducts] = useState<ProductOption[]>([]);
   const [cachedMasterProducts, setCachedMasterProducts] = useState<MasterCatalogOption[]>([]);
 
@@ -244,11 +247,18 @@ export const StockIntakePage: React.FC = () => {
     queryFn: async ({ signal }) => {
       if (!trimmedSearch) return null;
       try {
-        return await api.get('/inventory/products/suggestions', { params: { search: trimmedSearch, limit: 12 }, signal }).then(r => r.data);
-      } catch {
-        if (!navigator.onLine) {
+        return await api.get('/inventory/products/suggestions', {
+          params: { search: trimmedSearch, limit: 12 },
+          signal,
+          timeout: 2500,
+        }).then(r => r.data);
+      } catch (error: any) {
+        if (error?.code === 'ERR_CANCELED' || error?.name === 'CanceledError') {
+          throw error;
+        }
+        if (!navigator.onLine || !error?.response) {
           const cached = await searchCachedProducts(trimmedSearch, 12);
-          return { data: cached };
+          return { data: cached, offline: true };
         }
         throw new Error('Product search failed');
       }
@@ -257,35 +267,65 @@ export const StockIntakePage: React.FC = () => {
     staleTime: 30_000,
     networkMode: 'always',
   });
-  const { data: masterCatalogData, isFetching: isMasterFetching } = useQuery({
-    queryKey: ['stock-intake-master', trimmedSearch],
-    queryFn: ({ signal }) => trimmedSearch
-      ? api.get('/inventory/drug-master', { params: { q: trimmedSearch, limit: 8 }, signal }).then(r => r.data)
-      : null,
-    enabled: trimmedSearch.length > 0,
-    staleTime: 30_000,
-  });
   const { data: suppliersData } = useQuery({
     queryKey: ['suppliers'],
     queryFn: () => api.get('/inventory/suppliers').then(r => r.data),
   });
 
   const products: ProductOption[] = productsData?.data ?? [];
-  const masterProducts: MasterCatalogOption[] = masterCatalogData?.data ?? [];
+  React.useEffect(() => {
+    let cancelled = false;
+    if (!trimmedSearch) {
+      setCachedProducts([]);
+      return;
+    }
+    void searchCachedProducts(trimmedSearch, 12)
+      .then((cached) => {
+        if (!cancelled) setCachedProducts(cached as ProductOption[]);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [trimmedSearch]);
   React.useEffect(() => {
     if (Array.isArray(productsData?.data)) {
       setCachedProducts(productsData.data);
+      void cacheProducts(productsData.data as Product[]);
     }
   }, [productsData]);
+  const visibleProducts = useMemo(
+    () => (products.length > 0 ? products : cachedProducts).filter((product) => productMatchesSearch(product, trimmedSearch)),
+    [cachedProducts, products, trimmedSearch],
+  );
+  const shouldSearchMasterCatalog = trimmedSearch.length >= 2 && !isProductFetching && visibleProducts.length === 0;
+  const { data: masterCatalogData, isFetching: isMasterFetching } = useQuery({
+    queryKey: ['stock-intake-master', trimmedSearch],
+    queryFn: async ({ signal }) => {
+      if (!trimmedSearch) return null;
+      try {
+        return await api.get('/inventory/drug-master', {
+          params: { q: trimmedSearch, limit: 8 },
+          signal,
+          timeout: 2500,
+        }).then(r => r.data);
+      } catch (error: any) {
+        if (error?.code === 'ERR_CANCELED' || error?.name === 'CanceledError') {
+          throw error;
+        }
+        return null;
+      }
+    },
+    enabled: shouldSearchMasterCatalog,
+    staleTime: 30_000,
+    networkMode: 'always',
+  });
+  const masterProducts: MasterCatalogOption[] = masterCatalogData?.data ?? [];
   React.useEffect(() => {
     if (Array.isArray(masterCatalogData?.data)) {
       setCachedMasterProducts(masterCatalogData.data);
     }
   }, [masterCatalogData]);
-  const visibleProducts = useMemo(
-    () => (productsData ? products : cachedProducts).filter((product) => productMatchesSearch(product, trimmedSearch)),
-    [cachedProducts, products, productsData, trimmedSearch],
-  );
   const visibleMasterProducts = useMemo(
     () => (masterCatalogData ? masterProducts : cachedMasterProducts).filter((product) => catalogProductMatchesSearch(product, trimmedSearch)),
     [cachedMasterProducts, masterCatalogData, masterProducts, trimmedSearch],

@@ -494,6 +494,24 @@ async function completeDispensingCheckout(input: {
     },
   });
   const productMap = new Map(products.map((product) => [product.id, product]));
+
+  // Pre-fetch all FEFO batches for all items in one query instead of N queries
+  const uniqueProductIds = [...new Set(payload.items.map((item) => item.productId))];
+  const allBatches = await prisma.batch.findMany({
+    where: {
+      pharmacyId,
+      productId: { in: uniqueProductIds },
+      quantityRemaining: { gt: 0 },
+    },
+    orderBy: [{ expiryDate: 'asc' }, { receivedAt: 'asc' }],
+  });
+  const batchesByProduct = new Map<string, typeof allBatches>();
+  for (const batch of allBatches) {
+    const list = batchesByProduct.get(batch.productId) ?? [];
+    list.push(batch);
+    batchesByProduct.set(batch.productId, list);
+  }
+
   const lines: DispensingEventItem[] = [];
   let subtotalAmount = 0;
 
@@ -503,7 +521,12 @@ async function completeDispensingCheckout(input: {
       throw Object.assign(new Error('Product not found'), { status: 404, code: 'PRODUCT_NOT_FOUND' });
     }
 
-    const batch = await resolveFefoBatch(pharmacyId, item.productId, item.quantity);
+    const productBatches = batchesByProduct.get(item.productId) ?? [];
+    const batch = productBatches.find((b) => b.quantityRemaining >= item.quantity);
+    if (!batch) {
+      throw Object.assign(new Error('No FEFO batch has enough stock for this request'), { status: 409 });
+    }
+
     const unitPrice = Number(item.unitPrice);
     const lineTotal = Number((unitPrice * item.quantity).toFixed(2));
     subtotalAmount += lineTotal;
@@ -539,36 +562,37 @@ async function completeDispensingCheckout(input: {
   }
 
   const checkoutResult = await prisma.$transaction(async (tx) => {
-    for (const line of lines) {
-      const batchUpdate = await tx.batch.updateMany({
-        where: {
-          id: line.batchId,
-          quantityRemaining: { gte: line.quantity },
-        },
-        data: { quantityRemaining: { decrement: line.quantity } },
-      });
+    // Update all batches in parallel
+    const batchUpdates = await Promise.all(
+      lines.map((line) =>
+        tx.batch.updateMany({
+          where: { id: line.batchId, quantityRemaining: { gte: line.quantity } },
+          data: { quantityRemaining: { decrement: line.quantity } },
+        }),
+      ),
+    );
 
-      if (batchUpdate.count === 0) {
-        throw Object.assign(new Error('Insufficient batch stock for FEFO allocation'), {
-          status: 409,
-          code: 'INSUFFICIENT_STOCK',
-        });
-      }
-
-      await tx.stockMovement.create({
-        data: {
-          pharmacyId,
-          productId: line.productId,
-          batchId: line.batchId,
-          userId: currentUserId,
-          type: 'DISPENSED',
-          quantity: line.quantity,
-          notes: `Dispensed via ${referenceNumber}`,
-          localCreatedAt: localCreatedAt ?? syncedAt,
-          syncedAt,
-        },
+    const failedIndex = batchUpdates.findIndex((result) => result.count === 0);
+    if (failedIndex !== -1) {
+      throw Object.assign(new Error('Insufficient batch stock for FEFO allocation'), {
+        status: 409,
+        code: 'INSUFFICIENT_STOCK',
       });
     }
+
+    await tx.stockMovement.createMany({
+      data: lines.map((line) => ({
+        pharmacyId,
+        productId: line.productId,
+        batchId: line.batchId,
+        userId: currentUserId,
+        type: 'DISPENSED' as const,
+        quantity: line.quantity,
+        notes: `Dispensed via ${referenceNumber}`,
+        localCreatedAt: localCreatedAt ?? syncedAt,
+        syncedAt,
+      })),
+    });
 
     const inserted = await tx.$queryRaw<DispensingEventRow[]>(Prisma.sql`
       INSERT INTO "dispensing_events" (

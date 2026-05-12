@@ -912,6 +912,66 @@ export async function listProducts(
   };
 }
 
+export async function listProductsForOfflineCache(
+  pharmacyId: string,
+  params: { page?: number; limit?: number },
+) {
+  const page = Math.max(1, params.page ?? 1);
+  const limit = Math.max(1, Math.min(params.limit ?? 1000, 1000));
+  const skip = (page - 1) * limit;
+
+  const where: Prisma.ProductWhereInput = {
+    pharmacyId,
+    isActive: true,
+  };
+
+  const [products, total] = await withPrismaRetry(() => Promise.all([
+    prisma.product.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: [{ name: 'asc' }, { createdAt: 'desc' }],
+      select: {
+        id: true,
+        pharmacyId: true,
+        name: true,
+        genericName: true,
+        brandName: true,
+        sku: true,
+        barcode: true,
+        dosageForm: true,
+        strength: true,
+        unitOfMeasure: true,
+        drugClass: true,
+        description: true,
+        reorderLevel: true,
+        sellingPrice: true,
+        tmda: true,
+        tmdaRegistrationNumber: true,
+        coldChainRequired: true,
+        storageCondition: true,
+        retailStock: true,
+        wholesaleStock: true,
+        wholesaleSellingPrice: true,
+        manufacturer: true,
+        therapeuticCategory: true,
+        drugMasterId: true,
+        isActive: true,
+        createdAt: true,
+      },
+    }),
+    prisma.product.count({ where }),
+  ]));
+
+  return {
+    data: products,
+    total,
+    page,
+    limit,
+    totalPages: total > 0 ? Math.ceil(total / limit) : 0,
+  };
+}
+
 export async function suggestProducts(pharmacyId: string, params: ProductSuggestionParams) {
   const limit = Math.max(1, Math.min(params.limit ?? 10, 25));
   const search = params.search?.trim();
@@ -2521,6 +2581,7 @@ export async function expiryReport(pharmacyId: string, days = 30) {
       },
     },
     orderBy: [{ expiryDate: 'asc' }, { receivedAt: 'asc' }],
+    take: 500,
   });
 }
 
@@ -2542,6 +2603,7 @@ export async function listSyncConflicts(pharmacyId: string, status?: SyncConflic
       ...(status ? { status } : {}),
     },
     orderBy: { createdAt: 'desc' },
+    take: 200,
   });
 }
 
