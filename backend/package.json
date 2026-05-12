@@ -12,6 +12,7 @@
     "db:generate": "prisma generate",
     "db:studio": "prisma studio",
     "db:seed": "ts-node prisma/seed.ts",
+    "db:seed:trial-stock": "ts-node prisma/seed-trial-stock.ts",
     "db:seed:drug": "ts-node prisma/seed-drug-database.ts",
     "db:seed:master-catalog": "ts-node prisma/seed-master-catalog.ts",
     "seed:drugs": "ts-node prisma/seed-drug-database.ts",

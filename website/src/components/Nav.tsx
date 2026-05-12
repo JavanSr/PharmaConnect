@@ -42,7 +42,7 @@ export default function Nav() {
         )}
       >
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
-          <Link href="/" aria-label="PharmaConnect home">
+          <Link href="/" aria-label="APOTEKH home">
             <Logo className="hidden lg:inline-flex" size="md" variant="full" />
             <Logo className="inline-flex lg:hidden" size="md" variant="mark" />
           </Link>

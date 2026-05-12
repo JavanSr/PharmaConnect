@@ -2,7 +2,7 @@ import cron, { type ScheduledTask } from 'node-cron';
 import { prisma } from '../lib/prisma';
 
 const resendApiKey = process.env.RESEND_API_KEY;
-const resendFromEmail = process.env.RESEND_FROM_EMAIL || 'PharmaConnect <no-reply@pharmaconnect.tz>';
+const resendFromEmail = process.env.RESEND_FROM_EMAIL || 'APOTEKH <no-reply@apotekh.co.tz>';
 
 async function sendDigestEmail(to: string, subject: string, html: string) {
   if (!resendApiKey) {
@@ -56,7 +56,7 @@ export async function runWeeklyDigest(): Promise<{ attempted: number; sent: numb
   for (const subscriber of subscribers) {
     const html = `
       <div style="font-family: DM Sans, Arial, sans-serif; color: #0D4035; line-height: 1.6;">
-        <h2>PharmaConnect Weekly Digest</h2>
+        <h2>APOTEKH Weekly Digest</h2>
         <p>Latest articles</p>
         <ul>${articles.map((article) => `<li><strong>${article.title}</strong></li>`).join('')}</ul>
         <p>Urgent bulletins</p>
@@ -66,7 +66,7 @@ export async function runWeeklyDigest(): Promise<{ attempted: number; sent: numb
     `;
 
     try {
-      const result = await sendDigestEmail(subscriber.email, 'PharmaConnect Weekly Digest', html);
+      const result = await sendDigestEmail(subscriber.email, 'APOTEKH Weekly Digest', html);
       if (result.sent) {
         sent += 1;
       }

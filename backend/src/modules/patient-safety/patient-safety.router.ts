@@ -5,7 +5,6 @@ import { prisma } from '../../lib/prisma';
 import { authenticate, hasRoleAccess, type AuthRequest } from '../../middleware/auth';
 import { enforceTrialRestrictions } from '../../middleware/trial';
 import { picPinLimiter, requirePicPin } from '../../middleware/pic-pin';
-import { normalizeTier } from '../../types/roles';
 import {
   calculateDose,
   createOverrideLog,
@@ -19,7 +18,6 @@ import {
 import { getCounsellingSuggestions } from './ai-counselling.service';
 import { trackFeatureTelemetry } from '../telemetry/feature-telemetry.service';
 
-const ACCESS_TIERS = new Set(['STANDARD', 'PREMIUM', 'ENTERPRISE']);
 const ACCESS_ROLES = ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'SUPER_ADMIN'];
 
 function requirePatientSafetyAccess(req: AuthRequest, res: any, next: any) {
@@ -28,18 +26,13 @@ function requirePatientSafetyAccess(req: AuthRequest, res: any, next: any) {
     return;
   }
 
-  if (!req.user.pharmacyId) {
-    res.status(400).json({ error: 'Pharmacy context required' });
+  if (req.user.normalizedRole === 'SUPER_ADMIN') {
+    next();
     return;
   }
 
-  const currentTier = normalizeTier(req.user.pharmacy?.subscriptionTier ?? null);
-  if (!currentTier || !ACCESS_TIERS.has(currentTier)) {
-    res.status(403).json({
-      error: 'TIER_INSUFFICIENT',
-      current: currentTier,
-      required: 'STANDARD',
-    });
+  if (!req.user.pharmacyId) {
+    res.status(400).json({ error: 'Pharmacy context required' });
     return;
   }
 

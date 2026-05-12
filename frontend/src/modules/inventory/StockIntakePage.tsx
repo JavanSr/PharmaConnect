@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { Suspense, lazy, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -10,12 +10,13 @@ import { Select } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
-import { BarcodeScanner } from '@/components/BarcodeScanner';
 import { useOfflineSync } from '@/hooks/useOfflineSync';
 import { enqueueOfflineWrite, registerOfflineSync } from '@/lib/offlineSync';
+import { searchCachedProducts } from '@/lib/offlineProducts';
 import { useNotificationStore } from '@/stores/notificationStore';
 import { api } from '@/lib/api';
-import { useDebounce } from '@/hooks/useDebounce';
+
+const BarcodeScanner = lazy(() => import('@/components/BarcodeScanner').then((module) => ({ default: module.BarcodeScanner })));
 
 // ── types ────────────────────────────────────────────────────────────────────
 
@@ -26,9 +27,13 @@ type ProductOption = {
   name: string;
   genericName?: string | null;
   brandName?: string | null;
+  sku?: string | null;
   barcode?: string | null;
   dosageForm?: string | null;
   strength?: string | null;
+  tmdaRegistrationNumber?: string | null;
+  manufacturer?: string | null;
+  therapeuticCategory?: string | null;
 };
 
 type MasterCatalogOption = {
@@ -90,6 +95,42 @@ function productName(p: ProductOption) {
   return p.name || p.brandName || p.genericName || 'Unnamed product';
 }
 
+const normalizeSearchText = (value?: string | number | null) =>
+  String(value ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+
+const searchTokens = (value: string) => normalizeSearchText(value).split(' ').filter(Boolean);
+
+const valueMatchesTokenPrefix = (value: string | number | null | undefined, token: string) => {
+  const normalized = normalizeSearchText(value);
+  if (!normalized) {
+    return false;
+  }
+
+  return normalized.startsWith(token) || normalized.split(' ').some((word) => word.startsWith(token));
+};
+
+function matchesSearch(search: string, values: Array<string | number | null | undefined>) {
+  const tokens = searchTokens(search);
+  if (tokens.length === 0) {
+    return true;
+  }
+  return tokens.every((token) => values.some((value) => valueMatchesTokenPrefix(value, token)));
+}
+
+function productMatchesSearch(product: ProductOption, search: string) {
+  return matchesSearch(search, [
+    product.genericName,
+    product.brandName,
+  ]);
+}
+
+function catalogProductMatchesSearch(product: MasterCatalogOption, search: string) {
+  return matchesSearch(search, [
+    product.genericName,
+    product.brandName,
+  ]);
+}
+
 function catalogStatusLabel(v?: string | null) {
   if (!v) return 'Catalog candidate';
   return v.split('_').filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1).toLowerCase()).join(' ');
@@ -122,6 +163,15 @@ function uid() {
   return Math.random().toString(36).slice(2, 10);
 }
 
+function autoBatchNumber(product?: ProductOption | null) {
+  const source = productName(product ?? { id: '', name: 'BATCH' })
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '')
+    .slice(0, 6) || 'BATCH';
+  const stamp = new Date().toISOString().slice(2, 10).replace(/-/g, '');
+  return `${source}-${stamp}-${uid().toUpperCase().slice(0, 4)}`;
+}
+
 // ── line form schema ─────────────────────────────────────────────────────────
 
 const lineSchema = z.object({
@@ -142,7 +192,7 @@ type LineFormData = z.infer<typeof lineSchema>;
 
 export const StockIntakePage: React.FC = () => {
   const toast = useNotificationStore(s => s.toast);
-  useOfflineSync(false);
+  const { pendingWrites } = useOfflineSync(false);
 
   // session-level supplier (applies to all lines in this receipt)
   const [sessionSupplierId, setSessionSupplierId] = useState<string>('');
@@ -156,7 +206,9 @@ export const StockIntakePage: React.FC = () => {
   const [selectedCatalogProduct, setSelectedCatalogProduct] = useState<MasterCatalogOption | null>(null);
   const [showScanner, setShowScanner] = useState(false);
   const [pendingBarcode, setPendingBarcode] = useState<BarcodeLookupResult | null>(null);
-  const debouncedSearch = useDebounce(productSearch, 300);
+  const trimmedSearch = productSearch.trim();
+  const [cachedProducts, setCachedProducts] = useState<ProductOption[]>([]);
+  const [cachedMasterProducts, setCachedMasterProducts] = useState<MasterCatalogOption[]>([]);
 
   const { register, handleSubmit, reset: resetLine, watch, formState: { errors }, setValue } = useForm<LineFormData>({
     resolver: zodResolver(lineSchema),
@@ -187,15 +239,31 @@ export const StockIntakePage: React.FC = () => {
   const liveHint = computePriceHint(currentUnitPrice, existingPrices);
 
   // product search queries
-  const { data: productsData } = useQuery({
-    queryKey: ['products-search', debouncedSearch],
-    queryFn: () => debouncedSearch ? api.get('/inventory/products', { params: { search: debouncedSearch, limit: 10 } }).then(r => r.data) : null,
-    enabled: debouncedSearch.length > 1,
+  const { data: productsData, isFetching: isProductFetching } = useQuery({
+    queryKey: ['products-search', trimmedSearch],
+    queryFn: async ({ signal }) => {
+      if (!trimmedSearch) return null;
+      try {
+        return await api.get('/inventory/products/suggestions', { params: { search: trimmedSearch, limit: 12 }, signal }).then(r => r.data);
+      } catch {
+        if (!navigator.onLine) {
+          const cached = await searchCachedProducts(trimmedSearch, 12);
+          return { data: cached };
+        }
+        throw new Error('Product search failed');
+      }
+    },
+    enabled: trimmedSearch.length > 0,
+    staleTime: 30_000,
+    networkMode: 'always',
   });
   const { data: masterCatalogData, isFetching: isMasterFetching } = useQuery({
-    queryKey: ['stock-intake-master', debouncedSearch],
-    queryFn: () => debouncedSearch ? api.get('/inventory/drug-master', { params: { q: debouncedSearch, limit: 8 } }).then(r => r.data) : null,
-    enabled: debouncedSearch.length > 1,
+    queryKey: ['stock-intake-master', trimmedSearch],
+    queryFn: ({ signal }) => trimmedSearch
+      ? api.get('/inventory/drug-master', { params: { q: trimmedSearch, limit: 8 }, signal }).then(r => r.data)
+      : null,
+    enabled: trimmedSearch.length > 0,
+    staleTime: 30_000,
   });
   const { data: suppliersData } = useQuery({
     queryKey: ['suppliers'],
@@ -204,6 +272,24 @@ export const StockIntakePage: React.FC = () => {
 
   const products: ProductOption[] = productsData?.data ?? [];
   const masterProducts: MasterCatalogOption[] = masterCatalogData?.data ?? [];
+  React.useEffect(() => {
+    if (Array.isArray(productsData?.data)) {
+      setCachedProducts(productsData.data);
+    }
+  }, [productsData]);
+  React.useEffect(() => {
+    if (Array.isArray(masterCatalogData?.data)) {
+      setCachedMasterProducts(masterCatalogData.data);
+    }
+  }, [masterCatalogData]);
+  const visibleProducts = useMemo(
+    () => (productsData ? products : cachedProducts).filter((product) => productMatchesSearch(product, trimmedSearch)),
+    [cachedProducts, products, productsData, trimmedSearch],
+  );
+  const visibleMasterProducts = useMemo(
+    () => (masterCatalogData ? masterProducts : cachedMasterProducts).filter((product) => catalogProductMatchesSearch(product, trimmedSearch)),
+    [cachedMasterProducts, masterCatalogData, masterProducts, trimmedSearch],
+  );
   const suppliers = suppliersData?.data ?? [];
 
   // create product from catalog
@@ -233,6 +319,7 @@ export const StockIntakePage: React.FC = () => {
     setSelectedProduct(p);
     setSelectedCatalogProduct(cp ?? null);
     setProductSearch(productName(p));
+    setValue('batchNumber', autoBatchNumber(p), { shouldDirty: false, shouldValidate: true });
   };
 
   const clearProductSearch = () => {
@@ -381,7 +468,12 @@ export const StockIntakePage: React.FC = () => {
   return (
     <div className="space-y-5 max-w-3xl">
       <div className="flex items-center justify-between gap-4 flex-wrap">
-        <h1 className="text-xl font-bold text-[#0D4035]">Receive Stock</h1>
+        <div>
+          <h1 className="text-xl font-bold text-[#0D4035]">Receive Stock</h1>
+          <p className="mt-2 text-xs font-medium text-[#64748B]">
+            {pendingWrites} pending write{pendingWrites === 1 ? '' : 's'} waiting in the local queue.
+          </p>
+        </div>
         {cart.length > 0 && (
           <Badge variant="info">{cart.length} item{cart.length > 1 ? 's' : ''} in cart</Badge>
         )}
@@ -413,9 +505,6 @@ export const StockIntakePage: React.FC = () => {
         <div className="space-y-2 mb-5">
           <div className="flex items-center justify-between gap-3">
             <span className="text-sm font-medium text-[#0D4035]">Product <span className="text-[#DC2626]">*</span></span>
-            <Button type="button" variant="ghost" size="sm" leftIcon={<ScanLine size={16} />} onClick={() => setShowScanner(p => !p)}>
-              {showScanner ? 'Hide scanner' : 'Scan'}
-            </Button>
             {selectedProduct && (
               <button type="button" onClick={clearProductSearch} className="text-xs text-[#64748B] hover:text-[#DC2626]">
                 Clear
@@ -427,17 +516,30 @@ export const StockIntakePage: React.FC = () => {
             <>
               <Input
                 label="Product search"
-                placeholder="Brand, generic, strength, SKU…"
+                placeholder="Search generic or brand name"
                 value={productSearch}
                 onChange={e => setProductSearch(e.target.value)}
                 leftIcon={<Search size={16} />}
+                rightIcon={
+                  <button
+                    type="button"
+                    onClick={() => setShowScanner(p => !p)}
+                    className="rounded-lg p-1 text-[#64748B] hover:bg-[#EDF7F3] hover:text-[#0D4035]"
+                    aria-label={showScanner ? 'Hide scanner' : 'Scan barcode'}
+                    title={showScanner ? 'Hide scanner' : 'Scan barcode'}
+                  >
+                    <ScanLine size={16} />
+                  </button>
+                }
               />
             </>
           )}
 
           {showScanner && (
             <div className="rounded-2xl border border-dashed border-[#D6F0E8] bg-[#F8FCFA] p-4">
-              <BarcodeScanner label="Scan barcode" placeholder="Scan or type barcode" onDetected={handleBarcodeDetected} />
+              <Suspense fallback={<div className="text-sm text-[#64748B]">Loading scanner...</div>}>
+                <BarcodeScanner label="Scan barcode" placeholder="Scan or type barcode" onDetected={handleBarcodeDetected} />
+              </Suspense>
             </div>
           )}
 
@@ -458,31 +560,37 @@ export const StockIntakePage: React.FC = () => {
           )}
 
           {/* Local product results */}
-          {!selectedProduct && products.length > 0 && debouncedSearch.length > 1 && (
+          {!selectedProduct && trimmedSearch.length > 0 && (isProductFetching || visibleProducts.length > 0 || productsData) && (
             <div className="border border-[#D6F0E8] rounded-xl overflow-hidden">
               <div className="bg-[#F8FCFA] px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-[#64748B]">
                 Your products
               </div>
-              {products.map(p => (
-                <button key={p.id} type="button" onClick={() => selectProduct(p)}
-                  className="w-full text-left px-4 py-2.5 hover:bg-[#EDF7F3] border-b border-[#D6F0E8] last:border-0">
-                  <p className="text-sm font-medium text-[#0D4035]">{productName(p)}</p>
-                  <p className="text-xs text-[#64748B]">
-                    {[p.brandName && `Brand: ${p.brandName}`, p.genericName && `Generic: ${p.genericName}`, p.dosageForm, p.strength].filter(Boolean).join(' | ')}
-                  </p>
-                </button>
-              ))}
+              {isProductFetching && visibleProducts.length === 0 && (
+                <div className="px-4 py-3 text-sm text-[#64748B]">Searching...</div>
+              )}
+              {visibleProducts.map(p => (
+                  <button key={p.id} type="button" onClick={() => selectProduct(p)}
+                    className="w-full text-left px-4 py-2.5 hover:bg-[#EDF7F3] border-b border-[#D6F0E8] last:border-0">
+                    <p className="text-sm font-medium text-[#0D4035]">{productName(p)}</p>
+                    <p className="text-xs text-[#64748B]">
+                      {[p.brandName && `Brand: ${p.brandName}`, p.genericName && `Generic: ${p.genericName}`, p.dosageForm, p.strength].filter(Boolean).join(' | ')}
+                    </p>
+                  </button>
+                ))}
+              {productsData && visibleProducts.length === 0 && !isProductFetching && (
+                <div className="px-4 py-3 text-sm text-[#64748B]">No local product match</div>
+              )}
             </div>
           )}
 
           {/* Master catalog results */}
-          {!selectedProduct && masterProducts.length > 0 && debouncedSearch.length > 1 && (
+          {!selectedProduct && trimmedSearch.length > 0 && (visibleMasterProducts.length > 0 || masterCatalogData || isMasterFetching) && (
             <div className="border border-[#D6F0E8] rounded-xl overflow-hidden">
               <div className="flex items-center justify-between gap-3 bg-[#F8FCFA] px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-[#64748B]">
                 <span>Master catalog</span>
                 {isMasterFetching && <span className="text-[#1A6B5C]">Loading…</span>}
               </div>
-              {masterProducts.map(cp => (
+              {visibleMasterProducts.map(cp => (
                 <div key={cp.id} className="flex items-center justify-between gap-3 px-4 py-3 border-b border-[#D6F0E8] last:border-0">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
@@ -504,7 +612,7 @@ export const StockIntakePage: React.FC = () => {
           )}
 
           {/* No results */}
-          {!selectedProduct && debouncedSearch.length > 1 && products.length === 0 && masterProducts.length === 0 && !isMasterFetching && (
+          {!selectedProduct && trimmedSearch.length > 0 && productsData && masterCatalogData && visibleProducts.length === 0 && visibleMasterProducts.length === 0 && !isProductFetching && !isMasterFetching && (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
               <p className="text-sm font-medium text-[#92400E]">No match found.</p>
               <Link to="/inventory/products/new" className="mt-2 block text-xs font-medium text-[#1A6B5C] hover:underline">
@@ -528,7 +636,14 @@ export const StockIntakePage: React.FC = () => {
         {/* Batch + pricing form */}
         <form onSubmit={handleSubmit(onAddLine)} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Input label="Batch Number" placeholder="e.g. BATCH-2025-0001" {...register('batchNumber')} error={errors.batchNumber?.message} required />
+            <Input
+              label="Batch Number"
+              placeholder="Auto-generated when product is selected"
+              hint="Generated automatically. Clear it only if you need to enter the supplier's exact batch number."
+              {...register('batchNumber')}
+              error={errors.batchNumber?.message}
+              required
+            />
             <Input label="Expiry Date" type="date" {...register('expiryDate')} error={errors.expiryDate?.message} required />
             <Input label="Quantity Received" type="number" min="1" placeholder="100" {...register('quantity')} error={errors.quantity?.message} required />
           </div>

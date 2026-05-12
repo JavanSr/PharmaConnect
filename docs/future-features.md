@@ -152,7 +152,7 @@ Never delete entries — mark them SHIPPED or CANCELLED with a reason.
 | Pharmacovigilance ADR schema + placeholder page | Apr 2026 | Schema ready; full form deferred pending TMDA integration |
 | Forecasting early-preview banner | Apr 2026 | Clearly labels stub data as indicative |
 | Analytics overview endpoint normalisation | Apr 2026 | Frontend now reads real /analytics/overview data |
-| Subscription pricing update (Premium 75k, Wholesale 100k, Hybrid 130k) | Apr 2026 | Confirmed by founder |
+| Subscription pricing update (ADDO 20k, Essential 35k, Standard 55k, Premium 75k, Wholesale 100k, Enterprise custom; annual billing 10x monthly) | May 2026 | Current pricing matrix |
 | CPD Tracker moved to Phase 2 Coming Soon | Apr 2026 | Removed from Phase 1 active nav |
 | TMDA Controlled Substances Reporting placeholder | Apr 2026 | Deferred page with waitlist capture |
 | Unsubscribe token route (/unsubscribe/:token) | Apr 2026 | Knowledge Hub email unsubscribe |

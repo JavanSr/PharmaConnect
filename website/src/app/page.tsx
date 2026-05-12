@@ -1,8 +1,9 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import Script from "next/script";
-import { AlertTriangle, Lock, Shield } from "lucide-react";
+import { AlertTriangle, ArrowUpDown, BarChart3, Bell, Building2, CalendarCheck, Check, FileText, Lock, ScanLine, ScrollText, Shield, Tag, Users, Warehouse, Wifi } from "lucide-react";
 import ContactForm from "@/components/ContactForm";
+import FaqAccordion from "@/components/FaqAccordion";
 import PlatformGrid from "@/components/PlatformGrid";
 import PricingToggle from "@/components/PricingToggle";
 import SeveritySpectrum from "@/components/SeveritySpectrum";
@@ -14,27 +15,23 @@ import { ARTICLES } from "@/lib/data/articles";
 import { MODULES } from "@/lib/data/modules";
 
 const AppMockup = dynamic(() => import("@/components/AppMockup"), { ssr: false });
-const NhifFlow = dynamic(() => import("@/components/NhifFlow"));
 
 const jsonLd = {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
-  name: "PharmaConnect",
+  name: "APOTEKH",
   applicationCategory: "HealthApplication",
   operatingSystem: "Web, Android",
   description: "Pharmacy-side platform for Tanzania's 14,000+ pharmacies and ADDOs",
   offers: [
-    { "@type": "Offer", price: "0", priceCurrency: "TZS" },
-    { "@type": "Offer", price: "25000", priceCurrency: "TZS" },
-    { "@type": "Offer", price: "70000", priceCurrency: "TZS" },
+    { "@type": "Offer", price: "20000", priceCurrency: "TZS" },
+    { "@type": "Offer", price: "35000", priceCurrency: "TZS" },
+    { "@type": "Offer", price: "55000", priceCurrency: "TZS" },
   ],
-  author: {
-    "@type": "Person",
-    name: "Elihaki M. Y. Javan",
-    jobTitle: "Pharmaceutical Technologist",
-    worksFor: { "@type": "Organization", name: "PharmaConnect System" },
-  },
+  publisher: { "@type": "Organization", name: "APOTEKH" },
 };
+
+const availableModules = MODULES.filter((m) => m.available);
 
 export default function HomePage() {
   return (
@@ -46,32 +43,30 @@ export default function HomePage() {
       <AnimatedSection className="hero-pattern overflow-hidden bg-mist">
         <section className="mx-auto grid max-w-7xl items-center gap-10 px-4 py-20 sm:px-6 lg:grid-cols-[1.05fr_.95fr] lg:px-8 lg:py-24">
           <div>
-            <p className="font-mono text-xs uppercase tracking-[0.18em] text-primary">
-              January 26, 2026 - Tanzania launched universal health insurance
-            </p>
+            <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-white/70 px-3 py-1.5 backdrop-blur-sm">
+              <span className="relative flex h-2 w-2 flex-shrink-0">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
+              </span>
+              <span className="font-mono text-xs text-primary">Phase 1 live &middot; Dodoma, Tanzania</span>
+            </div>
             <h1 className="mt-4 font-serif text-5xl tracking-tight text-slate lg:text-6xl">
-              The operating system for <span className="text-primary">better pharmaceutical services</span>
+              The operating system for{" "}
+              <span className="bg-gradient-to-r from-primary via-primary-mid to-[#3db89a] bg-clip-text text-transparent">
+                better pharmaceutical services
+              </span>
             </h1>
             <p className="mt-6 max-w-xl text-lg leading-relaxed text-slate/70">
-              14,000+ pharmacies and ADDOs across Tanzania must now process NHIF claims.
-              PharmaConnect turns this compliance requirement into higher-quality care,
-              fewer medication errors, and professional growth.
+              Tanzania&apos;s pharmacies and ADDOs must operate with greater accuracy,
+              compliance, and clinical care. APOTEKH gives them the tools to do exactly that.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Button href="/contact#waitlist" variant="primary">
                 Request early access
               </Button>
-              <Button href="#how-it-works" variant="ghost">
-                See how it works -&gt;
+              <Button href="/platform" variant="ghost">
+                See the platform &rarr;
               </Button>
-            </div>
-            <div className="mt-8 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate/40">
-              <span className="font-medium uppercase tracking-wider">Seeking partnerships with:</span>
-              <span>Pharmacy Council of Tanzania</span>
-              <span>&middot;</span>
-              <span>TAPHATA</span>
-              <span>&middot;</span>
-              <span>PST</span>
             </div>
           </div>
           <AppMockup />
@@ -79,27 +74,76 @@ export default function HomePage() {
         <div className="overflow-hidden bg-primary-dark py-4 text-sm font-medium uppercase tracking-[0.18em] text-white">
           <div className="marquee-track flex w-max gap-10 whitespace-nowrap">
             <span>
-              NHIF Claims &middot; Drug Interaction Checking &middot; Expiry Monitoring &middot;
-              CPD Tracking &middot; Compliance Alerts &middot; Inventory Management &middot;
-              Patient Safety &middot; TMDA Integration &middot; Knowledge Hub &middot;
-              Stock Exchange &middot; B2B Ordering &middot; Analytics &middot;
+              Drug Interaction Checking &middot; Expiry Monitoring &middot;
+              Barcode Scanning &middot; Compliance Alerts &middot; Inventory Management &middot;
+              Patient Safety &middot; Knowledge Hub &middot; Dispensing &middot;
+              Analytics &middot; Offline-First &middot; Regulatory Compliance &middot;
             </span>
             <span>
-              NHIF Claims &middot; Drug Interaction Checking &middot; Expiry Monitoring &middot;
-              CPD Tracking &middot; Compliance Alerts &middot; Inventory Management &middot;
-              Patient Safety &middot; TMDA Integration &middot; Knowledge Hub &middot;
-              Stock Exchange &middot; B2B Ordering &middot; Analytics &middot;
+              Drug Interaction Checking &middot; Expiry Monitoring &middot;
+              Barcode Scanning &middot; Compliance Alerts &middot; Inventory Management &middot;
+              Patient Safety &middot; Knowledge Hub &middot; Dispensing &middot;
+              Analytics &middot; Offline-First &middot; Regulatory Compliance &middot;
             </span>
           </div>
         </div>
       </AnimatedSection>
 
       <AnimatedSection className="bg-primary-dark py-16" delay={0.05}>
-        <section className="mx-auto grid max-w-7xl gap-4 px-4 sm:px-6 lg:grid-cols-4 lg:px-8">
+        <section className="mx-auto grid max-w-7xl gap-4 px-4 sm:px-6 lg:grid-cols-2 lg:px-8">
           <StatCard label="Pharmacies and ADDOs serving Tanzania" suffix="+" value={14000} />
-          <StatCard label="Facilities using digital NHIF claims today" value={187} />
-          <StatCard label="Tanzania pharmaceutical market - 6.1% CAGR" value="USD 243M" />
-          <StatCard label="UHI launch date - claims processing is mandatory now" value="Jan 2026" />
+          <StatCard label="Tanzania pharmaceutical market — 6.1% CAGR" value="USD 243M" />
+        </section>
+      </AnimatedSection>
+
+      <AnimatedSection className="bg-white py-20" delay={0.08}>
+        <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <h2 className="font-serif text-3xl font-semibold text-slate">
+            Built for how pharmacies actually work
+          </h2>
+          <p className="mt-3 text-slate/65">Real-world features for Tanzania&apos;s pharmaceutical environment.</p>
+          <div className="mt-8 grid gap-5 md:grid-cols-2">
+            {[
+              {
+                icon: Wifi,
+                title: "Works offline and online",
+                body: "Dispensing, safety checks, and stock updates run without internet. Data syncs automatically when connectivity returns — no lost sales, no lost records.",
+              },
+              {
+                icon: ScanLine,
+                title: "QR & Barcode Scanner",
+                body: "Scan medicines on arrival to fill batch details automatically. Scan at the dispensing counter to select and verify a product in one tap. Any phone or USB reader.",
+              },
+              {
+                icon: Warehouse,
+                title: "Wholesale catalogue built in",
+                body: "Your registered wholesale supplier's products are searchable directly inside APOTEKH. Browse stock, record deliveries, and link arrivals to inventory — no re-entry.",
+              },
+              {
+                icon: Lock,
+                title: "Sales privacy controls",
+                body: "Role-based access limits what each staff member can see and do. Every transaction is logged with a timestamped user record — a clear trail that protects against theft and unrecorded losses.",
+              },
+              {
+                icon: Building2,
+                title: "Multi-branch visibility",
+                body: "Owners see sales, stock levels, and compliance status across every branch from a single account. No separate logins, no WhatsApp reports.",
+              },
+              {
+                icon: Bell,
+                title: "Compliance deadline tracking",
+                body: "TMDA licences, inspection dates, and renewal deadlines stay visible before they become problems. Colour-coded status, early reminders, and an evidence trail built in.",
+              },
+            ].map(({ icon: Icon, title, body }) => (
+              <div key={title} className="rounded-xl border border-slate/10 bg-mist p-6">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-white">
+                  <Icon size={18} />
+                </div>
+                <h3 className="mt-4 text-base font-semibold text-slate">{title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-slate/65">{body}</p>
+              </div>
+            ))}
+          </div>
         </section>
       </AnimatedSection>
 
@@ -107,28 +151,46 @@ export default function HomePage() {
         <section className="mx-auto max-w-6xl px-4 text-center sm:px-6 lg:px-8">
           <div className="font-serif text-[120px] leading-none text-primary/20">&ldquo;</div>
           <blockquote className="mx-auto max-w-3xl font-serif text-2xl text-slate">
-            On January 26, 2026, Tanzania&apos;s Universal Health Insurance launch made health
-            coverage mandatory for every citizen - forcing 14,000+ pharmacies and ADDOs to
-            process NHIF claims. While generic POS systems focus only on sales and inventory,
-            PharmaConnect is the pharmacy-side platform designed for better pharmaceutical
-            services.
+            Tanzania&apos;s pharmacies deserve more than a point-of-sale system.
+            Generic software was built for sales.
+            APOTEKH is built for better pharmaceutical services.
           </blockquote>
-          <p className="mt-5 text-sm italic text-slate/50">- PharmaConnect, April 2026</p>
+          <p className="mt-5 text-sm italic text-slate/50">- APOTEKH, 2026</p>
           <div className="mt-12 grid gap-5 md:grid-cols-2">
-            <article className="rounded-xl bg-primary-lightest p-6 text-left">
+            <article className="rounded-xl border border-primary/15 bg-primary-lightest p-6 text-left">
+              <div className="mb-4 flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-white">
+                <Building2 size={18} />
+              </div>
               <h2 className="text-lg font-semibold text-primary-dark">For pharmacy owners</h2>
-              <ul className="mt-4 list-disc space-y-2 pl-5 text-sm text-slate/70">
-                <li>Remote visibility into every branch</li>
-                <li>Compliance protection before every deadline</li>
-                <li>Profitability analytics across your portfolio</li>
+              <ul className="mt-4 space-y-3">
+                {[
+                  "Remote visibility into every branch",
+                  "Compliance protection before every deadline",
+                  "Profitability analytics across your portfolio",
+                ].map((item) => (
+                  <li className="flex items-start gap-2 text-sm text-slate/70" key={item}>
+                    <Check className="mt-0.5 shrink-0 text-primary" size={15} />
+                    <span>{item}</span>
+                  </li>
+                ))}
               </ul>
             </article>
-            <article className="rounded-xl bg-slate/5 p-6 text-left">
+            <article className="rounded-xl border border-slate/10 bg-white p-6 text-left shadow-sm">
+              <div className="mb-4 flex h-9 w-9 items-center justify-center rounded-lg bg-slate/8 text-slate">
+                <Users size={18} />
+              </div>
               <h2 className="text-lg font-semibold text-slate">For pharmacists and dispensers</h2>
-              <ul className="mt-4 list-disc space-y-2 pl-5 text-sm text-slate/70">
-                <li>Patient safety alerts at the dispensing moment</li>
-                <li>Drug interaction checking before medicine leaves the counter</li>
-                <li>CPD tracking built into daily work</li>
+              <ul className="mt-4 space-y-3">
+                {[
+                  "Patient safety alerts at the dispensing moment",
+                  "Drug interaction checking before medicine leaves the counter",
+                  "Compliance and expiry alerts built into daily work",
+                ].map((item) => (
+                  <li className="flex items-start gap-2 text-sm text-slate/70" key={item}>
+                    <Check className="mt-0.5 shrink-0 text-slate/40" size={15} />
+                    <span>{item}</span>
+                  </li>
+                ))}
               </ul>
             </article>
           </div>
@@ -141,194 +203,136 @@ export default function HomePage() {
             <h2 className="font-serif text-4xl font-semibold text-slate">
               Everything a pharmacy needs to operate, protect, and grow
             </h2>
-            <p className="mt-4 text-slate/70">Seven modules available now. More to come soon.</p>
+            <p className="mt-4 text-slate/70">Six modules, built for Tanzania&apos;s pharmaceutical environment.</p>
           </div>
           <div className="mt-8">
-            <PlatformGrid modules={MODULES} />
+            <PlatformGrid hideFilter modules={availableModules} />
           </div>
           <Link className="mt-8 inline-flex text-sm font-medium text-primary" href="/platform">
-            Explore the full platform -&gt;
+            Explore the full platform &rarr;
           </Link>
+        </section>
+      </AnimatedSection>
+
+      <AnimatedSection className="bg-white py-20" delay={0.18}>
+        <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="max-w-2xl">
+            <h2 className="font-serif text-4xl font-semibold text-slate">How it works</h2>
+            <p className="mt-4 text-slate/65">From sign-up to daily operations in three steps.</p>
+          </div>
+          <div className="mt-10 grid gap-8 md:grid-cols-3">
+            {[
+              {
+                step: "01",
+                title: "Set up your pharmacy",
+                body: "Register, load your products from the catalogue or by scanning, and invite your team. Most pharmacies are running within the same day — no training workshop required.",
+              },
+              {
+                step: "02",
+                title: "Work smarter at the counter",
+                body: "Dispensing, drug interaction checks, and stock updates happen in one controlled flow. Scan a product, confirm safety, complete the sale. No separate tools, no double entry.",
+              },
+              {
+                step: "03",
+                title: "Manage from anywhere",
+                body: "Compliance deadlines, inventory levels, and sales performance update in real time. See everything across your branches from a phone or laptop — in Dodoma or wherever you are.",
+              },
+            ].map(({ step, title, body }) => (
+              <div key={step} className="relative pl-16">
+                <div className="absolute left-0 top-0 flex h-10 w-10 items-center justify-center rounded-full bg-primary font-mono text-sm font-bold text-white">
+                  {step}
+                </div>
+                <h3 className="text-lg font-semibold text-slate">{title}</h3>
+                <p className="mt-3 text-sm leading-relaxed text-slate/65">{body}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      </AnimatedSection>
+
+      <AnimatedSection className="bg-mist py-20" delay={0.19}>
+        <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <h2 className="font-serif text-4xl font-semibold text-slate">Everything included</h2>
+          <p className="mt-3 text-slate/65">No add-ons. No separate tools. Every capability ships with your plan.</p>
+          <div className="mt-10 grid gap-x-8 gap-y-10 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              { icon: ArrowUpDown, title: "FEFO Dispensing", body: "First-expiry-first-out enforced at every sale — no expired stock leaving the counter." },
+              { icon: Bell, title: "Expiry Alerts", body: "90, 60, 30, 7, and 1-day warnings tracked automatically per batch." },
+              { icon: Tag, title: "Batch & Lot Tracking", body: "Every product logged by batch, supplier, and date from intake to sale." },
+              { icon: Shield, title: "Drug Interaction Checks", body: "MINOR through CONTRAINDICATED screened before medicine leaves the counter." },
+              { icon: Users, title: "Role-Based Access", body: "Staff see only what their role allows — dispensers, cashiers, owners, and clerks all separated." },
+              { icon: Wifi, title: "Offline-First Sync", body: "Works without internet. Syncs all pending actions the moment connectivity returns." },
+              { icon: ScanLine, title: "QR & Barcode Scanning", body: "Scan on intake and at the counter. Any phone camera or USB barcode reader." },
+              { icon: Building2, title: "Multi-Branch Dashboard", body: "All your locations in one account. No jumping between logins." },
+              { icon: CalendarCheck, title: "Compliance Calendar", body: "TMDA licences, inspections, and renewals tracked with early reminders and evidence upload." },
+              { icon: FileText, title: "Receipts & PDF Export", body: "Professional dispensing receipts and printable records generated automatically." },
+              { icon: BarChart3, title: "Analytics & Reporting", body: "Sales trends, stock movement, and compliance summaries in one management view." },
+              { icon: ScrollText, title: "Permanent Audit Log", body: "Every override, void, and transaction permanently recorded — tamper-proof by design." },
+            ].map(({ icon: Icon, title, body }) => (
+              <div key={title}>
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <Icon size={16} />
+                </div>
+                <h3 className="mt-3 text-sm font-semibold text-slate">{title}</h3>
+                <p className="mt-1 text-xs leading-relaxed text-slate/60">{body}</p>
+              </div>
+            ))}
+          </div>
         </section>
       </AnimatedSection>
 
       <AnimatedSection className="bg-white py-20" delay={0.2}>
         <section className="mx-auto grid max-w-7xl gap-10 px-4 sm:px-6 lg:grid-cols-2 lg:px-8">
           <div>
-            <p className="font-mono text-xs text-primary">The founder&apos;s original vision</p>
+            <p className="font-mono text-xs text-primary">Patient Safety</p>
             <h2 className="mt-3 font-serif text-4xl font-semibold text-slate">
-              Patient safety at every dispensing event
+              Safety checks at every dispensing event
             </h2>
             <p className="mt-5 text-slate/70">
               No community pharmacy in Tanzania currently checks drug interactions at the
-              point of dispensing. PharmaConnect changes this - checking interactions,
+              point of dispensing. APOTEKH changes this — checking interactions,
               contraindications, and allergy flags before medicine leaves the counter.
             </p>
             <div className="mt-6 grid gap-3">
               <div className="flex items-center gap-3 rounded-xl bg-mist p-4">
                 <Shield className="text-primary" size={18} />
                 <span className="text-sm font-medium text-slate">
-                  Drug interaction checking - MINOR through CONTRAINDICATED
+                  Drug interaction checking — MINOR through CONTRAINDICATED
                 </span>
               </div>
               <div className="flex items-center gap-3 rounded-xl bg-mist p-4">
                 <AlertTriangle className="text-primary" size={18} />
                 <span className="text-sm font-medium text-slate">
-                  Contraindication alerts - pregnancy, renal, elderly, allergy
+                  Contraindication alerts — pregnancy, renal, elderly, allergy
                 </span>
               </div>
               <div className="flex items-center gap-3 rounded-xl bg-mist p-4">
                 <Lock className="text-primary" size={18} />
                 <span className="text-sm font-medium text-slate">
-                  Anonymous patient UUID - no names, no national IDs, PDPC-compliant
+                  Anonymous session — no patient names or national IDs stored
                 </span>
               </div>
             </div>
-            <blockquote className="mt-6 border-l-4 border-primary pl-4 font-serif text-lg italic text-slate">
-              &ldquo;I have seen preventable harm happen. PharmaConnect was built to stop it.&rdquo;
-              <span className="mt-2 block font-sans text-sm not-italic text-slate/50">
-                - Elihaki M. Y. Javan, Founder &amp; Pharmaceutical Technologist
-              </span>
-            </blockquote>
           </div>
           <SeveritySpectrum />
         </section>
       </AnimatedSection>
 
       <AnimatedSection className="bg-mist py-20" delay={0.25}>
-        <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8" id="how-it-works">
-          <div className="max-w-3xl">
-            <h2 className="font-serif text-4xl font-semibold text-slate">
-              How NHIF claims move through PharmaConnect
-            </h2>
-            <p className="mt-4 text-slate/70">
-              From verification to follow-up, the workflow keeps claims clean, auditable,
-              and easier to correct when issues appear.
-            </p>
-          </div>
-          <div className="mt-8">
-            <NhifFlow />
-          </div>
-        </section>
-      </AnimatedSection>
-
-      <AnimatedSection className="bg-white py-20" delay={0.3}>
         <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <h2 className="font-serif text-4xl font-semibold text-slate">
             Priced for Tanzania&apos;s pharmaceutical reality
           </h2>
-          <p className="mt-4 text-slate/70">
-            Competitive with DukaDawa and Stawi Biz. Superior in clinical depth.
-          </p>
           <div className="mt-8">
             <PricingToggle />
           </div>
           <Link className="mt-6 inline-flex text-sm font-medium text-primary" href="/pricing">
-            Full pricing details -&gt;
+            Full pricing details &rarr;
           </Link>
-          <div className="mt-10 overflow-x-auto">
-            <table className="w-full min-w-[720px] text-left text-sm">
-              <thead>
-                <tr className="border-b border-slate/10">
-                  <th className="py-3">Feature</th>
-                  <th className="py-3">DukaDawa</th>
-                  <th className="py-3">Stawi Biz</th>
-                  <th className="py-3">PharmaConnect</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[
-                  ["NHIF claims", "X", "Partial", "Yes"],
-                  ["Drug interactions", "X", "X", "Yes"],
-                  ["CPD tracking", "X", "X", "Yes"],
-                  ["Patient safety", "X", "X", "Yes"],
-                  ["Offline-first", "Partial", "X", "Yes"],
-                ].map((row) => (
-                  <tr className="border-b border-slate/10" key={row[0]}>
-                    {row.map((cell, index) => (
-                      <td
-                        className={
-                          index === 3 && cell === "Yes"
-                            ? "py-3 font-semibold text-primary"
-                            : cell === "X"
-                              ? "py-3 text-slate/30"
-                              : "py-3 text-slate/70"
-                        }
-                        key={`${row[0]}-${index}`}
-                      >
-                        {cell}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
         </section>
       </AnimatedSection>
 
-      <AnimatedSection className="bg-mist py-20" delay={0.35}>
-        <section className="mx-auto grid max-w-7xl gap-10 px-4 sm:px-6 lg:grid-cols-[220px_1fr] lg:px-8">
-          <div className="flex h-[180px] w-[180px] items-center justify-center rounded-full bg-primary-lightest font-serif text-5xl text-primary">
-            EMJ
-          </div>
-          <div>
-            <h2 className="font-serif text-4xl font-semibold text-slate">
-              Built by a pharmacist who has seen the problem firsthand
-            </h2>
-            <p className="mt-5 text-slate/70">
-              Elihaki M. Y. Javan is a Pharmaceutical Technologist based in Arusha, Tanzania.
-              Pharmacy In-Charge at Lindi Regional Hospital. Supply chain reviewer for JSI/UBAB
-              and GFF programmes under MOH and PO-RALG. Active TAPHATA member. Field experience
-              across Arusha, Dar es Salaam, Lindi, and rural Tanzania. Every feature in
-              PharmaConnect maps to a real problem encountered in practice.
-            </p>
-            <div className="mt-6 grid gap-3 md:grid-cols-2">
-              {[
-                "Pharmacy In-Charge - Lindi Regional Hospital",
-                "National Supply Chain Reviewer - JSI/UBAB & GFF",
-                "Active TAPHATA Member",
-                "Field experience - 4+ Tanzanian regions",
-              ].map((item) => (
-                <Badge className="justify-center rounded-lg px-4 py-3 text-center" key={item} variant="primary">
-                  {item}
-                </Badge>
-              ))}
-            </div>
-            <blockquote className="mt-6 border-l-4 border-primary pl-4 font-serif text-xl italic text-slate">
-              PharmaConnect is not a startup idea. It is the tool I needed and could not find. So I decided to build it.
-              <span className="mt-2 block font-sans text-sm not-italic text-slate/50">
-                - Elihaki M. Y. Javan, Founder
-              </span>
-            </blockquote>
-          </div>
-        </section>
-      </AnimatedSection>
-
-      <AnimatedSection className="bg-white py-20" delay={0.4}>
-        <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <h2 className="font-serif text-4xl font-semibold text-slate">
-            Seeking partnerships with Tanzania&apos;s pharmaceutical institutions
-          </h2>
-          <p className="mt-4 text-slate/70">Conversations initiated. MOUs underway.</p>
-          <div className="mt-8 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-            {[
-              ["Pharmacy Council of Tanzania", "Regulatory accreditation and compliance standards"],
-              ["PST", "Pharmaceutical Society of Tanzania - professional membership body"],
-              ["TAPHATA", "Tanzania Pharmaceutical Health Technologies Association"],
-              ["NHIF", "National Health Insurance Fund - Breeze API accreditation underway"],
-            ].map(([title, body]) => (
-              <article className="rounded-xl border border-slate/10 bg-mist p-6" key={title}>
-                <h3 className="text-lg font-semibold text-slate">{title}</h3>
-                <p className="mt-3 text-sm text-slate/65">{body}</p>
-              </article>
-            ))}
-          </div>
-          <p className="mt-6 text-sm text-slate/55">NHIF Breeze API accreditation process initiated - April 2026</p>
-        </section>
-      </AnimatedSection>
-
-      <AnimatedSection className="bg-primary-lightest py-20" delay={0.45}>
+      <AnimatedSection className="bg-primary-lightest py-20" delay={0.3}>
         <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <h2 className="font-serif text-4xl font-semibold text-slate">Knowledge Hub preview</h2>
           <div className="mt-8 grid gap-5 md:grid-cols-3">
@@ -338,28 +342,37 @@ export default function HomePage() {
                 <h3 className="mt-4 text-lg font-medium text-slate">{article.title}</h3>
                 <p className="mt-3 text-sm text-slate/65">{article.excerpt}</p>
                 <Link className="mt-4 inline-flex text-sm font-medium text-primary" href={`/blog/${article.slug}`}>
-                  Read -&gt;
+                  Read &rarr;
                 </Link>
               </article>
             ))}
           </div>
           <Link className="mt-8 inline-flex text-sm font-medium text-primary" href="/blog">
-            Visit the Knowledge Hub -&gt;
+            Visit the Knowledge Hub &rarr;
           </Link>
         </section>
       </AnimatedSection>
 
-      <AnimatedSection className="bg-primary-dark py-20 text-white" delay={0.5}>
+      <AnimatedSection className="bg-white py-20" delay={0.32}>
+        <section className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
+          <h2 className="font-serif text-4xl font-semibold text-slate">Common questions</h2>
+          <div className="mt-8">
+            <FaqAccordion />
+          </div>
+        </section>
+      </AnimatedSection>
+
+      <AnimatedSection className="bg-primary-dark py-20 text-white" delay={0.35}>
         <section className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
           <h2 className="font-serif text-4xl font-semibold">Tanzania&apos;s pharmacies need this. Now.</h2>
           <p className="mt-4 text-white/70">
-            Join the Arusha early access programme - first 20 pharmacies at no charge.
+            Join the Dodoma early access programme — first 20 pharmacies at no charge.
           </p>
           <div className="mt-8 rounded-2xl bg-white p-6 text-slate">
             <ContactForm variant="waitlist" />
           </div>
           <p className="mt-5 text-sm text-white/70">
-            Or contact directly: elihaki.yusuph@gmail.com &middot; +255 764 591 374 &middot; @PharmaConnect
+            Or contact directly: elihaki.yusuph@gmail.com &middot; +255 764 591 374 &middot; @APOTEKH
           </p>
         </section>
       </AnimatedSection>

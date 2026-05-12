@@ -53,7 +53,7 @@ type AnalyticsResponse = {
 };
 
 type AnalyticsFeatures = {
-  tier: 'ADDO' | 'STANDARD' | 'PREMIUM' | 'ENTERPRISE' | 'WHOLESALE' | null;
+  tier: 'ADDO' | 'ESSENTIAL' | 'STANDARD' | 'PREMIUM' | 'ENTERPRISE' | 'WHOLESALE' | null;
   historyDays: number;
   stockout: boolean;
   benchmark: boolean;

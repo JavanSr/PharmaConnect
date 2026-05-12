@@ -63,5 +63,19 @@ describe('daily close reconciliation', () => {
     expect(withNote.status).toBe(201);
     expect(withNote.body.data.expectedCash).toBe(10000);
     expect(withNote.body.data.discrepancy).toBe(-8000);
+    expect(withNote.body.data.totalSales).toBe(1);
+    expect(withNote.body.data.totalRevenueTzs).toBe(10000);
+    expect(withNote.body.data.itemsDispensed).toBe(0);
+    expect(withNote.body.data.paymentBreakdown).toEqual([
+      { paymentMethod: 'CASH', salesCount: 1, totalAmount: 10000 },
+    ]);
+
+    const duplicate = await request(app)
+      .post('/api/v1/dispensing/close-day')
+      .set('Authorization', `Bearer ${auth.body.data.accessToken}`)
+      .send({ actualCashCounted: 2000, notes: 'Second close attempt.' });
+
+    expect(duplicate.status).toBe(409);
+    expect(duplicate.body.error).toBe('DAILY_CLOSE_ALREADY_EXISTS');
   }, 120000);
 });

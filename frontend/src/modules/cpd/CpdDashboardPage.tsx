@@ -59,7 +59,7 @@ export const CpdDashboardPage: React.FC = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-[#0D4035]">CPD Tracker</h1>
-          <p className="text-sm text-[#64748B]">Internal learning log with non-accredited PharmaConnect tracking.</p>
+          <p className="text-sm text-[#64748B]">Internal learning log with non-accredited APOTEKH tracking.</p>
         </div>
         <Link to="/cpd/log">
           <Button leftIcon={<Plus size={16} />}>Log activity</Button>

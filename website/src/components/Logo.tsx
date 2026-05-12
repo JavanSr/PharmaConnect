@@ -36,8 +36,7 @@ export default function Logo({
   const isWhite = variant === "white";
   const markColor = isWhite ? "#FFFFFF" : "#1A6B5C";
   const ringColor = "rgba(255,255,255,0.35)";
-  const pharmaColor = isWhite ? "#FFFFFF" : "#0D4035";
-  const connectColor = isWhite ? "#FFFFFF" : "#2A9478";
+  const wordColor = isWhite ? "#FFFFFF" : "#0D4035";
 
   if (variant === "mark") {
     return (
@@ -55,11 +54,10 @@ export default function Logo({
         <NexusCross color={markColor} ringColor={ringColor} />
       </span>
       <span
-        className="font-serif text-[clamp(1rem,2vw,2rem)] leading-none"
-        style={{ letterSpacing: "-0.5px" }}
+        className="font-serif text-[clamp(1rem,2vw,2rem)] leading-none tracking-tight"
+        style={{ color: wordColor }}
       >
-        <span style={{ color: pharmaColor }}>Pharma</span>
-        <span style={{ color: connectColor }}>Connect</span>
+        APOTEKH
       </span>
     </span>
   );

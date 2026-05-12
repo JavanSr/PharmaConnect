@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Search, UserPlus } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -9,7 +10,7 @@ import { Select } from '@/components/ui/Select';
 import { useAuthStore } from '@/stores/authStore';
 import { useNotificationStore } from '@/stores/notificationStore';
 import { usePharmacyStore } from '@/stores/pharmacyStore';
-import type { Product, WholesaleCatalogueItem, WholesaleCreditLimit } from '@/types';
+import type { Pharmacy, Product, WholesaleCatalogueItem, WholesaleCreditLimit } from '@/types';
 import { WholesaleShell } from './WholesaleShell';
 
 export const WholesaleSettingsPage: React.FC = () => {
@@ -32,10 +33,19 @@ export const WholesaleSettingsPage: React.FC = () => {
     blockNewOrders: boolean;
     blockReason: string;
   }>>({});
+  const [clientSearch, setClientSearch] = React.useState('');
+  const [newClientId, setNewClientId] = React.useState('');
+  const [newClientLimit, setNewClientLimit] = React.useState('500000');
 
   const productsQuery = useQuery({
     queryKey: ['wholesale-settings-products'],
     queryFn: () => api.get('/inventory/products', { params: { limit: 50 } }).then((response) => response.data.data as Product[]),
+  });
+
+  const pharmacySearchQuery = useQuery({
+    queryKey: ['pharmacy-search', clientSearch],
+    queryFn: () => api.get('/b2b/pharmacies/search', { params: { q: clientSearch } }).then((r) => r.data.data as Pharmacy[]),
+    enabled: clientSearch.length >= 2,
   });
   const catalogueQuery = useQuery({
     queryKey: ['wholesale-catalogue'],
@@ -101,6 +111,25 @@ export const WholesaleSettingsPage: React.FC = () => {
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.error || 'Could not save wholesale pricing');
+    },
+  });
+
+  const addClientMutation = useMutation({
+    mutationFn: async () => {
+      await api.put(`/b2b/credit-limits/${newClientId}`, {
+        creditLimit: Number(newClientLimit),
+        paymentTermsDays: 30,
+        blockNewOrders: false,
+      });
+    },
+    onSuccess: () => {
+      toast.success('Client added with default credit limit');
+      setNewClientId('');
+      setClientSearch('');
+      queryClient.invalidateQueries({ queryKey: ['wholesale-credit-limits'] });
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Could not add client');
     },
   });
 
@@ -270,7 +299,60 @@ export const WholesaleSettingsPage: React.FC = () => {
         </Card>
 
         <Card header={<h3 className="text-lg font-semibold text-[#0D4035]">Client credit controls</h3>}>
-          <div className="space-y-3">
+          <div className="space-y-4">
+            {canManageWholesaleSettings && (
+              <div className="rounded-2xl border border-[#D6F0E8] bg-[#F7FCFA] p-4 space-y-3">
+                <p className="text-sm font-semibold text-[#0D4035]">Add a buyer pharmacy</p>
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" />
+                  <input
+                    className="w-full rounded-xl border border-[#D6F0E8] bg-white py-2 pl-9 pr-3 text-sm text-[#0D4035] placeholder:text-[#94A3B8] focus:border-[#1A6B5C] focus:outline-none"
+                    placeholder="Search pharmacy name..."
+                    value={clientSearch}
+                    onChange={(e) => setClientSearch(e.target.value)}
+                  />
+                </div>
+                {(pharmacySearchQuery.data ?? []).length > 0 && (
+                  <div className="space-y-2">
+                    {pharmacySearchQuery.data!.map((p) => (
+                      <div
+                        key={p.id}
+                        className={`flex items-center justify-between rounded-xl border p-3 cursor-pointer transition-colors ${newClientId === p.id ? 'border-[#1A6B5C] bg-[#EDF7F3]' : 'border-[#E5E7EB] hover:border-[#1A6B5C]'}`}
+                        onClick={() => setNewClientId(p.id)}
+                      >
+                        <div>
+                          <p className="text-sm font-medium text-[#0D4035]">{p.name}</p>
+                          <p className="text-xs text-[#64748B]">{p.region} · {p.subscriptionTier}</p>
+                        </div>
+                        {newClientId === p.id && <div className="h-4 w-4 rounded-full bg-[#1A6B5C]" />}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {clientSearch.length >= 2 && (pharmacySearchQuery.data ?? []).length === 0 && !pharmacySearchQuery.isLoading && (
+                  <p className="text-xs text-[#94A3B8]">No pharmacies found. They must be registered on PharmaConnect.</p>
+                )}
+                {newClientId && (
+                  <div className="flex items-end gap-3">
+                    <Input
+                      label="Initial credit limit (TZS)"
+                      type="number"
+                      value={newClientLimit}
+                      onChange={(e) => setNewClientLimit(e.target.value)}
+                    />
+                    <Button
+                      leftIcon={<UserPlus size={14} />}
+                      onClick={() => addClientMutation.mutate()}
+                      loading={addClientMutation.isPending}
+                    >
+                      Add client
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          <div className="mt-4 space-y-3">
             {(creditLimitsQuery.data ?? []).map((limit) => (
               <div key={limit.id} className="rounded-2xl border border-[#D6F0E8] p-4">
                 <div className="flex items-start justify-between gap-4">
@@ -356,7 +438,7 @@ export const WholesaleSettingsPage: React.FC = () => {
                 </div>
               </div>
             ))}
-            {creditLimitsQuery.data?.length === 0 && <p className="text-sm text-[#64748B]">No client credit rules exist yet. Add them from the backend API until the client directory lands.</p>}
+            {creditLimitsQuery.data?.length === 0 && <p className="text-sm text-[#64748B]">No client credit rules yet. Search above to add a buyer pharmacy.</p>}
           </div>
         </Card>
       </div>

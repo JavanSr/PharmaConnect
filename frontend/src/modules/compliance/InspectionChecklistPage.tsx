@@ -71,7 +71,7 @@ export const InspectionChecklistPage: React.FC = () => {
   const checklists = listData?.data ?? [];
   const checklist = checklistData?.data;
   const items: ChecklistItem[] = checklist?.items ?? [];
-  const pharmacyName = pharmacy?.name ?? 'PharmaConnect Pharmacy';
+  const pharmacyName = pharmacy?.name ?? 'APOTEKH Pharmacy';
 
   // Group items by category
   const grouped = items.reduce<Record<string, { item: ChecklistItem; idx: number }[]>>((acc, item, idx) => {

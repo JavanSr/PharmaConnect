@@ -42,7 +42,7 @@ export const LogActivityPage: React.FC = () => {
       <div className="space-y-4">
         <div>
           <h1 className="text-xl font-bold text-[#0D4035]">Log CPD Activity</h1>
-          <p className="text-sm text-[#64748B]">This remains an internal PharmaConnect learning record until accredited workflows go live.</p>
+          <p className="text-sm text-[#64748B]">This remains an internal APOTEKH learning record until accredited workflows go live.</p>
         </div>
         <div className="grid gap-4 md:grid-cols-2">
           <Input label="Title" value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} />

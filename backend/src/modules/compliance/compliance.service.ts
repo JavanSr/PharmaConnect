@@ -752,7 +752,7 @@ export async function generateInspectionChecklist(input: {
     input.pharmacyId,
     checklist.id,
     checklist.generatedAt,
-    pharmacy?.name ?? 'PharmaConnect Pharmacy',
+    pharmacy?.name ?? 'APOTEKH Pharmacy',
     items,
     checklist.scorePercentage,
   );
@@ -817,7 +817,7 @@ export async function updateInspectionChecklistItem(input: {
     input.pharmacyId,
     checklist.id,
     checklist.generatedAt,
-    pharmacy?.name ?? 'PharmaConnect Pharmacy',
+    pharmacy?.name ?? 'APOTEKH Pharmacy',
     currentItems,
     scorePercentage,
   );

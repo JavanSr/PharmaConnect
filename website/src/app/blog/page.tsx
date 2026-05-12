@@ -2,8 +2,8 @@ import BlogSearch from "@/components/BlogSearch";
 import { ARTICLES } from "@/lib/data/articles";
 
 export const metadata = {
-  title: "Blog - PharmaConnect",
-  description: "Regulatory, clinical, and technical notes from PharmaConnect.",
+  title: "Blog - APOTEKH",
+  description: "Regulatory, clinical, and technical notes from APOTEKH.",
 };
 
 export default function BlogPage() {

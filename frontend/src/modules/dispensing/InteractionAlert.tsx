@@ -34,14 +34,14 @@ const severityTone: Record<string, { badge: 'danger' | 'warning' | 'info'; borde
 export const InteractionAlert: React.FC<{
   title: string;
   alerts: SafetyAlert[];
-  emptyMessage: string;
+  emptyMessage?: string;
 }> = ({ title, alerts, emptyMessage }) => {
   if (alerts.length === 0) {
-    return (
+    return emptyMessage ? (
       <div className="rounded-2xl border border-dashed border-[#D6F0E8] bg-[#F8FAFC] px-4 py-5 text-sm text-[#64748B]">
         {emptyMessage}
       </div>
-    );
+    ) : null;
   }
 
   return (

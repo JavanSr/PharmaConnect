@@ -54,11 +54,15 @@ type Registration = {
 
 type Tab = 'overview' | 'registrations';
 
+const TIERS = ['ADDO', 'ESSENTIAL', 'STANDARD', 'PREMIUM', 'WHOLESALE', 'ENTERPRISE'] as const;
+
 const TIER_ORDER = ['ADDO', 'STANDARD', 'PREMIUM', 'WHOLESALE', 'ENTERPRISE'];
 
 export const FounderDashboardPage: React.FC = () => {
   const [tab, setTab] = React.useState<Tab>('overview');
   const [extensionDays, setExtensionDays] = React.useState('7');
+  const [setTierTarget, setSetTierTarget] = React.useState<{ id: string; name: string } | null>(null);
+  const [selectedTier, setSelectedTier] = React.useState<string>('STANDARD');
   const queryClient = useQueryClient();
   const toast = useNotificationStore(state => state.toast);
 
@@ -107,6 +111,22 @@ export const FounderDashboardPage: React.FC = () => {
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.error || 'Could not extend trial');
+    },
+  });
+
+  const setTierMutation = useMutation({
+    mutationFn: ({ pharmacyId, tier }: { pharmacyId: string; tier: string }) =>
+      api.patch(`/founder/registrations/${pharmacyId}/set-tier`, { tier }),
+    onSuccess: async (_, { tier }) => {
+      toast.success(`Tier set to ${tier} — access active immediately`);
+      setSetTierTarget(null);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['founder-registrations'] }),
+        queryClient.invalidateQueries({ queryKey: ['founder-stats'] }),
+      ]);
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Could not set tier');
     },
   });
 
@@ -327,6 +347,16 @@ export const FounderDashboardPage: React.FC = () => {
                         </Button>
                         <Button
                           size="sm"
+                          variant="secondary"
+                          onClick={() => {
+                            setSetTierTarget({ id: r.id, name: r.name });
+                            setSelectedTier(r.tier);
+                          }}
+                        >
+                          Set tier
+                        </Button>
+                        <Button
+                          size="sm"
                           variant="danger"
                           loading={suspendMutation.isPending && suspendMutation.variables === r.id}
                           disabled={!r.isActive && r.status === 'SUSPENDED'}
@@ -339,6 +369,33 @@ export const FounderDashboardPage: React.FC = () => {
                           Suspend
                         </Button>
                       </div>
+                      {setTierTarget?.id === r.id && (
+                        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-[#D6F0E8] bg-[#F7FCFA] p-3">
+                          <span className="text-xs font-medium text-[#0D4035]">Activate tier:</span>
+                          {TIERS.map((t) => (
+                            <button
+                              key={t}
+                              onClick={() => setSelectedTier(t)}
+                              className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${selectedTier === t ? 'bg-[#1A6B5C] text-white' : 'bg-[#EDF7F3] text-[#0D4035] hover:bg-[#D6F0E8]'}`}
+                            >
+                              {t}
+                            </button>
+                          ))}
+                          <Button
+                            size="sm"
+                            loading={setTierMutation.isPending}
+                            onClick={() => setTierMutation.mutate({ pharmacyId: r.id, tier: selectedTier })}
+                          >
+                            Activate {selectedTier}
+                          </Button>
+                          <button
+                            className="text-xs text-[#94A3B8] hover:text-[#64748B]"
+                            onClick={() => setSetTierTarget(null)}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

@@ -54,7 +54,19 @@ export function getAnalyticsFeatureSet(subscriptionTier: SubscriptionTier | null
       return {
         tier,
         historyDays: 30,
-        charts: ['summary', 'movements'],
+        charts: ['summary', 'movements', 'revenue', 'stock_value'],
+        stockout: false,
+        benchmark: false,
+        forecast: false,
+        seasonality: false,
+        deadStock: false,
+        multiOutletCompare: false,
+      };
+    case 'ESSENTIAL':
+      return {
+        tier,
+        historyDays: 90,
+        charts: ['summary', 'movements', 'revenue', 'stock_value'],
         stockout: false,
         benchmark: false,
         forecast: false,
@@ -66,13 +78,13 @@ export function getAnalyticsFeatureSet(subscriptionTier: SubscriptionTier | null
       return {
         tier,
         historyDays: 365,
-        charts: ['summary', 'movements', 'stockout'],
-        stockout: true,
+        charts: ['summary', 'movements', 'revenue', 'stock_value', 'margin', 'top_skus', 'weekly_trends', 'compare'],
+        stockout: false,
         benchmark: false,
         forecast: false,
         seasonality: false,
         deadStock: false,
-        multiOutletCompare: false,
+        multiOutletCompare: true,
       };
     case 'PREMIUM':
       return {

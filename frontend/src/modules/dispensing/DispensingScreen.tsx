@@ -1,6 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { format } from 'date-fns';
 import {
   AlertTriangle,
   Camera,
@@ -9,6 +8,7 @@ import {
   ChevronUp,
   Pill,
   Plus,
+  ScanLine,
   Search,
   ShoppingCart,
   Trash2,
@@ -21,9 +21,10 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
-import { useDebounce } from '@/hooks/useDebounce';
 import { api } from '@/lib/api';
-import { downloadReceiptPdf } from '@/lib/receiptPdf';
+import { applyInventoryDeltaToProduct, applyInventoryDeltasToProducts, recordInventoryDelta } from '@/lib/offlineInventory';
+import { cacheProducts, getCachedProductById, searchCachedProducts } from '@/lib/offlineProducts';
+import { enqueueDispensingSession, registerOfflineSync } from '@/lib/offlineSync';
 import {
   LEGACY_DISPENSING_PAYMENT_METHODS,
   type DispensingPaymentMethodOption,
@@ -37,9 +38,11 @@ import { useNotificationStore } from '@/stores/notificationStore';
 import { usePaymentMethodStore } from '@/stores/paymentMethodStore';
 import { usePharmacyStore } from '@/stores/pharmacyStore';
 import type { PaymentMethod, Product } from '@/types';
-import { DoseCalculator } from './DoseCalculator';
-import { PatientSafetyPanel } from './PatientSafetyPanel';
 import type { DispensingCartItem, DispensingReceipt, SafetyReviewResponse, SafetySessionPayload } from './types';
+
+const BarcodeScanner = lazy(() => import('@/components/BarcodeScanner').then((module) => ({ default: module.BarcodeScanner })));
+const DoseCalculator = lazy(() => import('./DoseCalculator').then((module) => ({ default: module.DoseCalculator })));
+const PatientSafetyPanel = lazy(() => import('./PatientSafetyPanel').then((module) => ({ default: module.PatientSafetyPanel })));
 
 const money = (value: number) =>
   new Intl.NumberFormat('en-TZ', {
@@ -47,6 +50,15 @@ const money = (value: number) =>
     currency: 'TZS',
     maximumFractionDigits: 0,
   }).format(value);
+
+const receiptDate = (value: string) =>
+  new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value));
 
 type SessionShortcut = {
   label: string;
@@ -60,14 +72,57 @@ type SessionShortcut = {
   hepaticImpairment: boolean;
 };
 
-type SessionFlagOption = {
-  label: string;
-  value: boolean;
-  setValue: React.Dispatch<React.SetStateAction<boolean>>;
+type CheckoutPayload = {
+  paymentMethod: PaymentMethod;
+  paymentRef?: string;
+  discountAmount?: number;
+  discountReason?: string;
+  safetyContext?: SafetySessionPayload;
+  override?: { reason: string; pic_pin: string };
+  items: Array<{
+    productId: string;
+    quantity: number;
+    unitPrice: number;
+  }>;
 };
 
-const isRetailSafetyTier = (tier?: string | null) => ['STANDARD', 'PREMIUM', 'ENTERPRISE'].includes(tier || '');
 const WALK_IN_LABEL = 'Walk-in customer';
+
+const drugMeaning = (product: Product): string => {
+  if (product.therapeuticCategory) {
+    return product.therapeuticCategory;
+  }
+
+  return product.drugClass.replace(/_/g, ' ').toLowerCase();
+};
+
+const normalizeSearchText = (value?: string | number | null) =>
+  String(value ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+
+const searchTokens = (value: string) => normalizeSearchText(value).split(' ').filter(Boolean);
+
+const valueMatchesTokenPrefix = (value: string | number | null | undefined, token: string) => {
+  const normalized = normalizeSearchText(value);
+  if (!normalized) {
+    return false;
+  }
+
+  return normalized.startsWith(token) || normalized.split(' ').some((word) => word.startsWith(token));
+};
+
+const productMatchesSearch = (product: Product, search: string) => {
+  const tokens = searchTokens(search);
+  if (tokens.length === 0) {
+    return true;
+  }
+
+  const values = [
+    product.genericName,
+    product.brandName,
+  ];
+
+  return tokens.every((token) => values.some((value) => valueMatchesTokenPrefix(value, token)));
+};
 
 const AwarBadge: React.FC<{ awarClass?: Product['awarClass'] }> = ({ awarClass }) => {
   if (awarClass !== 'WATCH' && awarClass !== 'RESERVE') {
@@ -102,9 +157,9 @@ export const DispensingScreen: React.FC = () => {
 
   const [drugSearch, setDrugSearch] = useState('');
   const [showDrugDropdown, setShowDrugDropdown] = useState(false);
+  const [showMedicineScanner, setShowMedicineScanner] = useState(false);
   const [selectedDrug, setSelectedDrug] = useState<Product | null>(null);
   const [quantity, setQuantity] = useState(1);
-  const [counsellingNotes, setCounsellingNotes] = useState('');
   const [cartItems, setCartItems] = useState<DispensingCartItem[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CASH');
   const [paymentRef, setPaymentRef] = useState('');
@@ -131,7 +186,8 @@ export const DispensingScreen: React.FC = () => {
     overrideDraft?: { reason: string; pic_pin: string };
   }>({ review: null, requiresOverride: false });
 
-  const debouncedDrugSearch = useDebounce(drugSearch, 250);
+  const immediateDrugSearch = drugSearch.trim();
+  const [cachedMedicineProducts, setCachedMedicineProducts] = useState<Product[]>([]);
   const cartTotal = useMemo(
     () => cartItems.reduce((sum, item) => sum + (item.unitPrice ?? 0) * item.quantity, 0),
     [cartItems],
@@ -141,10 +197,7 @@ export const DispensingScreen: React.FC = () => {
   const canApplyDiscount = ['OWNER', 'PHARMACIST_IN_CHARGE', 'SUPER_ADMIN'].includes(user?.role || '');
   const normalizedPatientPhone = useMemo(() => normalizePatientPhone(patientPhone), [patientPhone]);
   const patientNameInputValue = patientLabel === WALK_IN_LABEL ? '' : patientLabel;
-  const safetyEnabled =
-    isRetailSafetyTier(pharmacy?.subscriptionTier) &&
-    pharmacy?.pharmacyType !== 'ADDO' &&
-    !['WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF', 'DELIVERY_STAFF', 'WHOLESALE_SELLER'].includes(user?.role || '');
+  const safetyEnabled = !['WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF', 'DELIVERY_STAFF', 'WHOLESALE_SELLER'].includes(user?.role || '');
 
   const sessionPayload = useMemo<SafetySessionPayload>(
     () => ({
@@ -169,13 +222,35 @@ export const DispensingScreen: React.FC = () => {
     ],
   );
 
-  const { data: productResults } = useQuery({
-    queryKey: ['dispensing-products', debouncedDrugSearch],
-    queryFn: () =>
-      api
-        .get('/inventory/products', { params: { search: debouncedDrugSearch, limit: 10 } })
-        .then((response) => response.data),
-    enabled: debouncedDrugSearch.trim().length > 1,
+  const { data: productResults, isFetching: isProductSuggestionsFetching } = useQuery({
+    queryKey: ['dispensing-products', immediateDrugSearch],
+    queryFn: async ({ signal }) => {
+      try {
+        const response = await api
+          .get('/inventory/products/suggestions', {
+            params: { search: immediateDrugSearch, limit: 12 },
+            signal,
+          })
+          .then((r) => r.data);
+        if (Array.isArray(response.data)) {
+          void cacheProducts(response.data);
+          return {
+            ...response,
+            data: await applyInventoryDeltasToProducts(response.data),
+          };
+        }
+        return response;
+      } catch (error) {
+        if (!navigator.onLine) {
+          const cached = await searchCachedProducts(immediateDrugSearch, 12);
+          return { data: await applyInventoryDeltasToProducts(cached), offline: true };
+        }
+        throw error;
+      }
+    },
+    enabled: immediateDrugSearch.length > 0,
+    staleTime: 30_000,
+    networkMode: 'always',
   });
   const paymentMethodsQuery = useQuery({
     queryKey: ['dispensing-payment-methods', pharmacy?.id],
@@ -185,6 +260,15 @@ export const DispensingScreen: React.FC = () => {
   });
 
   const products: Product[] = productResults?.data || [];
+  useEffect(() => {
+    if (Array.isArray(productResults?.data)) {
+      setCachedMedicineProducts(productResults.data);
+    }
+  }, [productResults]);
+  const visibleProducts = useMemo(
+    () => (productResults ? products : cachedMedicineProducts).filter((product) => productMatchesSearch(product, immediateDrugSearch)),
+    [cachedMedicineProducts, immediateDrugSearch, productResults, products],
+  );
   const serverPaymentMethods = (paymentMethodsQuery.data?.data?.methods ?? []) as DispensingPaymentMethodOption[];
   const availablePaymentMethods =
     serverPaymentMethods.length > 0
@@ -213,28 +297,10 @@ export const DispensingScreen: React.FC = () => {
         : pharmacyPatientProfiles.filter((profile) => profile.normalizedPhone.includes(normalizedPatientPhone)),
     [normalizedPatientPhone, pharmacyPatientProfiles],
   );
-  const sessionFlagOptions: SessionFlagOption[] = [
-    { label: 'Pregnant', value: pregnant, setValue: setPregnant },
-    { label: 'Breastfeeding', value: breastfeeding, setValue: setBreastfeeding },
-    { label: 'Renal impairment', value: renalImpairment, setValue: setRenalImpairment },
-    { label: 'Hepatic impairment', value: hepaticImpairment, setValue: setHepaticImpairment },
-  ];
-  const requiredPatientInputKeys = useMemo(
-    () => new Set((safetyStatus.review?.requiredPatientInputs ?? []).map((item) => item.key)),
-    [safetyStatus.review?.requiredPatientInputs],
-  );
   const numericAgeYears = ageYears ? Number(ageYears) : undefined;
   const numericWeightKg = weightKg ? Number(weightKg) : undefined;
   const isPaediatricPatient = typeof numericAgeYears === 'number' && numericAgeYears >= 0 && numericAgeYears < 12;
   const paediatricWeightRequired = cartItems.length > 0 && isPaediatricPatient && !numericWeightKg;
-  const showPatientChecks =
-    cartItems.length > 0 &&
-    (requiredPatientInputKeys.has('diagnoses') ||
-      requiredPatientInputKeys.has('allergies') ||
-      requiredPatientInputKeys.has('pregnant') ||
-      requiredPatientInputKeys.has('breastfeeding') ||
-      requiredPatientInputKeys.has('renalImpairment') ||
-      requiredPatientInputKeys.has('hepaticImpairment'));
 
   const resetPatientProfile = () => {
     setPatientLabel(WALK_IN_LABEL);
@@ -278,6 +344,11 @@ export const DispensingScreen: React.FC = () => {
     setReceipt(null);
   }, [cartItems, paymentMethod, paymentRef]);
   useEffect(() => {
+    if (cartItems.length === 0) {
+      setSafetyStatus({ review: null, requiresOverride: false });
+    }
+  }, [cartItems.length]);
+  useEffect(() => {
     if (pharmacy?.id && serverPaymentMethods.length > 0) {
       cachePaymentMethods(pharmacy.id, serverPaymentMethods);
     }
@@ -288,22 +359,77 @@ export const DispensingScreen: React.FC = () => {
     }
   }, [availablePaymentMethods, paymentMethod]);
 
-  const checkoutMutation = useMutation({
-    mutationFn: () => {
-      const checkoutPayload = {
+  const buildCheckoutPayload = (): CheckoutPayload => ({
+    paymentMethod,
+    paymentRef: paymentRef.trim() || undefined,
+    discountAmount: canApplyDiscount && parsedDiscount > 0 ? parsedDiscount : undefined,
+    discountReason: canApplyDiscount && discountReason.trim() ? discountReason.trim() : undefined,
+    safetyContext: safetyEnabled ? sessionPayload : undefined,
+    override: safetyStatus.requiresOverride ? safetyStatus.overrideDraft : undefined,
+    items: cartItems.map((item) => ({
+      productId: item.product.id,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+    })),
+  });
+
+  const queueOfflineDispensing = async (checkoutPayload: CheckoutPayload) => {
+    if (prescriptionPhoto) {
+      toast.warning('You are offline — prescription photo will not be uploaded. Complete the sale and reattach the photo once connected.');
+    }
+
+    const localTimestamp = new Date().toISOString();
+    const localSessionId = `disp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    await enqueueDispensingSession({
+      localSessionId,
+      localTimestamp,
+      checkout: checkoutPayload,
+    });
+    await Promise.all(
+      cartItems.map((item) =>
+        recordInventoryDelta({
+          productId: item.product.id,
+          quantityDelta: -item.quantity,
+          sourceId: localSessionId,
+          createdAt: localTimestamp,
+        }),
+      ),
+    );
+    await registerOfflineSync('dispensing-session-queue');
+
+    return {
+      data: {
+        id: localSessionId,
+        referenceNumber: `OFF-${localSessionId.slice(-8).toUpperCase()}`,
         paymentMethod,
         paymentRef: paymentRef.trim() || undefined,
-        discountAmount: canApplyDiscount && parsedDiscount > 0 ? parsedDiscount : undefined,
-        discountReason: canApplyDiscount && discountReason.trim() ? discountReason.trim() : undefined,
-        safetyContext: safetyEnabled ? sessionPayload : undefined,
-        override: safetyStatus.requiresOverride ? safetyStatus.overrideDraft : undefined,
-        items: cartItems.map((item) => ({
+        subtotalAmount: cartTotal,
+        discountAmount: canApplyDiscount && parsedDiscount > 0 ? parsedDiscount : 0,
+        totalAmount: totalDue,
+        status: 'QUEUED',
+        vfdStatus: 'PENDING_SYNC',
+        createdAt: localTimestamp,
+        itemCount: cartItems.length,
+        queuedOffline: true,
+        lines: cartItems.map((item) => ({
           productId: item.product.id,
+          productName: item.product.genericName || item.product.name,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
-          counsellingNotes: item.counsellingNotes,
+          totalAmount: item.lineTotal,
         })),
-      };
+      },
+    };
+  };
+
+  const checkoutMutation = useMutation({
+    networkMode: 'always',
+    mutationFn: async () => {
+      const checkoutPayload = buildCheckoutPayload();
+
+      if (!navigator.onLine) {
+        return queueOfflineDispensing(checkoutPayload);
+      }
 
       if (prescriptionPhoto) {
         const formData = new FormData();
@@ -312,7 +438,14 @@ export const DispensingScreen: React.FC = () => {
         return api.post('/dispensing/checkout', formData).then((response) => response.data);
       }
 
-      return api.post('/dispensing/checkout', checkoutPayload).then((response) => response.data);
+      try {
+        return await api.post('/dispensing/checkout', checkoutPayload).then((response) => response.data);
+      } catch (error: any) {
+        if (!error.response) {
+          return queueOfflineDispensing(checkoutPayload);
+        }
+        throw error;
+      }
     },
     onSuccess: (response) => {
       setReceipt(response.data);
@@ -324,17 +457,22 @@ export const DispensingScreen: React.FC = () => {
       setSelectedDrug(null);
       setDrugSearch('');
       resetPatientProfile();
-      toast.success('Dispensing completed');
+      if (response.data?.queuedOffline) {
+        toast.success('Dispensing saved offline and queued for sync');
+      } else {
+        toast.success('Dispensing completed');
+      }
       queryClient.invalidateQueries({ queryKey: ['dashboard-stock'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
       queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['dispensing-products'] });
     },
     onError: (error: any) => {
       const serverReview = error.response?.data?.review;
       if (serverReview) {
         setSafetyStatus((current) => ({ ...current, review: serverReview, requiresOverride: true }));
       }
-      toast.error(error.response?.data?.error || 'Checkout failed');
+      toast.error(error.local ? error.message : error.response?.data?.error || 'Checkout failed');
     },
   });
 
@@ -352,11 +490,13 @@ export const DispensingScreen: React.FC = () => {
     try {
       const response = await api.get(`/inventory/products/${selectedDrug.id}`);
       if (response.data?.data && !Array.isArray(response.data.data)) {
-        latestSelectedDrug = response.data.data as Product;
+        latestSelectedDrug = await applyInventoryDeltaToProduct(response.data.data as Product);
         setSelectedDrug(latestSelectedDrug);
       }
     } catch {
-      // Keep the current selection if the refresh fails; the existing validation below still applies.
+      const fromCache = !navigator.onLine ? await getCachedProductById(selectedDrug.id) : null;
+      latestSelectedDrug = await applyInventoryDeltaToProduct(fromCache ?? latestSelectedDrug);
+      if (fromCache) setSelectedDrug(latestSelectedDrug);
     }
 
     if (!latestSelectedDrug.sellingPrice) {
@@ -376,7 +516,7 @@ export const DispensingScreen: React.FC = () => {
 
     const unitPrice = Number(latestSelectedDrug.sellingPrice ?? 0);
     const lineTotal = Number((unitPrice * quantity).toFixed(2));
-    const lineId = `${latestSelectedDrug.id}:${counsellingNotes.trim().toLowerCase()}`;
+    const lineId = latestSelectedDrug.id;
 
     setCartItems((items) => {
       const existing = items.find((item) => item.id === lineId);
@@ -387,7 +527,6 @@ export const DispensingScreen: React.FC = () => {
             id: lineId,
             product: latestSelectedDrug,
             quantity,
-            counsellingNotes: counsellingNotes.trim() || undefined,
             unitPrice,
             lineTotal,
           },
@@ -409,7 +548,6 @@ export const DispensingScreen: React.FC = () => {
     setSelectedDrug(null);
     setDrugSearch('');
     setQuantity(1);
-    setCounsellingNotes('');
     toast.success('Medicine added to cart');
   };
 
@@ -488,6 +626,36 @@ export const DispensingScreen: React.FC = () => {
     toast.success('Patient saved locally for this pharmacy');
   };
 
+  const handleMedicineBarcodeDetected = async (barcode: string) => {
+    let product: Product | undefined;
+    try {
+      const response = await api
+        .get('/inventory/products/suggestions', { params: { barcode, limit: 1 } })
+        .then((response) => response.data);
+      product = Array.isArray(response.data) ? response.data[0] as Product | undefined : undefined;
+    } catch {
+      if (!navigator.onLine) {
+        const cached = await searchCachedProducts(barcode, 1);
+        product = cached[0];
+      }
+    }
+
+    if (product) {
+      setSelectedDrug(await applyInventoryDeltaToProduct(product));
+      setDrugSearch('');
+      setShowDrugDropdown(false);
+      setShowMedicineScanner(false);
+      toast.success(`Matched ${product.genericName || product.name}`);
+      return;
+    }
+
+    setSelectedDrug(null);
+    setDrugSearch(barcode);
+    setShowDrugDropdown(true);
+    setShowMedicineScanner(false);
+    toast.warning('No exact barcode match. Search results are shown for manual selection.');
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
@@ -518,7 +686,7 @@ export const DispensingScreen: React.FC = () => {
                 <p className="text-sm font-semibold text-[#0D4035]">Dispensing complete</p>
               </div>
               <p className="mt-2 text-sm text-[#475569]">
-                Reference {receipt.referenceNumber} | {format(new Date(receipt.createdAt), 'dd MMM yyyy HH:mm')}
+                Reference {receipt.referenceNumber} | {receiptDate(receipt.createdAt)}
               </p>
                 <p className="mt-1 text-sm text-[#475569]">
                   {receipt.itemCount} item{receipt.itemCount === 1 ? '' : 's'} | {money(receipt.totalAmount)} | {receipt.paymentMethod.replace(/_/g, ' ')}
@@ -531,10 +699,11 @@ export const DispensingScreen: React.FC = () => {
               <Button
                 variant="secondary"
                 size="sm"
-                onClick={() => {
+                onClick={async () => {
+                  const { downloadReceiptPdf } = await import('@/lib/receiptPdf');
                   downloadReceiptPdf({
                     referenceNumber: receipt.referenceNumber,
-                    pharmacyName: pharmacy?.name ?? 'PharmaConnect',
+                    pharmacyName: pharmacy?.name ?? 'APOTEKH',
                     pharmacyAddress: pharmacy?.address ?? 'Address not set',
                     pharmacyLicence: pharmacy?.licenceNumber ?? 'Licence not set',
                     totalAmount: receipt.totalAmount,
@@ -546,7 +715,7 @@ export const DispensingScreen: React.FC = () => {
                       lineTotal: line.totalAmount,
                     })),
                     createdAt: receipt.createdAt,
-                    dispensedBy: user ? `${user.firstName} ${user.lastName}` : 'PharmaConnect user',
+                    dispensedBy: user ? `${user.firstName} ${user.lastName}` : 'APOTEKH user',
                   });
                 }}
               >
@@ -573,9 +742,6 @@ export const DispensingScreen: React.FC = () => {
                 <span className={`text-sm font-medium ${patientLabel === WALK_IN_LABEL ? 'text-[#64748B]' : 'text-[#0D4035]'}`}>
                   {patientLabel === WALK_IN_LABEL ? 'Walk-in' : patientLabel}
                 </span>
-                {patientLabel === WALK_IN_LABEL && (
-                  <span className="text-xs text-[#94A3B8]">Walk-in default</span>
-                )}
                 {patientPhone && patientLabel !== WALK_IN_LABEL && (
                   <span className="text-xs text-[#94A3B8]">{patientPhone}</span>
                 )}
@@ -634,10 +800,10 @@ export const DispensingScreen: React.FC = () => {
 
                 <div className="relative">
                   <Input
-                    label="Customer name (optional)"
+                    label="Patient name / label"
                     value={patientNameInputValue}
                     onChange={(event) => setPatientLabel(event.target.value || WALK_IN_LABEL)}
-                    placeholder="Loyal customer name"
+                    placeholder="Patient Fullname"
                   />
                   {sessionMatches.length > 0 && (
                     <div className="absolute left-0 right-0 top-full z-20 mt-1 rounded-2xl border border-[#D6F0E8] bg-white shadow-lg">
@@ -758,10 +924,10 @@ export const DispensingScreen: React.FC = () => {
 
                 <div className="relative">
                   <Input
-                    label="Customer name (optional)"
+                    label="Patient name / label"
                     value={patientNameInputValue}
                     onChange={(event) => setPatientLabel(event.target.value || WALK_IN_LABEL)}
-                    placeholder="Loyal customer name"
+                    placeholder="Patient Fullname"
                   />
                   {sessionMatches.length > 0 && (
                     <div className="absolute left-0 right-0 top-full z-20 mt-1 rounded-2xl border border-[#D6F0E8] bg-white shadow-lg">
@@ -816,33 +982,60 @@ export const DispensingScreen: React.FC = () => {
                   setShowDrugDropdown(true);
                 }}
                 onFocus={() => setShowDrugDropdown(true)}
-                placeholder="Search product name, generic name, barcode, or SKU"
+                placeholder="Search generic or brand name"
                 leftIcon={<Search size={16} />}
+                rightIcon={
+                  <button
+                    type="button"
+                    onClick={() => setShowMedicineScanner((value) => !value)}
+                    className="rounded-lg p-1 text-[#64748B] hover:bg-[#EDF7F3] hover:text-[#0D4035]"
+                    aria-label={showMedicineScanner ? 'Hide barcode scanner' : 'Scan barcode'}
+                    title={showMedicineScanner ? 'Hide barcode scanner' : 'Scan barcode'}
+                  >
+                    <ScanLine size={16} />
+                  </button>
+                }
               />
-              {showDrugDropdown && !selectedDrug && products.length > 0 && (
+              {showMedicineScanner && (
+                <div className="mt-3 rounded-2xl border border-dashed border-[#D6F0E8] bg-[#F8FCFA] p-4">
+                  <Suspense fallback={<div className="text-sm text-[#64748B]">Loading scanner...</div>}>
+                    <BarcodeScanner label="Scan medicine barcode" placeholder="Scan or type barcode" onDetected={handleMedicineBarcodeDetected} />
+                  </Suspense>
+                </div>
+              )}
+              {showDrugDropdown && !selectedDrug && immediateDrugSearch.length > 0 && (
                 <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-2xl border border-[#D6F0E8] bg-white shadow-lg">
-                  {products.map((product) => (
-                    <button
-                      key={product.id}
-                      type="button"
-                      onClick={() => {
-                        setSelectedDrug(product);
-                        setDrugSearch('');
-                        setShowDrugDropdown(false);
-                      }}
-                      className="block w-full border-b border-[#D6F0E8] px-4 py-3 text-left last:border-b-0 hover:bg-[#EDF7F3]"
-                    >
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-sm font-semibold text-[#0D4035]">
-                          {product.genericName || product.name}
+                  {isProductSuggestionsFetching && visibleProducts.length === 0 && (
+                    <div className="px-4 py-3 text-sm text-[#64748B]">Searching...</div>
+                  )}
+                  {visibleProducts.map((product) => (
+                      <button
+                        key={product.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedDrug(product);
+                          setDrugSearch('');
+                          setShowDrugDropdown(false);
+                        }}
+                        className="block w-full border-b border-[#D6F0E8] px-4 py-3 text-left last:border-b-0 hover:bg-[#EDF7F3]"
+                      >
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm font-semibold text-[#0D4035]">
+                            {product.genericName || product.name}
+                          </p>
+                          <AwarBadge awarClass={product.awarClass} />
+                        </div>
+                        <p className="mt-1 text-xs text-[#64748B]">
+                          {[product.name, product.strength, `Stock: ${product.currentStock ?? 0}`].filter(Boolean).join(' | ')}
                         </p>
-                        <AwarBadge awarClass={product.awarClass} />
-                      </div>
-                      <p className="mt-1 text-xs text-[#64748B]">
-                        {[product.name, product.strength, `Stock: ${product.currentStock ?? 0}`].filter(Boolean).join(' | ')}
-                      </p>
-                    </button>
-                  ))}
+                        <p className="mt-1 text-xs font-medium text-[#1A6B5C]">
+                          {drugMeaning(product)}
+                        </p>
+                      </button>
+                    ))}
+                  {productResults && visibleProducts.length === 0 && !isProductSuggestionsFetching && (
+                    <div className="px-4 py-3 text-sm text-[#64748B]">No matching medicine found</div>
+                  )}
                 </div>
               )}
             </div>
@@ -855,6 +1048,9 @@ export const DispensingScreen: React.FC = () => {
                 </div>
                 <p className="mt-1 text-xs text-[#64748B]">
                   {[selectedDrug.strength, selectedDrug.dosageForm, selectedDrug.tmdaRegistrationNumber].filter(Boolean).join(' | ')}
+                </p>
+                <p className="mt-1 text-xs font-medium text-[#1A6B5C]">
+                  {drugMeaning(selectedDrug)}
                 </p>
                 <p className="mt-1 text-xs text-[#1A6B5C]">
                   {selectedDrug.currentStock ?? 0} units available
@@ -872,17 +1068,6 @@ export const DispensingScreen: React.FC = () => {
               />
             </div>
 
-            <div className="mt-4">
-              <label className="mb-1 block text-sm font-medium text-[#0D4035]">Counselling notes</label>
-              <textarea
-                value={counsellingNotes}
-                onChange={(event) => setCounsellingNotes(event.target.value)}
-                rows={3}
-                className="w-full rounded-2xl border border-[#D6F0E8] px-3 py-2.5 text-sm text-[#0D4035] outline-none transition-colors focus:border-[#1A6B5C] focus:ring-2 focus:ring-[#1A6B5C]/20"
-                placeholder="Optional counselling or adherence notes"
-              />
-            </div>
-
             <div className="mt-4 flex flex-wrap gap-3">
               <Button leftIcon={<Plus size={16} />} onClick={addToCart} disabled={!selectedDrug}>
                 Add to basket
@@ -893,7 +1078,6 @@ export const DispensingScreen: React.FC = () => {
                   setSelectedDrug(null);
                   setDrugSearch('');
                   setQuantity(1);
-                  setCounsellingNotes('');
                 }}
               >
                 Clear line
@@ -901,100 +1085,27 @@ export const DispensingScreen: React.FC = () => {
             </div>
           </Card>
 
-          {showPatientChecks && (
-            <Card
-              header={
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <UserRound size={16} className="text-[#1A6B5C]" />
-                    <span className="text-sm font-semibold text-[#0D4035]">Rule-triggered patient checks</span>
-                  </div>
-                  <Badge variant="warning" size="sm">
-                    After medicine selection
-                  </Badge>
-                </div>
-              }
-            >
-              <div className="rounded-2xl bg-[#F8FAFC] px-4 py-3 text-xs text-[#64748B]">
-                {(safetyStatus.review?.requiredPatientInputs ?? []).map((item) => item.reason).join(' ')}
-              </div>
-
-              {(requiredPatientInputKeys.has('diagnoses') || requiredPatientInputKeys.has('allergies')) && (
-                <div className="mt-4 grid gap-4 md:grid-cols-2">
-                  {requiredPatientInputKeys.has('diagnoses') && (
-                    <div>
-                      <label className="mb-1 block text-sm font-medium text-[#0D4035]">Diagnoses</label>
-                      <textarea
-                        value={diagnosesText}
-                        onChange={(event) => setDiagnosesText(event.target.value)}
-                        rows={3}
-                        className="w-full rounded-2xl border border-[#D6F0E8] px-3 py-2.5 text-sm text-[#0D4035] outline-none transition-colors focus:border-[#1A6B5C] focus:ring-2 focus:ring-[#1A6B5C]/20"
-                        placeholder="Comma separated, e.g. epilepsy, hypertension in pregnancy"
-                      />
-                    </div>
-                  )}
-                  {requiredPatientInputKeys.has('allergies') && (
-                    <div>
-                      <label className="mb-1 block text-sm font-medium text-[#0D4035]">Allergies</label>
-                      <textarea
-                        value={allergiesText}
-                        onChange={(event) => setAllergiesText(event.target.value)}
-                        rows={3}
-                        className="w-full rounded-2xl border border-[#D6F0E8] px-3 py-2.5 text-sm text-[#0D4035] outline-none transition-colors focus:border-[#1A6B5C] focus:ring-2 focus:ring-[#1A6B5C]/20"
-                        placeholder="Comma separated, e.g. penicillin, NSAID"
-                      />
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                {sessionFlagOptions
-                  .filter(({ label }) => {
-                    const key =
-                      label === 'Pregnant'
-                        ? 'pregnant'
-                        : label === 'Breastfeeding'
-                          ? 'breastfeeding'
-                          : label === 'Renal impairment'
-                            ? 'renalImpairment'
-                            : 'hepaticImpairment';
-                    return requiredPatientInputKeys.has(key);
-                  })
-                  .map(({ label, value, setValue }) => (
-                    <button
-                      key={label}
-                      type="button"
-                      onClick={() => setValue(!value)}
-                      className={`rounded-2xl border px-4 py-3 text-left transition-colors ${
-                        value
-                          ? 'border-[#1A6B5C] bg-[#EDF7F3] text-[#0D4035]'
-                          : 'border-[#D6F0E8] bg-white text-[#64748B]'
-                      }`}
-                    >
-                      <p className="text-xs uppercase tracking-wide">{label}</p>
-                      <p className="mt-1 text-sm font-semibold">{value ? 'Yes' : 'No'}</p>
-                    </button>
-                  ))}
-              </div>
-            </Card>
-          )}
-
-          <DoseCalculator
-            patientAgeYears={ageYears}
-            patientWeightKg={weightKg}
-            pediatricWeightRequired={paediatricWeightRequired}
-            onRequestWeight={() => weightInputRef.current?.focus()}
-          />
+          <Suspense fallback={null}>
+            <DoseCalculator
+              patientAgeYears={ageYears}
+              patientWeightKg={weightKg}
+              pediatricWeightRequired={paediatricWeightRequired}
+              onRequestWeight={() => weightInputRef.current?.focus()}
+            />
+          </Suspense>
         </div>
 
         <div className="space-y-5">
-          <PatientSafetyPanel
-            enabled={safetyEnabled}
-            cartItems={cartItems}
-            sessionPayload={sessionPayload}
-            onStatusChange={setSafetyStatus}
-          />
+          {cartItems.length > 0 && (
+            <Suspense fallback={null}>
+              <PatientSafetyPanel
+                enabled={safetyEnabled}
+                cartItems={cartItems}
+                sessionPayload={sessionPayload}
+                onStatusChange={setSafetyStatus}
+              />
+            </Suspense>
+          )}
 
           <Card
             padding={false}
@@ -1137,12 +1248,6 @@ export const DispensingScreen: React.FC = () => {
               {safetyStatus.requiresOverride && !safetyStatus.overrideDraft && (
                 <div className="rounded-2xl border border-[#FDE68A] bg-[#FFFBEB] px-4 py-3 text-xs text-[#92400E]">
                   Add an override reason and PIC PIN in the patient safety panel before checkout.
-                </div>
-              )}
-
-              {!safetyEnabled && pharmacy?.subscriptionTier === 'ADDO' && (
-                <div className="rounded-2xl border border-[#D6F0E8] bg-white px-4 py-3 text-xs text-[#475569]">
-                  ADDO dispensing uses the basic sale flow only. Patient safety tools are intentionally hidden.
                 </div>
               )}
 

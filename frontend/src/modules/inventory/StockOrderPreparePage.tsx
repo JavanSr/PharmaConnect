@@ -56,7 +56,6 @@ export const StockOrderPreparePage: React.FC = () => {
   const [orderId, setOrderId] = useState(id ?? '');
   const [items, setItems] = useState<EditableItem[]>([]);
   const [notes, setNotes] = useState('');
-  const [expectedBy, setExpectedBy] = useState('');
   const [savedState, setSavedState] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [dirtyItemIds, setDirtyItemIds] = useState<Set<string>>(new Set());
   const debouncedSearch = useDebounce(search, 300);
@@ -71,6 +70,7 @@ export const StockOrderPreparePage: React.FC = () => {
   const { data: suggestionsData } = useQuery({
     queryKey: ['stock-order-suggestions'],
     queryFn: () => api.get('/stock-orders/suggestions').then((r) => r.data.data as LowStockSuggestion[]),
+    enabled: suggestionsOpen,
   });
 
   const { data: productData } = useQuery({
@@ -100,12 +100,11 @@ export const StockOrderPreparePage: React.FC = () => {
     if (!orderData) return;
     setItems((orderData.items ?? []) as EditableItem[]);
     setNotes(orderData.notes ?? '');
-    setExpectedBy(orderData.expectedBy ? orderData.expectedBy.slice(0, 10) : '');
   }, [orderData]);
 
   const createOrderMutation = useMutation({
     mutationFn: (payload: { items: OrderItemPayload[] }) =>
-      api.post('/stock-orders', { notes: notes || undefined, expectedBy: expectedBy || undefined, items: payload.items }).then((r) => r.data.data as StockOrder),
+      api.post('/stock-orders', { notes: notes || undefined, items: payload.items }).then((r) => r.data.data as StockOrder),
     onSuccess: (order) => {
       setOrderId(order.id);
       setItems((order.items ?? []) as EditableItem[]);
@@ -146,7 +145,7 @@ export const StockOrderPreparePage: React.FC = () => {
   });
 
   const saveOrderMutation = useMutation({
-    mutationFn: () => api.patch(`/stock-orders/${orderId}`, { notes, expectedBy: expectedBy || null }).then((r) => r.data.data as StockOrder),
+    mutationFn: () => api.patch(`/stock-orders/${orderId}`, { notes }).then((r) => r.data.data as StockOrder),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['stock-orders'] });
       setSavedState('saved');
@@ -386,8 +385,7 @@ export const StockOrderPreparePage: React.FC = () => {
             </div>
           )}
 
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            <Input label="Expected delivery" type="date" value={expectedBy} onChange={(e) => setExpectedBy(e.target.value)} />
+          <div className="mt-5">
             <Input label="Order notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
           </div>
 

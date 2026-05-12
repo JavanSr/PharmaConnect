@@ -14,7 +14,9 @@ function toMembershipRole(role: UserRole): PharmacyMembershipRole {
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('Seeding PharmaConnect database...');
+  console.log('Seeding APOTEKH database...');
+  const oneYearFromNow = new Date();
+  oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);
 
   // Super admin (no pharmacy)
   const superAdmin = await prisma.user.upsert({
@@ -33,13 +35,30 @@ async function main() {
   // Demo pharmacy
   const pharmacy = await prisma.pharmacy.upsert({
     where: { licenceNumber: 'PH-AR-2024-001' },
-    update: {},
+    update: {
+      subscriptionTier: 'ENTERPRISE',
+      billingCycle: 'ANNUAL',
+      status: 'ACTIVE',
+      trialActive: false,
+      trialEndsAt: oneYearFromNow,
+      subscriptionUpdatedAt: new Date(),
+      userLimit: 999,
+      isActive: true,
+    },
     create: {
       name: 'Amani Pharmacy',
       licenceNumber: 'PH-AR-2024-001',
       address: 'Sokoine Road, Arusha Central',
       region: 'Arusha',
       pharmacyType: 'RETAIL',
+      subscriptionTier: 'ENTERPRISE',
+      billingCycle: 'ANNUAL',
+      status: 'ACTIVE',
+      trialActive: false,
+      trialEndsAt: oneYearFromNow,
+      subscriptionUpdatedAt: new Date(),
+      userLimit: 999,
+      isActive: true,
     },
   });
   console.log('Created demo pharmacy:', pharmacy.name);
@@ -115,15 +134,15 @@ async function main() {
           { type: 'paragraph', content: [{ text: 'FEFO (First Expired, First Out) is a critical dispensing principle that ensures patients receive medicines with the longest remaining shelf life. This reduces waste and prevents harm from expired medications.' }] },
           { type: 'heading', attrs: { level: 2 }, content: [{ text: 'Why FEFO matters' }] },
           { type: 'paragraph', content: [{ text: 'Dispensing expired or near-expired medicines exposes patients to reduced efficacy and potential harm. TMDA regulations require pharmacies to maintain FEFO practices.' }] },
-          { type: 'heading', attrs: { level: 2 }, content: [{ text: 'Implementation in PharmaConnect' }] },
-          { type: 'paragraph', content: [{ text: 'PharmaConnect automatically surfaces the earliest-expiring batch when dispensing. Always select the highlighted batch unless clinical circumstances require otherwise.' }] },
+          { type: 'heading', attrs: { level: 2 }, content: [{ text: 'Implementation in APOTEKH' }] },
+          { type: 'paragraph', content: [{ text: 'APOTEKH automatically surfaces the earliest-expiring batch when dispensing. Always select the highlighted batch unless clinical circumstances require otherwise.' }] },
         ],
       },
     },
     {
       slug: 'tanzania-uhi-mandate-guide',
       title: 'Tanzania UHI Mandate: What Pharmacies Must Know',
-      summary: 'The Universal Health Insurance mandate requirements and how PharmaConnect keeps your pharmacy compliant.',
+      summary: 'The Universal Health Insurance mandate requirements and how APOTEKH keeps your pharmacy compliant.',
       category: 'REGULATORY' as const,
       tags: ['uhi', 'nhif', 'regulatory', 'compliance'],
       readingTimeMinutes: 6,
@@ -131,7 +150,7 @@ async function main() {
       publishedAt: new Date('2026-02-01'),
       body: {
         content: [
-          { type: 'paragraph', content: [{ text: "Tanzania's Universal Health Insurance (UHI) mandate requires pharmacies to maintain digital dispensing records linked to patient identifiers. This guide explains what is required and how PharmaConnect addresses each requirement." }] },
+          { type: 'paragraph', content: [{ text: "Tanzania's Universal Health Insurance (UHI) mandate requires pharmacies to maintain digital dispensing records linked to patient identifiers. This guide explains what is required and how APOTEKH addresses each requirement." }] },
           { type: 'heading', attrs: { level: 2 }, content: [{ text: 'Key requirements' }] },
           { type: 'paragraph', content: [{ text: 'Pharmacies must record patient NHIF numbers at point of dispensing, maintain batch-level stock records, and submit claims electronically to NHIF within specified timeframes.' }] },
         ],

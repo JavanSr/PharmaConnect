@@ -22,7 +22,7 @@ export const MODULES: Module[] = [
     features: [
       "Daily workload cards keep priority actions visible",
       "Branch-level status updates surface in one view",
-      "NHIF, inventory, and compliance signals stay visible throughout the day",
+      "Inventory, compliance, and safety signals stay visible throughout the day",
       "Managers see pending tasks without opening multiple tools",
       "Mobile-ready layouts keep the dashboard useful on the move",
     ],
@@ -41,7 +41,7 @@ export const MODULES: Module[] = [
     id: "M02",
     slug: "knowledge-hub",
     name: "Knowledge Hub",
-    description: "A practical content library that supports compliance, CPD, and safer dispensing decisions.",
+    description: "A practical content library that supports compliance and safer dispensing decisions.",
     available: true,
     icon: "BookOpen",
     features: [
@@ -60,7 +60,7 @@ export const MODULES: Module[] = [
       "Sponsored content remains visibly distinct from editorial content",
       "Clinical and compliance content remain easy to scan on mobile",
     ],
-    relatedModules: ["cpd-tracker", "dispensing", "compliance-tracker"],
+    relatedModules: ["dispensing", "compliance-tracker", "analytics"],
   },
   {
     id: "M03",
@@ -110,7 +110,7 @@ export const MODULES: Module[] = [
       "Core compliance views stay usable on mobile devices",
       "Audit history supports inspection review without hidden edits",
     ],
-    relatedModules: ["dashboard", "inventory", "cpd-tracker"],
+    relatedModules: ["dashboard", "inventory", "analytics"],
   },
   {
     id: "M05",
@@ -160,14 +160,14 @@ export const MODULES: Module[] = [
       "Patient UUID stays separate from personal identity data",
       "Workflow performance supports busy counter use",
     ],
-    relatedModules: ["inventory", "knowledge-hub", "cpd-tracker"],
+    relatedModules: ["inventory", "knowledge-hub", "compliance-tracker"],
   },
   {
     id: "M07",
     slug: "cpd-tracker",
     name: "CPD Tracker",
     description: "Professional learning records that connect staff growth with compliance and daily practice.",
-    available: true,
+    available: false,
     icon: "GraduationCap",
     features: [
       "CPD activities stay recorded with dates and evidence",
@@ -252,7 +252,7 @@ export const MODULES: Module[] = [
       "Reorder prompts surface low-stock products at the right moment",
     ],
     howItWorks:
-      "B2B Platform links stock needs to supplier ordering so pharmacies can move from low-stock alert to tracked procurement without leaving PharmaConnect.",
+      "B2B Platform links stock needs to supplier ordering so pharmacies can move from low-stock alert to tracked procurement without leaving APOTEKH.",
     acceptanceCriteria: [
       "Draft orders retain product and quantity details clearly",
       "Received batches connect directly to inventory records",

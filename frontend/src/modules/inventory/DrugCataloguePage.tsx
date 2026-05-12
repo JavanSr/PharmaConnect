@@ -110,7 +110,7 @@ export const DrugCataloguePage: React.FC = () => {
           <div>
             <p className="text-sm font-semibold text-[#0D4035]">What this is</p>
             <p className="mt-1 text-sm text-[#64748B]">
-              A reference catalogue shared by PharmaConnect. It is not your stock list and does not mean the item is available in your pharmacy.
+              A reference catalogue shared by APOTEKH. It is not your stock list and does not mean the item is available in your pharmacy.
             </p>
           </div>
           <div>

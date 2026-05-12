@@ -2,8 +2,8 @@ import { cookies } from "next/headers";
 import InvestorGate from "@/components/InvestorGate";
 
 export const metadata = {
-  title: "Investors - PharmaConnect",
-  description: "Investor access for PharmaConnect.",
+  title: "Investors - APOTEKH",
+  description: "Investor access for APOTEKH.",
 };
 
 const fundingTargets = [
@@ -46,15 +46,14 @@ export default function InvestorsPage() {
           Investor Brief
         </h1>
         <p className="mt-5 max-w-4xl text-slate/70">
-          PharmaConnect is a pharmacy-side operating system for Tanzania and East
-          Africa, prioritizing current adoption through NHIF claims readiness,
-          inventory reliability, compliance, patient safety basics, Knowledge Hub, and
-          CPD Basic.
+          APOTEKH is a pharmacy-side operating system for Tanzania and East
+          Africa, prioritizing current adoption through inventory reliability,
+          compliance, patient safety, Knowledge Hub, and analytics.
         </p>
 
         <section className="mt-12 grid gap-5 md:grid-cols-3">
           {[
-            ["Current focus", "Arusha launch and pharmacy adoption"],
+            ["Current focus", "Dodoma launch and pharmacy adoption"],
             ["Revenue", "Subscription tiers from ADDO to wholesale"],
             ["Moat", "Healthcare-specific workflows and compliance trust"],
           ].map(([label, value]) => (

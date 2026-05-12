@@ -20,9 +20,9 @@ type FormData = z.infer<typeof schema>;
 
 const isDev = import.meta.env.DEV;
 const DEMO_ACCOUNTS = isDev ? [
-  { label: 'Super Admin', email: 'founder@pharmaconnect.tz' },
-  { label: 'Pharmacy Admin', email: 'admin@pharmaconnect.tz' },
-  { label: 'Staff', email: 'staff@pharmaconnect.tz' },
+  { label: 'Super Admin', email: 'founder@pharmaconnect.tz', displayEmail: 'founder@apotekh.co.tz' },
+  { label: 'Pharmacy Admin', email: 'admin@pharmaconnect.tz', displayEmail: 'admin@apotekh.co.tz' },
+  { label: 'Staff', email: 'staff@pharmaconnect.tz', displayEmail: 'staff@apotekh.co.tz' },
   { label: 'Owner', email: 'owner@amani.co.tz' },
   { label: 'Dispenser 2', email: 'dispenser2@amani.co.tz' },
   { label: 'Clerk Demo', email: 'clerk@amani.co.tz' },
@@ -118,7 +118,7 @@ export const LoginPage: React.FC = () => {
         <div className="flex justify-center mb-8">
           <img
             src="/brand/pharmaconnect-logo.svg"
-            alt="PharmaConnect"
+            alt="APOTEKH"
             className="h-10 w-auto"
           />
         </div>
@@ -137,7 +137,7 @@ export const LoginPage: React.FC = () => {
             <Input
               label="Email address"
               type="email"
-              placeholder="admin@pharmaconnect.tz"
+              placeholder="admin@apotekh.co.tz"
               {...register('email')}
               error={errors.email?.message}
               autoComplete="email"
@@ -172,7 +172,7 @@ export const LoginPage: React.FC = () => {
                 className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-[#EDF7F3] transition-colors"
               >
                 <span className="font-medium text-[#1A6B5C]">{account.label}</span>
-                <span className="ml-1 text-[#64748B]">{account.email}</span>
+                <span className="ml-1 text-[#64748B]">{account.displayEmail ?? account.email}</span>
               </button>
             ))}
           </div>
@@ -187,7 +187,7 @@ export const LoginPage: React.FC = () => {
         </div>
 
         <p className="text-center text-xs text-[#64748B] mt-4">
-          Tanzania UHI Mandate compliant · TMDA registered
+          TMDA-ready pharmacy operations
         </p>
       </div>
     </div>

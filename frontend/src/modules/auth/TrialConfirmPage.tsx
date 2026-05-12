@@ -23,7 +23,7 @@ export const TrialConfirmPage: React.FC = () => {
     <div className="min-h-screen bg-[#EDF7F3] flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="flex justify-center mb-8">
-          <img src="/brand/pharmaconnect-logo.svg" alt="PharmaConnect" className="h-10 w-auto" />
+          <img src="/brand/pharmaconnect-logo.svg" alt="APOTEKH" className="h-10 w-auto" />
         </div>
 
         <div className="bg-white rounded-2xl border border-[#D6F0E8] shadow-sm p-8">
@@ -36,7 +36,7 @@ export const TrialConfirmPage: React.FC = () => {
               Welcome, {user?.firstName ?? 'there'}!
             </h1>
             <p className="text-sm text-[#64748B]">
-              {pharmacy?.name ?? 'Your pharmacy'} is now on PharmaConnect.
+              {pharmacy?.name ?? 'Your pharmacy'} is now on APOTEKH.
             </p>
           </div>
 
@@ -44,7 +44,7 @@ export const TrialConfirmPage: React.FC = () => {
           <div className="bg-gradient-to-r from-[#D6F0E8] to-[#EDF7F3] rounded-xl p-4 mb-6 flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold text-[#1A6B5C] uppercase tracking-wide">Free trial</p>
-              <p className="text-2xl font-bold text-[#0D4035]">30 days</p>
+              <p className="text-2xl font-bold text-[#0D4035]">14 days</p>
               <p className="text-xs text-[#64748B]">No credit card required</p>
             </div>
             <div className="text-right">
@@ -68,17 +68,17 @@ export const TrialConfirmPage: React.FC = () => {
           </div>
 
           <Button className="w-full" size="lg" onClick={() => navigate('/dashboard', { replace: true })}>
-            Start using PharmaConnect <ArrowRight size={16} className="ml-2" />
+            Start using APOTEKH <ArrowRight size={16} className="ml-2" />
           </Button>
 
           <p className="text-center text-xs text-[#94A3B8] mt-4">
             Questions? Email us at{' '}
-            <a href="mailto:info@pharmaconnect.tz" className="text-[#1A6B5C]">info@pharmaconnect.tz</a>
+            <a href="mailto:info@apotekh.co.tz" className="text-[#1A6B5C]">info@apotekh.co.tz</a>
           </p>
         </div>
 
         <p className="text-center text-xs text-[#64748B] mt-4">
-          Tanzania UHI Mandate compliant · TMDA registered
+          TMDA-ready pharmacy operations
         </p>
       </div>
     </div>

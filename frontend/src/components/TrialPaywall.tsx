@@ -9,7 +9,7 @@ export const TrialPaywall: React.FC<{ currentTier?: string | null }> = ({ curren
   const user = useAuthStore((state) => state.user);
   const canManageSubscription = ['OWNER', 'SUPER_ADMIN'].includes(user?.role || '');
   const message = encodeURIComponent(
-    `I would like to upgrade PharmaConnect to ${currentTier || 'STANDARD'}`,
+    `I would like to upgrade APOTEKH to ${currentTier || 'STANDARD'}`,
   );
 
   return (
@@ -20,7 +20,7 @@ export const TrialPaywall: React.FC<{ currentTier?: string | null }> = ({ curren
             Trial ended
           </p>
           <h2 className="mt-3 text-3xl font-bold text-[#0D4035]">
-            Your 30-day trial has ended
+            Your 14-day trial has ended
           </h2>
           <p className="mt-3 text-sm text-[#475569]">
             Access is paused until payment is confirmed. {canManageSubscription

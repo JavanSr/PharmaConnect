@@ -33,7 +33,7 @@ type PreferenceRow = {
 };
 
 const resendApiKey = process.env.RESEND_API_KEY;
-const resendFromEmail = process.env.RESEND_FROM_EMAIL || 'PharmaConnect <no-reply@pharmaconnect.tz>';
+const resendFromEmail = process.env.RESEND_FROM_EMAIL || 'APOTEKH <no-reply@apotekh.co.tz>';
 const africasTalkingApiKey = process.env.AFRICAS_TALKING_API_KEY;
 const africasTalkingUsername = process.env.AFRICAS_TALKING_USERNAME || 'sandbox';
 const whatsappApiUrl = process.env.WHATSAPP_API_URL;

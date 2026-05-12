@@ -2,7 +2,7 @@ import { Resend } from 'resend';
 
 let resend: Resend | null = null;
 
-const FROM = process.env.EMAIL_FROM ?? 'PharmaConnect <onboarding@resend.dev>';
+const FROM = process.env.EMAIL_FROM ?? 'APOTEKH <onboarding@resend.dev>';
 const FOUNDER_EMAIL = 'godright.turner@gmail.com';
 const APP_URL = process.env.FRONTEND_URL ?? 'https://pharma-connect-rouge.vercel.app';
 
@@ -50,15 +50,15 @@ function baseLayout(bodyHtml: string): string {
 <body>
   <div class="wrapper">
     <div class="header">
-      <h1>PharmaConnect</h1>
-      <p>Tanzania UHI Mandate compliant · TMDA registered</p>
+      <h1>APOTEKH</h1>
+      <p>TMDA-ready pharmacy operations</p>
     </div>
     <div class="body">
       ${bodyHtml}
     </div>
     <div class="footer">
-      PharmaConnect &nbsp;·&nbsp; Tanzania &nbsp;·&nbsp;
-      <a href="https://pharmaconnect.tz" style="color:#1A6B5C;">pharmaconnect.tz</a>
+      APOTEKH &nbsp;·&nbsp; Tanzania &nbsp;·&nbsp;
+      <a href="https://apotekh.co.tz" style="color:#1A6B5C;">apotekh.co.tz</a>
       <br />If you did not request this email, you can safely ignore it.
     </div>
   </div>
@@ -75,13 +75,13 @@ export async function sendVerificationEmail(opts: {
   const link = `${APP_URL}/auth/verify-email?token=${opts.token}`;
   const html = baseLayout(`
     <p>Hi <strong>${opts.firstName}</strong>,</p>
-    <p>Thanks for registering <strong>${opts.pharmacyName}</strong> on PharmaConnect. Please verify your email address to activate your account.</p>
+    <p>Thanks for registering <strong>${opts.pharmacyName}</strong> on APOTEKH. Please verify your email address to activate your account.</p>
     <a href="${link}" class="btn">Verify my email address</a>
     <p style="font-size:13px;color:#64748B;">This link expires in 24 hours. If the button doesn't work, copy this URL into your browser:</p>
     <p style="font-size:12px;color:#94A3B8;word-break:break-all;">${link}</p>
     <hr class="divider" />
     <div class="info-box">
-      <p>Once verified, your 30-day free trial starts automatically. No credit card required.</p>
+      <p>Once verified, your 14-day free trial starts automatically. No credit card required.</p>
     </div>
   `);
 
@@ -89,7 +89,7 @@ export async function sendVerificationEmail(opts: {
     from: FROM,
     to: opts.to,
     replyTo: FOUNDER_EMAIL,
-    subject: 'Verify your PharmaConnect account',
+    subject: 'Verify your APOTEKH account',
     html,
   });
 }
@@ -103,7 +103,7 @@ export async function sendWelcomeEmail(opts: {
 }) {
   const html = baseLayout(`
     <p>Hi <strong>${opts.firstName}</strong>,</p>
-    <p>Welcome to PharmaConnect! Your account for <strong>${opts.pharmacyName}</strong> is now active. Your 30-day free trial has started.</p>
+    <p>Welcome to APOTEKH! Your account for <strong>${opts.pharmacyName}</strong> is now active. Your 14-day free trial has started.</p>
     <div class="info-box">
       <p><strong>Pharmacy:</strong> ${opts.pharmacyName}</p>
       <p style="margin-top:6px;"><strong>Region:</strong> ${opts.region}</p>
@@ -116,7 +116,7 @@ export async function sendWelcomeEmail(opts: {
       <li>Start recording dispensing transactions</li>
       <li>Track compliance items and staff credentials</li>
     </ul>
-    <a href="${APP_URL}/dashboard" class="btn">Open PharmaConnect</a>
+    <a href="${APP_URL}/dashboard" class="btn">Open APOTEKH</a>
     <hr class="divider" />
     <p style="font-size:13px;color:#64748B;">Questions? Reply to this email — Javan reads every message personally.</p>
   `);
@@ -125,7 +125,7 @@ export async function sendWelcomeEmail(opts: {
     from: FROM,
     to: opts.to,
     replyTo: FOUNDER_EMAIL,
-    subject: `Welcome to PharmaConnect, ${opts.pharmacyName}!`,
+    subject: `Welcome to APOTEKH, ${opts.pharmacyName}!`,
     html,
   });
 }
@@ -158,6 +158,43 @@ export async function sendFounderNotification(opts: {
   });
 }
 
+export async function sendOrderStatusEmail(opts: {
+  to: string;
+  firstName: string;
+  orderNumber: string;
+  status: string;
+  sellerName: string;
+  message: string;
+}) {
+  const statusLabel: Record<string, string> = {
+    CONFIRMED: 'Order confirmed',
+    DISPATCHED: 'Order dispatched',
+    DELIVERED: 'Order delivered',
+    CANCELLED: 'Order cancelled',
+  };
+
+  const html = baseLayout(`
+    <p>Hi <strong>${opts.firstName}</strong>,</p>
+    <p>${opts.message}</p>
+    <div class="info-box">
+      <p><strong>Order:</strong> ${opts.orderNumber}</p>
+      <p style="margin-top:6px;"><strong>Supplier:</strong> ${opts.sellerName}</p>
+      <p style="margin-top:6px;"><strong>Status:</strong> <span class="pill">${opts.status}</span></p>
+    </div>
+    <a href="${APP_URL}/wholesale/orders" class="btn">View order</a>
+    <hr class="divider" />
+    <p style="font-size:13px;color:#64748B;">Questions? Contact your supplier or reply to this email.</p>
+  `);
+
+  await sendEmail({
+    from: FROM,
+    to: opts.to,
+    replyTo: FOUNDER_EMAIL,
+    subject: `${statusLabel[opts.status] ?? 'Order update'}: ${opts.orderNumber}`,
+    html,
+  });
+}
+
 export async function sendPasswordResetEmail(opts: {
   to: string;
   firstName: string;
@@ -166,7 +203,7 @@ export async function sendPasswordResetEmail(opts: {
   const link = `${APP_URL}/auth/reset-password?token=${opts.token}`;
   const html = baseLayout(`
     <p>Hi <strong>${opts.firstName}</strong>,</p>
-    <p>Someone requested a password reset for your PharmaConnect account. If this was you, click the button below.</p>
+    <p>Someone requested a password reset for your APOTEKH account. If this was you, click the button below.</p>
     <a href="${link}" class="btn">Reset my password</a>
     <p style="font-size:13px;color:#64748B;">This link expires in 1 hour. If you didn't request a reset, ignore this email — your password won't change.</p>
   `);
@@ -175,7 +212,7 @@ export async function sendPasswordResetEmail(opts: {
     from: FROM,
     to: opts.to,
     replyTo: FOUNDER_EMAIL,
-    subject: 'Reset your PharmaConnect password',
+    subject: 'Reset your APOTEKH password',
     html,
   });
 }

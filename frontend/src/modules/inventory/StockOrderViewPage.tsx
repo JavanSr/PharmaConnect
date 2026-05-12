@@ -107,7 +107,7 @@ export const StockOrderViewPage: React.FC = () => {
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(16);
-    doc.text(order.pharmacy?.name ?? 'PharmaConnect Pharmacy', 15, y);
+    doc.text(order.pharmacy?.name ?? 'APOTEKH Pharmacy', 15, y);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
     y += 6;

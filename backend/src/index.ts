@@ -55,10 +55,6 @@ if (!validEnvs.includes(process.env.NODE_ENV)) {
   process.exit(1);
 }
 
-if (!process.env.ANTHROPIC_API_KEY) {
-  console.warn('[startup] ANTHROPIC_API_KEY not set - AI catalogue import will be unavailable.');
-}
-
 const app = express();
 const PORT = parseInt(process.env.PORT || '3000', 10);
 
@@ -169,8 +165,12 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+app.get('/api/v1/health', (_req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
 app.get('/', (_req, res) => {
-  res.json({ service: 'PharmaConnect API', status: 'ok' });
+  res.json({ service: 'APOTEKH API', status: 'ok' });
 });
 
 // ── Routes ────────────────────────────────────────────────────────────────────
@@ -220,7 +220,7 @@ if (process.env.NODE_ENV !== 'test') {
   registerVfdRetryJob();
   registerPredictionsJob();
   const server = app.listen(PORT, '0.0.0.0', () => {
-    console.log(`PharmaConnect API running on port ${PORT} [${process.env.NODE_ENV || 'development'}]`);
+    console.log(`APOTEKH API running on port ${PORT} [${process.env.NODE_ENV || 'development'}]`);
     console.log('[startup.config]', {
       port: PORT,
       nodeEnv: process.env.NODE_ENV,

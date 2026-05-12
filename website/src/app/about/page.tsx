@@ -1,6 +1,6 @@
 export const metadata = {
-  title: "About - PharmaConnect",
-  description: "Elihaki M. Y. Javan — Pharmaceutical Technologist and founder of PharmaConnect, the pharmacy-side platform built for Tanzania's 14,000+ pharmacies and ADDOs.",
+  title: "About - APOTEKH",
+  description: "Elihaki M. Y. Javan — Pharmaceutical Technologist and founder of APOTEKH, the pharmacy-side platform built for Tanzania's 14,000+ pharmacies and ADDOs.",
 };
 
 export default function AboutPage() {
@@ -8,14 +8,14 @@ export default function AboutPage() {
     <main className="bg-white py-20">
       <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
         <h1 className="font-serif text-5xl font-semibold text-slate">
-          About PharmaConnect
+          About APOTEKH
         </h1>
         <section className="mt-8 rounded-lg bg-mist p-8">
           <h2 className="text-2xl font-semibold text-slate">Mission and vision</h2>
           <p className="mt-4 text-lg leading-8 text-slate/70">
             Tanzania&apos;s Universal Health Insurance launch made pharmacy-side claim
             readiness, stock discipline, patient safety, and compliance more urgent.
-            PharmaConnect exists to make those daily workflows easier, safer, and more
+            APOTEKH exists to make those daily workflows easier, safer, and more
             auditable for pharmacies and ADDOs.
           </p>
         </section>
@@ -29,13 +29,13 @@ export default function AboutPage() {
               Elihaki M. Y. Javan
             </h2>
             <p className="mt-4 text-slate/70">
-              Elihaki M. Y. Javan is a Pharmaceutical Technologist based in Arusha,
+              Elihaki M. Y. Javan is a Pharmaceutical Technologist based in Dodoma,
               Tanzania, with field exposure across community pharmacies, hospital
               pharmacies, medical supplies supply chain, and professional association
               activity across the country.
             </p>
             <blockquote className="mt-6 border-l-4 border-primary pl-4 font-serif text-xl italic text-slate">
-              &quot;PharmaConnect is not a startup idea. It is the tool I needed and could not find. So I decided to build it.&quot;
+              &quot;APOTEKH is not a startup idea. It is the tool I needed and could not find. So I decided to build it.&quot;
             </blockquote>
           </div>
         </section>

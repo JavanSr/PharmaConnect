@@ -60,8 +60,7 @@ export const InventoryDashboardPage: React.FC = () => {
         <div className="flex gap-2 flex-wrap">
           <Link to="/inventory/receive"><Button leftIcon={<Plus size={16} />}>Receive Stock</Button></Link>
           <Link to="/inventory/adjust"><Button variant="secondary">Adjust Stock</Button></Link>
-          <Link to="/inventory/products"><Button variant="secondary">Products</Button></Link>
-          <Link to="/inventory/import-catalogue"><Button variant="secondary">Import Catalogue</Button></Link>
+          <Link to="/inventory/products"><Button variant="secondary">Products / CSV</Button></Link>
           <Link to="/inventory/drug-master"><Button variant="secondary">Drug Catalogue</Button></Link>
           <Link to="/inventory/batches"><Button variant="secondary">Batches</Button></Link>
           <Link to="/inventory/conflicts"><Button variant="secondary">Conflicts</Button></Link>
@@ -87,7 +86,7 @@ export const InventoryDashboardPage: React.FC = () => {
           <div>
             <p className="text-sm font-semibold text-[#0D4035]">Drug Catalogue</p>
             <p className="mt-1 text-sm text-[#64748B]">
-              A platform master list of medicines and reference details. Use it to match or create local products with cleaner names, strengths, storage flags, and TMDA/NEML context.
+              A platform master list of medicines and reference details. It helps match local products when useful, but it is separate from the pharmacy stock list.
             </p>
           </div>
           <div>
@@ -97,9 +96,9 @@ export const InventoryDashboardPage: React.FC = () => {
             </p>
           </div>
           <div>
-            <p className="text-sm font-semibold text-[#0D4035]">Product options</p>
+            <p className="text-sm font-semibold text-[#0D4035]">Product setup</p>
             <p className="mt-1 text-sm text-[#64748B]">
-              Products is your pharmacy list, Import Catalogue extracts supplier price lists, and Conflicts resolves offline sync differences.
+              Products is where a pharmacy adds items manually or uploads a CSV to start using the system with its own stock list.
             </p>
           </div>
         </div>

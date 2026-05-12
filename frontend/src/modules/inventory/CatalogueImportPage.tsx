@@ -141,10 +141,9 @@ export const CatalogueImportPage: React.FC = () => {
         <span className="text-[#0D4035] font-medium">Import Catalogue</span>
       </div>
 
-      <h1 className="text-xl font-bold text-[#0D4035]">Import Supplier Catalogue</h1>
+      <h1 className="text-xl font-bold text-[#0D4035]">Supplier PDF Import</h1>
       <p className="text-sm text-[#64748B]">
-        Upload a supplier catalogue PDF. AI will extract product names, strengths, and dosage forms.
-        Review the results before saving to your inventory.
+        This assisted PDF workflow is available for later catalogue cleanup. For retail pharmacy onboarding, use Products to upload a CSV or add products manually.
       </p>
 
       {/* Upload zone */}

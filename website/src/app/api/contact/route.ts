@@ -31,13 +31,13 @@ export async function POST(request: Request) {
   const notify = process.env.RESEND_NOTIFY || "elihaki.yusuph@gmail.com";
   await sendResendEmail({
     to: notify,
-    subject: `New PharmaConnect ${body.variant} inquiry`,
+    subject: `New APOTEKH ${body.variant} inquiry`,
     html: `<p>${body.name} submitted a ${body.variant} inquiry.</p><p>${body.email}</p><p>${body.message}</p>`,
   });
   await sendResendEmail({
     to: body.email,
-    subject: "PharmaConnect received your inquiry",
-    html: `<p>Hello ${body.name},</p><p>Thank you for contacting PharmaConnect. We received your ${body.variant} inquiry and will respond within 48 hours.</p>`,
+    subject: "APOTEKH received your inquiry",
+    html: `<p>Hello ${body.name},</p><p>Thank you for contacting APOTEKH. We received your ${body.variant} inquiry and will respond within 48 hours.</p>`,
   });
 
   return NextResponse.json({ success: true });

@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/Badge';
 import { api } from '@/lib/api';
 
 type AnalyticsFeatures = {
-  tier: 'ADDO' | 'STANDARD' | 'PREMIUM' | 'ENTERPRISE' | 'WHOLESALE' | null;
+  tier: 'ADDO' | 'ESSENTIAL' | 'STANDARD' | 'PREMIUM' | 'ENTERPRISE' | 'WHOLESALE' | null;
   stockout: boolean;
   forecast: boolean;
   seasonality: boolean;

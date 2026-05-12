@@ -31,7 +31,7 @@ export async function POST(request: Request) {
   const notify = process.env.RESEND_NOTIFY || "elihaki.yusuph@gmail.com";
   await sendResendEmail({
     to: notify,
-    subject: "New PharmaConnect early access request",
+    subject: "New APOTEKH early access request",
     html: `<p>${body.ownerName} requested early access for ${body.pharmacyName}.</p><p>Phone: ${body.phone}</p><p>Type: ${body.type}</p>`,
   });
 

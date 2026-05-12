@@ -65,6 +65,22 @@ type ProductLookupSummary = {
   strength: string | null;
 };
 
+type ProductSuggestionParams = {
+  search?: string;
+  barcode?: string;
+  sku?: string;
+  limit?: number;
+};
+
+type EnterpriseTransferInput = {
+  destinationPharmacyId: string;
+  productId: string;
+  batchId?: string;
+  destinationProductId?: string;
+  quantity: number;
+  notes?: string;
+};
+
 type ParsedGs1Barcode = {
   raw: string;
   normalizedBarcode: string;
@@ -91,6 +107,12 @@ const DOSAGE_FORM_ALIASES: Record<string, string> = {
   POWDER: 'POWDER',
   SOLUTION: 'SOLUTION',
 };
+
+function uniqueTruthy(values: Array<string | null | undefined>) {
+  return Array.from(
+    new Set(values.map((value) => value?.trim()).filter((value): value is string => Boolean(value))),
+  );
+}
 
 function stockAdjustmentSuggestionInclude() {
   return {
@@ -180,6 +202,119 @@ function toProductData(pharmacyId: string, data: ProductWriteInput): Prisma.Prod
     drugMasterId: data.drugMasterId || undefined,
     lastSupplierId: data.lastSupplierId?.trim() || undefined,
   };
+}
+
+function buildTransferProductMatch(
+  sourceProduct: {
+    drugMasterId: string | null;
+    barcode: string | null;
+    sku: string | null;
+    name: string;
+    genericName: string | null;
+    strength: string | null;
+    dosageForm: string;
+  },
+): Prisma.ProductWhereInput[] {
+  const matches: Prisma.ProductWhereInput[] = [];
+
+  if (sourceProduct.drugMasterId) {
+    matches.push({ drugMasterId: sourceProduct.drugMasterId });
+  }
+
+  if (sourceProduct.barcode) {
+    matches.push({ barcode: sourceProduct.barcode });
+  }
+
+  if (sourceProduct.sku) {
+    matches.push({ sku: sourceProduct.sku });
+  }
+
+  matches.push({
+    name: { equals: sourceProduct.name, mode: 'insensitive' },
+    dosageForm: sourceProduct.dosageForm as any,
+    ...(sourceProduct.strength ? { strength: { equals: sourceProduct.strength, mode: 'insensitive' } } : {}),
+  });
+
+  if (sourceProduct.genericName) {
+    matches.push({
+      genericName: { equals: sourceProduct.genericName, mode: 'insensitive' },
+      dosageForm: sourceProduct.dosageForm as any,
+      ...(sourceProduct.strength ? { strength: { equals: sourceProduct.strength, mode: 'insensitive' } } : {}),
+    });
+  }
+
+  return matches;
+}
+
+async function resolveDestinationProductForTransfer(
+  tx: Prisma.TransactionClient,
+  destinationPharmacyId: string,
+  destinationProductId: string | undefined,
+  sourceProduct: Prisma.ProductGetPayload<{}>,
+) {
+  if (destinationProductId) {
+    const destinationProduct = await tx.product.findFirst({
+      where: {
+        id: destinationProductId,
+        pharmacyId: destinationPharmacyId,
+        isActive: true,
+      },
+    });
+
+    if (!destinationProduct) {
+      throw Object.assign(new Error('Destination product not found'), {
+        status: 404,
+        code: 'DESTINATION_PRODUCT_NOT_FOUND',
+      });
+    }
+
+    return { product: destinationProduct, created: false };
+  }
+
+  const existingProduct = await tx.product.findFirst({
+    where: {
+      pharmacyId: destinationPharmacyId,
+      isActive: true,
+      OR: buildTransferProductMatch(sourceProduct),
+    },
+    orderBy: [{ updatedAt: 'desc' }],
+  });
+
+  if (existingProduct) {
+    return { product: existingProduct, created: false };
+  }
+
+  const createdProduct = await tx.product.create({
+    data: toProductData(destinationPharmacyId, {
+      name: sourceProduct.name,
+      genericName: sourceProduct.genericName ?? undefined,
+      brandName: sourceProduct.brandName ?? undefined,
+      sku: sourceProduct.sku ?? undefined,
+      barcode: sourceProduct.barcode ?? undefined,
+      dosageForm: sourceProduct.dosageForm,
+      strength: sourceProduct.strength ?? undefined,
+      unitOfMeasure: sourceProduct.unitOfMeasure,
+      drugClass: sourceProduct.drugClass,
+      description: sourceProduct.description ?? undefined,
+      reorderLevel: sourceProduct.reorderLevel,
+      sellingPrice: sourceProduct.sellingPrice == null ? undefined : Number(sourceProduct.sellingPrice),
+      tmda: sourceProduct.tmda ?? undefined,
+      tmdaRegistrationNumber: sourceProduct.tmdaRegistrationNumber ?? undefined,
+      coldChainRequired: sourceProduct.coldChainRequired,
+      storageCondition: sourceProduct.storageCondition,
+      retailStock: sourceProduct.retailStock,
+      wholesaleStock: sourceProduct.wholesaleStock,
+      wholesaleSellingPrice:
+        sourceProduct.wholesaleSellingPrice == null ? undefined : Number(sourceProduct.wholesaleSellingPrice),
+      manufacturer: sourceProduct.manufacturer ?? undefined,
+      therapeuticCategory: sourceProduct.therapeuticCategory ?? undefined,
+      drugMasterId: sourceProduct.drugMasterId ?? undefined,
+    }),
+  });
+
+  await syncUnverifiedProductReviewQueue(tx, destinationPharmacyId, createdProduct);
+
+  return { product: createdProduct, created: true };
 }
 
 function formatMasterProductName(masterProduct: {
@@ -395,10 +530,18 @@ async function enrichProductsWithAwarClass<T extends {
     return [];
   }
 
-  const awarRows = await prisma.drugDatabase.findMany({
-    where: { awarClass: { not: null } },
-    select: { genericName: true, awarClass: true },
-  });
+  const lookupNames = uniqueTruthy(products.map((product) => product.genericName ?? product.name));
+  const awarRows = lookupNames.length > 0
+    ? await prisma.drugDatabase.findMany({
+        where: {
+          awarClass: { not: null },
+          OR: lookupNames.map((name) => ({
+            genericName: { equals: name, mode: 'insensitive' as const },
+          })),
+        },
+        select: { genericName: true, awarClass: true },
+      })
+    : [];
   const awarMatches = awarRows
     .filter((row): row is { genericName: string; awarClass: AwarClass } => isAwarClass(row.awarClass))
     .map((row) => ({
@@ -483,6 +626,97 @@ function collapseProductSearchResults<T extends {
   }
 
   return sortProductsByStockAndRecency([...bestByIdentity.values()]);
+}
+
+function collapseProductSearchResultsInOrder<T extends {
+  id: string;
+  name: string;
+  genericName?: string | null;
+  strength?: string | null;
+  dosageForm: string;
+  drugMasterId?: string | null;
+}>(products: T[]) {
+  const seen = new Set<string>();
+  const collapsed: T[] = [];
+
+  for (const product of products) {
+    const identity = productSearchIdentity(product);
+    if (seen.has(identity)) {
+      continue;
+    }
+    seen.add(identity);
+    collapsed.push(product);
+  }
+
+  return collapsed;
+}
+
+function rankProductSuggestion(product: {
+  genericName?: string | null;
+  brandName?: string | null;
+}, search: string) {
+  const query = normalizeCatalogSearchValue(search);
+  if (!query) {
+    return 0;
+  }
+
+  const score = (
+    value: string | null | undefined,
+    exact: number,
+    fieldStartsWith: number,
+    wordStartsWith: number,
+    contains: number,
+  ) => {
+    const normalized = normalizeCatalogSearchValue(value);
+    if (!normalized) {
+      return Number.POSITIVE_INFINITY;
+    }
+    if (normalized === query) {
+      return exact;
+    }
+    if (normalized.startsWith(query)) {
+      return fieldStartsWith;
+    }
+    if (normalized.split(' ').some((word) => word.startsWith(query))) {
+      return wordStartsWith;
+    }
+    return normalized.includes(query) ? contains : Number.POSITIVE_INFINITY;
+  };
+
+  return Math.min(
+    score(product.genericName, 0, 2, 4, 80),
+    score(product.brandName, 1, 3, 5, 82),
+  );
+}
+
+const STRONG_SUGGESTION_RANK_CUTOFF = 80;
+
+function sortProductsBySuggestionRelevance<T extends {
+  name: string;
+  genericName?: string | null;
+  brandName?: string | null;
+  currentStock?: number | null;
+  createdAt: Date | string;
+}>(products: T[], search: string) {
+  return [...products].sort((left, right) => {
+    const rankDiff = rankProductSuggestion(left, search) - rankProductSuggestion(right, search);
+    if (rankDiff !== 0) {
+      return rankDiff;
+    }
+
+    const stockDiff = (right.currentStock ?? 0) - (left.currentStock ?? 0);
+    if (stockDiff !== 0) {
+      return stockDiff;
+    }
+
+    const createdAtDiff =
+      new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
+    if (createdAtDiff !== 0) {
+      return createdAtDiff;
+    }
+
+    return left.name.localeCompare(right.name);
+  });
 }
 
 function parseGs1Barcode(value: string): ParsedGs1Barcode | null {
@@ -675,6 +909,131 @@ export async function listProducts(
     page,
     limit,
     totalPages: resultTotal > 0 ? Math.ceil(resultTotal / limit) : 0,
+  };
+}
+
+export async function suggestProducts(pharmacyId: string, params: ProductSuggestionParams) {
+  const limit = Math.max(1, Math.min(params.limit ?? 10, 25));
+  const search = params.search?.trim();
+  const barcode = params.barcode?.trim();
+  const sku = params.sku?.trim();
+
+  if (!search && !barcode && !sku) {
+    return { data: [], total: 0, page: 1, limit, totalPages: 0 };
+  }
+
+  const baseWhere: Prisma.ProductWhereInput = {
+    pharmacyId,
+    isActive: true,
+    ...(barcode ? { barcode } : {}),
+    ...(sku ? { sku } : {}),
+  };
+
+  const selectProducts = (where: Prisma.ProductWhereInput, take: number) =>
+    prisma.product.findMany({
+      where,
+      take,
+      orderBy: [{ name: 'asc' }, { createdAt: 'desc' }],
+      select: {
+        id: true,
+        pharmacyId: true,
+        name: true,
+        genericName: true,
+        brandName: true,
+        sku: true,
+        barcode: true,
+        dosageForm: true,
+        strength: true,
+        unitOfMeasure: true,
+        drugClass: true,
+        reorderLevel: true,
+        sellingPrice: true,
+        tmda: true,
+        tmdaRegistrationNumber: true,
+        coldChainRequired: true,
+        storageCondition: true,
+        manufacturer: true,
+        therapeuticCategory: true,
+        isActive: true,
+        drugMasterId: true,
+        createdAt: true,
+      },
+    });
+
+  const candidateLimit = search
+    ? search.length === 1
+      ? limit
+      : search.length === 2
+        ? Math.min(Math.max(limit * 2, 24), 30)
+        : Math.min(Math.max(limit * 4, 40), 60)
+    : limit;
+  const products = await withPrismaRetry(async () => {
+    if (!search) {
+      return selectProducts(baseWhere, candidateLimit);
+    }
+
+    const prefixOr: Prisma.ProductWhereInput[] = [
+      { genericName: { startsWith: search, mode: 'insensitive' } },
+      { brandName: { startsWith: search, mode: 'insensitive' } },
+    ];
+
+    const prefixProducts = await selectProducts({ ...baseWhere, OR: prefixOr }, candidateLimit);
+    if (prefixProducts.length >= limit || search.length < 3) {
+      return prefixProducts;
+    }
+
+    const prefixIds = prefixProducts.map((product) => product.id);
+    const containsOr: Prisma.ProductWhereInput[] = [
+      { genericName: { contains: search, mode: 'insensitive' } },
+      { brandName: { contains: search, mode: 'insensitive' } },
+    ];
+    const fallbackProducts = await selectProducts(
+      {
+        ...baseWhere,
+        ...(prefixIds.length > 0 ? { id: { notIn: prefixIds } } : {}),
+        OR: containsOr,
+      },
+      candidateLimit,
+    );
+
+    return [...prefixProducts, ...fallbackProducts];
+  });
+
+  if (products.length === 0) {
+    return { data: [], total: 0, page: 1, limit, totalPages: 0 };
+  }
+
+  const stockGroups = await prisma.batch.groupBy({
+    by: ['productId'],
+    where: {
+      pharmacyId,
+      productId: { in: products.map((product) => product.id) },
+      quantityRemaining: { gt: 0 },
+    },
+    _sum: { quantityRemaining: true },
+  });
+  const stockByProduct = new Map(
+    stockGroups.map((group) => [group.productId, group._sum.quantityRemaining ?? 0]),
+  );
+  const withStock = products.map((product) => ({
+    ...product,
+    currentStock: stockByProduct.get(product.id) ?? 0,
+  }));
+  const ordered = search ? sortProductsBySuggestionRelevance(withStock, search) : sortProductsByStockAndRecency(withStock);
+  const strongMatches = search
+    ? ordered.filter((product) => rankProductSuggestion(product, search) < STRONG_SUGGESTION_RANK_CUTOFF)
+    : [];
+  const collapsed = search
+    ? collapseProductSearchResultsInOrder(strongMatches.length > 0 ? strongMatches : ordered)
+    : sortProductsByStockAndRecency(withStock);
+  const enriched = await enrichProductsWithAwarClass(collapsed.slice(0, limit));
+
+  return {
+    data: enriched,
+    total: enriched.length,
+    page: 1,
+    limit,
+    totalPages: enriched.length > 0 ? 1 : 0,
   };
 }
 
@@ -1165,6 +1524,7 @@ export async function receiveBatch(
     purchasePrice: number;
     sellingPrice?: number;
     supplierId?: string;
+    localTimestamp?: string;
   },
 ) {
   return withPrismaRetry(() => prisma.$transaction(async (tx) => {
@@ -1227,6 +1587,8 @@ export async function receiveBatch(
         type: 'RECEIVED',
         quantity: data.quantityRemaining,
         notes: 'Stock intake',
+        localCreatedAt: data.localTimestamp ? new Date(data.localTimestamp) : new Date(),
+        syncedAt: new Date(),
       },
     });
 
@@ -1324,6 +1686,270 @@ export async function adjustStock(
       },
     });
   });
+}
+
+export async function listEnterpriseOutlets(pharmacyId: string, userId: string, allowAllDestinations = false) {
+  const now = new Date();
+
+  const select = {
+    id: true,
+    name: true,
+    licenceNumber: true,
+    region: true,
+    pharmacyType: true,
+    subscriptionTier: true,
+    status: true,
+  } as const;
+
+  if (allowAllDestinations) {
+    const outlets = await withPrismaRetry(() => prisma.pharmacy.findMany({
+      where: {
+        id: { not: pharmacyId },
+        isActive: true,
+        subscriptionTier: 'ENTERPRISE',
+      },
+      select,
+      orderBy: [{ name: 'asc' }],
+    }));
+
+    return {
+      enabled: true,
+      outlets,
+    };
+  }
+
+  const memberships = await withPrismaRetry(() => prisma.pharmacyMembership.findMany({
+    where: {
+      userId,
+      active: true,
+      OR: [
+        { validFrom: null },
+        { validFrom: { lte: now } },
+      ],
+      AND: [
+        {
+          OR: [
+            { validUntil: null },
+            { validUntil: { gte: now } },
+          ],
+        },
+      ],
+      pharmacy: {
+        id: { not: pharmacyId },
+        isActive: true,
+        subscriptionTier: 'ENTERPRISE',
+      },
+    },
+    select: {
+      role: true,
+      pharmacy: { select },
+    },
+    orderBy: [{ pharmacy: { name: 'asc' } }],
+  }));
+
+  return {
+    enabled: true,
+    outlets: memberships.map((membership) => ({
+      ...membership.pharmacy,
+      role: membership.role,
+    })),
+  };
+}
+
+export async function transferStockBetweenOutlets(
+  pharmacyId: string,
+  userId: string,
+  allowAnyDestination: boolean,
+  data: EnterpriseTransferInput,
+) {
+  if (data.destinationPharmacyId === pharmacyId) {
+    throw Object.assign(new Error('Destination outlet must be different from the source outlet'), {
+      status: 400,
+      code: 'SAME_OUTLET_TRANSFER',
+    });
+  }
+
+  return withPrismaRetry(() => prisma.$transaction(async (tx) => {
+    const now = new Date();
+
+    const destination = await tx.pharmacy.findFirst({
+      where: {
+        id: data.destinationPharmacyId,
+        isActive: true,
+        subscriptionTier: 'ENTERPRISE',
+      },
+      select: {
+        id: true,
+        name: true,
+        licenceNumber: true,
+        region: true,
+        subscriptionTier: true,
+      },
+    });
+
+    if (!destination) {
+      throw Object.assign(new Error('Destination enterprise outlet not found'), {
+        status: 404,
+        code: 'DESTINATION_OUTLET_NOT_FOUND',
+      });
+    }
+
+    if (!allowAnyDestination) {
+      const membership = await tx.pharmacyMembership.findFirst({
+        where: {
+          userId,
+          pharmacyId: data.destinationPharmacyId,
+          active: true,
+          OR: [
+            { validFrom: null },
+            { validFrom: { lte: now } },
+          ],
+          AND: [
+            {
+              OR: [
+                { validUntil: null },
+                { validUntil: { gte: now } },
+              ],
+            },
+          ],
+        },
+        select: { id: true },
+      });
+
+      if (!membership) {
+        throw Object.assign(new Error('User is not a member of the destination outlet'), {
+          status: 403,
+          code: 'DESTINATION_MEMBERSHIP_REQUIRED',
+        });
+      }
+    }
+
+    const sourceBatch = await tx.batch.findFirst({
+      where: data.batchId
+        ? {
+            id: data.batchId,
+            pharmacyId,
+            productId: data.productId,
+          }
+        : {
+            pharmacyId,
+            productId: data.productId,
+            quantityRemaining: { gte: data.quantity },
+          },
+      include: {
+        product: true,
+      },
+      orderBy: data.batchId ? undefined : [{ expiryDate: 'asc' }, { receivedAt: 'asc' }],
+    });
+
+    if (!sourceBatch || !sourceBatch.product.isActive) {
+      throw Object.assign(new Error('Source product batch not found'), {
+        status: 404,
+        code: 'SOURCE_BATCH_NOT_FOUND',
+      });
+    }
+
+    if (sourceBatch.quantityRemaining < data.quantity) {
+      throw Object.assign(new Error('Source batch does not have enough stock for this transfer'), {
+        status: 409,
+        code: 'INSUFFICIENT_SOURCE_STOCK',
+      });
+    }
+
+    const decrement = await tx.batch.updateMany({
+      where: {
+        id: sourceBatch.id,
+        pharmacyId,
+        quantityRemaining: { gte: data.quantity },
+      },
+      data: {
+        quantityRemaining: { decrement: data.quantity },
+      },
+    });
+
+    if (decrement.count !== 1) {
+      throw Object.assign(new Error('Source stock changed while creating the transfer'), {
+        status: 409,
+        code: 'SOURCE_STOCK_CHANGED',
+      });
+    }
+
+    const destinationProductResult = await resolveDestinationProductForTransfer(
+      tx,
+      data.destinationPharmacyId,
+      data.destinationProductId,
+      sourceBatch.product,
+    );
+
+    const destinationBatch = await tx.batch.create({
+      data: {
+        productId: destinationProductResult.product.id,
+        pharmacyId: data.destinationPharmacyId,
+        batchNumber: sourceBatch.batchNumber,
+        expiryDate: sourceBatch.expiryDate,
+        quantityRemaining: data.quantity,
+        purchasePrice: sourceBatch.purchasePrice,
+      },
+    });
+
+    const trimmedNote = data.notes?.trim();
+    const sourceNote = [
+      `Transfer to ${destination.name}`,
+      destination.licenceNumber ? `licence ${destination.licenceNumber}` : null,
+      trimmedNote || null,
+    ].filter(Boolean).join(' - ');
+
+    const destinationNote = [
+      `Transfer from source outlet`,
+      trimmedNote || null,
+    ].filter(Boolean).join(' - ');
+
+    const sourceMovement = await tx.stockMovement.create({
+      data: {
+        pharmacyId,
+        productId: data.productId,
+        batchId: sourceBatch.id,
+        userId,
+        type: 'TRANSFERRED',
+        quantity: data.quantity,
+        notes: sourceNote,
+        localCreatedAt: now,
+        syncedAt: now,
+      },
+    });
+    const destinationMovement = await tx.stockMovement.create({
+      data: {
+        pharmacyId: data.destinationPharmacyId,
+        productId: destinationProductResult.product.id,
+        batchId: destinationBatch.id,
+        userId,
+        type: 'TRANSFERRED',
+        quantity: data.quantity,
+        notes: destinationNote,
+        localCreatedAt: now,
+        syncedAt: now,
+      },
+    });
+
+    return {
+      quantity: data.quantity,
+      source: {
+        pharmacyId,
+        productId: data.productId,
+        batchId: sourceBatch.id,
+        movementId: sourceMovement.id,
+        remainingQuantity: sourceBatch.quantityRemaining - data.quantity,
+      },
+      destination: {
+        pharmacyId: data.destinationPharmacyId,
+        pharmacyName: destination.name,
+        productId: destinationProductResult.product.id,
+        productCreated: destinationProductResult.created,
+        batchId: destinationBatch.id,
+        movementId: destinationMovement.id,
+      },
+    };
+  }));
 }
 
 function toApprovedSuggestionMovementType(reason: string, quantityDelta: number): 'ADJUSTED' | 'DAMAGED' | 'EXPIRED_REMOVED' | 'RETURNED' {
@@ -1726,26 +2352,69 @@ export async function dashboardSummary(
   const todayStart = params.dateFrom ? new Date(params.dateFrom) : new Date(new Date().setHours(0, 0, 0, 0));
   const todayEnd = params.dateTo ? new Date(params.dateTo) : new Date(new Date().setHours(23, 59, 59, 999));
 
-  const [products, stockGroups, expiryBatches, expiryCount, recentMovements, todayGroups] = await Promise.all([
-    prisma.product.findMany({
-      where: { pharmacyId, isActive: true },
-      select: {
-        id: true,
-        name: true,
-        reorderLevel: true,
-      },
-      orderBy: { name: 'asc' },
-    }),
-    prisma.batch.groupBy({
-      by: ['productId'],
-      where: {
-        pharmacyId,
-        quantityRemaining: { gt: 0 },
-      },
-      _sum: {
-        quantityRemaining: true,
-      },
-    }),
+  type LowStockRow = {
+    id: string;
+    name: string;
+    genericName: string | null;
+    brandName: string | null;
+    barcode: string | null;
+    dosageForm: string;
+    strength: string | null;
+    reorderLevel: number;
+    currentStock: number | bigint;
+  };
+  type CountRow = { count: number | bigint };
+
+  const [totalProducts, lowStockProductsRaw, lowStockCountRows, expiryBatches, expiryCount, recentMovements, todayGroups] = await Promise.all([
+    prisma.product.count({ where: { pharmacyId, isActive: true } }),
+    prisma.$queryRaw<LowStockRow[]>`
+      SELECT
+        p."id",
+        p."name",
+        p."genericName",
+        p."brandName",
+        p."barcode",
+        CAST(p."dosageForm" AS TEXT) AS "dosageForm",
+        p."strength",
+        p."reorderLevel",
+        COALESCE(SUM(b."quantityRemaining"), 0)::int AS "currentStock"
+      FROM "products" p
+      LEFT JOIN "batches" b
+        ON b."productId" = p."id"
+        AND b."pharmacyId" = p."pharmacyId"
+        AND b."quantityRemaining" > 0
+      WHERE p."pharmacyId" = ${pharmacyId}
+        AND p."isActive" = true
+      GROUP BY
+        p."id",
+        p."name",
+        p."genericName",
+        p."brandName",
+        p."barcode",
+        p."dosageForm",
+        p."strength",
+        p."reorderLevel"
+      HAVING COALESCE(SUM(b."quantityRemaining"), 0) < p."reorderLevel"
+      ORDER BY
+        (COALESCE(SUM(b."quantityRemaining"), 0)::float / GREATEST(p."reorderLevel", 1)) ASC,
+        p."name" ASC
+      LIMIT 6
+    `,
+    prisma.$queryRaw<CountRow[]>`
+      SELECT COUNT(*)::int AS "count"
+      FROM (
+        SELECT p."id"
+        FROM "products" p
+        LEFT JOIN "batches" b
+          ON b."productId" = p."id"
+          AND b."pharmacyId" = p."pharmacyId"
+          AND b."quantityRemaining" > 0
+        WHERE p."pharmacyId" = ${pharmacyId}
+          AND p."isActive" = true
+        GROUP BY p."id", p."reorderLevel"
+        HAVING COALESCE(SUM(b."quantityRemaining"), 0) < p."reorderLevel"
+      ) low_stock
+    `,
     prisma.batch.findMany({
       where: {
         pharmacyId,
@@ -1800,20 +2469,11 @@ export async function dashboardSummary(
     }),
   ]);
 
-  const stockByProduct = new Map(
-    stockGroups.map((group) => [group.productId, group._sum.quantityRemaining ?? 0]),
-  );
-  const lowStockProducts = products
-    .map((product) => ({
-      ...product,
-      currentStock: stockByProduct.get(product.id) ?? 0,
-    }))
-    .filter((product) => product.currentStock < product.reorderLevel)
-    .sort((a, b) => {
-      const aRatio = a.currentStock / Math.max(a.reorderLevel || 1, 1);
-      const bRatio = b.currentStock / Math.max(b.reorderLevel || 1, 1);
-      return aRatio - bRatio;
-    });
+  const lowStockProducts = lowStockProductsRaw.map((product) => ({
+    ...product,
+    currentStock: Number(product.currentStock),
+  }));
+  const lowStockCount = Number(lowStockCountRows[0]?.count ?? 0);
 
   const todayByType = new Map<MovementType, { quantity: number; count: number }>(
     todayGroups.map((group) => [
@@ -1828,9 +2488,9 @@ export async function dashboardSummary(
     .reduce((sum, type) => sum + (todayByType.get(type)?.count ?? 0), 0);
 
   return {
-    totalProducts: products.length,
-    lowStockCount: lowStockProducts.length,
-    lowStockProducts: lowStockProducts.slice(0, 6),
+    totalProducts,
+    lowStockCount,
+    lowStockProducts,
     expiryCount,
     expiryBatches,
     recentMovements,
@@ -2015,6 +2675,9 @@ export async function searchDrugMaster(params: {
   const currentPage = Math.max(1, page);
   const skip = (currentPage - 1) * take;
   const trimmedQuery = query.trim();
+  const textFilter = trimmedQuery.length < 3
+    ? { startsWith: trimmedQuery, mode: 'insensitive' as const }
+    : { contains: trimmedQuery, mode: 'insensitive' as const };
 
   const where: Prisma.DrugProductWhereInput = {
     isActive: true,
@@ -2023,20 +2686,31 @@ export async function searchDrugMaster(params: {
     ...(trimmedQuery
       ? {
           OR: [
-            { productName: { contains: trimmedQuery, mode: 'insensitive' } },
-            { genericName: { contains: trimmedQuery, mode: 'insensitive' } },
-            { tmdaRegistrationNumber: { contains: trimmedQuery, mode: 'insensitive' } },
-            { msdCode: { contains: trimmedQuery, mode: 'insensitive' } },
-            { brand: { is: { name: { contains: trimmedQuery, mode: 'insensitive' } } } },
-            { manufacturer: { is: { name: { contains: trimmedQuery, mode: 'insensitive' } } } },
-            { aliases: { some: { alias: { contains: trimmedQuery, mode: 'insensitive' } } } },
+            { genericName: textFilter },
+            { brand: { is: { name: textFilter } } },
           ],
         }
       : {}),
   };
 
-  const [rows, total] = await prisma.$transaction([
-    prisma.drugProduct.findMany({
+  const rowQuery = prisma.drugProduct.findMany({
+    where,
+    skip,
+    take,
+    orderBy: [{ genericName: 'asc' }, { productName: 'asc' }],
+    include: {
+      brand: { select: { name: true } },
+      manufacturer: { select: { name: true } },
+      dosageForm: { select: { name: true } },
+      packSize: { select: { quantity: true, unit: true } },
+      therapeuticClass: { select: { name: true } },
+    },
+  });
+
+  const [rows, total] = trimmedQuery
+    ? [await rowQuery, undefined]
+    : await prisma.$transaction([
+      prisma.drugProduct.findMany({
       where,
       skip,
       take,
@@ -2051,6 +2725,7 @@ export async function searchDrugMaster(params: {
     }),
     prisma.drugProduct.count({ where }),
   ]);
+  const resolvedTotal = total ?? rows.length;
 
   return {
     data: rows.map((row) => ({
@@ -2072,10 +2747,10 @@ export async function searchDrugMaster(params: {
       verificationStatus: row.registrationStatus,
     })),
     meta: {
-      total,
+      total: resolvedTotal,
       page: currentPage,
       limit: take,
-      totalPages: total === 0 ? 0 : Math.ceil(total / take),
+      totalPages: resolvedTotal === 0 ? 0 : Math.ceil(resolvedTotal / take),
     },
   };
 }

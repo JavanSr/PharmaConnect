@@ -1,9 +1,10 @@
+import crypto from 'crypto';
 import type { Request, Response, NextFunction } from 'express';
 import { verifyAccess } from '../lib/jwt';
 import { prisma } from '../lib/prisma';
 import { withPrismaRetry } from '../lib/prisma-retry';
 import { normalizeRole, type AppRole, type KnownRole, type PharmacyAccessSnapshot } from '../types/roles';
-import { resolveActiveMembership, resolveEffectiveScopedRole } from '../modules/auth/pharmacy-membership.service';
+import { resolveEffectiveScopedRole } from '../modules/auth/pharmacy-membership.service';
 
 export interface VerifiedPicUser {
   userId: string;
@@ -28,6 +29,15 @@ export interface AuthRequest extends Request {
     assignedPickerUserId?: string;
   };
   picVerifiedUser?: VerifiedPicUser;
+}
+
+const authContextCacheTtlMs = Number(
+  process.env.AUTH_CONTEXT_CACHE_TTL_MS ?? (process.env.NODE_ENV === 'test' ? 0 : 30_000),
+);
+const authContextCache = new Map<string, { expiresAt: number; user: AuthenticatedUserContext }>();
+
+function authCacheKey(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('hex');
 }
 
 export function hasRoleAccess(role: string | null | undefined, allowedRoles: string[]): boolean {
@@ -60,7 +70,21 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
     return;
   }
 
+  const cacheKey = authCacheKey(token);
+  if (authContextCacheTtlMs > 0) {
+    const cached = authContextCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      req.user = cached.user;
+      next();
+      return;
+    }
+    if (cached) {
+      authContextCache.delete(cacheKey);
+    }
+  }
+
   try {
+    const now = new Date();
     const user = await withPrismaRetry(() => prisma.user.findUnique({
       where: { id: payload.userId },
       select: {
@@ -70,6 +94,49 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
         pharmacyId: true,
         isActive: true,
         picPinHash: true,
+        memberships: {
+          where: {
+            active: true,
+            OR: [
+              { validFrom: null },
+              { validFrom: { lte: now } },
+            ],
+            AND: [
+              {
+                OR: [
+                  { validUntil: null },
+                  { validUntil: { gte: now } },
+                ],
+              },
+            ],
+          },
+          select: {
+            id: true,
+            pharmacyId: true,
+            role: true,
+            validFrom: true,
+            validUntil: true,
+            pharmacy: {
+              select: {
+                id: true,
+                name: true,
+                pharmacyType: true,
+                subscriptionTier: true,
+                billingCycle: true,
+                status: true,
+                trialActive: true,
+                trialEndsAt: true,
+                isHybrid: true,
+                hybridAddonActive: true,
+                isActive: true,
+              },
+            },
+          },
+          orderBy: [
+            { createdAt: 'asc' },
+            { pharmacy: { name: 'asc' } },
+          ],
+        },
       },
     }));
 
@@ -85,11 +152,19 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
       return;
     }
 
-    const membership = baseRole === 'SUPER_ADMIN'
-      ? null
-      : await resolveActiveMembership(user.id, payload.pharmacyId ?? user.pharmacyId, Boolean(payload.pharmacyId));
+    const tokenPharmacyId = payload.pharmacyId ?? null;
+    const lastPharmacyId = user.pharmacyId ?? null;
+    const membership =
+      (tokenPharmacyId
+        ? user.memberships.find((entry) => entry.pharmacyId === tokenPharmacyId)
+        : null) ??
+      (lastPharmacyId
+        ? user.memberships.find((entry) => entry.pharmacyId === lastPharmacyId)
+        : null) ??
+      user.memberships[0] ??
+      null;
 
-    if (!membership && baseRole !== 'SUPER_ADMIN') {
+    if ((!membership || (tokenPharmacyId && membership.pharmacyId !== tokenPharmacyId)) && baseRole !== 'SUPER_ADMIN') {
       res.status(403).json({ error: 'PHARMACY_MEMBERSHIP_REQUIRED' });
       return;
     }
@@ -103,7 +178,7 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
       return;
     }
 
-    req.user = {
+    const authContext: AuthenticatedUserContext = {
       userId: user.id,
       role: effectiveRole,
       normalizedRole,
@@ -112,6 +187,14 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
       email: user.email,
       picPinHash: user.picPinHash,
     };
+    req.user = authContext;
+
+    if (authContextCacheTtlMs > 0) {
+      authContextCache.set(cacheKey, {
+        user: authContext,
+        expiresAt: Date.now() + authContextCacheTtlMs,
+      });
+    }
 
     next();
   } catch (error) {

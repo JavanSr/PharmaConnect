@@ -154,17 +154,28 @@ export function resolveEffectiveScopedRole(userRole: KnownRole, membershipRole: 
   return membershipRole as KnownRole;
 }
 
-export async function issueAuthTokens(payload: JwtPayload) {
+export async function issueAuthTokens(
+  payload: JwtPayload,
+  options: { refreshTokenWrite?: 'foreground' | 'background' } = {},
+) {
   const accessToken = signAccess(payload);
   const refreshToken = signRefresh(payload);
 
-  await withPrismaRetry(() => prisma.refreshToken.create({
+  const persistRefreshToken = () => withPrismaRetry(() => prisma.refreshToken.create({
     data: {
       userId: payload.userId,
       token: hashToken(refreshToken),
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     },
   }));
+
+  if (options.refreshTokenWrite === 'background') {
+    void persistRefreshToken().catch((error) => {
+      console.error('[auth.refreshToken.backgroundWriteFailed]', error);
+    });
+  } else {
+    await persistRefreshToken();
+  }
 
   return { accessToken, refreshToken };
 }

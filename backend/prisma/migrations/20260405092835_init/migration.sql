@@ -1,5 +1,5 @@
 -- CreateEnum
-CREATE TYPE "UserRole" AS ENUM ('SUPER_ADMIN', 'OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'DATA_ENTRY_CLERK', 'WHOLESALE_SELLER');
+CREATE TYPE "UserRole" AS ENUM ('SUPER_ADMIN', 'OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'CASHIER', 'WHOLESALE_SELLER');
 
 -- CreateEnum
 CREATE TYPE "PharmacyType" AS ENUM ('RETAIL', 'ADDO', 'WHOLESALE');
@@ -20,16 +20,10 @@ CREATE TYPE "ComplianceCategory" AS ENUM ('LICENCE', 'INSURANCE', 'EQUIPMENT', '
 CREATE TYPE "ComplianceStatus" AS ENUM ('COMPLIANT', 'DUE_SOON', 'OVERDUE', 'NOT_APPLICABLE');
 
 -- CreateEnum
-CREATE TYPE "NhifClaimStatus" AS ENUM ('DRAFT', 'SUBMITTED', 'APPROVED', 'REJECTED', 'PAID');
-
--- CreateEnum
 CREATE TYPE "CpdActivityType" AS ENUM ('READING', 'WORKSHOP', 'CONFERENCE', 'ONLINE_COURSE', 'MENTORING', 'AUDIT', 'OTHER');
 
 -- CreateEnum
 CREATE TYPE "ArticleCategory" AS ENUM ('DRUG_SAFETY', 'REGULATORY', 'CLINICAL', 'BUSINESS', 'TECHNOLOGY', 'CPD', 'GENERAL');
-
--- CreateEnum
-CREATE TYPE "Gender" AS ENUM ('MALE', 'FEMALE', 'OTHER');
 
 -- CreateEnum
 CREATE TYPE "PaymentMethod" AS ENUM ('CASH', 'MPESA', 'TIGOPESA', 'AIRTEL_MONEY', 'HALOPESA', 'INSURANCE');
@@ -174,28 +168,9 @@ CREATE TABLE "compliance_items" (
 );
 
 -- CreateTable
-CREATE TABLE "patients" (
-    "id" TEXT NOT NULL,
-    "pharmacyId" TEXT NOT NULL,
-    "firstName" TEXT NOT NULL,
-    "lastName" TEXT NOT NULL,
-    "dateOfBirth" TIMESTAMP(3),
-    "gender" "Gender",
-    "phone" TEXT,
-    "nhifNumber" TEXT,
-    "allergies" TEXT[] DEFAULT ARRAY[]::TEXT[],
-    "chronicConditions" TEXT[] DEFAULT ARRAY[]::TEXT[],
-    "notes" TEXT,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-    CONSTRAINT "patients_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
 CREATE TABLE "dispensings" (
     "id" TEXT NOT NULL,
     "pharmacyId" TEXT NOT NULL,
-    "patientId" TEXT,
     "dispensedById" TEXT NOT NULL,
     "referenceNumber" TEXT NOT NULL,
     "paymentMethod" "PaymentMethod" NOT NULL DEFAULT 'CASH',
@@ -219,37 +194,6 @@ CREATE TABLE "dispensing_items" (
     "icdDescription" TEXT,
     "counsellingNotes" TEXT,
     CONSTRAINT "dispensing_items_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "nhif_claims" (
-    "id" TEXT NOT NULL,
-    "pharmacyId" TEXT NOT NULL,
-    "patientId" TEXT,
-    "claimNumber" TEXT NOT NULL,
-    "patientNhifNumber" TEXT NOT NULL,
-    "patientName" TEXT NOT NULL,
-    "serviceDate" TIMESTAMP(3) NOT NULL,
-    "totalAmount" DECIMAL(12,2) NOT NULL,
-    "status" "NhifClaimStatus" NOT NULL DEFAULT 'DRAFT',
-    "submittedAt" TIMESTAMP(3),
-    "processedAt" TIMESTAMP(3),
-    "rejectionReason" TEXT,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-    CONSTRAINT "nhif_claims_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "nhif_claim_items" (
-    "id" TEXT NOT NULL,
-    "claimId" TEXT NOT NULL,
-    "description" TEXT NOT NULL,
-    "quantity" INTEGER NOT NULL,
-    "unitCost" DECIMAL(12,2) NOT NULL,
-    "totalCost" DECIMAL(12,2) NOT NULL,
-    "icdCode" TEXT,
-    CONSTRAINT "nhif_claim_items_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -297,7 +241,6 @@ CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
 CREATE UNIQUE INDEX "refresh_tokens_token_key" ON "refresh_tokens"("token");
 CREATE UNIQUE INDEX "drug_master_msdCode_key" ON "drug_master"("msdCode");
 CREATE UNIQUE INDEX "dispensings_referenceNumber_key" ON "dispensings"("referenceNumber");
-CREATE UNIQUE INDEX "nhif_claims_claimNumber_key" ON "nhif_claims"("claimNumber");
 CREATE UNIQUE INDEX "articles_slug_key" ON "articles"("slug");
 
 -- AddForeignKey
@@ -314,16 +257,11 @@ ALTER TABLE "stock_movements" ADD CONSTRAINT "stock_movements_productId_fkey" FO
 ALTER TABLE "stock_movements" ADD CONSTRAINT "stock_movements_batchId_fkey" FOREIGN KEY ("batchId") REFERENCES "batches"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 ALTER TABLE "stock_movements" ADD CONSTRAINT "stock_movements_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "compliance_items" ADD CONSTRAINT "compliance_items_pharmacyId_fkey" FOREIGN KEY ("pharmacyId") REFERENCES "pharmacies"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "patients" ADD CONSTRAINT "patients_pharmacyId_fkey" FOREIGN KEY ("pharmacyId") REFERENCES "pharmacies"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "dispensings" ADD CONSTRAINT "dispensings_pharmacyId_fkey" FOREIGN KEY ("pharmacyId") REFERENCES "pharmacies"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "dispensings" ADD CONSTRAINT "dispensings_patientId_fkey" FOREIGN KEY ("patientId") REFERENCES "patients"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 ALTER TABLE "dispensings" ADD CONSTRAINT "dispensings_dispensedById_fkey" FOREIGN KEY ("dispensedById") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "dispensing_items" ADD CONSTRAINT "dispensing_items_dispensingId_fkey" FOREIGN KEY ("dispensingId") REFERENCES "dispensings"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "dispensing_items" ADD CONSTRAINT "dispensing_items_productId_fkey" FOREIGN KEY ("productId") REFERENCES "products"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "dispensing_items" ADD CONSTRAINT "dispensing_items_batchId_fkey" FOREIGN KEY ("batchId") REFERENCES "batches"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-ALTER TABLE "nhif_claims" ADD CONSTRAINT "nhif_claims_pharmacyId_fkey" FOREIGN KEY ("pharmacyId") REFERENCES "pharmacies"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "nhif_claims" ADD CONSTRAINT "nhif_claims_patientId_fkey" FOREIGN KEY ("patientId") REFERENCES "patients"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-ALTER TABLE "nhif_claim_items" ADD CONSTRAINT "nhif_claim_items_claimId_fkey" FOREIGN KEY ("claimId") REFERENCES "nhif_claims"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "articles" ADD CONSTRAINT "articles_authorId_fkey" FOREIGN KEY ("authorId") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 ALTER TABLE "cpd_activities" ADD CONSTRAINT "cpd_activities_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "cpd_activities" ADD CONSTRAINT "cpd_activities_sourceArticleId_fkey" FOREIGN KEY ("sourceArticleId") REFERENCES "articles"("id") ON DELETE SET NULL ON UPDATE CASCADE;

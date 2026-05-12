@@ -166,40 +166,79 @@ async function nextOrderNumber(tx: Prisma.TransactionClient, pharmacyId: string)
 }
 
 export async function getLowStockSuggestions(pharmacyId: string) {
-  const products = await prisma.product.findMany({
-    where: { pharmacyId, isActive: true, reorderLevel: { gt: 0 } },
-    select: {
-      id: true,
-      name: true,
-      genericName: true,
-      strength: true,
-      dosageForm: true,
-      reorderLevel: true,
-      lastSupplierId: true,
-      lastSupplier: { select: { id: true, name: true, phone: true, email: true } },
-      batches: { select: { quantityRemaining: true }, where: { quantityRemaining: { gt: 0 } } },
-    },
-  });
+  const rows = await prisma.$queryRaw<Array<{
+    id: string;
+    name: string;
+    genericName: string | null;
+    strength: string | null;
+    dosageForm: string | null;
+    reorderLevel: number;
+    currentStock: number;
+    lastSupplierId: string | null;
+    lastSupplierName: string | null;
+    lastSupplierPhone: string | null;
+    lastSupplierEmail: string | null;
+  }>>`
+    SELECT
+      p."id",
+      p."name",
+      p."genericName",
+      p."strength",
+      p."dosageForm",
+      p."reorderLevel",
+      p."last_supplier_id" AS "lastSupplierId",
+      s."name" AS "lastSupplierName",
+      s."phone" AS "lastSupplierPhone",
+      s."email" AS "lastSupplierEmail",
+      COALESCE(SUM(b."quantityRemaining"), 0)::int AS "currentStock"
+    FROM "products" p
+    LEFT JOIN "batches" b
+      ON b."productId" = p."id"
+      AND b."pharmacyId" = p."pharmacyId"
+      AND b."quantityRemaining" > 0
+    LEFT JOIN "suppliers" s
+      ON s."id" = p."last_supplier_id"
+    WHERE p."pharmacyId" = ${pharmacyId}
+      AND p."isActive" = true
+      AND p."reorderLevel" > 0
+    GROUP BY
+      p."id",
+      p."name",
+      p."genericName",
+      p."strength",
+      p."dosageForm",
+      p."reorderLevel",
+      p."last_supplier_id",
+      s."id",
+      s."name",
+      s."phone",
+      s."email"
+    HAVING COALESCE(SUM(b."quantityRemaining"), 0) <= p."reorderLevel"
+    ORDER BY
+      (COALESCE(SUM(b."quantityRemaining"), 0)::numeric / NULLIF(p."reorderLevel", 0)) ASC,
+      p."name" ASC
+  `;
 
-  return products
-    .map((product) => {
-      const currentStock = product.batches.reduce((sum, batch) => sum + batch.quantityRemaining, 0);
-      return {
-        id: product.id,
-        name: product.name,
-        genericName: product.genericName,
-        strength: product.strength,
-        dosageForm: product.dosageForm,
-        reorderLevel: product.reorderLevel,
-        currentStock,
-        lastSupplierId: product.lastSupplierId,
-        lastSupplier: product.lastSupplier,
-        suggestedOrderQuantity: Math.max(product.reorderLevel * 2 - currentStock, 1),
-        criticalityRatio: currentStock / product.reorderLevel,
-      };
-    })
-    .filter((product) => product.currentStock <= product.reorderLevel)
-    .sort((a, b) => a.criticalityRatio - b.criticalityRatio || a.name.localeCompare(b.name));
+  return rows.map((product) => ({
+    id: product.id,
+    name: product.name,
+    genericName: product.genericName,
+    strength: product.strength,
+    dosageForm: product.dosageForm,
+    reorderLevel: product.reorderLevel,
+    currentStock: product.currentStock,
+    lastSupplierId: product.lastSupplierId,
+    lastSupplier: product.lastSupplierId
+      ? {
+          id: product.lastSupplierId,
+          name: product.lastSupplierName,
+          phone: product.lastSupplierPhone,
+          email: product.lastSupplierEmail,
+        }
+      : null,
+    suggestedOrderQuantity: Math.max(product.reorderLevel * 2 - product.currentStock, 1),
+    criticalityRatio: product.currentStock / product.reorderLevel,
+  }));
 }
 
 export async function createStockOrder(

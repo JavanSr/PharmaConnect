@@ -5,7 +5,6 @@ export interface DispensingCartItem {
   product: Product;
   quantity: number;
   dose?: string;
-  counsellingNotes?: string;
   unitPrice: number;
   lineTotal: number;
 }
@@ -112,6 +111,7 @@ export interface DispensingReceipt {
   vfdStatus: string;
   createdAt: string;
   itemCount: number;
+  queuedOffline?: boolean;
   lines: Array<{
     productId: string;
     productName: string;
@@ -120,7 +120,6 @@ export interface DispensingReceipt {
     totalAmount: number;
     batchNumber?: string | null;
     dose?: string;
-    counsellingNotes?: string;
   }>;
   safetyReview?: SafetyReviewResponse | null;
 }

@@ -1,24 +1,47 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Building2, ClipboardList, Settings } from 'lucide-react';
+import { Building2, ClipboardList, Settings, ShoppingCart, RefreshCw } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { useAuthStore } from '@/stores/authStore';
+import { usePharmacyStore } from '@/stores/pharmacyStore';
 
 const ALLOWED_ROLES = ['OWNER', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF', 'DELIVERY_STAFF', 'SUPER_ADMIN'];
+const BUYER_ROLES = ['OWNER', 'PHARMACIST_IN_CHARGE', 'WHOLESALE_MANAGER', 'SUPER_ADMIN'];
 
-const NAV_ITEMS = [
+const SELLER_NAV = [
   { label: 'Dashboard', path: '/wholesale', icon: <Building2 size={16} /> },
   { label: 'Orders', path: '/wholesale/orders', icon: <ClipboardList size={16} /> },
   { label: 'Settings', path: '/wholesale/settings', icon: <Settings size={16} /> },
 ];
 
+const BUYER_NAV = [
+  { label: 'Buy', path: '/wholesale/buy', icon: <ShoppingCart size={16} /> },
+  { label: 'My orders', path: '/wholesale/orders', icon: <ClipboardList size={16} /> },
+];
+
 export const canAccessWholesaleShell = (role: string | null | undefined) => Boolean(role && ALLOWED_ROLES.includes(role));
+
+type WholesaleMode = 'seller' | 'buyer';
 
 export const WholesaleShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const user = useAuthStore((state) => state.user);
-  const allowed = canAccessWholesaleShell(user?.role);
+  const pharmacy = usePharmacyStore((state) => state.pharmacy);
 
-  if (!allowed) {
+  const isWholesaleOutlet =
+    pharmacy?.pharmacyType === 'WHOLESALE' ||
+    Boolean(pharmacy?.isHybrid || pharmacy?.hybridAddonActive) ||
+    user?.role === 'SUPER_ADMIN';
+
+  const isHybrid = Boolean(pharmacy?.isHybrid || pharmacy?.hybridAddonActive);
+  const isSellerRole = ALLOWED_ROLES.includes(user?.role ?? '');
+  const isBuyerRole = BUYER_ROLES.includes(user?.role ?? '');
+  const canSell = isSellerRole && isWholesaleOutlet;
+  const canBuy = isBuyerRole;
+
+  const defaultMode: WholesaleMode = canSell ? 'seller' : 'buyer';
+  const [mode, setMode] = React.useState<WholesaleMode>(defaultMode);
+
+  if (!canSell && !canBuy) {
     return (
       <Card className="max-w-3xl">
         <div className="space-y-3">
@@ -32,31 +55,66 @@ export const WholesaleShell: React.FC<{ children: React.ReactNode }> = ({ childr
     );
   }
 
+  const navItems = mode === 'seller' ? SELLER_NAV : BUYER_NAV;
+
   return (
     <div className="space-y-6">
       <Card className="overflow-hidden bg-[linear-gradient(135deg,#0D4035_0%,#176B56_55%,#CDEDE3_180%)] text-white" padding={false} shadow="md">
         <div className="grid gap-5 px-5 py-6 lg:grid-cols-[1.6fr_1fr]">
           <div className="space-y-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/70">Wholesale Operations</p>
-            <h1 className="text-3xl font-semibold leading-tight">Separate wholesale workspace, shared platform backbone.</h1>
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/70">
+              {mode === 'seller' ? 'Wholesale Operations' : 'Buy from Suppliers'}
+            </p>
+            <h1 className="text-3xl font-semibold leading-tight">
+              {mode === 'seller'
+                ? 'Separate wholesale workspace, shared platform backbone.'
+                : 'Order from wholesale pharmacies on PharmaConnect.'}
+            </h1>
             <p className="max-w-2xl text-sm text-white/80">
-              Orders, credit, delivery, invoicing, and demand signals now live under one wholesale workspace while still sharing the same auth, users, marketplace catalogue, and outlet data.
+              {mode === 'seller'
+                ? 'Orders, credit, delivery, invoicing, and demand signals — shared auth, users, catalogue, and outlet data.'
+                : 'Browse supplier catalogues, check your tier pricing, and submit orders. Confirmation and dispatch updates arrive by email.'}
             </p>
           </div>
           <div className="rounded-3xl border border-white/20 bg-white/10 p-4 backdrop-blur">
-            <p className="text-sm font-semibold text-white">Shared with retail</p>
-            <div className="mt-3 grid gap-2 text-sm text-white/80">
-              <span>Authentication and outlet access</span>
-              <span>Team and user records</span>
-              <span>Marketplace and product data</span>
-              <span>Audit trails and subscriptions</span>
-            </div>
+            {(isHybrid || (canSell && canBuy)) ? (
+              <div className="space-y-3">
+                <p className="text-sm font-semibold text-white">Switch mode</p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setMode('seller')}
+                    className={`flex-1 rounded-xl px-3 py-2 text-sm font-medium transition-colors ${mode === 'seller' ? 'bg-white text-[#0D4035]' : 'bg-white/20 text-white hover:bg-white/30'}`}
+                  >
+                    Sell
+                  </button>
+                  <button
+                    onClick={() => setMode('buyer')}
+                    className={`flex-1 rounded-xl px-3 py-2 text-sm font-medium transition-colors ${mode === 'buyer' ? 'bg-white text-[#0D4035]' : 'bg-white/20 text-white hover:bg-white/30'}`}
+                  >
+                    Buy
+                  </button>
+                </div>
+                <p className="text-xs text-white/60">
+                  {mode === 'seller' ? 'Currently managing outgoing wholesale orders' : 'Currently placing orders with suppliers'}
+                </p>
+              </div>
+            ) : (
+              <div>
+                <p className="text-sm font-semibold text-white">Shared with retail</p>
+                <div className="mt-3 grid gap-2 text-sm text-white/80">
+                  <span>Authentication and outlet access</span>
+                  <span>Team and user records</span>
+                  <span>Marketplace and product data</span>
+                  <span>Audit trails and subscriptions</span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </Card>
 
       <div className="flex flex-wrap gap-2">
-        {NAV_ITEMS.map((item) => (
+        {navItems.map((item) => (
           <NavLink
             key={item.path}
             to={item.path}
@@ -73,6 +131,15 @@ export const WholesaleShell: React.FC<{ children: React.ReactNode }> = ({ childr
             {item.label}
           </NavLink>
         ))}
+        {(isHybrid || (canSell && canBuy)) && (
+          <button
+            onClick={() => setMode(mode === 'seller' ? 'buyer' : 'seller')}
+            className="inline-flex items-center gap-2 rounded-full border border-[#CDE7DE] bg-white px-4 py-2 text-sm font-medium text-[#64748B] hover:bg-[#EDF7F3]"
+          >
+            <RefreshCw size={14} />
+            Switch to {mode === 'seller' ? 'Buy' : 'Sell'} mode
+          </button>
+        )}
       </div>
 
       {children}

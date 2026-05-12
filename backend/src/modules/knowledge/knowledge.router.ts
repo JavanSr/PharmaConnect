@@ -563,7 +563,7 @@ knowledgeRouter.post('/courses/:id/attempt', async (req: AuthRequest, res, next)
       const pdf = await generateCertificatePdf({
         certificateId,
         courseTitle: course.title,
-        userName: req.user?.email ?? 'PharmaConnect User',
+        userName: req.user?.email ?? 'APOTEKH User',
         verifyUrl,
         isPcAccredited: course.is_pc_accredited,
       });
@@ -590,7 +590,7 @@ knowledgeRouter.post('/courses/:id/attempt', async (req: AuthRequest, res, next)
           ${req.user!.userId},
           'ONLINE_COURSE',
           ${course.title},
-          'PharmaConnect',
+          'APOTEKH',
           NOW(),
           ${course.points_awarded},
           ${course.points_awarded},

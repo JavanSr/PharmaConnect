@@ -119,7 +119,7 @@ analyticsRouter.get('/overview', async (req: AuthRequest, res, next) => {
   } catch (e) { next(e); }
 });
 
-analyticsRouter.post('/compare', requireTier('ENTERPRISE'), async (req: AuthRequest, res, next) => {
+analyticsRouter.post('/compare', requireTier('STANDARD'), async (req: AuthRequest, res, next) => {
   try {
     const payload = z.object({
       metric: z.enum(ANALYTICS_COMPARE_METRICS),

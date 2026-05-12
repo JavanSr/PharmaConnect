@@ -2,14 +2,14 @@ import Badge from "@/components/ui/Badge";
 import { MODULES } from "@/lib/data/modules";
 
 export const metadata = {
-  title: "Roadmap - PharmaConnect",
-  description: "The PharmaConnect roadmap across available and future modules.",
+  title: "Roadmap - APOTEKH",
+  description: "The APOTEKH roadmap across available and future modules.",
 };
 
 const groups = [
   {
     title: "Available now",
-    description: "Seven modules available now — Dashboard, Inventory, Dispensing, Compliance Tracker, Knowledge Hub, CPD Tracker, and Analytics.",
+    description: "Six modules available now — Dashboard, Inventory, Dispensing, Compliance Tracker, Knowledge Hub, and Analytics.",
     modules: MODULES.filter((module) => module.available),
   },
   {
@@ -28,8 +28,8 @@ export default function RoadmapPage() {
           Roadmap
         </h1>
         <p className="mt-5 max-w-3xl text-slate/70">
-          Privacy-by-design, offline-first, NHIF readiness, and cautious
-          interoperability guide the product sequence.
+          Privacy-by-design, offline-first, and cautious interoperability
+          guide the product sequence.
         </p>
         <div className="mt-10 grid gap-6">
           {groups.map((group) => (

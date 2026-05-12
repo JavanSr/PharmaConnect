@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 import { storeComplianceObject } from '../compliance/compliance.storage';
 import { resolveActiveClientPriceOverrideMap } from './b2b.extensions.service';
+import { sendOrderStatusEmail } from '../../lib/email';
 
 export const ORDER_STATUSES = [
   'DRAFT',
@@ -81,7 +82,7 @@ type CreditLimitRow = {
   block_reason: string | null;
 };
 
-type TierPriceMap = Partial<Record<'ADDO' | 'ADDO_PLUS' | 'STANDARD' | 'PREMIUM' | 'WHOLESALE' | 'ENTERPRISE', number>>;
+type TierPriceMap = Partial<Record<'ADDO' | 'ESSENTIAL' | 'ADDO_PLUS' | 'STANDARD' | 'PREMIUM' | 'WHOLESALE' | 'ENTERPRISE', number>>;
 
 function parseTierPrices(value: Prisma.JsonValue): TierPriceMap {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -94,7 +95,7 @@ function parseTierPrices(value: Prisma.JsonValue): TierPriceMap {
       return acc;
     }
 
-    if (['ADDO', 'ADDO_PLUS', 'STANDARD', 'PREMIUM', 'WHOLESALE', 'ENTERPRISE'].includes(key)) {
+    if (['ADDO', 'ESSENTIAL', 'ADDO_PLUS', 'STANDARD', 'PREMIUM', 'WHOLESALE', 'ENTERPRISE'].includes(key)) {
       acc[key as keyof TierPriceMap] = Math.round(numeric);
     }
 
@@ -276,7 +277,7 @@ async function renderInvoicePdf(input: {
     doc.on('error', reject);
     doc.on('end', () => resolve(Buffer.concat(chunks)));
 
-    doc.fontSize(18).text('PharmaConnect VAT Invoice', { align: 'center' });
+    doc.fontSize(18).text('APOTEKH VAT Invoice', { align: 'center' });
     doc.moveDown(0.5);
     doc.fontSize(11).text(`Invoice: ${input.invoiceNumber}`);
     doc.text(`Order: ${input.orderNumber}`);
@@ -386,6 +387,39 @@ async function generateVatInvoice(order: OrderRow) {
   };
 }
 
+async function sendOrderStatusNotification(order: OrderRow, nextStatus: OrderStatus) {
+  const statusMessages: Partial<Record<OrderStatus, string>> = {
+    CONFIRMED: 'Your order has been confirmed by the seller and is being prepared.',
+    DISPATCHED: 'Your order is on its way. Expect delivery soon.',
+    DELIVERED: 'Your order has been delivered. Please confirm receipt.',
+    CANCELLED: 'Your order has been cancelled. Contact your supplier for details.',
+  };
+
+  const message = statusMessages[nextStatus];
+  if (!message) return;
+
+  const buyerOwner = await prisma.pharmacyMembership.findFirst({
+    where: { pharmacyId: order.buyer_pharmacy_id, role: 'OWNER', active: true },
+    select: { user: { select: { email: true, firstName: true } } },
+  });
+
+  const sellerName = (await prisma.pharmacy.findUnique({
+    where: { id: order.seller_pharmacy_id },
+    select: { name: true },
+  }))?.name ?? 'Your supplier';
+
+  if (buyerOwner?.user?.email) {
+    await sendOrderStatusEmail({
+      to: buyerOwner.user.email,
+      firstName: buyerOwner.user.firstName,
+      orderNumber: order.order_number,
+      status: nextStatus,
+      sellerName,
+      message,
+    });
+  }
+}
+
 export async function listWholesaleCatalogue(sellerPharmacyId?: string | null, buyerPharmacyId?: string | null) {
   const buyerTier = buyerPharmacyId
     ? (await prisma.pharmacy.findUnique({
@@ -399,6 +433,7 @@ export async function listWholesaleCatalogue(sellerPharmacyId?: string | null, b
     catalogue_title: string;
     catalogue_description: string | null;
     seller_pharmacy_id: string;
+    seller_pharmacy_name: string;
     product_id: string;
     product_name: string;
     generic_name: string | null;
@@ -413,6 +448,7 @@ export async function listWholesaleCatalogue(sellerPharmacyId?: string | null, b
       wc."title" AS catalogue_title,
       wc."description" AS catalogue_description,
       wc."pharmacy_id" AS seller_pharmacy_id,
+      ph."name" AS seller_pharmacy_name,
       p."id" AS product_id,
       p."name" AS product_name,
       p."genericName" AS generic_name,
@@ -424,6 +460,7 @@ export async function listWholesaleCatalogue(sellerPharmacyId?: string | null, b
     FROM "wholesale_catalogues" wc
     INNER JOIN "wholesale_catalogue_pricing" wcp ON wcp."catalogue_id" = wc."id"
     INNER JOIN "products" p ON p."id" = wcp."product_id"
+    INNER JOIN "pharmacies" ph ON ph."id" = wc."pharmacy_id"
     WHERE wc."is_active" = true
       AND wcp."is_active" = true
       ${sellerPharmacyId ? Prisma.sql`AND wc."pharmacy_id" = ${sellerPharmacyId}` : Prisma.empty}
@@ -439,6 +476,7 @@ export async function listWholesaleCatalogue(sellerPharmacyId?: string | null, b
       title: row.catalogue_title,
       description: row.catalogue_description,
       sellerPharmacyId: row.seller_pharmacy_id,
+      sellerPharmacyName: row.seller_pharmacy_name,
       productId: row.product_id,
       productName: row.product_name,
       genericName: row.generic_name,
@@ -499,6 +537,55 @@ export async function upsertWholesaleCatalogue(input: {
   }
 
   return { catalogueId };
+}
+
+async function reserveStockForOrder(orderId: string, sellerPharmacyId: string, lines: OrderLine[]) {
+  for (const line of lines) {
+    await prisma.$executeRaw(Prisma.sql`
+      INSERT INTO "b2b_stock_reservations" ("order_id", "product_id", "seller_pharmacy_id", "reserved_qty")
+      VALUES (${orderId}::uuid, ${line.productId}, ${sellerPharmacyId}, ${line.quantity})
+      ON CONFLICT ("order_id", "product_id") DO UPDATE SET "reserved_qty" = EXCLUDED."reserved_qty"
+    `);
+  }
+}
+
+async function releaseStockReservation(orderId: string) {
+  await prisma.$executeRaw(Prisma.sql`
+    DELETE FROM "b2b_stock_reservations" WHERE "order_id" = ${orderId}::uuid
+  `);
+}
+
+async function checkStockAvailability(sellerPharmacyId: string, items: Array<{ productId: string; quantity: number }>) {
+  for (const item of items) {
+    const rows = await prisma.$queryRaw<Array<{ available: number }>>(Prisma.sql`
+      SELECT
+        COALESCE(SUM(b."quantityOnHand"), 0) -
+        COALESCE((
+          SELECT SUM(r."reserved_qty")
+          FROM "b2b_stock_reservations" r
+          INNER JOIN "orders" o ON o."id" = r."order_id"
+          WHERE r."seller_pharmacy_id" = ${sellerPharmacyId}
+            AND r."product_id" = ${item.productId}
+            AND o."status" NOT IN ('CANCELLED', 'COMPLETED', 'DISPUTED')
+        ), 0) AS available
+      FROM "batches" b
+      WHERE b."pharmacyId" = ${sellerPharmacyId}
+        AND b."productId" = ${item.productId}
+        AND b."quantityOnHand" > 0
+        AND b."expiryDate" > NOW()
+    `);
+
+    const available = Number(rows[0]?.available ?? 0);
+    if (available < item.quantity) {
+      throw Object.assign(new Error('INSUFFICIENT_STOCK'), {
+        status: 422,
+        code: 'INSUFFICIENT_STOCK',
+        productId: item.productId,
+        requested: item.quantity,
+        available,
+      });
+    }
+  }
 }
 
 export async function createOrder(input: {
@@ -569,8 +656,10 @@ export async function createOrder(input: {
   });
 
   const subtotalAmount = Number(lines.reduce((sum, line) => sum + line.lineTotal, 0).toFixed(2));
+  await checkStockAvailability(input.sellerPharmacyId, input.items);
   await validateCreditLimit(input.sellerPharmacyId, input.buyerPharmacyId, subtotalAmount);
 
+  const orderId = randomUUID();
   const rows = await prisma.$queryRaw<OrderRow[]>(Prisma.sql`
     INSERT INTO "orders" (
       "id",
@@ -584,7 +673,7 @@ export async function createOrder(input: {
       "submitted_at"
     )
     VALUES (
-      ${randomUUID()},
+      ${orderId}::uuid,
       ${input.buyerPharmacyId},
       ${input.sellerPharmacyId},
       'SUBMITTED',
@@ -597,6 +686,7 @@ export async function createOrder(input: {
     RETURNING *
   `);
 
+  await reserveStockForOrder(orderId, input.sellerPharmacyId, lines);
   return mapOrder(rows[0]);
 }
 
@@ -743,6 +833,13 @@ export async function updateOrderStatus(input: {
 
   const updated = updatedRows[0];
   const invoice = input.nextStatus === 'CONFIRMED' ? await generateVatInvoice(updated) : null;
+
+  if (['CANCELLED', 'COMPLETED', 'DISPUTED'].includes(input.nextStatus)) {
+    await releaseStockReservation(order.id);
+  }
+
+  sendOrderStatusNotification(updated, input.nextStatus).catch(() => undefined);
+
   return { order: mapOrder(updated), invoice };
 }
 

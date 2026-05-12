@@ -1,7 +1,7 @@
 import React from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Menu, Plus, WifiOff, Clock } from 'lucide-react';
+import { ArrowLeft, Menu, Plus, WifiOff, Clock, Wifi } from 'lucide-react';
 import { useConnectivityStore } from '@/stores/connectivityStore';
 import { useNotificationStore } from '@/stores/notificationStore';
 import { usePharmacyStore } from '@/stores/pharmacyStore';
@@ -16,6 +16,7 @@ interface TopBarProps {
 
 export const TopBar: React.FC<TopBarProps> = ({ onMenuClick, title }) => {
   const isOnline = useConnectivityStore(state => state.isOnline);
+  const isReachable = useConnectivityStore(state => state.isReachable);
   const pendingSyncCount = useConnectivityStore(state => state.pendingSyncCount);
   const memberships = usePharmacyStore(state => state.memberships);
   const pharmacy = usePharmacyStore(state => state.pharmacy);
@@ -33,17 +34,24 @@ export const TopBar: React.FC<TopBarProps> = ({ onMenuClick, title }) => {
   });
 
   const ConnectivityDot = () => {
-    if (pendingSyncCount > 0) return (
-      <div className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 rounded-full border border-amber-200">
-        <Clock size={13} className={`text-[#D97706] ${isOnline ? 'animate-pulse' : ''}`} />
-        <span className="text-xs text-[#D97706] font-medium">{pendingSyncCount} pending sync</span>
-      </div>
-    );
-
     if (!isOnline) return (
       <div className="flex items-center gap-1.5 px-2.5 py-1 bg-red-50 rounded-full border border-red-200">
         <WifiOff size={13} className="text-[#DC2626]" />
         <span className="text-xs text-[#DC2626] font-medium">Offline</span>
+      </div>
+    );
+
+    if (!isReachable) return (
+      <div className="flex items-center gap-1.5 px-2.5 py-1 bg-orange-50 rounded-full border border-orange-200">
+        <Wifi size={13} className="text-orange-500 animate-pulse" />
+        <span className="text-xs text-orange-600 font-medium">Weak connection</span>
+      </div>
+    );
+
+    if (pendingSyncCount > 0) return (
+      <div className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 rounded-full border border-amber-200">
+        <Clock size={13} className="text-[#D97706] animate-pulse" />
+        <span className="text-xs text-[#D97706] font-medium">{pendingSyncCount} pending sync</span>
       </div>
     );
 

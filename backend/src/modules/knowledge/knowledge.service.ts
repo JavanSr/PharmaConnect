@@ -137,7 +137,7 @@ export async function generateCertificatePdf(input: {
   const stream = (await import('node:fs')).createWriteStream(filePath);
   doc.pipe(stream);
 
-  doc.fontSize(24).text('PharmaConnect Completion Certificate', { align: 'center' });
+  doc.fontSize(24).text('APOTEKH Completion Certificate', { align: 'center' });
   doc.moveDown();
   doc.fontSize(14).text(`Awarded to ${input.userName}`, { align: 'center' });
   doc.moveDown(0.5);
@@ -146,7 +146,7 @@ export async function generateCertificatePdf(input: {
 
   if (!input.isPcAccredited) {
     doc.fontSize(11).fillColor('#B45309').text(
-      'PharmaConnect Completion Certificate - not Pharmacy Council of Tanzania accredited',
+      'APOTEKH Completion Certificate - not Pharmacy Council of Tanzania accredited',
       { align: 'center' },
     );
     doc.fillColor('#000000');

@@ -127,6 +127,22 @@ inventoryRouter.get('/products/unverified', requirePermission('inventory.view_pr
   }
 });
 
+inventoryRouter.get('/products/suggestions', requirePermission('inventory.view_products'), async (req: AuthRequest, res, next) => {
+  try {
+    const params = z
+      .object({
+        search: z.string().optional(),
+        barcode: z.string().optional(),
+        sku: z.string().optional(),
+        limit: z.coerce.number().optional(),
+      })
+      .parse(req.query);
+    res.json(await svc.suggestProducts(pid(req), params));
+  } catch (e) {
+    next(e);
+  }
+});
+
 inventoryRouter.get('/products/:id', requirePermission('inventory.view_products'), async (req: AuthRequest, res, next) => {
   try {
     res.json({ data: await svc.getProduct(req.params.id, pid(req)) });
@@ -247,6 +263,7 @@ inventoryRouter.post('/batches', requirePermission('inventory.manage_stock'), as
         purchasePrice: z.coerce.number().positive(),
         sellingPrice: z.coerce.number().positive().optional(),
         supplierId: z.string().trim().optional().transform((value) => value || undefined),
+        localTimestamp: z.string().datetime().optional(),
       })
       .parse(req.body);
     res.status(201).json({ data: await svc.receiveBatch(pid(req), uid(req), data) });
@@ -490,12 +507,42 @@ inventoryRouter.patch('/conflicts/:id/resolve', requirePermission('inventory.man
   }
 });
 
-inventoryRouter.get('/enterprise/multi-outlet', requireTier('ENTERPRISE'), async (_req: AuthRequest, res) => {
-  res.json({ data: { enabled: true } });
+inventoryRouter.get('/enterprise/multi-outlet', requireTier('ENTERPRISE'), requirePermission('inventory.manage_stock'), async (req: AuthRequest, res, next) => {
+  try {
+    res.json({
+      data: await svc.listEnterpriseOutlets(
+        pid(req),
+        uid(req),
+        req.user?.normalizedRole === 'SUPER_ADMIN',
+      ),
+    });
+  } catch (e) {
+    next(e);
+  }
 });
 
-inventoryRouter.post('/enterprise/transfers', requireTier('ENTERPRISE'), async (_req: AuthRequest, res) => {
-  res.status(501).json({ error: 'NOT_IMPLEMENTED_YET', message: 'Inter-branch transfer workflow will be completed in a later Task 3 pass.' });
+inventoryRouter.post('/enterprise/transfers', requireTier('ENTERPRISE'), requirePermission('inventory.manage_stock'), async (req: AuthRequest, res, next) => {
+  try {
+    const payload = z.object({
+      destinationPharmacyId: z.string().uuid(),
+      productId: z.string().uuid(),
+      batchId: z.string().uuid().optional(),
+      destinationProductId: z.string().uuid().optional(),
+      quantity: z.coerce.number().int().positive(),
+      notes: z.string().trim().max(500).optional(),
+    }).parse(req.body);
+
+    res.status(201).json({
+      data: await svc.transferStockBetweenOutlets(
+        pid(req),
+        uid(req),
+        req.user?.normalizedRole === 'SUPER_ADMIN',
+        payload,
+      ),
+    });
+  } catch (e) {
+    next(e);
+  }
 });
 
 inventoryRouter.get('/drug-master', requirePermission('inventory.view_products'), async (req: AuthRequest, res, next) => {
@@ -512,7 +559,7 @@ inventoryRouter.get('/drug-master', requirePermission('inventory.view_products')
       limit,
       page,
       storageCondition,
-      essentialOnly: essential,
+      essentialOnly: req.user?.pharmacy?.pharmacyType === 'ADDO' || req.user?.pharmacy?.subscriptionTier === 'ADDO' || essential,
     }));
   } catch (e) {
     next(e);

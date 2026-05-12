@@ -15,7 +15,6 @@ export interface ReceiptData {
     unitPrice: number;
     lineTotal: number;
     dose?: string;
-    counsellingNotes?: string;
   }>;
   totalAmount: number;
   createdAt: string;
@@ -102,14 +101,6 @@ export function downloadReceiptPdf(receipt: ReceiptData): void {
       y += 4;
       doc.setTextColor(13, 64, 53);
     }
-    if (item.counsellingNotes) {
-      doc.setFontSize(7);
-      doc.setTextColor(100, 116, 139);
-      const notes = doc.splitTextToSize(`Note: ${item.counsellingNotes}`, pageW - margin * 2 - 4);
-      doc.text(notes, margin + 2, y);
-      y += notes.length * 4;
-      doc.setTextColor(13, 64, 53);
-    }
   }
 
   y += 2;
@@ -128,9 +119,9 @@ export function downloadReceiptPdf(receipt: ReceiptData): void {
   doc.setTextColor(100, 116, 139);
   centerText('Thank you for choosing ' + receipt.pharmacyName, y, 7);
   y += 4;
-  centerText('TMDA Registered · Tanzania UHI Mandate Compliant', y, 7);
+  centerText('TMDA-ready pharmacy record', y, 7);
   y += 4;
-  centerText('Powered by PharmaConnect', y, 7);
+  centerText('Powered by APOTEKH', y, 7);
 
   doc.save(`receipt-${receipt.referenceNumber}.pdf`);
 }

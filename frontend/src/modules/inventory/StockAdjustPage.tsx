@@ -11,6 +11,8 @@ import { useNotificationStore } from '@/stores/notificationStore';
 import { useAuthStore } from '@/stores/authStore';
 import { useDebounce } from '@/hooks/useDebounce';
 import { api } from '@/lib/api';
+import { enqueueOfflineWrite, registerOfflineSync } from '@/lib/offlineSync';
+import { searchCachedProducts } from '@/lib/offlineProducts';
 
 const SUGGESTION_REASONS = [
   { value: 'COUNT_VARIANCE', label: 'Count variance' },
@@ -45,8 +47,19 @@ export const StockAdjustPage: React.FC = () => {
 
   const { data: searchData } = useQuery({
     queryKey: ['product-search', debouncedSearch],
-    queryFn: () => api.get('/inventory/products', { params: { search: debouncedSearch, limit: 8 } }).then((response) => response.data),
+    queryFn: async () => {
+      try {
+        return await api.get('/inventory/products', { params: { search: debouncedSearch, limit: 8 } }).then((r) => r.data);
+      } catch {
+        if (!navigator.onLine) {
+          const cached = await searchCachedProducts(debouncedSearch, 8);
+          return { data: cached };
+        }
+        throw new Error('Product search failed');
+      }
+    },
     enabled: debouncedSearch.length > 1,
+    networkMode: 'always',
   });
 
   const { data: productDetail } = useQuery({
@@ -65,26 +78,62 @@ export const StockAdjustPage: React.FC = () => {
   const pendingSuggestions = (suggestionQueueData?.data || []) as StockAdjustmentSuggestion[];
 
   const mutation = useMutation({
+    networkMode: 'always',
     mutationFn: async () => {
-      const formData = new FormData();
-      formData.append('productId', selectedProduct.id);
-      if (selectedBatch) {
-        formData.append('batchId', selectedBatch);
-      }
-      formData.append('quantityDelta', quantityDelta);
-      formData.append('reason', suggestionReason);
-      if (notes.trim()) {
-        formData.append('note', notes.trim());
-      }
-      if (photoFile) {
-        formData.append('photo', photoFile);
+      const jsonPayload = {
+        productId: selectedProduct.id,
+        ...(selectedBatch ? { batchId: selectedBatch } : {}),
+        quantityDelta: parseInt(quantityDelta, 10),
+        reason: suggestionReason,
+        ...(notes.trim() ? { note: notes.trim() } : {}),
+      };
+
+      if (!navigator.onLine) {
+        await enqueueOfflineWrite({
+          feature: 'inventory',
+          entityType: 'ADJUSTMENT_SUGGESTION',
+          entityId: `${selectedProduct.id}-${Date.now()}`,
+          url: '/inventory/adjustment-suggestions',
+          method: 'POST',
+          body: jsonPayload,
+        });
+        await registerOfflineSync();
+        return { queued: true };
       }
 
-      return api.post('/inventory/adjustment-suggestions', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      try {
+        const formData = new FormData();
+        formData.append('productId', selectedProduct.id);
+        if (selectedBatch) formData.append('batchId', selectedBatch);
+        formData.append('quantityDelta', quantityDelta);
+        formData.append('reason', suggestionReason);
+        if (notes.trim()) formData.append('note', notes.trim());
+        if (photoFile) formData.append('photo', photoFile);
+        return api.post('/inventory/adjustment-suggestions', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+      } catch (e: any) {
+        if (!e.response) {
+          await enqueueOfflineWrite({
+            feature: 'inventory',
+            entityType: 'ADJUSTMENT_SUGGESTION',
+            entityId: `${selectedProduct.id}-${Date.now()}`,
+            url: '/inventory/adjustment-suggestions',
+            method: 'POST',
+            body: jsonPayload,
+          });
+          await registerOfflineSync();
+          return { queued: true };
+        }
+        throw e;
+      }
     },
-    onSuccess: () => {
+    onSuccess: (result: any) => {
+      if (result?.queued) {
+        toast.success('Queued offline — will sync when connected' + (photoFile ? '. Photo not attached (offline)' : ''));
+        navigate('/inventory');
+        return;
+      }
       toast.success(canReviewSuggestions ? 'Stock adjustment request submitted for approval' : 'Stock adjustment suggestion submitted');
       qc.invalidateQueries({ queryKey: ['products'] });
       qc.invalidateQueries({ queryKey: ['product-detail', selectedProduct?.id] });

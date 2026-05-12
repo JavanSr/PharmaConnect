@@ -5,7 +5,7 @@ import { useAuthStore } from '@/stores/authStore';
 
 export const TrialBanner: React.FC<{ daysRemaining: number }> = ({ daysRemaining }) => {
   const user = useAuthStore((state) => state.user);
-  const canManageSubscription = ['OWNER', 'SUPER_ADMIN'].includes(user?.role || '');
+  const canManageSubscription = user?.role === 'OWNER';
   const tone =
     daysRemaining < 2
       ? 'border-red-200 bg-red-50 text-[#991B1B]'

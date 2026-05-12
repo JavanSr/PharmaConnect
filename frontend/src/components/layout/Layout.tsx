@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { differenceInCalendarDays } from 'date-fns';
 import { Outlet, useLocation } from 'react-router-dom';
 import { api } from '@/lib/api';
+import { useAuthStore } from '@/stores/authStore';
 import { usePharmacyStore } from '@/stores/pharmacyStore';
 import { loadMemberships } from '@/lib/pharmacySelection';
 import { TrialBanner } from '@/components/TrialBanner';
@@ -31,7 +32,7 @@ const routeTitles: Record<string, string> = {
   '/dispensing': 'Dispensing',
   '/dispensing/returns': 'Dispensing Returns',
   '/dispensing/daily-close': 'Daily Close',
-  '/controlled-substances': 'Controlled Register',
+  '/dispensing/controlled-register': 'Controlled Register',
   '/wholesale': 'Wholesale',
   '/wholesale/orders': 'Wholesale Orders',
   '/wholesale/settings': 'Wholesale Settings',
@@ -57,6 +58,8 @@ export const Layout: React.FC = () => {
   const setMemberships = usePharmacyStore((state) => state.setMemberships);
 
   const title = routeTitles[location.pathname] || '';
+  const user = useAuthStore((state) => state.user);
+  const isFounderAccount = user?.role === 'SUPER_ADMIN';
   const subscriptionQuery = useQuery({
     queryKey: ['layout-subscription-status'],
     queryFn: () => api.get('/settings/subscription').then((response) => response.data),
@@ -116,7 +119,7 @@ export const Layout: React.FC = () => {
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden print:block print:overflow-visible">
         <TopBar onMenuClick={() => setSidebarOpen(true)} title={title} />
-        {daysRemaining != null && daysRemaining >= 0 && subscription?.status === 'TRIAL' && subscription?.trialActive && daysRemaining < 7 && (
+        {!isFounderAccount && daysRemaining != null && daysRemaining >= 0 && subscription?.status === 'TRIAL' && subscription?.trialActive && daysRemaining < 7 && (
           <TrialBanner daysRemaining={daysRemaining} />
         )}
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 print:block print:overflow-visible print:p-0">
@@ -125,7 +128,7 @@ export const Layout: React.FC = () => {
       </div>
 
       <ToastContainer />
-      {isTrialExpired && location.pathname !== '/settings/subscription' && (
+      {!isFounderAccount && isTrialExpired && location.pathname !== '/settings/subscription' && (
         <TrialPaywall currentTier={subscription?.subscriptionTier} />
       )}
     </div>

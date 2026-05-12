@@ -27,7 +27,7 @@ export const TmdaUpdatesPage: React.FC = () => {
             </div>
             <h1 className="text-3xl font-semibold">Regulatory notices and publications in one feed.</h1>
             <p className="max-w-2xl text-sm text-white/80">
-              This feed brings together the latest published bulletins and regulatory publications already available in PharmaConnect so outlet teams can review updates without leaving the app.
+              This feed brings together the latest published bulletins and regulatory publications already available in APOTEKH so outlet teams can review updates without leaving the app.
             </p>
           </div>
           <div className="rounded-3xl border border-white/20 bg-white/10 p-4 backdrop-blur">

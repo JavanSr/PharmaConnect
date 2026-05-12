@@ -66,7 +66,7 @@ export const CheckEmailPage: React.FC = () => {
     <div className="min-h-screen bg-[#EDF7F3] flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="flex justify-center mb-8">
-          <img src="/brand/pharmaconnect-logo.svg" alt="PharmaConnect" className="h-10 w-auto" />
+          <img src="/brand/pharmaconnect-logo.svg" alt="APOTEKH" className="h-10 w-auto" />
         </div>
 
         <div className="bg-white rounded-2xl border border-[#D6F0E8] shadow-sm p-8 text-center">
@@ -80,13 +80,13 @@ export const CheckEmailPage: React.FC = () => {
 
           <div className="bg-[#EDF7F3] rounded-xl p-4 text-left mb-6 space-y-2">
             <p className="text-sm text-[#374151]">
-              <span className="font-semibold text-[#1A6B5C]">1.</span> Open the email from PharmaConnect
+              <span className="font-semibold text-[#1A6B5C]">1.</span> Open the email from APOTEKH
             </p>
             <p className="text-sm text-[#374151]">
               <span className="font-semibold text-[#1A6B5C]">2.</span> Click <strong>Verify my email address</strong>
             </p>
             <p className="text-sm text-[#374151]">
-              <span className="font-semibold text-[#1A6B5C]">3.</span> Your 30-day trial starts immediately
+              <span className="font-semibold text-[#1A6B5C]">3.</span> Your 14-day trial starts immediately
             </p>
           </div>
 
@@ -126,7 +126,7 @@ export const CheckEmailPage: React.FC = () => {
         </div>
 
         <p className="text-center text-xs text-[#64748B] mt-4">
-          Link expires in 24 hours · Tanzania UHI Mandate compliant
+          Link expires in 24 hours
         </p>
       </div>
     </div>

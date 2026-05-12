@@ -31,7 +31,7 @@ export default function PricingCard({ tier, billing }: PricingCardProps) {
         <span className="pb-1 text-sm text-slate/50">{price === null ? "" : suffix}</span>
       </div>
       {billing === "annual" && price !== null ? (
-        <p className="mt-2 text-xs text-primary">Save ~9% vs monthly</p>
+        <p className="mt-2 text-xs text-primary">2 months free vs monthly</p>
       ) : null}
       <ul className="mt-6 grid gap-3">
         {tier.features.map((feature) => (

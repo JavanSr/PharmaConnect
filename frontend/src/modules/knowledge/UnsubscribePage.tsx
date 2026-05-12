@@ -30,7 +30,7 @@ export const UnsubscribePage: React.FC = () => {
             </div>
             <h1 className="text-xl font-bold text-[#0D4035]">You're unsubscribed</h1>
             <p className="mt-2 text-sm text-[#475569]">
-              You will no longer receive weekly Knowledge Hub digests from PharmaConnect.
+              You will no longer receive weekly Knowledge Hub digests from APOTEKH.
             </p>
             <Link to="/login" className="mt-6 inline-block text-sm font-medium text-[#1A6B5C] hover:underline">
               Back to platform

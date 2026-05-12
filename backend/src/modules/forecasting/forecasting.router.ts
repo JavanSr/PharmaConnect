@@ -23,7 +23,7 @@ function pid(req: AuthRequest): string {
   return p;
 }
 
-forecastingRouter.get('/stockout', requireTier('STANDARD'), async (req: AuthRequest, res, next) => {
+forecastingRouter.get('/stockout', requireTier('PREMIUM'), async (req: AuthRequest, res, next) => {
   try {
     const query = z.object({
       lookbackDays: z.coerce.number().int().min(7).max(180).optional(),

@@ -1,16 +1,16 @@
 import React, { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Layout } from '@/components/layout/Layout';
-import { AuthGuard } from '@/components/layout/AuthGuard';
+import { AuthGuard, RoleGuard } from '@/components/layout/AuthGuard';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { useOfflineSync } from '@/hooks/useOfflineSync';
-import { LoginPage } from '@/modules/auth/LoginPage';
-import { PharmacySelectorPage } from '@/modules/auth/PharmacySelectorPage';
-import { RegisterPage } from '@/modules/auth/RegisterPage';
-import { CheckEmailPage } from '@/modules/auth/CheckEmailPage';
-import { VerifyEmailPage } from '@/modules/auth/VerifyEmailPage';
-import { TrialConfirmPage } from '@/modules/auth/TrialConfirmPage';
+import { useHeartbeat } from '@/hooks/useHeartbeat';
+import { useNotificationStore } from '@/stores/notificationStore';
+import { useAuthStore } from '@/stores/authStore';
+import { usePharmacyStore } from '@/stores/pharmacyStore';
+import { api } from '@/lib/api';
+import { cacheProducts, getProductCacheTimestamp } from '@/lib/offlineProducts';
+import type { UserRole } from '@/types';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -23,6 +23,13 @@ const queryClient = new QueryClient({
 });
 
 const DashboardPage = lazy(() => import('@/modules/dashboard/DashboardPage').then(m => ({ default: m.DashboardPage })));
+const Layout = lazy(() => import('@/components/layout/Layout').then(m => ({ default: m.Layout })));
+const LoginPage = lazy(() => import('@/modules/auth/LoginPage').then(m => ({ default: m.LoginPage })));
+const PharmacySelectorPage = lazy(() => import('@/modules/auth/PharmacySelectorPage').then(m => ({ default: m.PharmacySelectorPage })));
+const RegisterPage = lazy(() => import('@/modules/auth/RegisterPage').then(m => ({ default: m.RegisterPage })));
+const CheckEmailPage = lazy(() => import('@/modules/auth/CheckEmailPage').then(m => ({ default: m.CheckEmailPage })));
+const VerifyEmailPage = lazy(() => import('@/modules/auth/VerifyEmailPage').then(m => ({ default: m.VerifyEmailPage })));
+const TrialConfirmPage = lazy(() => import('@/modules/auth/TrialConfirmPage').then(m => ({ default: m.TrialConfirmPage })));
 const AnalyticsPage = lazy(() => import('@/modules/analytics/AnalyticsPage').then(m => ({ default: m.AnalyticsPage })));
 const ForecastingPage = lazy(() => import('@/modules/analytics/ForecastingPage').then(m => ({ default: m.ForecastingPage })));
 const KnowledgeFeedPage = lazy(() => import('@/modules/knowledge/KnowledgeFeedPage').then(m => ({ default: m.KnowledgeFeedPage })));
@@ -66,6 +73,7 @@ const LogActivityPage = lazy(() => import('@/modules/cpd/LogActivityPage').then(
 const CourseDetailPage = lazy(() => import('@/modules/cpd/CourseDetailPage').then(m => ({ default: m.CourseDetailPage })));
 const WholesaleDashboardPage = lazy(() => import('@/modules/wholesale/WholesaleDashboardPage').then(m => ({ default: m.WholesaleDashboardPage })));
 const WholesaleSettingsPage = lazy(() => import('@/modules/wholesale/WholesaleSettingsPage').then(m => ({ default: m.WholesaleSettingsPage })));
+const BuyerOrderPage = lazy(() => import('@/modules/wholesale/BuyerOrderPage').then(m => ({ default: m.BuyerOrderPage })));
 const OrdersPage = lazy(() => import('@/modules/orders/OrdersPage').then(m => ({ default: m.OrdersPage })));
 const ReportsPage = lazy(() => import('@/modules/reports/ReportsPage').then(m => ({ default: m.ReportsPage })));
 const AttendancePage = lazy(() => import('@/modules/reports/AttendancePage').then(m => ({ default: m.AttendancePage })));
@@ -83,74 +91,137 @@ const PageLoader = () => (
   </div>
 );
 
+const page = (node: React.ReactNode, roles?: UserRole[]) => (
+  <RoleGuard roles={roles}>
+    <Suspense fallback={<PageLoader />}>{node}</Suspense>
+  </RoleGuard>
+);
+
 const OfflineSyncBootstrap: React.FC = () => {
-  useOfflineSync(true);
+  const { lastWarning } = useOfflineSync(true);
+  const toast = useNotificationStore((state) => state.toast);
+  useHeartbeat();
+
+  React.useEffect(() => {
+    if (lastWarning) {
+      toast.warning(lastWarning, 8000);
+    }
+  }, [lastWarning, toast]);
+
   return null;
+};
+
+const PRODUCT_CACHE_REFRESH_MS = 60 * 60 * 1000; // 1 hour
+
+const ProductCacheWarmer: React.FC = () => {
+  const pharmacy = usePharmacyStore((state) => state.pharmacy);
+  const isWarmingRef = React.useRef(false);
+
+  React.useEffect(() => {
+    if (!pharmacy?.id) return;
+
+    const warm = async () => {
+      if (isWarmingRef.current || !navigator.onLine) return;
+      const lastSynced = await getProductCacheTimestamp();
+      if (lastSynced && Date.now() - new Date(lastSynced).getTime() < PRODUCT_CACHE_REFRESH_MS) return;
+      isWarmingRef.current = true;
+      try {
+        const response = await api.get('/inventory/products', { params: { limit: 500 } });
+        const products = response.data?.data ?? [];
+        if (Array.isArray(products) && products.length > 0) {
+          await cacheProducts(products);
+        }
+      } catch {
+        // best-effort — never block the app
+      } finally {
+        isWarmingRef.current = false;
+      }
+    };
+
+    void warm();
+    window.addEventListener('online', warm);
+    return () => window.removeEventListener('online', warm);
+  }, [pharmacy?.id]);
+
+  return null;
+};
+
+const AuthenticatedOfflineSyncBootstrap: React.FC = () => {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+
+  return isAuthenticated ? (
+    <>
+      <OfflineSyncBootstrap />
+      <ProductCacheWarmer />
+    </>
+  ) : null;
 };
 
 export const App: React.FC = () => (
   <ErrorBoundary>
   <QueryClientProvider client={queryClient}>
-    <OfflineSyncBootstrap />
+    <AuthenticatedOfflineSyncBootstrap />
     <BrowserRouter>
       <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
-        <Route path="/auth/check-email" element={<CheckEmailPage />} />
-        <Route path="/auth/verify-email" element={<VerifyEmailPage />} />
-        <Route path="/auth/trial-confirmed" element={<AuthGuard><TrialConfirmPage /></AuthGuard>} />
-        <Route path="/select-pharmacy" element={<AuthGuard><PharmacySelectorPage /></AuthGuard>} />
+        <Route path="/login" element={<Suspense fallback={<PageLoader />}><LoginPage /></Suspense>} />
+        <Route path="/register" element={<Suspense fallback={<PageLoader />}><RegisterPage /></Suspense>} />
+        <Route path="/auth/check-email" element={<Suspense fallback={<PageLoader />}><CheckEmailPage /></Suspense>} />
+        <Route path="/auth/verify-email" element={<Suspense fallback={<PageLoader />}><VerifyEmailPage /></Suspense>} />
+        <Route path="/auth/trial-confirmed" element={<AuthGuard><Suspense fallback={<PageLoader />}><TrialConfirmPage /></Suspense></AuthGuard>} />
+        <Route path="/select-pharmacy" element={<AuthGuard><Suspense fallback={<PageLoader />}><PharmacySelectorPage /></Suspense></AuthGuard>} />
         <Route path="/nhif-claims" element={<Suspense fallback={<PageLoader />}><NhifClaimsPage /></Suspense>} />
         <Route path="/prescriptions" element={<Suspense fallback={<PageLoader />}><PrescriptionManagementPage /></Suspense>} />
         <Route path="/symptom-checker" element={<Suspense fallback={<PageLoader />}><SymptomCheckerPage /></Suspense>} />
         <Route path="/patient-records" element={<Suspense fallback={<PageLoader />}><PatientRecordsPage /></Suspense>} />
         <Route path="/accredited-cpd" element={<Suspense fallback={<PageLoader />}><AccreditedCpdPage /></Suspense>} />
-        <Route path="/controlled-substances-reporting" element={<Suspense fallback={<PageLoader />}><ControlledSubstancesPage /></Suspense>} />
+        <Route path="/controlled-substances" element={<Suspense fallback={<PageLoader />}><ControlledSubstancesPage /></Suspense>} />
+        <Route path="/controlled-substances-reporting" element={<Navigate to="/controlled-substances" replace />} />
         <Route path="/pharmacovigilance" element={<Suspense fallback={<PageLoader />}><PharmacovigilancePage /></Suspense>} />
         <Route path="/unsubscribe/:token" element={<Suspense fallback={<PageLoader />}><UnsubscribePage /></Suspense>} />
         <Route path="/verify/:certificateId" element={<Suspense fallback={<PageLoader />}><CertificateVerifyPage /></Suspense>} />
 
-        <Route element={<AuthGuard><Layout /></AuthGuard>}>
+        <Route element={<AuthGuard><Suspense fallback={<PageLoader />}><Layout /></Suspense></AuthGuard>}>
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Suspense fallback={<PageLoader />}><DashboardPage /></Suspense>} />
-          <Route path="/analytics" element={<Suspense fallback={<PageLoader />}><AnalyticsPage /></Suspense>} />
+          <Route path="/analytics" element={page(<AnalyticsPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'CASHIER', 'WHOLESALE_MANAGER'])} />
           <Route path="/forecasting" element={<Suspense fallback={<PageLoader />}><ForecastingPage /></Suspense>} />
           <Route path="/knowledge" element={<Suspense fallback={<PageLoader />}><KnowledgeFeedPage /></Suspense>} />
           <Route path="/tmda-updates" element={<Suspense fallback={<PageLoader />}><TmdaUpdatesPage /></Suspense>} />
           <Route path="/knowledge/:slug" element={<Suspense fallback={<PageLoader />}><ArticlePage /></Suspense>} />
-          <Route path="/inventory" element={<Suspense fallback={<PageLoader />}><InventoryDashboardPage /></Suspense>} />
-          <Route path="/inventory/products" element={<Suspense fallback={<PageLoader />}><ProductsListPage /></Suspense>} />
-          <Route path="/inventory/products/new" element={<Suspense fallback={<PageLoader />}><ProductFormPage /></Suspense>} />
-          <Route path="/inventory/products/:id" element={<Suspense fallback={<PageLoader />}><ProductFormPage /></Suspense>} />
+          <Route path="/inventory" element={page(<InventoryDashboardPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'CASHIER', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF'])} />
+          <Route path="/inventory/products" element={page(<ProductsListPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'CASHIER', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF'])} />
+          <Route path="/inventory/products/new" element={page(<ProductFormPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'WHOLESALE_MANAGER'])} />
+          <Route path="/inventory/products/:id" element={page(<ProductFormPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'WHOLESALE_MANAGER'])} />
           <Route path="/inventory/drug-master" element={<Suspense fallback={<PageLoader />}><DrugCataloguePage /></Suspense>} />
-          <Route path="/inventory/receive" element={<Suspense fallback={<PageLoader />}><StockIntakePage /></Suspense>} />
+          <Route path="/inventory/receive" element={page(<StockIntakePage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF'])} />
           <Route path="/inventory/stock-orders" element={<Suspense fallback={<PageLoader />}><StockOrderListPage /></Suspense>} />
           <Route path="/inventory/stock-orders/new" element={<Suspense fallback={<PageLoader />}><StockOrderPreparePage /></Suspense>} />
           <Route path="/inventory/stock-orders/:id/edit" element={<Suspense fallback={<PageLoader />}><StockOrderPreparePage /></Suspense>} />
           <Route path="/inventory/stock-orders/:id" element={<Suspense fallback={<PageLoader />}><StockOrderViewPage /></Suspense>} />
-          <Route path="/inventory/adjust" element={<Suspense fallback={<PageLoader />}><StockAdjustPage /></Suspense>} />
+          <Route path="/inventory/adjust" element={page(<StockAdjustPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF'])} />
           <Route path="/inventory/batches" element={<Suspense fallback={<PageLoader />}><BatchManagerPage /></Suspense>} />
           <Route path="/inventory/expiry" element={<Suspense fallback={<PageLoader />}><ExpiryDashboardPage /></Suspense>} />
-          <Route path="/inventory/conflicts" element={<Suspense fallback={<PageLoader />}><InventoryConflictsPage /></Suspense>} />
-          <Route path="/inventory/import-catalogue" element={<Suspense fallback={<PageLoader />}><CatalogueImportPage /></Suspense>} />
-          <Route path="/compliance" element={<Suspense fallback={<PageLoader />}><ComplianceDashboardPage /></Suspense>} />
-          <Route path="/compliance/items" element={<Suspense fallback={<PageLoader />}><ComplianceListPage /></Suspense>} />
-          <Route path="/compliance/items/new" element={<Suspense fallback={<PageLoader />}><ComplianceItemFormPage /></Suspense>} />
-          <Route path="/compliance/items/:id" element={<Suspense fallback={<PageLoader />}><ComplianceItemDetailPage /></Suspense>} />
-          <Route path="/compliance/items/:id/edit" element={<Suspense fallback={<PageLoader />}><ComplianceItemFormPage /></Suspense>} />
-          <Route path="/compliance/staff" element={<Suspense fallback={<PageLoader />}><StaffCredentialsPage /></Suspense>} />
-          <Route path="/compliance/inspection" element={<Suspense fallback={<PageLoader />}><InspectionChecklistPage /></Suspense>} />
-          <Route path="/dispensing" element={<Suspense fallback={<PageLoader />}><DispensingScreen /></Suspense>} />
-          <Route path="/dispensing/returns" element={<Suspense fallback={<PageLoader />}><DispensingReturnsPage /></Suspense>} />
-          <Route path="/dispensing/alerts" element={<Suspense fallback={<PageLoader />}><PatientSafetyAlertsPage /></Suspense>} />
-          <Route path="/dispensing/daily-close" element={<Suspense fallback={<PageLoader />}><DailyClose /></Suspense>} />
-          <Route path="/controlled-substances" element={<Suspense fallback={<PageLoader />}><ControlledDrugsRegisterPage /></Suspense>} />
-          <Route path="/wholesale" element={<Suspense fallback={<PageLoader />}><WholesaleDashboardPage /></Suspense>} />
-          <Route path="/wholesale/orders" element={<Suspense fallback={<PageLoader />}><OrdersPage /></Suspense>} />
-          <Route path="/wholesale/settings" element={<Suspense fallback={<PageLoader />}><WholesaleSettingsPage /></Suspense>} />
+          <Route path="/inventory/conflicts" element={page(<InventoryConflictsPage />, ['OWNER', 'PHARMACIST_IN_CHARGE'])} />
+          <Route path="/inventory/import-catalogue" element={page(<CatalogueImportPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER'])} />
+          <Route path="/compliance" element={page(<ComplianceDashboardPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF'])} />
+          <Route path="/compliance/items" element={page(<ComplianceListPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF'])} />
+          <Route path="/compliance/items/new" element={page(<ComplianceItemFormPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF'])} />
+          <Route path="/compliance/items/:id" element={page(<ComplianceItemDetailPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF'])} />
+          <Route path="/compliance/items/:id/edit" element={page(<ComplianceItemFormPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF'])} />
+          <Route path="/compliance/staff" element={page(<StaffCredentialsPage />, ['OWNER', 'PHARMACIST_IN_CHARGE'])} />
+          <Route path="/compliance/inspection" element={page(<InspectionChecklistPage />, ['OWNER', 'PHARMACIST_IN_CHARGE'])} />
+          <Route path="/dispensing" element={page(<DispensingScreen />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'CASHIER'])} />
+          <Route path="/dispensing/returns" element={page(<DispensingReturnsPage />, ['OWNER', 'PHARMACIST_IN_CHARGE'])} />
+          <Route path="/dispensing/alerts" element={page(<PatientSafetyAlertsPage />, ['OWNER', 'PHARMACIST_IN_CHARGE'])} />
+          <Route path="/dispensing/daily-close" element={page(<DailyClose />, ['OWNER', 'PHARMACIST_IN_CHARGE'])} />
+          <Route path="/dispensing/controlled-register" element={page(<ControlledDrugsRegisterPage />, ['OWNER', 'PHARMACIST_IN_CHARGE'])} />
+          <Route path="/wholesale" element={page(<WholesaleDashboardPage />, ['OWNER', 'WHOLESALE_MANAGER'])} />
+          <Route path="/wholesale/orders" element={page(<OrdersPage />, ['OWNER', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF', 'DELIVERY_STAFF'])} />
+          <Route path="/wholesale/buy" element={page(<BuyerOrderPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'WHOLESALE_MANAGER'])} />
+          <Route path="/wholesale/settings" element={page(<WholesaleSettingsPage />, ['OWNER', 'WHOLESALE_MANAGER'])} />
           <Route path="/b2b" element={<Navigate to="/wholesale/orders" replace />} />
           <Route path="/orders" element={<Navigate to="/wholesale/orders" replace />} />
-          <Route path="/reports" element={<Suspense fallback={<PageLoader />}><ReportsPage /></Suspense>} />
+          <Route path="/reports" element={page(<ReportsPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'CASHIER', 'WHOLESALE_MANAGER'])} />
           <Route path="/attendance" element={<Suspense fallback={<PageLoader />}><AttendancePage /></Suspense>} />
           <Route path="/patients/new" element={<Navigate to="/patient-records" replace />} />
           <Route path="/patients/:id" element={<Navigate to="/patient-records" replace />} />
@@ -162,12 +233,12 @@ export const App: React.FC = () => (
           <Route path="/cpd/courses/:slug" element={<Suspense fallback={<PageLoader />}><CourseDetailPage /></Suspense>} />
           <Route path="/settings" element={<Navigate to="/settings/profile" replace />} />
           <Route path="/settings/profile" element={<Suspense fallback={<PageLoader />}><ProfilePage /></Suspense>} />
-          <Route path="/settings/team" element={<Suspense fallback={<PageLoader />}><TeamManagementPage /></Suspense>} />
-          <Route path="/settings/subscription" element={<Suspense fallback={<PageLoader />}><SubscriptionPage /></Suspense>} />
-          <Route path="/settings/data-review" element={<Suspense fallback={<PageLoader />}><DataReviewPage /></Suspense>} />
-          <Route path="/settings/source-updates" element={<Suspense fallback={<PageLoader />}><SourceUpdatesPage /></Suspense>} />
-          <Route path="/settings/features" element={<Suspense fallback={<PageLoader />}><FeaturesPage /></Suspense>} />
-          <Route path="/founder" element={<Suspense fallback={<PageLoader />}><FounderDashboardPage /></Suspense>} />
+          <Route path="/settings/team" element={page(<TeamManagementPage />, ['OWNER', 'PHARMACIST_IN_CHARGE'])} />
+          <Route path="/settings/subscription" element={page(<SubscriptionPage />, ['OWNER'])} />
+          <Route path="/settings/data-review" element={page(<DataReviewPage />, ['OWNER', 'PHARMACIST_IN_CHARGE'])} />
+          <Route path="/settings/source-updates" element={page(<SourceUpdatesPage />, ['OWNER', 'PHARMACIST_IN_CHARGE'])} />
+          <Route path="/settings/features" element={page(<FeaturesPage />, ['OWNER', 'PHARMACIST_IN_CHARGE'])} />
+          <Route path="/founder" element={page(<FounderDashboardPage />, ['SUPER_ADMIN'])} />
         </Route>
 
         <Route path="*" element={<Navigate to="/dashboard" replace />} />

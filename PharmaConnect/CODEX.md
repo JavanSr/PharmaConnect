@@ -67,13 +67,13 @@ interface InteractionOverrideLog {
 | Tier | TZS/month | User seats | Outlets |
 |---|---|---|---|
 | ADDO / DLDM | 20,000 | 3 | 1 |
-| Standard Pharmacy | 55,000 | 7 | 2 |
-| Premium Pharmacy | 95,000 | 12 | 3 |
-| Wholesale Pharmacy | 180,000 | 10 + delivery | 1 |
-| Enterprise | Negotiated | Unlimited | Unlimited |
-| Hybrid (retail + wholesale) | 230,000 | Retail + wholesale | Both |
+| Essential | 35,000 | 4 | 1 |
+| Standard | 55,000 | 7 | Up to 3 |
+| Premium | 75,000 | 12 | Up to 5 |
+| Wholesale | 100,000 | 10+ | 1 wholesale outlet |
+| Enterprise | Custom | Unlimited | Unlimited |
 
-Annual billing = 10× monthly (2 months free). Trial = 30 days, hard conversion, no extensions.
+Annual billing = 10x monthly (2 months free). Trial = 14 days, hard end date, no extensions.
 
 **Feature gates are enforced at the subscription tier level.** A Standard pharmacy cannot access Premium dashboard features. An ADDO cannot access dispensing safety features. Enforce this server-side, not just client-side.
 
@@ -96,7 +96,7 @@ Annual billing = 10× monthly (2 months free). Trial = 30 days, hard conversion,
 | Dispensing workflow: Full POS + records + void/reissue + discount (Standard/Premium/Wholesale); Basic POS for ADDO | ✅ Built |
 | Contraindication alerts: 8 patient flags — ALL tiers | ✅ Built |
 | Subscription tiers: pricing structure | ✅ Built |
-| 30-day trial mechanic: hard end date | ✅ Built |
+| 14-day trial mechanic: hard end date | ✅ Built |
 
 ---
 
@@ -122,7 +122,7 @@ Goal: A new pharmacy owner must be able to complete full setup — stock import,
 
 ### P2 — Premium Tier Dashboard Features
 
-These four features must all be complete before Premium tier can be actively sold at TZS 95,000/month.
+These four features must all be complete before Premium tier can be actively sold at TZS 75,000/month.
 
 **2a. Predictive low-stock (7–14 day forecast)**
 ```

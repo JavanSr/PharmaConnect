@@ -15,8 +15,8 @@ export function generateStaticParams() {
 export function generateMetadata({ params }: BlogArticlePageProps) {
   const article = ARTICLES.find((item) => item.slug === params.slug);
   return {
-    title: article ? `${article.title} - PharmaConnect` : "Article - PharmaConnect",
-    description: article?.excerpt ?? "PharmaConnect article.",
+    title: article ? `${article.title} - APOTEKH` : "Article - APOTEKH",
+    description: article?.excerpt ?? "APOTEKH article.",
   };
 }
 
@@ -42,7 +42,7 @@ export default function BlogArticlePage({ params }: BlogArticlePageProps) {
             ))}
           </div>
           <div className="mt-8">
-            <Button href={`mailto:?subject=${encodeURIComponent(article.title)}&body=${encodeURIComponent(`https://pharmaconnect.tz/blog/${article.slug}`)}`} variant="outline">
+            <Button href={`mailto:?subject=${encodeURIComponent(article.title)}&body=${encodeURIComponent(`https://apotekh.co.tz/blog/${article.slug}`)}`} variant="outline">
               Share this article
             </Button>
           </div>

@@ -1,10 +1,10 @@
 import React, { useRef, useCallback } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
-  LayoutDashboard, BookOpen, Package, Shield, Pill, FileCheck, GraduationCap,
-  Lock, ChevronLeft, ChevronRight, Settings, LogOut, BarChart3, Repeat2,
+  LayoutDashboard, BookOpen, Package, Shield, Pill,
+  Lock, ChevronLeft, ChevronRight, Settings, LogOut, BarChart3,
   AlertTriangle, ClipboardList, Users,
-  Building2, Smartphone, Brain, Database, X, ShieldAlert, Telescope
+  Building2, X, ShieldAlert, Telescope
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { usePharmacyStore } from '@/stores/pharmacyStore';
@@ -15,8 +15,6 @@ interface NavItem {
   label: string;
   path: string;
   icon: React.ReactNode;
-  locked?: boolean;
-  phase?: 2 | 3 | 4;
   roles?: UserRole[]; // if set, only these roles see this item
 }
 
@@ -30,31 +28,13 @@ const phase1Nav: NavItem[] = [
   { label: 'Analytics', path: '/analytics', icon: <BarChart3 size={18} /> },
   { label: 'Dispensing', path: '/dispensing', icon: <Pill size={18} />, roles: ['PHARMACIST_IN_CHARGE','DISPENSER','CASHIER','SUPER_ADMIN'] },
   { label: 'Safety Alerts', path: '/dispensing/alerts', icon: <ShieldAlert size={18} />, roles: ['OWNER','PHARMACIST_IN_CHARGE','SUPER_ADMIN'] },
-  { label: 'Controlled Register', path: '/controlled-substances', icon: <Lock size={18} />, roles: ['OWNER','PHARMACIST_IN_CHARGE','SUPER_ADMIN'] },
+  { label: 'Controlled Register', path: '/dispensing/controlled-register', icon: <Lock size={18} />, roles: ['OWNER','PHARMACIST_IN_CHARGE','SUPER_ADMIN'] },
   { label: 'Wholesale', path: '/wholesale', icon: <Building2 size={18} />, roles: ['OWNER','WHOLESALE_MANAGER','WHOLESALE_COUNTER_STAFF','DELIVERY_STAFF','SUPER_ADMIN'] },
   { label: 'Orders', path: '/wholesale/orders', icon: <ClipboardList size={18} />, roles: ['OWNER','WHOLESALE_MANAGER','WHOLESALE_COUNTER_STAFF','DELIVERY_STAFF','SUPER_ADMIN'] },
   { label: 'Reports', path: '/reports', icon: <BarChart3 size={18} />, roles: ['OWNER','PHARMACIST_IN_CHARGE','CASHIER','WHOLESALE_MANAGER','SUPER_ADMIN'] },
   { label: 'Attendance', path: '/attendance', icon: <Users size={18} /> },
   { label: 'Sync Conflicts', path: '/inventory/conflicts', icon: <AlertTriangle size={18} />, roles: ['OWNER','PHARMACIST_IN_CHARGE','SUPER_ADMIN'] },
   { label: 'Founder', path: '/founder', icon: <Telescope size={18} />, roles: ['SUPER_ADMIN'] },
-];
-
-const phase2Nav: NavItem[] = [
-  { label: 'CPD Tracker', path: '/cpd', icon: <GraduationCap size={18} />, locked: true, phase: 2 },
-  { label: 'NHIF Claims', path: '/nhif-claims', icon: <FileCheck size={18} />, locked: true, phase: 2 },
-  { label: 'PC-Accredited CPD', path: '/accredited-cpd', icon: <GraduationCap size={18} />, locked: true, phase: 2 },
-  { label: 'Stock Exchange', path: '/stock-exchange', icon: <Repeat2 size={18} />, locked: true, phase: 2 },
-  { label: 'TMDA Reporting', path: '/controlled-substances-reporting', icon: <FileCheck size={18} />, locked: true, phase: 2 },
-  { label: 'ADR Reporting', path: '/pharmacovigilance', icon: <AlertTriangle size={18} />, locked: true, phase: 2 },
-];
-
-const phase3Nav: NavItem[] = [
-  { label: 'Patient App', path: '/patient-app', icon: <Smartphone size={18} />, locked: true, phase: 3 },
-];
-
-const phase4Nav: NavItem[] = [
-  { label: 'AI Safety', path: '/ai-safety', icon: <Brain size={18} />, locked: true, phase: 4 },
-  { label: 'Data Products', path: '/data-products', icon: <Database size={18} />, locked: true, phase: 4, roles: ['SUPER_ADMIN'] },
 ];
 
 const founderNav: NavItem[] = [
@@ -94,24 +74,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, collapsed, on
   };
 
   const NavItemEl: React.FC<{ item: NavItem }> = ({ item }) => {
-    if (item.locked) {
-      return (
-        <NavLink
-          to={item.path}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors hover:bg-[#EDF7F3] text-[#64748B] opacity-70"
-          onClick={() => onClose()}
-        >
-          {item.icon}
-          {!collapsed && (
-            <>
-              <span className="flex-1 text-sm font-medium truncate">{item.label}</span>
-              <Lock size={14} className="shrink-0 opacity-60" />
-            </>
-          )}
-        </NavLink>
-      );
-    }
-
     return (
       <NavLink
         to={item.path}
@@ -149,12 +111,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, collapsed, on
       <div className={`flex items-center gap-3 px-4 py-5 border-b border-[#D6F0E8] ${collapsed ? 'justify-center' : ''}`}>
         <img
           src="/brand/pharmaconnect-icon.svg"
-          alt="PharmaConnect"
+          alt="APOTEKH"
           className="w-9 h-9 shrink-0"
         />
         {!collapsed && (
           <div className="min-w-0">
-            <p className="text-sm font-bold text-[#0D4035] leading-tight">PharmaConnect</p>
+            <p className="text-sm font-bold text-[#0D4035] leading-tight">APOTEKH</p>
             <p className="text-xs text-[#64748B] truncate">{pharmacy?.name || 'Loading...'}</p>
           </div>
         )}
@@ -165,21 +127,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, collapsed, on
         {visiblePhase1Nav.map(item => <NavItemEl key={item.path} item={item} />)}
 
         {founderNav
-          .filter((item) => !item.roles || (user?.role && item.roles.includes(user.role as UserRole)))
-          .map(item => <NavItemEl key={item.path} item={item} />)}
-
-        {!collapsed && (
-          <div className="pt-3 pb-1">
-            <p className="px-3 text-xs font-semibold text-[#64748B] uppercase tracking-wider">Coming Soon</p>
-          </div>
-        )}
-        {phase2Nav
-          .filter((item) => !item.roles || (user?.role && item.roles.includes(user.role as UserRole)))
-          .map(item => <NavItemEl key={item.path} item={item} />)}
-        {phase3Nav
-          .filter((item) => !item.roles || (user?.role && item.roles.includes(user.role as UserRole)))
-          .map(item => <NavItemEl key={item.path} item={item} />)}
-        {phase4Nav
           .filter((item) => !item.roles || (user?.role && item.roles.includes(user.role as UserRole)))
           .map(item => <NavItemEl key={item.path} item={item} />)}
       </nav>

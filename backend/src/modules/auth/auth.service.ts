@@ -1,17 +1,18 @@
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
+import type { BillingCycle, PharmacyAccountStatus, PharmacyMembershipRole, PharmacyType, SubscriptionTier } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 import { withPrismaRetry } from '../../lib/prisma-retry';
 import { verifyRefresh } from '../../lib/jwt';
 import { normalizeRole, type KnownRole } from '../../types/roles';
-import { issueAuthTokens, listAccessiblePharmacies, resolveActiveMembership } from './pharmacy-membership.service';
+import { issueAuthTokens, resolveActiveMembership } from './pharmacy-membership.service';
 import { sendVerificationEmail, sendWelcomeEmail, sendFounderNotification } from '../../lib/email';
 
 function hashToken(token: string): string {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
 
-const TRIAL_DAYS = 30;
+const TRIAL_DAYS = 14;
 
 type RegistrationPharmacyType = 'RETAIL' | 'ADDO' | 'WHOLESALE' | 'RETAIL_WHOLESALE';
 
@@ -45,7 +46,34 @@ function initialSubscriptionTier(pharmacyType: RegistrationPharmacyType) {
   return 'STANDARD' as const;
 }
 
-type LoginMembership = Awaited<ReturnType<typeof listAccessiblePharmacies>>[number];
+type LoginMembership = {
+  id: string;
+  pharmacyId: string;
+  role: PharmacyMembershipRole;
+  active: boolean;
+  validFrom: Date | null;
+  validUntil: Date | null;
+  pharmacy: {
+    id: string;
+    name: string;
+    licenceNumber: string;
+    address: string;
+    region: string;
+    pharmacyType: PharmacyType;
+    subscriptionTier: SubscriptionTier;
+    billingCycle: BillingCycle;
+    status: PharmacyAccountStatus;
+    trialActive: boolean;
+    trialStartsAt: Date | null;
+    trialEndsAt: Date | null;
+    isHybrid: boolean;
+    hybridAddonActive: boolean;
+    vfdEnabled: boolean;
+    userLimit: number | null;
+    isActive: boolean;
+    createdAt: Date;
+  } | null;
+};
 type LoginTimings = Record<string, number>;
 
 const loginSlowLogMs = Number(process.env.LOGIN_SLOW_LOG_MS ?? 1000);
@@ -84,9 +112,63 @@ function chooseLoginMembership(
 export async function loginService(email: string, password: string, preferredPharmacyId?: string) {
   const startedAt = Date.now();
   const timings: LoginTimings = {};
+  const now = new Date();
   const user = await measureLoginStep(timings, 'userLookupMs', () => withPrismaRetry(() => prisma.user.findUnique({
       where: { email: email.toLowerCase() },
-      include: { pharmacy: true },
+      include: {
+        pharmacy: true,
+        memberships: {
+          where: {
+            active: true,
+            OR: [
+              { validFrom: null },
+              { validFrom: { lte: now } },
+            ],
+            AND: [
+              {
+                OR: [
+                  { validUntil: null },
+                  { validUntil: { gte: now } },
+                ],
+              },
+            ],
+          },
+          orderBy: [
+            { pharmacy: { name: 'asc' } },
+            { createdAt: 'asc' },
+          ],
+          select: {
+            id: true,
+            pharmacyId: true,
+            role: true,
+            active: true,
+            validFrom: true,
+            validUntil: true,
+            pharmacy: {
+              select: {
+                id: true,
+                name: true,
+                licenceNumber: true,
+                address: true,
+                region: true,
+                pharmacyType: true,
+                subscriptionTier: true,
+                billingCycle: true,
+                status: true,
+                trialActive: true,
+                trialStartsAt: true,
+                trialEndsAt: true,
+                isHybrid: true,
+                hybridAddonActive: true,
+                vfdEnabled: true,
+                userLimit: true,
+                isActive: true,
+                createdAt: true,
+              },
+            },
+          },
+        },
+      },
     })));
 
   if (!user || !user.isActive) {
@@ -99,12 +181,9 @@ export async function loginService(email: string, password: string, preferredPha
   }
 
   const normalizedRole = normalizeRole(user.role);
-  const rawMemberships = normalizedRole === 'SUPER_ADMIN'
-    ? []
-    : await measureLoginStep(timings, 'membershipsMs', () => listAccessiblePharmacies(user.id));
-  const membership = normalizedRole === 'SUPER_ADMIN'
-    ? null
-    : chooseLoginMembership(rawMemberships, preferredPharmacyId ?? user.pharmacyId);
+  const rawMemberships = user.memberships;
+  timings.membershipsMs = 0;
+  const membership = chooseLoginMembership(rawMemberships, preferredPharmacyId ?? user.pharmacyId);
 
   if (!membership && normalizedRole !== 'SUPER_ADMIN') {
     throw Object.assign(new Error('No active pharmacy membership found'), { status: 403 });
@@ -116,7 +195,7 @@ export async function loginService(email: string, password: string, preferredPha
       userId: user.id,
       role: user.role,
       pharmacyId: selectedPharmacyId,
-    }));
+    }, { refreshTokenWrite: 'background' }));
 
   void withPrismaRetry(() => prisma.user.update({
     where: { id: user.id },
@@ -144,7 +223,7 @@ export async function loginService(email: string, password: string, preferredPha
     });
   }
 
-  const { password: _pw, ...safeUser } = user;
+  const { password: _pw, memberships: _memberships, ...safeUser } = user;
   return {
     user: {
       ...safeUser,

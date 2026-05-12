@@ -1,8 +1,8 @@
 import ContactTabs from "@/components/ContactTabs";
 
 export const metadata = {
-  title: "Contact - PharmaConnect",
-  description: "Get in touch with PharmaConnect — early access requests, investor inquiries, and institutional partnerships.",
+  title: "Contact - APOTEKH",
+  description: "Get in touch with APOTEKH — early access requests, investor inquiries, and institutional partnerships.",
 };
 
 export default function ContactPage() {
@@ -13,7 +13,7 @@ export default function ContactPage() {
         <p className="mt-5 text-slate/70">
           elihaki.yusuph@gmail.com / +255 764 591 374
         </p>
-        <p className="mt-2 text-slate/70">Arusha, Tanzania / @PharmaConnect</p>
+        <p className="mt-2 text-slate/70">Dodoma, Tanzania / @APOTEKH</p>
         <p className="mt-2 font-serif text-xl italic text-slate">
           &quot;We respond within 48 hours&quot;
         </p>

@@ -24,7 +24,7 @@ export async function sendResendEmail({
   html: string;
 }) {
   const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.RESEND_FROM || "hello@pharmaconnect.tz";
+  const from = process.env.RESEND_FROM || "hello@apotekh.co.tz";
 
   if (!apiKey) {
     return { sent: false, reason: "not_configured" };

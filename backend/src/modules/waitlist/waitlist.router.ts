@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../../lib/prisma';
 
 const resendApiKey = process.env.RESEND_API_KEY;
-const fromEmail = process.env.RESEND_FROM_EMAIL || 'PharmaConnect <no-reply@pharmaconnect.tz>';
+const fromEmail = process.env.RESEND_FROM_EMAIL || 'APOTEKH <no-reply@apotekh.co.tz>';
 
 async function sendWaitlistConfirmation(email: string, feature: string) {
   if (!resendApiKey) {
@@ -19,13 +19,13 @@ async function sendWaitlistConfirmation(email: string, feature: string) {
     body: JSON.stringify({
       from: fromEmail,
       to: [email],
-      subject: `PharmaConnect waitlist confirmation: ${feature}`,
+      subject: `APOTEKH waitlist confirmation: ${feature}`,
       html: `
         <div style="font-family: DM Sans, Arial, sans-serif; color: #0D4035; line-height: 1.6;">
           <h2 style="margin-bottom: 8px;">You are on the waitlist</h2>
           <p>We have recorded your interest in <strong>${feature}</strong>.</p>
           <p>We will contact you when the dependency blocking this feature changes.</p>
-          <p style="margin-top: 24px;">PharmaConnect</p>
+          <p style="margin-top: 24px;">APOTEKH</p>
         </div>
       `,
     }),

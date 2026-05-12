@@ -1,0 +1,340 @@
+export interface Module {
+  id: string;
+  slug: string;
+  name: string;
+  description: string;
+  available: boolean;
+  icon: string;
+  features: string[];
+  howItWorks: string;
+  acceptanceCriteria: string[];
+  relatedModules: string[];
+}
+
+export const MODULES: Module[] = [
+  {
+    id: "M01",
+    slug: "dashboard",
+    name: "Dashboard",
+    description: "A live operating view that keeps pharmacy teams aligned on sales, compliance, and daily priorities.",
+    available: true,
+    icon: "LayoutDashboard",
+    features: [
+      "Daily workload cards keep priority actions visible",
+      "Branch-level status updates surface in one view",
+      "NHIF, inventory, and compliance signals stay visible throughout the day",
+      "Managers see pending tasks without opening multiple tools",
+      "Mobile-ready layouts keep the dashboard useful on the move",
+    ],
+    howItWorks:
+      "The dashboard gathers live operational signals into one pharmacy-side view so teams can act quickly on dispensing, stock, compliance, and staff workflow.",
+    acceptanceCriteria: [
+      "Critical alerts stay visible above the fold",
+      "Role-based widgets keep each user focused on relevant work",
+      "Summary cards remain readable on mobile and desktop",
+      "Operational data refreshes without disrupting active work",
+      "Key pharmacy actions are reachable within one click from the dashboard",
+    ],
+    relatedModules: ["inventory", "dispensing", "analytics"],
+  },
+  {
+    id: "M02",
+    slug: "knowledge-hub",
+    name: "Knowledge Hub",
+    description: "A practical content library that supports compliance, CPD, and safer dispensing decisions.",
+    available: true,
+    icon: "BookOpen",
+    features: [
+      "Regulatory guidance articles stay searchable by topic",
+      "Clinical references support daily dispensing work",
+      "Sponsored content stays clearly labeled",
+      "Short summaries help busy teams scan fast",
+      "Mobile reading keeps the hub usable on shop-floor devices",
+    ],
+    howItWorks:
+      "Knowledge Hub organizes pharmacy content into short, useful references that connect daily practice with regulation, safety, and professional growth.",
+    acceptanceCriteria: [
+      "Articles load quickly on low-bandwidth connections",
+      "Search returns relevant guidance by title and excerpt",
+      "Category filters help users narrow content fast",
+      "Sponsored content remains visibly distinct from editorial content",
+      "Clinical and compliance content remain easy to scan on mobile",
+    ],
+    relatedModules: ["cpd-tracker", "dispensing", "compliance-tracker"],
+  },
+  {
+    id: "M03",
+    slug: "inventory",
+    name: "Inventory",
+    description: "Batch-aware stock control that keeps expiry, FEFO, and pharmacy availability tightly managed.",
+    available: true,
+    icon: "Package",
+    features: [
+      "Batch and expiry tracking covers every stocked product",
+      "FEFO prompts help teams dispense the safest stock first",
+      "Movement history preserves a clean audit trail",
+      "Low-stock and near-expiry alerts stay visible throughout the day",
+      "Offline-ready updates keep stock work moving during outages",
+    ],
+    howItWorks:
+      "Inventory tracks products by batch, expiry, and movement so pharmacy teams can protect stock value, reduce waste, and support accurate dispensing.",
+    acceptanceCriteria: [
+      "Every stock action records a dated movement entry",
+      "FEFO suggestions appear during product selection",
+      "Expiry alerts cover 90, 60, 30, 7, and 1 day windows",
+      "Stock lookups remain usable during unstable connectivity",
+      "Audit history stays readable without manual reconciliation",
+    ],
+    relatedModules: ["dashboard", "dispensing", "analytics"],
+  },
+  {
+    id: "M04",
+    slug: "compliance-tracker",
+    name: "Compliance Tracker",
+    description: "A deadline and evidence engine that keeps inspections, licences, and obligations in clear view.",
+    available: true,
+    icon: "ShieldCheck",
+    features: [
+      "Compliance reminders track every dated obligation",
+      "Status colours make risk visible at a glance",
+      "Inspection readiness checklists stay attached to the workflow",
+      "Audit events remain non-editable and reviewable",
+      "SMS-ready reminders support low-resource deployment",
+    ],
+    howItWorks:
+      "Compliance Tracker turns obligations into visible tasks with dates, status, and evidence so pharmacies stay ready before deadlines become crises.",
+    acceptanceCriteria: [
+      "Overdue items remain prominent until resolved",
+      "Upcoming obligations stay visible early enough for action",
+      "Completed tasks remain attached to evidence records",
+      "Core compliance views stay usable on mobile devices",
+      "Audit history supports inspection review without hidden edits",
+    ],
+    relatedModules: ["dashboard", "inventory", "cpd-tracker"],
+  },
+  {
+    id: "M05",
+    slug: "analytics",
+    name: "Analytics",
+    description: "Management reporting that reveals branch performance, claims trends, and operational risk in one place.",
+    available: true,
+    icon: "BarChart3",
+    features: [
+      "Operational dashboards track daily and monthly performance",
+      "Claims trend views highlight acceptance and rejection patterns",
+      "Inventory reports surface fast-moving and at-risk stock",
+      "Compliance summaries show overdue and upcoming obligations",
+      "Exportable reports support management review and meetings",
+    ],
+    howItWorks:
+      "Analytics turns audited pharmacy activity into clear reports that help owners and managers understand performance, risk, and growth across the business.",
+    acceptanceCriteria: [
+      "Operational metrics remain separate from patient identity data",
+      "Reports stay readable on low-bandwidth screens",
+      "Exported summaries reflect the same values shown in-app",
+      "Trend cards highlight meaningful changes over time",
+      "Managers can compare branches without leaving the analytics view",
+    ],
+    relatedModules: ["dashboard", "inventory", "dispensing"],
+  },
+  {
+    id: "M06",
+    slug: "dispensing",
+    name: "Dispensing",
+    description: "A pharmacy-first workflow that connects product selection, safety checks, and transaction completion.",
+    available: true,
+    icon: "Pill",
+    features: [
+      "Dispensing lines keep medicines, quantities, and fees aligned",
+      "Interaction and allergy checks appear before medicine leaves the counter",
+      "FEFO guidance stays visible during product selection",
+      "Pharmacist review flows support higher-risk transactions",
+      "Anonymous patient UUID handling protects privacy at the point of care",
+    ],
+    howItWorks:
+      "Dispensing combines product choice, patient safety, and pharmacy workflow into one controlled flow that helps staff finish work accurately and safely.",
+    acceptanceCriteria: [
+      "Safety alerts appear before transaction completion",
+      "Pharmacist review steps trigger on higher-risk events",
+      "Dispensing lines stay editable until final confirmation",
+      "Patient UUID stays separate from personal identity data",
+      "Workflow performance supports busy counter use",
+    ],
+    relatedModules: ["inventory", "knowledge-hub", "cpd-tracker"],
+  },
+  {
+    id: "M07",
+    slug: "cpd-tracker",
+    name: "CPD Tracker",
+    description: "Professional learning records that connect staff growth with compliance and daily practice.",
+    available: true,
+    icon: "GraduationCap",
+    features: [
+      "CPD activities stay recorded with dates and evidence",
+      "Completion status remains visible to staff and managers",
+      "Certificate details stay attached to learning records",
+      "Compliance reminders connect CPD to deadline management",
+      "Mobile-friendly history keeps records accessible anywhere",
+    ],
+    howItWorks:
+      "CPD Tracker keeps professional learning organized in the same platform pharmacy teams already use, making progress easier to record, review, and prove.",
+    acceptanceCriteria: [
+      "Users can record learning activities in a few fields",
+      "Evidence attachments remain linked to the correct activity",
+      "Completion status stays visible within staff records",
+      "Managers can review learning progress without separate spreadsheets",
+      "CPD reminders connect directly to compliance workflows",
+    ],
+    relatedModules: ["knowledge-hub", "compliance-tracker", "dispensing"],
+  },
+  {
+    id: "M08",
+    slug: "nhif-claims",
+    name: "NHIF Claims",
+    description: "An accredited claims workflow that verifies members, validates records, and tracks reimbursement status clearly.",
+    available: false,
+    icon: "FileCheck2",
+    features: [
+      "Member verification checks coverage before submission",
+      "Diagnosis validation keeps required coding in view",
+      "Claims scrubber catches missing fields before batch submission",
+      "Offline queueing protects work during connectivity gaps",
+      "Status tracking surfaces rejected claims with correction guidance",
+    ],
+    howItWorks:
+      "NHIF Claims guides pharmacy teams from member verification through validation, submission, and tracking so reimbursement work stays clean and reviewable.",
+    acceptanceCriteria: [
+      "Member verification stays visible in the workflow",
+      "Required fields are checked before submission",
+      "Rejected claims remain easy to identify and correct",
+      "Queue status stays visible when connectivity is unstable",
+      "Claim audit history supports internal review and follow-up",
+    ],
+    relatedModules: ["dashboard", "dispensing", "analytics"],
+  },
+  {
+    id: "M09",
+    slug: "stock-exchange",
+    name: "Stock Exchange",
+    description: "A shared stock marketplace that helps pharmacies move surplus and find urgent supply across the network.",
+    available: false,
+    icon: "Repeat",
+    features: [
+      "Surplus stock listings surface expiring inventory in time",
+      "Request flows help pharmacies find needed products faster",
+      "Expiry visibility protects buyers and sellers alike",
+      "Participation controls keep exchange access deliberate",
+      "Audit records preserve a clear trail of stock movement decisions",
+    ],
+    howItWorks:
+      "Stock Exchange connects pharmacy inventory signals to a controlled peer network so usable stock can move where it is needed before value is lost.",
+    acceptanceCriteria: [
+      "Listings include batch and expiry context",
+      "Participation settings remain easy to manage",
+      "Exchange records stay linked to inventory history",
+      "Only operational stock data appears in the exchange flow",
+      "Search and request actions remain clear on mobile",
+    ],
+    relatedModules: ["inventory", "analytics", "b2b-platform"],
+  },
+  {
+    id: "M10",
+    slug: "b2b-platform",
+    name: "B2B Platform",
+    description: "A pharmacy-to-supplier ordering workflow that keeps procurement organized, visible, and auditable.",
+    available: false,
+    icon: "ShoppingCart",
+    features: [
+      "Supplier catalog views help teams compare purchasing options",
+      "Draft orders stay structured before confirmation",
+      "Order status tracking keeps procurement work visible",
+      "Batch receipt support connects inbound stock to inventory history",
+      "Reorder prompts surface low-stock products at the right moment",
+    ],
+    howItWorks:
+      "B2B Platform links stock needs to supplier ordering so pharmacies can move from low-stock alert to tracked procurement without leaving PharmaConnect.",
+    acceptanceCriteria: [
+      "Draft orders retain product and quantity details clearly",
+      "Received batches connect directly to inventory records",
+      "Order status remains visible across the team",
+      "Low-stock prompts lead smoothly into procurement actions",
+      "Audit history supports supplier and internal review",
+    ],
+    relatedModules: ["inventory", "analytics", "stock-exchange"],
+  },
+  {
+    id: "M11",
+    slug: "patient-app",
+    name: "Patient App",
+    description: "A connected patient experience that keeps medicine reminders, refill prompts, and pharmacy communication close at hand.",
+    available: false,
+    icon: "Smartphone",
+    features: [
+      "Medicine reminders keep adherence visible to patients",
+      "Refill prompts connect patients back to their pharmacy on time",
+      "Order status updates reduce uncertainty after dispensing",
+      "Education content supports safer medicine use at home",
+      "Privacy controls keep pharmacy-patient communication deliberate",
+    ],
+    howItWorks:
+      "Patient App extends pharmacy support beyond the counter with reminders, updates, and educational guidance that strengthen continuity of care.",
+    acceptanceCriteria: [
+      "Reminder schedules remain easy to configure",
+      "Refill prompts map to pharmacy-side dispensing records",
+      "Patient-facing content stays clear and easy to read",
+      "Communication actions respect privacy boundaries",
+      "Status updates remain consistent with pharmacy records",
+    ],
+    relatedModules: ["dispensing", "knowledge-hub", "ai-safety"],
+  },
+  {
+    id: "M12",
+    slug: "ai-safety",
+    name: "AI Safety",
+    description: "Clinical intelligence that helps teams surface medicine risk earlier and act with greater confidence.",
+    available: false,
+    icon: "Sparkles",
+    features: [
+      "Interaction prioritization highlights the most urgent issues first",
+      "Clinical prompts help teams understand why a risk appears",
+      "Override support preserves professional judgment and auditability",
+      "Learning loops improve pharmacy safety workflows over time",
+      "Risk summaries help teams communicate clearly with patients",
+    ],
+    howItWorks:
+      "AI Safety interprets dispensing context and clinical rules to bring the right warning, explanation, and next action into view at the right moment.",
+    acceptanceCriteria: [
+      "Alert rationale remains visible to the reviewing professional",
+      "Overrides preserve a clean audit trail",
+      "Risk levels remain clearly differentiated",
+      "Clinical prompts support fast decision-making at the counter",
+      "Safety recommendations remain aligned with pharmacy workflow",
+    ],
+    relatedModules: ["dispensing", "knowledge-hub", "patient-app"],
+  },
+  {
+    id: "M13",
+    slug: "data-products",
+    name: "Data Products",
+    description: "High-trust operational intelligence products that turn pharmacy activity into decision-ready market insight.",
+    available: false,
+    icon: "Database",
+    features: [
+      "Aggregated reporting surfaces category-level market movement",
+      "Supply trend insight supports smarter stocking decisions",
+      "Branch performance benchmarking reveals operational gaps",
+      "Partner-ready summaries package data in useful formats",
+      "Governance controls keep sensitive information protected",
+    ],
+    howItWorks:
+      "Data Products transforms aggregated pharmacy operations into decision-ready intelligence for management, partners, and institutional planning.",
+    acceptanceCriteria: [
+      "Sensitive data remains protected through aggregation rules",
+      "Reports stay useful without exposing personal identity data",
+      "Insights remain understandable to non-technical stakeholders",
+      "Exportable summaries preserve the meaning of in-app metrics",
+      "Governance controls remain visible to authorized users",
+    ],
+    relatedModules: ["analytics", "dashboard", "b2b-platform"],
+  },
+];

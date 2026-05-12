@@ -20,6 +20,10 @@ export type DrugSeed = {
 
 const ACCESS_AWARE_ANTIBIOTICS = new Set([
   'amoxicillin',
+  'amoxicillin + clavulanic acid',
+  'amoxicillin clavulanic acid',
+  'amoxicillin-clavulanic acid',
+  'amoxicillin/clavulanic acid',
   'co-trimoxazole',
   'metronidazole',
   'doxycycline',
@@ -28,28 +32,55 @@ const ACCESS_AWARE_ANTIBIOTICS = new Set([
   'phenoxymethylpenicillin',
   'ampicillin',
   'cloxacillin',
+  'flucloxacillin',
   'nitrofurantoin',
   'chloramphenicol',
   'clindamycin',
+  'tetracycline',
+  'tinidazole',
+  'benzathine benzylpenicillin',
+  'procaine benzylpenicillin',
 ]);
 
 const WATCH_AWARE_ANTIBIOTICS = new Set([
   'ciprofloxacin',
+  'levofloxacin',
   'azithromycin',
+  'clarithromycin',
   'ceftriaxone',
+  'cefotaxime',
+  'ceftazidime',
   'cefixime',
   'cephalexin',
+  'cefuroxime',
   'gentamicin',
+  'amikacin',
+  'piperacillin + tazobactam',
+  'piperacillin-tazobactam',
+  'vancomycin',
+]);
+
+const RESERVE_AWARE_ANTIBIOTICS = new Set([
+  'linezolid',
+  'meropenem',
+  'imipenem + cilastatin',
+  'imipenem-cilastatin',
+  'polymyxin b',
+  'colistin',
 ]);
 
 function getAwarClass(genericName: string): DrugSeed['awarClass'] {
   const normalized = genericName.trim().toLowerCase();
-  const matches = (antibiotic: string) => normalized === antibiotic || normalized.startsWith(`${antibiotic} `);
+  const canonical = normalized.replace(/\s*[/+-]\s*/g, ' + ').replace(/\s+/g, ' ');
+  const matches = (antibiotic: string) => canonical === antibiotic || canonical.startsWith(`${antibiotic} `);
   if ([...ACCESS_AWARE_ANTIBIOTICS].some(matches)) {
     return 'ACCESS';
   }
   if ([...WATCH_AWARE_ANTIBIOTICS].some(matches)) {
     return 'WATCH';
+  }
+  if ([...RESERVE_AWARE_ANTIBIOTICS].some(matches)) {
+    return 'RESERVE';
   }
   return null;
 }
@@ -356,10 +387,12 @@ const SUPPLEMENTAL_FORMULARY_GROUPS: Array<{
     drugClass: 'ANTIBIOTIC',
     therapeuticCategory: 'INFECTION',
     names: [
-      'ampicillin', 'cloxacillin', 'benzylpenicillin', 'flucloxacillin', 'phenoxymethylpenicillin', 'ceftriaxone', 'cefixime',
-      'cephalexin', 'cefuroxime', 'azithromycin', 'erythromycin', 'clarithromycin', 'ciprofloxacin',
+      'ampicillin', 'amoxicillin + clavulanic acid', 'cloxacillin', 'benzylpenicillin', 'benzathine benzylpenicillin',
+      'procaine benzylpenicillin', 'flucloxacillin', 'phenoxymethylpenicillin', 'ceftriaxone', 'cefixime',
+      'cefotaxime', 'ceftazidime', 'cephalexin', 'cefuroxime', 'azithromycin', 'erythromycin', 'clarithromycin', 'ciprofloxacin',
       'levofloxacin', 'doxycycline', 'tetracycline', 'nitrofurantoin', 'clindamycin', 'metronidazole',
-      'tinidazole', 'gentamicin', 'amikacin', 'chloramphenicol', 'linezolid', 'meropenem', 'vancomycin',
+      'tinidazole', 'gentamicin', 'amikacin', 'chloramphenicol', 'piperacillin + tazobactam', 'linezolid',
+      'meropenem', 'imipenem + cilastatin', 'vancomycin', 'colistin',
     ],
   },
   {

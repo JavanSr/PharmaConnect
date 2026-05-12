@@ -236,6 +236,86 @@ founderRouter.post('/registrations/:pharmacyId/verify-owner', async (req: AuthRe
   }
 });
 
+founderRouter.patch('/registrations/:pharmacyId/set-tier', async (req: AuthRequest, res, next) => {
+  try {
+    const { pharmacyId } = req.params;
+    const { tier, paidUntil, billingCycle } = z.object({
+      tier: z.enum(['ADDO', 'ESSENTIAL', 'ADDO_PLUS', 'STANDARD', 'PREMIUM', 'WHOLESALE', 'ENTERPRISE']),
+      paidUntil: z.coerce.date().optional(),
+      billingCycle: z.enum(['MONTHLY', 'ANNUAL']).optional(),
+    }).parse(req.body);
+
+    const pharmacy = await prisma.pharmacy.findUnique({
+      where: { id: pharmacyId },
+      select: { id: true, name: true, subscriptionTier: true },
+    });
+
+    if (!pharmacy) {
+      throw Object.assign(new Error('Pharmacy not found'), { status: 404 });
+    }
+
+    const updated = await prisma.pharmacy.update({
+      where: { id: pharmacyId },
+      data: {
+        subscriptionTier: tier,
+        status: 'ACTIVE',
+        trialActive: false,
+        isActive: true,
+        ...(billingCycle && { billingCycle }),
+        ...(paidUntil && { trialEndsAt: paidUntil }),
+        subscriptionUpdatedAt: new Date(),
+      },
+      select: {
+        id: true,
+        name: true,
+        subscriptionTier: true,
+        status: true,
+        billingCycle: true,
+        trialEndsAt: true,
+        isActive: true,
+      },
+    });
+
+    console.info('[founder.set-tier]', {
+      pharmacyId,
+      oldTier: pharmacy.subscriptionTier,
+      newTier: tier,
+      paidUntil: paidUntil ?? null,
+      by: req.user?.email,
+    });
+
+    res.json({ data: updated });
+  } catch (error) {
+    next(error);
+  }
+});
+
+founderRouter.get('/pharmacies/search', async (req: AuthRequest, res, next) => {
+  try {
+    const { q } = z.object({ q: z.string().min(2).max(100) }).parse(req.query);
+
+    const pharmacies = await prisma.pharmacy.findMany({
+      where: {
+        isActive: true,
+        name: { contains: q, mode: 'insensitive' },
+      },
+      orderBy: { name: 'asc' },
+      take: 20,
+      select: {
+        id: true,
+        name: true,
+        region: true,
+        pharmacyType: true,
+        subscriptionTier: true,
+      },
+    });
+
+    res.json({ data: pharmacies });
+  } catch (error) {
+    next(error);
+  }
+});
+
 founderRouter.get('/stats', async (_req: AuthRequest, res, next) => {
   try {
     const [

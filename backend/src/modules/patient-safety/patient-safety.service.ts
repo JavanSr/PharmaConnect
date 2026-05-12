@@ -518,6 +518,12 @@ async function resolveDrugsFromContext(context: SafetySessionContext): Promise<R
   const resolved: ResolvedDrug[] = [];
   const seen = new Set<string>();
   const productIds = context.productIds ?? [];
+  const medicines = context.medicines ?? [];
+
+  if (productIds.length === 0 && medicines.length === 0) {
+    return [];
+  }
+
   const catalogue = await getReviewedDrugCatalogue();
 
   if (productIds.length > 0) {
@@ -536,7 +542,7 @@ async function resolveDrugsFromContext(context: SafetySessionContext): Promise<R
     }
   }
 
-  for (const medicine of context.medicines ?? []) {
+  for (const medicine of medicines) {
     const drug = matchDrugFromCatalogue(catalogue, medicine);
     if (drug && !seen.has(drug.id)) {
       resolved.push({ ...drug, source: medicine, sourceType: 'manual' });
@@ -610,12 +616,23 @@ export function deriveRequiredPatientInputs(input: {
       drug: Pick<DrugDatabase, 'genericName'>;
     }
   >;
-  pregnancyFlags: PrecautionCatalogueRow[];
-  lactationFlags: PrecautionCatalogueRow[];
-  renalFlags: PrecautionCatalogueRow[];
-  hepaticFlags: PrecautionCatalogueRow[];
+  resolvedDrugs?: Array<
+    Pick<
+      ResolvedDrug,
+      'genericName' | 'pregnancyCategory' | 'breastfeedingSafety' | 'renalCaution' | 'hepaticCaution'
+    >
+  >;
+  pregnancyFlags?: PrecautionCatalogueRow[];
+  lactationFlags?: PrecautionCatalogueRow[];
+  renalFlags?: PrecautionCatalogueRow[];
+  hepaticFlags?: PrecautionCatalogueRow[];
 }): RequiredPatientInput[] {
   const required = new Map<RequiredPatientInputKey, RequiredPatientInput>();
+  const resolvedDrugs = input.resolvedDrugs ?? [];
+  const pregnancyFlags = input.pregnancyFlags ?? [];
+  const lactationFlags = input.lactationFlags ?? [];
+  const renalFlags = input.renalFlags ?? [];
+  const hepaticFlags = input.hepaticFlags ?? [];
   const addInput = (key: RequiredPatientInputKey, reason: string) => {
     if (!required.has(key)) {
       required.set(key, {
@@ -648,28 +665,50 @@ export function deriveRequiredPatientInputs(input: {
     }
   }
 
-  for (const row of input.pregnancyFlags) {
+  for (const drug of resolvedDrugs) {
+    const genericName = drug.genericName || 'This medicine';
+    const pregnancyCategory = (drug.pregnancyCategory ?? '').trim().toUpperCase();
+    const breastfeedingSafety = (drug.breastfeedingSafety ?? '').trim().toUpperCase();
+
+    if (pregnancyCategory && !['A', 'B', 'COMPATIBLE'].includes(pregnancyCategory)) {
+      addInput('pregnant', `${genericName} needs pregnancy screening.`);
+    }
+
+    if (breastfeedingSafety && !['COMPATIBLE', 'SAFE'].includes(breastfeedingSafety)) {
+      addInput('breastfeeding', `${genericName} needs lactation review.`);
+    }
+
+    if (drug.renalCaution) {
+      addInput('renalImpairment', `${genericName} needs renal status.`);
+    }
+
+    if (drug.hepaticCaution) {
+      addInput('hepaticImpairment', `${genericName} needs hepatic status.`);
+    }
+  }
+
+  for (const row of pregnancyFlags) {
     const subject = getPrecautionSubjectName(row);
     if (subject) {
       addInput('pregnant', `${subject} has approved pregnancy guidance.`);
     }
   }
 
-  for (const row of input.lactationFlags) {
+  for (const row of lactationFlags) {
     const subject = getPrecautionSubjectName(row);
     if (subject) {
       addInput('breastfeeding', `${subject} has approved lactation guidance.`);
     }
   }
 
-  for (const row of input.renalFlags) {
+  for (const row of renalFlags) {
     const subject = getPrecautionSubjectName(row);
     if (subject) {
       addInput('renalImpairment', `${subject} has approved renal caution guidance.`);
     }
   }
 
-  for (const row of input.hepaticFlags) {
+  for (const row of hepaticFlags) {
     const subject = getPrecautionSubjectName(row);
     if (subject) {
       addInput('hepaticImpairment', `${subject} has approved hepatic caution guidance.`);

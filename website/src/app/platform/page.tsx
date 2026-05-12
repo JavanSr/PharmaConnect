@@ -2,9 +2,11 @@ import PlatformGrid from "@/components/PlatformGrid";
 import { MODULES } from "@/lib/data/modules";
 
 export const metadata = {
-  title: "Platform - PharmaConnect",
-  description: "The PharmaConnect module roadmap across available and future work.",
+  title: "Platform - APOTEKH",
+  description: "Seven modules built for Tanzania's pharmacies and ADDOs.",
 };
+
+const availableModules = MODULES.filter((m) => m.available);
 
 export default function PlatformPage() {
   return (
@@ -14,14 +16,13 @@ export default function PlatformPage() {
           Platform
         </p>
         <h1 className="mt-3 font-serif text-5xl font-semibold text-slate">
-          Pharmacy operations, built around real availability
+          Everything a pharmacy needs to operate, protect, and grow
         </h1>
         <p className="mt-5 max-w-3xl text-slate/70">
-          Seven modules live in Arusha today. More coming soon as PharmaConnect
-          expands across Tanzania.
+          Six modules built for Tanzania&apos;s pharmaceutical environment.
         </p>
         <div className="mt-10">
-          <PlatformGrid modules={MODULES} />
+          <PlatformGrid hideFilter modules={availableModules} />
         </div>
       </div>
     </main>

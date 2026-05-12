@@ -15,11 +15,11 @@ export function generateStaticParams() {
 export function generateMetadata({ params }: ModulePageProps) {
   const currentModule = MODULES.find((item) => item.slug === params.module);
   if (!currentModule) {
-    return { title: "Module - PharmaConnect" };
+    return { title: "Module - APOTEKH" };
   }
 
   return {
-    title: `${currentModule.name} - PharmaConnect`,
+    title: `${currentModule.name} - APOTEKH`,
     description: currentModule.description,
   };
 }

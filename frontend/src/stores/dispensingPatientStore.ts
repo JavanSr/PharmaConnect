@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 
 export type CachedDispensingPatientProfile = {
   phone: string;
@@ -27,28 +26,21 @@ export function normalizePatientPhone(value: string) {
   return value.replace(/\D/g, '');
 }
 
-export const useDispensingPatientStore = create<DispensingPatientState>()(
-  persist(
-    (set) => ({
-      profilesByPharmacy: {},
-      upsertProfile: (pharmacyId, profile) =>
-        set((state) => {
-          const existingProfiles = state.profilesByPharmacy[pharmacyId] ?? [];
-          const nextProfiles = [
-            profile,
-            ...existingProfiles.filter((item) => item.normalizedPhone !== profile.normalizedPhone),
-          ].slice(0, 100);
+export const useDispensingPatientStore = create<DispensingPatientState>()((set) => ({
+  profilesByPharmacy: {},
+  upsertProfile: (pharmacyId, profile) =>
+    set((state) => {
+      const existingProfiles = state.profilesByPharmacy[pharmacyId] ?? [];
+      const nextProfiles = [
+        profile,
+        ...existingProfiles.filter((item) => item.normalizedPhone !== profile.normalizedPhone),
+      ].slice(0, 100);
 
-          return {
-            profilesByPharmacy: {
-              ...state.profilesByPharmacy,
-              [pharmacyId]: nextProfiles,
-            },
-          };
-        }),
+      return {
+        profilesByPharmacy: {
+          ...state.profilesByPharmacy,
+          [pharmacyId]: nextProfiles,
+        },
+      };
     }),
-    {
-      name: 'pc-dispensing-patients',
-    },
-  ),
-);
+}));

@@ -159,33 +159,56 @@ CANNOT:
 
 ### Tier feature matrix (key rules)
 
-- Patient safety tools (drug interaction checker, dose calculator, contraindication
-  alerts, NCD hints): STANDARD, PREMIUM, ENTERPRISE only. Never gated higher.
-  ADDO and WHOLESALE do not include them — that is correct by design.
-- ADDO tier gets basic sale recording only — not the full dispensing workflow
-  with clinical tools, discounts, or voids.
-- WHOLESALE tier gets Knowledge Hub read access (articles, bulletins) but no
-  CPD features — wholesale staff benefit from clinical articles.
-- Inventory A15 (multi-outlet visibility) and A16 (inter-branch transfer):
-  ENTERPRISE only.
-- Barcode scanning (A7): available to WHOLESALE_COUNTER_STAFF role.
-- WHOLESALE_COUNTER_STAFF B2B: can view and pick assigned orders, cannot create
-  or cancel, cannot see client credit data or financial reports.
-- WHOLESALE_COUNTER_STAFF operational reports only: own picking history, delivery
-  confirmations, and intake records. All financial reports return 403.
+- **Clinical Decision Support Suite is NEVER tier-gated.** Drug interaction
+  checker (4 severity levels), dose calculator, contraindication alerts (8 flags),
+  NCD hints, diagnosis-drug matching, alternative medicine suggestions, therapeutic
+  equivalence matching, and override logging are identical across ADDO, BASIC,
+  STANDARD, and PREMIUM. Override permissions are role-based (PIC vs assistant).
+- ADDO: Basic POS. No discounts, no void/reissue, no multi-outlet. DLDM
+  compliance tracker only. Knowledge Hub read-only.
+- BASIC: Adds Owner Dashboard, roles & permissions, void/reissue audit trail,
+  full compliance tracker (TMDA + PC licence types). Knowledge Hub read-only.
+- STANDARD: Adds accounting module, customer purchase history, Patient Ordering
+  Portal, basic marketing campaigns, multi-shop reporting. Knowledge Hub full.
+- PREMIUM: Adds demand forecasting, dead stock scoring, revenue projections,
+  peer benchmarking, full Knowledge Hub with courses.
+- CPD is NOT a feature — do not add CPD activity logs, CPD points tracker,
+  or any CPD-related feature to any tier without explicit founder approval.
+- WHOLESALE: Separate product. No retail dispensing. No Clinical Decision Support.
+  Knowledge Hub read access only.
+- HYBRID: Retail (Standard features) + Wholesale in one account, same owner.
+- ENTERPRISE: Chains 6+ outlets, unlimited users, all Premium features.
+- Barcode scanning: available from ADDO upward and to WHOLESALE_COUNTER_STAFF.
+- EFDMS integration: active from BASIC tier upward. Runs silently in background.
+  Never surface in onboarding or sales conversations. Owner can view under
+  "Compliance" section after 60–90 days.
 
 ### Subscription tiers — fixed pricing (do not change without explicit instruction)
 
-| Tier | Price | Users |
-|------|-------|-------|
-| ADDO | TZS 20,000/month | 2 |
-| STANDARD | TZS 55,000/month | 4 |
-| PREMIUM | TZS 75,000/month | 6 |
-| WHOLESALE | TZS 100,000/month | 8 + delivery |
-| ENTERPRISE | Negotiated | Unlimited |
-| HYBRID ADD-ON | TZS 130,000/month total | — |
+**Retail tiers:**
+| Tier | Price | Outlets | Users | Trial |
+|------|-------|---------|-------|-------|
+| ADDO | TZS 20,000/month | 1 | 3 | 14 days |
+| BASIC | TZS 39,000/month | 2 | 5 | 14 days |
+| STANDARD | TZS 55,000/month | 3 | 10 | 14 days |
+| PREMIUM | TZS 75,000/month | 5 | 20 | 14 days |
 
-Annual billing: 10 × monthly (2 months free).
+**Wholesale / distributor tiers (separate product/page):**
+| Tier | Price | Notes |
+|------|-------|-------|
+| WHOLESALE | TZS 100,000/month | 1 wholesale outlet, 10 users + delivery staff |
+| HYBRID | TZS 100,000/month | Retail + wholesale, same owner, unified dashboard |
+| ENTERPRISE | Negotiated | 6+ outlets, chains, hospital pharmacies |
+
+Annual billing: 10× monthly (2 months free).
+
+**UI naming conventions (enforce strictly):**
+- "Clinical Decision Support" — suite name (never "Patient Safety Suite")
+- "Patient Ordering Portal" — never "online storefront" or "e-commerce"
+- "Owner Dashboard" — never "remote dashboard"
+- "Knowledge Hub" — consistent label across all tiers
+- "Compliance" — section header, never "EFDMS" or "TRA" in UI
+- "APOTEKH" — platform name, never "PharmaConnect"
 
 ---
 

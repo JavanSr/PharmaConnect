@@ -30,15 +30,6 @@ BEGIN
     ) THEN
       ALTER TYPE "UserRole" ADD VALUE 'LOCUM';
     END IF;
-
-    IF NOT EXISTS (
-      SELECT 1
-      FROM pg_enum
-      WHERE enumlabel = 'ACCOUNTANT'
-        AND enumtypid = '"UserRole"'::regtype
-    ) THEN
-      ALTER TYPE "UserRole" ADD VALUE 'ACCOUNTANT';
-    END IF;
   END IF;
 END $$;
 
@@ -49,8 +40,7 @@ BEGIN
       'OWNER',
       'PHARMACIST_IN_CHARGE',
       'DISPENSER',
-      'LOCUM',
-      'ACCOUNTANT'
+      'LOCUM'
     );
   END IF;
 END $$;
@@ -101,9 +91,7 @@ SELECT
     WHEN u."role" = 'PHARMACIST_IN_CHARGE' THEN 'PHARMACIST_IN_CHARGE'::"PharmacyMembershipRole"
     WHEN u."role" = 'DISPENSER' THEN 'DISPENSER'::"PharmacyMembershipRole"
     WHEN u."role" = 'LOCUM' THEN 'LOCUM'::"PharmacyMembershipRole"
-    WHEN u."role" = 'ACCOUNTANT' THEN 'ACCOUNTANT'::"PharmacyMembershipRole"
-    WHEN u."role" = 'DATA_ENTRY_CLERK' THEN 'ACCOUNTANT'::"PharmacyMembershipRole"
-    WHEN u."role" = 'CASHIER' THEN 'ACCOUNTANT'::"PharmacyMembershipRole"
+    WHEN u."role" = 'CASHIER' THEN 'DISPENSER'::"PharmacyMembershipRole"
     WHEN u."role" = 'WHOLESALE_MANAGER' THEN 'OWNER'::"PharmacyMembershipRole"
     WHEN u."role" = 'WHOLESALE_COUNTER_STAFF' THEN 'DISPENSER'::"PharmacyMembershipRole"
     WHEN u."role" = 'DELIVERY_STAFF' THEN 'DISPENSER'::"PharmacyMembershipRole"

@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PharmaConnect — Tanzania's Pharmacy Intelligence Platform</title>
+<style>
+  /* ── RESET & BASE ── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    color: #1e293b;
+    background: #fff;
+    overflow-x: hidden;
+    line-height: 1.6;
+  }
+
+  /* ── CSS VARIABLES ── */
+  :root {
+    --green-900: #0d4035;
+    --green-800: #166534;
+    --green-600: #16a34a;
+    --green-500: #22c55e;
+    --green-400: #4ade80;
+    --teal-600: #0d9488;
+    --teal-400: #2dd4bf;
+    --emerald: #10b981;
+    --dark: #0f172a;
+    --dark-2: #1e293b;
+    --slate-600: #475569;
+    --slate-400: #94a3b8;
+    --border: #e2e8f0;
+    --radius-lg: 16px;
+    --radius-xl: 24px;
+    --radius-full: 9999px;
+    --shadow-sm: 0 1px 3px rgba(0,0,0,.08);
+    --shadow-md: 0 4px 24px rgba(0,0,0,.10);
+    --shadow-lg: 0 8px 48px rgba(0,0,0,.14);
+    --shadow-xl: 0 20px 80px rgba(0,0,0,.18);
+  }
+
+  /* ── TYPOGRAPHY HELPERS ── */
+  .gradient-text {
+    background: linear-gradient(135deg, #10b981 0%, #2dd4bf 60%, #6ee7b7 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .gradient-text-warm {
+    background: linear-gradient(135deg, #fff 0%, #a7f3d0 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* ── NAV ── */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+    padding: 14px 40px;
+    display: flex; align-items: center; justify-content: space-between;
+    transition: all .3s ease;
+    background: rgba(13, 64, 53, 0.85);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border-bottom: 1px solid rgba(255,255,255,.08);
+  }
+  .nav-logo {
+    display: flex; align-items: center; gap: 10px;
+    text-decoration: none;
+  }
+  .nav-logo-icon {
+    width: 36px; height: 36px; border-radius: 10px;
+    background: linear-gradient(135deg, #10b981, #2dd4bf);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; color: white; font-weight: 900; flex-shrink: 0;
+    box-shadow: 0 4px 12px rgba(16,185,129,.4);
+  }
+  .nav-logo-text { color: white; font-size: 17px; font-weight: 800; letter-spacing: -.01em; }
+  .nav-logo-sub { color: rgba(255,255,255,.45); font-size: 9px; display: block; margin-top: -2px; letter-spacing: .08em; text-transform: uppercase; }
+  .nav-links { display: flex; align-items: center; gap: 32px; }
+  .nav-links a {
+    color: rgba(255,255,255,.75); font-size: 14px; font-weight: 500;
+    text-decoration: none; transition: color .2s;
+  }
+  .nav-links a:hover { color: #2dd4bf; }
+  .nav-cta {
+    display: flex; gap: 10px; align-items: center;
+  }
+  .btn-ghost {
+    padding: 8px 18px; border: 1px solid rgba(255,255,255,.25);
+    border-radius: var(--radius-full); font-size: 13px; font-weight: 600;
+    color: rgba(255,255,255,.85); background: transparent;
+    cursor: pointer; text-decoration: none; transition: all .2s;
+  }
+  .btn-ghost:hover { background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.4); color: white; }
+  .btn-primary {
+    padding: 8px 20px; border: none; border-radius: var(--radius-full);
+    font-size: 13px; font-weight: 700; color: white;
+    background: linear-gradient(135deg, #10b981, #0d9488);
+    cursor: pointer; text-decoration: none; transition: all .2s;
+    box-shadow: 0 4px 14px rgba(16,185,129,.35);
+  }
+  .btn-primary:hover { box-shadow: 0 6px 20px rgba(16,185,129,.5); transform: translateY(-1px); }
+
+  /* ── HERO ── */
+  .hero {
+    min-height: 100vh;
+    position: relative;
+    display: flex; align-items: center;
+    overflow: hidden;
+    background: var(--green-900);
+  }
+  /* Animated mesh gradient background */
+  .hero-bg {
+    position: absolute; inset: 0; z-index: 0;
+    background:
+      radial-gradient(ellipse 80% 60% at 20% 40%, rgba(16,185,129,.25) 0%, transparent 70%),
+      radial-gradient(ellipse 60% 80% at 80% 20%, rgba(45,212,191,.18) 0%, transparent 70%),
+      radial-gradient(ellipse 50% 50% at 50% 90%, rgba(13,148,136,.2) 0%, transparent 60%),
+      linear-gradient(135deg, #0a2d25 0%, #0d4035 40%, #0f4a3a 70%, #0a3328 100%);
+  }
+  /* Animated floating orbs */
+  .orb {
+    position: absolute; border-radius: 50%;
+    filter: blur(60px); opacity: .5; animation: drift 8s ease-in-out infinite;
+  }
+  .orb-1 { width: 400px; height: 400px; background: rgba(16,185,129,.2); top: -100px; right: 5%; animation-delay: 0s; }
+  .orb-2 { width: 300px; height: 300px; background: rgba(45,212,191,.15); bottom: 10%; left: 5%; animation-delay: -3s; }
+  .orb-3 { width: 200px; height: 200px; background: rgba(74,222,128,.12); top: 40%; left: 35%; animation-delay: -6s; }
+  @keyframes drift {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    33%       { transform: translate(20px, -30px) scale(1.05); }
+    66%       { transform: translate(-15px, 20px) scale(.97); }
+  }
+  /* Grid overlay */
+  .hero-grid {
+    position: absolute; inset: 0; z-index: 1;
+    background-image:
+      linear-gradient(rgba(255,255,255,.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px);
+    background-size: 60px 60px;
+  }
+  .hero-content {
+    position: relative; z-index: 2;
+    width: 100%; max-width: 1200px; margin: 0 auto;
+    padding: 120px 40px 80px;
+    display: grid; grid-template-columns: 1fr 480px; gap: 60px; align-items: center;
+  }
+  .hero-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 14px; border-radius: var(--radius-full);
+    background: rgba(16,185,129,.15); border: 1px solid rgba(16,185,129,.3);
+    color: #6ee7b7; font-size: 12px; font-weight: 600;
+    margin-bottom: 24px; letter-spacing: .03em;
+  }
+  .hero-badge span { width: 6px; height: 6px; border-radius: 50%; background: #10b981; animation: pulse 2s infinite; display: block; }
+  @keyframes pulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .5; transform: scale(.8); } }
+  .hero-title {
+    font-size: clamp(38px, 5vw, 60px); font-weight: 900; line-height: 1.08;
+    color: white; letter-spacing: -.03em; margin-bottom: 20px;
+  }
+  .hero-sub {
+    font-size: 17px; color: rgba(255,255,255,.65); line-height: 1.7;
+    max-width: 520px; margin-bottom: 36px;
+  }
+  .hero-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 48px; }
+  .btn-hero-primary {
+    padding: 14px 28px; border-radius: var(--radius-full);
+    background: linear-gradient(135deg, #10b981, #0d9488);
+    color: white; font-size: 15px; font-weight: 700;
+    text-decoration: none; display: inline-flex; align-items: center; gap: 8px;
+    box-shadow: 0 8px 32px rgba(16,185,129,.4);
+    transition: all .25s; border: none; cursor: pointer;
+  }
+  .btn-hero-primary:hover { transform: translateY(-2px); box-shadow: 0 12px 40px rgba(16,185,129,.55); }
+  .btn-hero-outline {
+    padding: 14px 28px; border-radius: var(--radius-full);
+    border: 1.5px solid rgba(255,255,255,.25); color: rgba(255,255,255,.85);
+    font-size: 15px; font-weight: 600; text-decoration: none;
+    display: inline-flex; align-items: center; gap: 8px;
+    transition: all .25s; background: rgba(255,255,255,.05);
+  }
+  .btn-hero-outline:hover { border-color: rgba(255,255,255,.5); background: rgba(255,255,255,.1); }
+
+  /* Mini stats row in hero */
+  .hero-stats {
+    display: flex; gap: 32px; padding-top: 32px;
+    border-top: 1px solid rgba(255,255,255,.1);
+  }
+  .hero-stat-num { font-size: 24px; font-weight: 900; color: white; display: block; }
+  .hero-stat-label { font-size: 11px; color: rgba(255,255,255,.5); letter-spacing: .04em; text-transform: uppercase; }
+
+  /* Hero right: floating dashboard card */
+  .hero-visual { position: relative; }
+  .hero-card {
+    background: rgba(255,255,255,.07);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border: 1px solid rgba(255,255,255,.13);
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 32px 64px rgba(0,0,0,.3);
+  }
+  .hc-header {
+    background: rgba(255,255,255,.06); padding: 14px 20px;
+    border-bottom: 1px solid rgba(255,255,255,.08);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .hc-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .hc-title { color: rgba(255,255,255,.9); font-size: 12px; font-weight: 700; margin-left: 6px; }
+  .hc-body { padding: 20px; }
+  .hc-metric {
+    background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08);
+    border-radius: 12px; padding: 14px 16px; margin-bottom: 10px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .hc-metric-label { font-size: 11px; color: rgba(255,255,255,.5); margin-bottom: 4px; }
+  .hc-metric-val { font-size: 20px; font-weight: 800; color: white; }
+  .hc-metric-badge {
+    padding: 4px 10px; border-radius: var(--radius-full); font-size: 11px; font-weight: 700;
+  }
+  .badge-up { background: rgba(16,185,129,.2); color: #34d399; border: 1px solid rgba(16,185,129,.3); }
+  .badge-warn { background: rgba(251,146,60,.15); color: #fb923c; border: 1px solid rgba(251,146,60,.25); }
+  /* Sparkline simulation */
+  .sparkline { display: flex; align-items: flex-end; gap: 3px; height: 32px; margin-top: 4px; }
+  .spark-bar { width: 8px; border-radius: 3px; background: rgba(16,185,129,.5); flex-shrink: 0; }
+
+  /* Floating mini badge cards */
+  .float-card {
+    position: absolute;
+    background: rgba(255,255,255,.1);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255,255,255,.2);
+    border-radius: 14px; padding: 12px 16px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.2);
+  }
+  .float-card-1 { top: -20px; left: -40px; animation: float1 4s ease-in-out infinite; }
+  .float-card-2 { bottom: 20px; right: -30px; animation: float2 5s ease-in-out infinite; }
+  @keyframes float1 { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+  @keyframes float2 { 0%,100% { transform: translateY(0); } 50% { transform: translateY(8px); } }
+  .fc-icon { font-size: 20px; margin-bottom: 4px; }
+  .fc-label { font-size: 10px; color: rgba(255,255,255,.6); }
+  .fc-val { font-size: 15px; font-weight: 800; color: white; }
+
+  /* ── TRUST BAR ── */
+  .trust-bar {
+    background: #f8fafc; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+    padding: 28px 40px;
+  }
+  .trust-bar-inner { max-width: 1200px; margin: 0 auto; display: flex; align-items: center; gap: 48px; flex-wrap: wrap; }
+  .trust-label { font-size: 11px; font-weight: 700; color: var(--slate-400); text-transform: uppercase; letter-spacing: .08em; white-space: nowrap; }
+  .trust-logos { display: flex; align-items: center; gap: 36px; flex-wrap: wrap; }
+  .trust-logo {
+    padding: 8px 18px; border-radius: 8px; background: white; border: 1px solid var(--border);
+    font-size: 12px; font-weight: 800; color: var(--slate-600); letter-spacing: .04em;
+    box-shadow: var(--shadow-sm);
+  }
+
+  /* ── SECTION WRAPPER ── */
+  .section { padding: 96px 40px; }
+  .section-inner { max-width: 1200px; margin: 0 auto; }
+  .section-label {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 12px; border-radius: var(--radius-full);
+    background: rgba(16,185,129,.08); border: 1px solid rgba(16,185,129,.18);
+    color: var(--emerald); font-size: 11.5px; font-weight: 700; letter-spacing: .04em;
+    text-transform: uppercase; margin-bottom: 16px;
+  }
+  .section-title {
+    font-size: clamp(28px, 4vw, 44px); font-weight: 900;
+    letter-spacing: -.03em; line-height: 1.1; margin-bottom: 16px;
+  }
+  .section-sub {
+    font-size: 17px; color: var(--slate-600); max-width: 560px; line-height: 1.7;
+  }
+
+  /* ── FEATURES ── */
+  .features { background: white; }
+  .features-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 56px;
+  }
+  .feature-card {
+    padding: 28px; border-radius: var(--radius-lg);
+    border: 1px solid var(--border);
+    background: linear-gradient(145deg, #ffffff, #f8fafc);
+    transition: all .25s; cursor: default;
+    position: relative; overflow: hidden;
+  }
+  .feature-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, var(--emerald), var(--teal-400));
+    opacity: 0; transition: opacity .25s;
+  }
+  .feature-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-lg); border-color: rgba(16,185,129,.25); }
+  .feature-card:hover::before { opacity: 1; }
+  .feature-icon {
+    width: 48px; height: 48px; border-radius: 12px;
+    background: linear-gradient(135deg, rgba(16,185,129,.12), rgba(45,212,191,.08));
+    border: 1px solid rgba(16,185,129,.2);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; margin-bottom: 18px;
+  }
+  .feature-title { font-size: 15px; font-weight: 800; margin-bottom: 8px; color: #0f172a; }
+  .feature-desc { font-size: 13.5px; color: var(--slate-600); line-height: 1.65; }
+  .feature-tag {
+    display: inline-block; margin-top: 14px; padding: 3px 10px;
+    border-radius: var(--radius-full); font-size: 10.5px; font-weight: 700; letter-spacing: .04em;
+  }
+  .tag-all { background: rgba(16,185,129,.1); color: var(--emerald); }
+  .tag-premium { background: rgba(99,102,241,.1); color: #6366f1; }
+  .tag-enterprise { background: rgba(245,158,11,.1); color: #d97706; }
+
+  /* ── IMPACT (DARK SECTION) ── */
+  .impact {
+    background: var(--dark);
+    position: relative; overflow: hidden;
+  }
+  .impact::before {
+    content: ''; position: absolute; inset: 0;
+    background:
+      radial-gradient(ellipse 60% 60% at 10% 50%, rgba(16,185,129,.12) 0%, transparent 70%),
+      radial-gradient(ellipse 50% 80% at 90% 30%, rgba(45,212,191,.08) 0%, transparent 70%);
+  }
+  .impact-inner { position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; }
+  .impact-header { text-align: center; margin-bottom: 64px; }
+  .impact-header .section-title { color: white; }
+  .impact-header .section-sub { color: rgba(255,255,255,.5); margin: 0 auto; }
+  .impact-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; }
+  .impact-card {
+    padding: 36px 28px; border-radius: var(--radius-xl);
+    background: rgba(255,255,255,.04);
+    border: 1px solid rgba(255,255,255,.08);
+    text-align: center;
+    transition: all .25s;
+  }
+  .impact-card:hover { background: rgba(255,255,255,.07); border-color: rgba(16,185,129,.3); }
+  .impact-icon { font-size: 32px; margin-bottom: 16px; display: block; }
+  .impact-num {
+    font-size: 44px; font-weight: 900; display: block; line-height: 1;
+    background: linear-gradient(135deg, #10b981, #2dd4bf);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    margin-bottom: 8px;
+  }
+  .impact-label { font-size: 13px; color: rgba(255,255,255,.5); font-weight: 500; line-height: 1.4; }
+
+  /* ── HOW IT WORKS ── */
+  .how { background: #f8fafc; }
+  .how-steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; margin-top: 64px; position: relative; }
+  .how-steps::before {
+    content: ''; position: absolute;
+    top: 40px; left: 12.5%; right: 12.5%; height: 2px;
+    background: linear-gradient(90deg, var(--emerald), var(--teal-400));
+    z-index: 0;
+  }
+  .how-step { text-align: center; padding: 0 20px; position: relative; z-index: 1; }
+  .how-step-num {
+    width: 80px; height: 80px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--green-900), var(--teal-600));
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 24px;
+    font-size: 28px; color: white;
+    box-shadow: 0 8px 24px rgba(13,64,53,.3);
+  }
+  .how-step-title { font-size: 15px; font-weight: 800; margin-bottom: 10px; color: #0f172a; }
+  .how-step-desc { font-size: 13px; color: var(--slate-600); line-height: 1.6; }
+
+  /* ── TIERS ── */
+  .tiers { background: white; }
+  .tiers-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 56px; }
+  .tier-card {
+    padding: 28px 22px; border-radius: var(--radius-lg); border: 1px solid var(--border);
+    background: white; transition: all .25s; position: relative; overflow: hidden;
+  }
+  .tier-card.featured {
+    background: var(--green-900); border-color: transparent;
+    box-shadow: 0 20px 60px rgba(13,64,53,.3);
+    transform: scale(1.03);
+  }
+  .tier-card.featured .tier-name { color: rgba(255,255,255,.7); }
+  .tier-card.featured .tier-price { color: white; }
+  .tier-card.featured .tier-desc { color: rgba(255,255,255,.55); }
+  .tier-card.featured .tier-feature { color: rgba(255,255,255,.8); border-color: rgba(255,255,255,.1); }
+  .tier-badge {
+    position: absolute; top: 16px; right: 16px;
+    padding: 4px 10px; border-radius: var(--radius-full);
+    background: linear-gradient(135deg, #10b981, #2dd4bf);
+    color: white; font-size: 10px; font-weight: 800; letter-spacing: .04em;
+  }
+  .tier-name { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--slate-400); margin-bottom: 12px; }
+  .tier-price { font-size: 28px; font-weight: 900; color: var(--dark); margin-bottom: 4px; line-height: 1; }
+  .tier-price span { font-size: 13px; font-weight: 500; color: var(--slate-400); }
+  .tier-desc { font-size: 12.5px; color: var(--slate-600); margin-bottom: 20px; line-height: 1.5; }
+  .tier-divider { height: 1px; background: var(--border); margin-bottom: 18px; }
+  .tier-feature {
+    display: flex; align-items: flex-start; gap: 8px;
+    font-size: 12.5px; color: var(--dark-2); padding: 5px 0;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .tier-check { color: var(--emerald); font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+  .tier-cta {
+    display: block; text-align: center; margin-top: 22px;
+    padding: 11px; border-radius: var(--radius-full);
+    font-size: 13px; font-weight: 700; text-decoration: none; transition: all .2s;
+  }
+  .tier-cta-outline {
+    border: 1.5px solid var(--border); color: var(--dark-2);
+  }
+  .tier-cta-outline:hover { border-color: var(--emerald); color: var(--emerald); }
+  .tier-cta-solid {
+    background: linear-gradient(135deg, #10b981, #2dd4bf);
+    color: white; border: none;
+    box-shadow: 0 4px 14px rgba(16,185,129,.35);
+  }
+  .tier-cta-solid:hover { box-shadow: 0 6px 20px rgba(16,185,129,.5); }
+
+  /* ── TESTIMONIALS ── */
+  .testimonials { background: #f8fafc; }
+  .testimonials-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 56px; }
+  .testimonial-card {
+    background: white; padding: 28px; border-radius: var(--radius-lg);
+    border: 1px solid var(--border); box-shadow: var(--shadow-sm);
+    transition: all .25s;
+  }
+  .testimonial-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); }
+  .t-stars { color: #f59e0b; font-size: 14px; margin-bottom: 14px; }
+  .t-quote { font-size: 14px; color: var(--slate-600); line-height: 1.7; margin-bottom: 20px; font-style: italic; }
+  .t-author { display: flex; align-items: center; gap: 12px; }
+  .t-avatar {
+    width: 40px; height: 40px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; font-weight: 800; color: white; flex-shrink: 0;
+  }
+  .t-name { font-size: 13px; font-weight: 700; color: var(--dark); }
+  .t-role { font-size: 11px; color: var(--slate-400); }
+
+  /* ── CTA SECTION ── */
+  .cta-section {
+    padding: 100px 40px;
+    background: linear-gradient(135deg, #0d4035 0%, #0d9488 50%, #0f4a3a 100%);
+    position: relative; overflow: hidden; text-align: center;
+  }
+  .cta-section::before {
+    content: ''; position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.04) 1px, transparent 1px);
+    background-size: 48px 48px;
+  }
+  .cta-inner { position: relative; z-index: 1; max-width: 640px; margin: 0 auto; }
+  .cta-title { font-size: clamp(30px, 4vw, 46px); font-weight: 900; color: white; letter-spacing: -.03em; margin-bottom: 16px; }
+  .cta-sub { font-size: 17px; color: rgba(255,255,255,.65); margin-bottom: 36px; line-height: 1.65; }
+  .cta-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .btn-cta-white {
+    padding: 14px 30px; border-radius: var(--radius-full);
+    background: white; color: var(--green-900);
+    font-size: 15px; font-weight: 800; text-decoration: none;
+    box-shadow: 0 8px 32px rgba(0,0,0,.2);
+    transition: all .25s; display: inline-flex; align-items: center; gap: 8px;
+  }
+  .btn-cta-white:hover { transform: translateY(-2px); box-shadow: 0 12px 40px rgba(0,0,0,.3); }
+  .btn-cta-outline {
+    padding: 14px 30px; border-radius: var(--radius-full);
+    border: 1.5px solid rgba(255,255,255,.3); color: rgba(255,255,255,.9);
+    font-size: 15px; font-weight: 600; text-decoration: none;
+    transition: all .25s; display: inline-flex; align-items: center; gap: 8px;
+    background: rgba(255,255,255,.06);
+  }
+  .btn-cta-outline:hover { background: rgba(255,255,255,.12); border-color: rgba(255,255,255,.5); }
+
+  /* ── FOOTER ── */
+  footer {
+    background: #0a1628; color: rgba(255,255,255,.6); padding: 64px 40px 32px;
+  }
+  .footer-inner { max-width: 1200px; margin: 0 auto; }
+  .footer-grid { display: grid; grid-template-columns: 1.8fr 1fr 1fr 1fr; gap: 48px; margin-bottom: 48px; }
+  .footer-brand-logo {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 16px;
+  }
+  .footer-brand-icon {
+    width: 36px; height: 36px; border-radius: 10px;
+    background: linear-gradient(135deg, #10b981, #2dd4bf);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; color: white; font-weight: 900; flex-shrink: 0;
+  }
+  .footer-brand-name { color: white; font-size: 16px; font-weight: 800; }
+  .footer-tagline { font-size: 13px; line-height: 1.65; margin-bottom: 20px; }
+  .footer-compliance {
+    display: flex; gap: 8px; flex-wrap: wrap;
+  }
+  .compliance-chip {
+    padding: 4px 10px; border-radius: var(--radius-full);
+    border: 1px solid rgba(255,255,255,.12); font-size: 10px; font-weight: 700;
+    color: rgba(255,255,255,.5); letter-spacing: .04em;
+  }
+  .footer-col-title { color: white; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 16px; }
+  .footer-col a {
+    display: block; color: rgba(255,255,255,.5); font-size: 13.5px;
+    text-decoration: none; margin-bottom: 10px; transition: color .2s;
+  }
+  .footer-col a:hover { color: #2dd4bf; }
+  .footer-bottom {
+    border-top: 1px solid rgba(255,255,255,.08); padding-top: 24px;
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 12px; flex-wrap: wrap; gap: 12px;
+  }
+  .footer-bottom-links { display: flex; gap: 20px; }
+  .footer-bottom-links a { color: rgba(255,255,255,.4); text-decoration: none; }
+  .footer-bottom-links a:hover { color: rgba(255,255,255,.7); }
+
+  /* ── REGULATORY RIBBON ── */
+  .reg-ribbon {
+    background: rgba(16,185,129,.06); border: 1px solid rgba(16,185,129,.15);
+    border-radius: 10px; padding: 12px 18px; display: flex; align-items: center; gap: 10px;
+    margin-top: 20px; font-size: 12px; color: var(--emerald); font-weight: 600;
+  }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 1024px) {
+    .hero-content { grid-template-columns: 1fr; }
+    .hero-visual { display: none; }
+    .features-grid { grid-template-columns: repeat(2, 1fr); }
+    .impact-grid { grid-template-columns: repeat(2, 1fr); }
+    .how-steps { grid-template-columns: repeat(2, 1fr); }
+    .how-steps::before { display: none; }
+    .tiers-grid { grid-template-columns: repeat(2, 1fr); }
+    .testimonials-grid { grid-template-columns: 1fr 1fr; }
+    .footer-grid { grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 640px) {
+    nav { padding: 12px 20px; }
+    .nav-links { display: none; }
+    .section { padding: 64px 20px; }
+    .features-grid, .impact-grid, .tiers-grid, .testimonials-grid { grid-template-columns: 1fr; }
+    .tiers-grid .tier-card.featured { transform: none; }
+    .footer-grid { grid-template-columns: 1fr; gap: 32px; }
+    .hero-stats { gap: 20px; flex-wrap: wrap; }
+    .trust-bar-inner { flex-direction: column; gap: 16px; align-items: flex-start; }
+  }
+
+  /* ── SCROLL ANIMATIONS ── */
+  .fade-in { opacity: 0; transform: translateY(24px); transition: opacity .6s ease, transform .6s ease; }
+  .fade-in.visible { opacity: 1; transform: translateY(0); }
+  .fade-in-delay-1 { transition-delay: .1s; }
+  .fade-in-delay-2 { transition-delay: .2s; }
+  .fade-in-delay-3 { transition-delay: .3s; }
+</style>
+</head>
+<body>
+
+<!-- ── NAVIGATION ── -->
+<nav>
+  <a class="nav-logo" href="#">
+    <div class="nav-logo-icon">Px</div>
+    <div>
+      <span class="nav-logo-text">PharmaConnect</span>
+      <span class="nav-logo-sub">Tanzania</span>
+    </div>
+  </a>
+  <div class="nav-links">
+    <a href="#features">Features</a>
+    <a href="#how">How It Works</a>
+    <a href="#pricing">Pricing</a>
+    <a href="#about">About</a>
+  </div>
+  <div class="nav-cta">
+    <a href="#" class="btn-ghost">Log In</a>
+    <a href="#" class="btn-primary">Start Free Trial →</a>
+  </div>
+</nav>
+
+<!-- ── HERO ── -->
+<section class="hero">
+  <div class="hero-bg"></div>
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+  <div class="hero-grid"></div>
+
+  <div class="hero-content">
+    <div>
+      <div class="hero-badge">
+        <span></span>
+        TMDA-Compliant · Built for Tanzania
+      </div>
+      <h1 class="hero-title">
+        Pharmacy Intelligence<br>
+        <span class="gradient-text">Built for Africa.</span>
+      </h1>
+      <p class="hero-sub">
+        The all-in-one platform for Tanzanian pharmacies — from dispensing and FEFO inventory to AI-powered forecasting, wholesale ordering, and NHIF billing. One platform. Every tier.
+      </p>
+      <div class="hero-actions">
+        <a href="#" class="btn-hero-primary">Get Started Free →</a>
+        <a href="#" class="btn-hero-outline">▶ Watch Demo</a>
+      </div>
+      <div class="hero-stats">
+        <div>
+          <span class="hero-stat-num">500+</span>
+          <span class="hero-stat-label">Pharmacies Active</span>
+        </div>
+        <div>
+          <span class="hero-stat-num">4 Tiers</span>
+          <span class="hero-stat-label">ADDO → Enterprise</span>
+        </div>
+        <div>
+          <span class="hero-stat-num">100%</span>
+          <span class="hero-stat-label">TMDA Aligned</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dashboard visual -->
+    <div class="hero-visual">
+      <div class="float-card float-card-1">
+        <div class="fc-icon">💊</div>
+        <div class="fc-label">AWaRe Alerts</div>
+        <div class="fc-val">3 Today</div>
+      </div>
+      <div class="hero-card">
+        <div class="hc-header">
+          <div class="hc-dot" style="background:#ef4444"></div>
+          <div class="hc-dot" style="background:#f59e0b"></div>
+          <div class="hc-dot" style="background:#22c55e"></div>
+          <span class="hc-title">Dashboard · Kariakoo Branch</span>
+        </div>
+        <div class="hc-body">
+          <div class="hc-metric">
+            <div>
+              <div class="hc-metric-label">Today's Revenue</div>
+              <div class="hc-metric-val">TZS 4.2M</div>
+              <div class="sparkline">
+                <div class="spark-bar" style="height:40%"></div>
+                <div class="spark-bar" style="height:60%"></div>
+                <div class="spark-bar" style="height:45%"></div>
+                <div class="spark-bar" style="height:80%"></div>
+                <div class="spark-bar" style="height:65%"></div>
+                <div class="spark-bar" style="height:100%"></div>
+                <div class="spark-bar" style="height:75%"></div>
+              </div>
+            </div>
+            <div class="hc-metric-badge badge-up">↑ 18%</div>
+          </div>
+          <div class="hc-metric">
+            <div>
+              <div class="hc-metric-label">Stockout Risk Items</div>
+              <div class="hc-metric-val">7 Products</div>
+            </div>
+            <div class="hc-metric-badge badge-warn">⚠ Review</div>
+          </div>
+          <div class="hc-metric">
+            <div>
+              <div class="hc-metric-label">NHIF Claims Today</div>
+              <div class="hc-metric-val">23 Verified</div>
+            </div>
+            <div class="hc-metric-badge badge-up">✓ OK</div>
+          </div>
+        </div>
+      </div>
+      <div class="float-card float-card-2">
+        <div class="fc-icon">📦</div>
+        <div class="fc-label">Wholesale Order</div>
+        <div class="fc-val">Delivered</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── TRUST BAR ── -->
+<div class="trust-bar">
+  <div class="trust-bar-inner">
+    <span class="trust-label">Compliant with</span>
+    <div class="trust-logos">
+      <div class="trust-logo">🏥 TMDA</div>
+      <div class="trust-logo">💙 NHIF</div>
+      <div class="trust-logo">⚕ Pharmacy Council</div>
+      <div class="trust-logo">📋 AWaRe Protocol</div>
+      <div class="trust-logo">❄ Cold Chain Standards</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── FEATURES ── -->
+<section class="section features" id="features">
+  <div class="section-inner">
+    <div class="fade-in">
+      <span class="section-label">✦ Platform Features</span>
+      <h2 class="section-title">Everything your pharmacy<br>needs. Nothing it doesn't.</h2>
+      <p class="section-sub">From a single ADDO outlet to a multi-branch wholesale network — PharmaConnect scales with you.</p>
+    </div>
+    <div class="features-grid">
+      <div class="feature-card fade-in">
+        <div class="feature-icon">💊</div>
+        <div class="feature-title">Smart Dispensing</div>
+        <div class="feature-desc">Point-of-sale dispensing with FEFO batch tracking, barcode scanning, and automatic TMDA AWaRe antibiotic alerts at the moment of sale.</div>
+        <span class="feature-tag tag-all">All Tiers</span>
+      </div>
+      <div class="feature-card fade-in fade-in-delay-1">
+        <div class="feature-icon">📦</div>
+        <div class="feature-title">FEFO Inventory</div>
+        <div class="feature-desc">First-Expiry-First-Out batch management. Real-time stock levels, expiry alerts, cold-chain temperature logging, and dead-stock detection.</div>
+        <span class="feature-tag tag-all">All Tiers</span>
+      </div>
+      <div class="feature-card fade-in fade-in-delay-2">
+        <div class="feature-icon">🏦</div>
+        <div class="feature-title">NHIF Billing</div>
+        <div class="feature-desc">Integrated NHIF claim generation, verification, and reconciliation. Reduce rejection rates with automated eligibility checks before dispensing.</div>
+        <span class="feature-tag tag-all">All Tiers</span>
+      </div>
+      <div class="feature-card fade-in">
+        <div class="feature-icon">📈</div>
+        <div class="feature-title">AI Forecasting</div>
+        <div class="feature-desc">Predict stockouts 7–30 days ahead using 12-month demand trends. Seasonality analysis and dead-stock scoring to free up working capital.</div>
+        <span class="feature-tag tag-premium">Premium+</span>
+      </div>
+      <div class="feature-card fade-in fade-in-delay-1">
+        <div class="feature-icon">🚚</div>
+        <div class="feature-title">Wholesale Network</div>
+        <div class="feature-desc">Full B2B ordering, per-client price overrides, delivery manifests, and credit note management — connecting your network from one platform.</div>
+        <span class="feature-tag tag-premium">Premium+</span>
+      </div>
+      <div class="feature-card fade-in fade-in-delay-2">
+        <div class="feature-icon">🤖</div>
+        <div class="feature-title">AI Patient Safety</div>
+        <div class="feature-desc">Real-time drug interaction counselling powered by AI. Session-based, no data stored. Flag contraindications before they reach the patient.</div>
+        <span class="feature-tag tag-enterprise">Enterprise</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── IMPACT (DARK) ── -->
+<section class="section impact">
+  <div class="impact-inner section-inner">
+    <div class="impact-header fade-in">
+      <span class="section-label">✦ Why It Matters</span>
+      <h2 class="section-title">Transforming pharmacy operations<br><span class="gradient-text">across Tanzania</span></h2>
+      <p class="section-sub">Real numbers from pharmacies using PharmaConnect today.</p>
+    </div>
+    <div class="impact-grid">
+      <div class="impact-card fade-in">
+        <span class="impact-icon">🏥</span>
+        <span class="impact-num">500+</span>
+        <span class="impact-label">Pharmacies & ADDOs<br>on the platform</span>
+      </div>
+      <div class="impact-card fade-in fade-in-delay-1">
+        <span class="impact-icon">📉</span>
+        <span class="impact-num">62%</span>
+        <span class="impact-label">Reduction in<br>stockout incidents</span>
+      </div>
+      <div class="impact-card fade-in fade-in-delay-2">
+        <span class="impact-icon">⏱</span>
+        <span class="impact-num">3 min</span>
+        <span class="impact-label">Average NHIF claim<br>processing time</span>
+      </div>
+      <div class="impact-card fade-in fade-in-delay-3">
+        <span class="impact-icon">🔬</span>
+        <span class="impact-num">200+</span>
+        <span class="impact-label">Tanzanian formulary<br>drugs in the database</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── HOW IT WORKS ── -->
+<section class="section how" id="how">
+  <div class="section-inner">
+    <div style="text-align:center" class="fade-in">
+      <span class="section-label">✦ How It Works</span>
+      <h2 class="section-title">Up and running in minutes</h2>
+      <p class="section-sub" style="margin:0 auto">No hardware required. No long setup. Just sign up, choose your tier, and start dispensing.</p>
+    </div>
+    <div class="how-steps">
+      <div class="how-step fade-in">
+        <div class="how-step-num">1</div>
+        <div class="how-step-title">Register Your Outlet</div>
+        <div class="how-step-desc">Create your pharmacy profile with TMDA registration number and Pharmacy Council details in under 5 minutes.</div>
+      </div>
+      <div class="how-step fade-in fade-in-delay-1">
+        <div class="how-step-num">2</div>
+        <div class="how-step-title">Choose Your Tier</div>
+        <div class="how-step-desc">Select from ADDO, Standard, Premium, or Enterprise — and upgrade any time as your business grows.</div>
+      </div>
+      <div class="how-step fade-in fade-in-delay-2">
+        <div class="how-step-num">3</div>
+        <div class="how-step-title">Load Your Products</div>
+        <div class="how-step-desc">Import your stock from our 200+ Tanzanian formulary database or add products manually with batch and expiry data.</div>
+      </div>
+      <div class="how-step fade-in fade-in-delay-3">
+        <div class="how-step-num">4</div>
+        <div class="how-step-title">Start Dispensing</div>
+        <div class="how-step-desc">Sell, track, claim, and analyse — all from one dashboard. Your daily close is automated. NHIF claims go out in one click.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── PRICING ── -->
+<section class="section tiers" id="pricing">
+  <div class="section-inner">
+    <div class="fade-in">
+      <span class="section-label">✦ Simple Pricing</span>
+      <h2 class="section-title">A tier for every pharmacy</h2>
+      <p class="section-sub">All prices in TZS. Start with a 14-day free trial on any tier — no credit card needed.</p>
+    </div>
+    <div class="tiers-grid">
+      <!-- ADDO -->
+      <div class="tier-card fade-in">
+        <div class="tier-name">ADDO</div>
+        <div class="tier-price">Free<span> / mo</span></div>
+        <div class="tier-desc">For small ADDO outlets just getting started with digital dispensing.</div>
+        <div class="tier-divider"></div>
+        <div class="tier-feature"><span class="tier-check">✓</span>Basic dispensing & POS</div>
+        <div class="tier-feature"><span class="tier-check">✓</span>Stock tracking (manual)</div>
+        <div class="tier-feature"><span class="tier-check">✓</span>Daily close report</div>
+        <div class="tier-feature"><span class="tier-check">✓</span>AWaRe alerts</div>
+        <a href="#" class="tier-cta tier-cta-outline">Get Started</a>
+      </div>
+      <!-- STANDARD -->
+      <div class="tier-card fade-in fade-in-delay-1">
+        <div class="tier-name">Standard</div>
+        <div class="tier-price">TZS 45K<span> / mo</span></div>
+        <div class="tier-desc">For licensed pharmacies needing NHIF billing and FEFO inventory.</div>
+        <div class="tier-divider"></div>
+        <div class="tier-feature"><span class="tier-check">✓</span>Everything in ADDO</div>
+        <div class="tier-feature"><span class="tier-check">✓</span>NHIF claim processing</div>
+        <div class="tier-feature"><span class="tier-check">✓</span>FEFO batch management</div>
+        <div class="tier-feature"><span class="tier-check">✓</span>Patient AI counselling</div>
+        <a href="#" class="tier-cta tier-cta-outline">Start Trial</a>
+      </div>
+      <!-- PREMIUM (featured) -->
+      <div class="tier-card featured fade-in fade-in-delay-2">
+        <div class="tier-badge">Most Popular</div>
+        <div class="tier-name">Premium</div>
+        <div class="tier-price">TZS 120K<span> / mo</span></div>
+        <div class="tier-desc">For growing pharmacies that need forecasting and wholesale ordering.</div>
+        <div class="tier-divider" style="border-color:rgba(255,255,255,.12)"></div>
+        <div class="tier-feature"><span class="tier-check">✓</span>Everything in Standard</div>
+        <div class="tier-feature"><span class="tier-check">✓</span>AI stockout forecasting</div>
+        <div class="tier-feature"><span class="tier-check">✓</span>Seasonality analysis</div>
+        <div class="tier-feature"><span class="tier-check">✓</span>Wholesale B2B ordering</div>
+        <a href="#" class="tier-cta tier-cta-solid">Start Trial →</a>
+      </div>
+      <!-- ENTERPRISE -->
+      <div class="tier-card fade-in fade-in-delay-3">
+        <div class="tier-name">Enterprise</div>
+        <div class="tier-price">Custom<span> pricing</span></div>
+        <div class="tier-desc">For multi-branch chains and wholesale distributors with custom needs.</div>
+        <div class="tier-divider"></div>
+        <div class="tier-feature"><span class="tier-check">✓</span>Everything in Premium</div>
+        <div class="tier-feature"><span class="tier-check">✓</span>Multi-branch management</div>
+        <div class="tier-feature"><span class="tier-check">✓</span>Delivery manifests</div>
+        <div class="tier-feature"><span class="tier-check">✓</span>Dedicated support</div>
+        <a href="#" class="tier-cta tier-cta-outline">Contact Sales</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── TESTIMONIALS ── -->
+<section class="section testimonials">
+  <div class="section-inner">
+    <div style="text-align:center" class="fade-in">
+      <span class="section-label">✦ Pharmacist Stories</span>
+      <h2 class="section-title">Trusted by pharmacists<br>across Tanzania</h2>
+    </div>
+    <div class="testimonials-grid">
+      <div class="testimonial-card fade-in">
+        <div class="t-stars">★★★★★</div>
+        <div class="t-quote">"Before PharmaConnect, NHIF claims took us two days and lots of paperwork. Now we submit in one click and get fewer rejections than ever."</div>
+        <div class="t-author">
+          <div class="t-avatar" style="background:linear-gradient(135deg,#10b981,#0d9488)">FA</div>
+          <div>
+            <div class="t-name">Fatuma Amani</div>
+            <div class="t-role">Owner, Dar es Salaam Pharmacy</div>
+          </div>
+        </div>
+      </div>
+      <div class="testimonial-card fade-in fade-in-delay-1">
+        <div class="t-stars">★★★★★</div>
+        <div class="t-quote">"The stockout forecast saved us three times in one month. We knew our Metformin would run out before we even felt the shortage — and restocked in time."</div>
+        <div class="t-author">
+          <div class="t-avatar" style="background:linear-gradient(135deg,#6366f1,#8b5cf6)">JM</div>
+          <div>
+            <div class="t-name">Joseph Mwanga</div>
+            <div class="t-role">Pharmacist, Mwanza Branch</div>
+          </div>
+        </div>
+      </div>
+      <div class="testimonial-card fade-in fade-in-delay-2">
+        <div class="t-stars">★★★★★</div>
+        <div class="t-quote">"We run 4 branches from one Enterprise account. Delivery manifests and wholesale price overrides per client have transformed how we operate wholesale."</div>
+        <div class="t-author">
+          <div class="t-avatar" style="background:linear-gradient(135deg,#f59e0b,#ef4444)">NK</div>
+          <div>
+            <div class="t-name">Neema Kimaro</div>
+            <div class="t-role">Director, Northern Pharma Network</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── CTA ── -->
+<section class="cta-section">
+  <div class="cta-inner">
+    <h2 class="cta-title">Ready to modernise your pharmacy?</h2>
+    <p class="cta-sub">Join hundreds of Tanzanian pharmacies already on PharmaConnect. Set up in minutes. No hardware needed. Cancel anytime.</p>
+    <div class="cta-actions">
+      <a href="#" class="btn-cta-white">Start Free Trial →</a>
+      <a href="#" class="btn-cta-outline">📞 Talk to Sales</a>
+    </div>
+    <div class="reg-ribbon" style="margin-top:32px;justify-content:center">
+      ✅ TMDA-aligned · NHIF-ready · Pharmacy Council compliant · TZS pricing
+    </div>
+  </div>
+</section>
+
+<!-- ── FOOTER ── -->
+<footer>
+  <div class="footer-inner">
+    <div class="footer-grid">
+      <div>
+        <div class="footer-brand-logo">
+          <div class="footer-brand-icon">Px</div>
+          <span class="footer-brand-name">PharmaConnect</span>
+        </div>
+        <p class="footer-tagline">Tanzania's pharmacy intelligence platform. From dispensing to wholesale, NHIF to AI forecasting — built for every tier of pharmacy in East Africa.</p>
+        <div class="footer-compliance">
+          <span class="compliance-chip">TMDA</span>
+          <span class="compliance-chip">NHIF</span>
+          <span class="compliance-chip">PC Tanzania</span>
+          <span class="compliance-chip">AWaRe</span>
+        </div>
+      </div>
+      <div class="footer-col">
+        <div class="footer-col-title">Platform</div>
+        <a href="#">Dispensing & POS</a>
+        <a href="#">Inventory (FEFO)</a>
+        <a href="#">NHIF Billing</a>
+        <a href="#">AI Forecasting</a>
+        <a href="#">Wholesale Network</a>
+        <a href="#">Patient Safety AI</a>
+      </div>
+      <div class="footer-col">
+        <div class="footer-col-title">Company</div>
+        <a href="#">About Us</a>
+        <a href="#">Blog</a>
+        <a href="#">Careers</a>
+        <a href="#">Press</a>
+        <a href="#">Contact</a>
+      </div>
+      <div class="footer-col">
+        <div class="footer-col-title">Resources</div>
+        <a href="#">Documentation</a>
+        <a href="#">API Reference</a>
+        <a href="#">System Status</a>
+        <a href="#">Support Centre</a>
+        <a href="#">Training Videos</a>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2026 PharmaConnect Ltd, Tanzania. All rights reserved.</span>
+      <div class="footer-bottom-links">
+        <a href="#">Privacy Policy</a>
+        <a href="#">Terms of Service</a>
+        <a href="#">Cookie Policy</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // Scroll-reveal animations
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) { e.target.classList.add('visible'); }
+    });
+  }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+
+  document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+
+  // Nav scroll effect
+  window.addEventListener('scroll', () => {
+    const nav = document.querySelector('nav');
+    if (window.scrollY > 60) {
+      nav.style.padding = '10px 40px';
+      nav.style.boxShadow = '0 4px 24px rgba(0,0,0,.25)';
+    } else {
+      nav.style.padding = '14px 40px';
+      nav.style.boxShadow = 'none';
+    }
+  });
+</script>
+</body>
+</html>

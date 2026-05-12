@@ -45,7 +45,7 @@ export const DeferredFeaturePage: React.FC<DeferredFeaturePageProps> = ({
         </Link>
 
         <div className="space-y-3">
-          <p className="font-mono text-xs uppercase tracking-[0.28em] text-[#1A6B5C]">Coming soon</p>
+          <p className="font-mono text-xs uppercase tracking-[0.28em] text-[#1A6B5C]">Not available in this build</p>
           <h1 className="text-4xl font-bold text-[#0D4035]">{title}</h1>
           <p className="max-w-2xl text-base text-[#475569]">{description}</p>
         </div>

@@ -12,6 +12,11 @@ import {
 describe('inventory barcode lookup', () => {
   beforeAll(async () => {
     await prisma.$executeRawUnsafe(`
+      ALTER TABLE "stock_movements"
+        ADD COLUMN IF NOT EXISTS "local_created_at" TIMESTAMP(3),
+        ADD COLUMN IF NOT EXISTS "synced_at" TIMESTAMP(3);
+    `);
+    await prisma.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "product_barcode_mappings" (
         "id" TEXT NOT NULL,
         "pharmacy_id" TEXT NOT NULL,
@@ -19,6 +24,8 @@ describe('inventory barcode lookup', () => {
         "product_id" TEXT NOT NULL,
         "source" TEXT NOT NULL,
         "gs1_payload" JSONB,
+        "shared_to_network" BOOLEAN NOT NULL DEFAULT FALSE,
+        "network_confirmations" INTEGER NOT NULL DEFAULT 0,
         "created_by" TEXT NOT NULL,
         "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -26,8 +33,17 @@ describe('inventory barcode lookup', () => {
       );
     `);
     await prisma.$executeRawUnsafe(`
+      ALTER TABLE "product_barcode_mappings"
+        ADD COLUMN IF NOT EXISTS "shared_to_network" BOOLEAN NOT NULL DEFAULT FALSE,
+        ADD COLUMN IF NOT EXISTS "network_confirmations" INTEGER NOT NULL DEFAULT 0;
+    `);
+    await prisma.$executeRawUnsafe(`
       CREATE UNIQUE INDEX IF NOT EXISTS "product_barcode_mappings_pharmacy_barcode_key"
       ON "product_barcode_mappings"("pharmacy_id", "barcode");
+    `);
+    await prisma.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS "product_barcode_mappings_barcode_shared_idx"
+      ON "product_barcode_mappings"("barcode", "shared_to_network");
     `);
     await prisma.$executeRawUnsafe(`
       CREATE INDEX IF NOT EXISTS "product_barcode_mappings_product_id_idx"

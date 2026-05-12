@@ -3,7 +3,7 @@ import { ARTICLES } from "@/lib/data/articles";
 import { MODULES } from "@/lib/data/modules";
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const base = process.env.NEXT_PUBLIC_SITE_URL ?? "https://pharmaconnect.tz";
+  const base = process.env.NEXT_PUBLIC_SITE_URL ?? "https://apotekh.co.tz";
   const staticRoutes = ["", "/platform", "/pricing", "/roadmap", "/about", "/blog", "/partners", "/contact"];
 
   return [

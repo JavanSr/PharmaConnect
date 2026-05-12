@@ -31,7 +31,7 @@ export interface AuthTokens {
 // ─── Pharmacy ─────────────────────────────────────────────────────────────────
 
 export type PharmacyType = 'RETAIL' | 'ADDO' | 'WHOLESALE';
-export type SubscriptionTier = 'FREE' | 'ADDO' | 'ADDO_PLUS' | 'STANDARD' | 'PREMIUM' | 'WHOLESALE' | 'ENTERPRISE';
+export type SubscriptionTier = 'FREE' | 'ADDO' | 'ESSENTIAL' | 'ADDO_PLUS' | 'STANDARD' | 'PREMIUM' | 'WHOLESALE' | 'ENTERPRISE';
 export type BillingCycle = 'MONTHLY' | 'ANNUAL';
 export type PharmacyAccountStatus = 'TRIAL' | 'ACTIVE' | 'SUSPENDED' | 'CANCELLED';
 
@@ -72,6 +72,7 @@ export interface WholesaleCatalogueItem {
   title: string;
   description: string | null;
   sellerPharmacyId: string;
+  sellerPharmacyName: string;
   productId: string;
   productName: string;
   genericName: string | null;
@@ -530,23 +531,7 @@ export interface StaffCredential {
   updatedAt: string;
 }
 
-// ─── Patient & Dispensing ─────────────────────────────────────────────────────
-
-export interface Patient {
-  id: string;
-  pharmacyId: string;
-  firstName: string;
-  lastName: string;
-  dateOfBirth: string | null;
-  gender: 'MALE' | 'FEMALE' | 'OTHER' | null;
-  phone: string | null;
-  nhifNumber: string | null;
-  allergies: string[];
-  allergyFlags?: Record<string, boolean>;
-  chronicConditions: string[];
-  activeMedications?: string[];
-  createdAt: string;
-}
+// ─── Dispensing ───────────────────────────────────────────────────────────────
 
 export interface ICD10Code {
   id?: string;
@@ -560,7 +545,6 @@ export interface DispensingRecord {
   id: string;
   pharmacyId: string;
   patientId: string | null;
-  patient?: Patient;
   dispensedById: string;
   dispensedBy?: Pick<User, 'id' | 'firstName' | 'lastName'>;
   referenceNumber: string;
@@ -608,37 +592,6 @@ export interface DispensingItem {
   dose: string | null;
   icdCode: string | null;
   icdDescription: string | null;
-  counsellingNotes: string | null;
-}
-
-// ─── NHIF ─────────────────────────────────────────────────────────────────────
-
-export type NhifClaimStatus = 'DRAFT' | 'SCRUBBED' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'PAID' | 'RESUBMITTED';
-
-export interface NhifClaim {
-  id: string;
-  pharmacyId: string;
-  claimNumber: string;
-  patientNhifNumber: string;
-  patientName: string;
-  serviceDate: string;
-  totalAmount: number;
-  status: NhifClaimStatus;
-  submittedAt: string | null;
-  processedAt: string | null;
-  rejectionReason: string | null;
-  items: NhifClaimItem[];
-  createdAt: string;
-}
-
-export interface NhifClaimItem {
-  id: string;
-  claimId: string;
-  description: string;
-  quantity: number;
-  unitCost: number;
-  totalCost: number;
-  icdCode: string | null;
 }
 
 // ─── CPD ──────────────────────────────────────────────────────────────────────

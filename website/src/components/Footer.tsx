@@ -8,7 +8,6 @@ const platformLinks = [
   { href: "/platform/dispensing", label: "Dispensing" },
   { href: "/platform/compliance-tracker", label: "Compliance Tracker" },
   { href: "/platform/knowledge-hub", label: "Knowledge Hub" },
-  { href: "/platform/cpd-tracker", label: "CPD Tracker" },
 ];
 
 const companyLinks = [
@@ -34,7 +33,7 @@ export default function Footer() {
             <p className="max-w-xs text-sm text-white/70">
               The pharmacy-side platform for better pharmaceutical services in Tanzania.
             </p>
-            <p className="text-sm text-white/60">Arusha, Tanzania · 2026</p>
+            <p className="text-sm text-white/60">Dodoma, Tanzania · 2026</p>
             <a className="text-sm text-white/70 hover:text-white" href="mailto:elihaki.yusuph@gmail.com">
               elihaki.yusuph@gmail.com
             </a>
@@ -77,15 +76,13 @@ export default function Footer() {
                   {link.label}
                 </Link>
               ))}
-              <p>PDPC Registration: registration underway</p>
-              <p>Tanzania Companies Act Cap 212: registration underway</p>
             </div>
           </div>
         </div>
       </div>
       <div className="border-t border-white/10 px-4 py-4 text-xs text-white/40 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">
-          © 2026 PharmaConnect System · Elihaki M. Y. Javan · Tanzania
+          © 2026 APOTEKH System · Elihaki M. Y. Javan · Tanzania
         </div>
       </div>
     </footer>

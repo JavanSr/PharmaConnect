@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { authenticate, requireRole, type AuthRequest } from '../../middleware/auth';
 import { applyWholesaleCounterStaffOrderFilter, requirePermission } from '../../middleware/permissions';
 import { enforceTrialRestrictions } from '../../middleware/trial';
+import { prisma } from '../../lib/prisma';
 import {
   ORDER_STATUSES,
   confirmDelivery,
@@ -91,6 +92,21 @@ function canTransition(role: string, nextStatus: z.infer<typeof orderStatusSchem
 
 const sellerOnlyRoles = ['OWNER', 'WHOLESALE_MANAGER', 'SUPER_ADMIN'] as const;
 
+b2bRouter.get('/pharmacies/search', async (req: AuthRequest, res, next) => {
+  try {
+    const { q } = z.object({ q: z.string().min(2).max(100) }).parse(req.query);
+    const pharmacies = await prisma.pharmacy.findMany({
+      where: { isActive: true, name: { contains: q, mode: 'insensitive' } },
+      orderBy: { name: 'asc' },
+      take: 20,
+      select: { id: true, name: true, region: true, pharmacyType: true, subscriptionTier: true },
+    });
+    res.json({ data: pharmacies });
+  } catch (error) {
+    next(error);
+  }
+});
+
 b2bRouter.get('/catalogue', async (req: AuthRequest, res, next) => {
   try {
     const { sellerPharmacyId } = z.object({ sellerPharmacyId: z.string().optional() }).parse(req.query);
@@ -108,7 +124,7 @@ b2bRouter.post('/catalogues', requirePermission('wholesale.manage_catalogue'), a
       items: z.array(z.object({
         productId: z.string(),
         price: z.coerce.number().positive(),
-        tierPrices: z.record(z.enum(['ADDO', 'ADDO_PLUS', 'STANDARD', 'PREMIUM', 'WHOLESALE', 'ENTERPRISE']), z.coerce.number().nonnegative()).optional(),
+        tierPrices: z.record(z.enum(['ADDO', 'ESSENTIAL', 'ADDO_PLUS', 'STANDARD', 'PREMIUM', 'WHOLESALE', 'ENTERPRISE']), z.coerce.number().nonnegative()).optional(),
         minOrderQuantity: z.coerce.number().int().positive().optional(),
         maxOrderQuantity: z.coerce.number().int().positive().nullable().optional(),
       })).min(1),
@@ -135,6 +151,30 @@ b2bRouter.post('/orders', requireRole('OWNER', 'PHARMACIST_IN_CHARGE', 'WHOLESAL
       data: await createOrder({
         buyerPharmacyId: pid(req),
         sellerPharmacyId: payload.sellerPharmacyId,
+        notes: payload.notes,
+        items: payload.items,
+      }),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+b2bRouter.post('/orders/manual', requireRole(...sellerOnlyRoles), async (req: AuthRequest, res, next) => {
+  try {
+    const payload = z.object({
+      buyerPharmacyId: z.string().min(1),
+      notes: z.string().optional(),
+      items: z.array(z.object({
+        productId: z.string().min(1),
+        quantity: z.coerce.number().int().positive(),
+      })).min(1),
+    }).parse(req.body);
+
+    res.status(201).json({
+      data: await createOrder({
+        buyerPharmacyId: payload.buyerPharmacyId,
+        sellerPharmacyId: pid(req),
         notes: payload.notes,
         items: payload.items,
       }),

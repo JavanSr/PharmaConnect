@@ -43,17 +43,17 @@ export async function runTrialAlerts() {
       alertType = 'TRIAL_ENDING_7_DAYS';
       channels = [NotificationChannel.IN_APP, NotificationChannel.EMAIL];
       title = 'Trial ends in 7 days';
-      body = `Your PharmaConnect trial for ${owner.pharmacy.name} ends in 7 days. Contact the founder to avoid interruption.`;
+      body = `Your APOTEKH trial for ${owner.pharmacy.name} ends in 7 days. Contact APOTEKH support to avoid interruption.`;
     } else if (remaining === 1) {
       alertType = 'TRIAL_ENDING_1_DAY';
       channels = [NotificationChannel.IN_APP, NotificationChannel.EMAIL, NotificationChannel.SMS];
       title = 'Trial ends tomorrow';
-      body = `Your PharmaConnect trial for ${owner.pharmacy.name} ends tomorrow. Payment confirmation restores access within 24 hours.`;
+      body = `Your APOTEKH trial for ${owner.pharmacy.name} ends tomorrow. Payment confirmation restores access within 24 hours.`;
     } else if (remaining < 0 && owner.pharmacy.trialActive) {
       alertType = 'TRIAL_EXPIRED';
       channels = [NotificationChannel.IN_APP, NotificationChannel.EMAIL];
       title = 'Trial has ended';
-      body = `Your PharmaConnect trial for ${owner.pharmacy.name} has ended. Access remains blocked until payment is confirmed.`;
+      body = `Your APOTEKH trial for ${owner.pharmacy.name} has ended. Access remains blocked until payment is confirmed.`;
       await prisma.pharmacy.update({
         where: { id: owner.pharmacyId },
         data: { trialActive: false },

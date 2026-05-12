@@ -57,6 +57,10 @@ function isWholesalePermission(permission: PermissionKey): boolean {
   return permission.startsWith('wholesale.');
 }
 
+function isWholesaleScopedStaffRole(role: AppRole): boolean {
+  return role === WM || role === WCS || role === 'DELIVERY_STAFF';
+}
+
 export function hasPermission(
   role: string | null | undefined,
   permission: PermissionKey,
@@ -69,6 +73,10 @@ export function hasPermission(
 
   if (normalizedRole === 'SUPER_ADMIN') {
     return true;
+  }
+
+  if (isWholesaleScopedStaffRole(normalizedRole) && !isWholesaleContext(pharmacy)) {
+    return false;
   }
 
   if (isWholesalePermission(permission) && !isWholesaleContext(pharmacy)) {
@@ -127,10 +135,8 @@ export function canAccessHybridDashboards(
   role: string | null | undefined,
   pharmacy: PharmacyAccessSnapshot | null | undefined,
 ): { retail: boolean; wholesale: boolean } {
-  const normalizedRole = normalizeRole(role);
-  const retail = Boolean(normalizedRole);
+  const retail = hasPermission(role, 'analytics.view_dashboard', pharmacy);
   const wholesale =
-    Boolean(normalizedRole) &&
     isHybrid(pharmacy) &&
     hasPermission(role, 'wholesale.view_dashboard', pharmacy);
 

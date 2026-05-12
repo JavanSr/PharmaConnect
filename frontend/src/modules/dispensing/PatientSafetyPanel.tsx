@@ -22,6 +22,20 @@ type CounsellingSuggestion = {
   cached?: boolean;
 };
 
+type CounsellingTrigger = {
+  rule: string;
+  severity: string;
+  drug: string;
+  flags: string[];
+};
+
+const patientFlagLabels: Array<[keyof SafetySessionPayload, string]> = [
+  ['pregnant', 'pregnant'],
+  ['breastfeeding', 'breastfeeding'],
+  ['renalImpairment', 'renal impairment'],
+  ['hepaticImpairment', 'hepatic impairment'],
+];
+
 const normalizeReview = (raw: SafetyReviewResponse | null): SafetyReviewResponse | null => {
   if (!raw) {
     return null;
@@ -89,24 +103,58 @@ export const PatientSafetyPanel: React.FC<{
   });
 
   const review = normalizeReview((reviewQuery.data?.data ?? null) as SafetyReviewResponse | null);
+  const counsellingTriggers = useMemo<CounsellingTrigger[]>(() => {
+    if (!review) {
+      return [];
+    }
+
+    const flags = [
+      ...patientFlagLabels
+        .filter(([key]) => Boolean(sessionPayload[key]))
+        .map(([, label]) => label),
+      ...(sessionPayload.allergies ?? []).map((allergy) => `allergy: ${allergy}`),
+      ...(sessionPayload.diagnoses ?? []).map((diagnosis) => `diagnosis: ${diagnosis}`),
+    ];
+
+    return [
+      ...review.interactions.map((alert) => ({
+        rule: alert.effectSummary || alert.management || 'Interaction alert',
+        severity: alert.severity,
+        drug: [alert.drugA, alert.drugB].filter(Boolean).join(' + ') || 'Selected medicines',
+        flags,
+      })),
+      ...review.contraindications.map((alert) => ({
+        rule: alert.message || alert.conditionValue || 'Contraindication alert',
+        severity: alert.severity,
+        drug: alert.drug || 'Selected medicine',
+        flags,
+      })),
+      ...review.precautions.map((alert) => ({
+        rule: alert.message || alert.ruleType || 'Precaution alert',
+        severity: alert.severity,
+        drug: alert.drug || 'Selected medicine',
+        flags,
+      })),
+    ].filter((trigger) => trigger.rule.trim() && trigger.drug.trim());
+  }, [review, sessionPayload]);
+
   const counsellingQuery = useQuery({
-    queryKey: ['patient-safety-counselling-suggestions', review, sessionPayload],
+    queryKey: ['patient-safety-counselling-suggestions', counsellingTriggers],
     queryFn: () =>
       api
-        .post('/patient-safety/counselling-suggestions', {
-          review,
-          flags: sessionPayload,
-        })
+        .post('/patient-safety/counselling-suggestions', { triggers: counsellingTriggers })
         .then((response) => response.data),
-    enabled:
-      Boolean(review) &&
-      (Boolean(review?.interactions.length) ||
-        Boolean(review?.contraindications.length) ||
-        Boolean(review?.precautions.length) ||
-        Boolean(review?.requiredPatientInputs.length)),
+    enabled: counsellingTriggers.length > 0,
     staleTime: 10_000,
   });
   const counsellingSuggestions = (counsellingQuery.data?.data ?? []) as CounsellingSuggestion[];
+  const hasSafetyAlerts = Boolean(
+    review &&
+      (review.interactions.length > 0 ||
+        review.contraindications.length > 0 ||
+        review.precautions.length > 0 ||
+        review.requiresPicPin),
+  );
   const riskSignature = useMemo(() => {
     if (!review) {
       return 'none';
@@ -143,30 +191,19 @@ export const PatientSafetyPanel: React.FC<{
   }, [cartItems.length, enabled, onStatusChange, overridePin, overrideReason, review]);
 
   if (!enabled) {
-    return (
-      <Card>
-        <div className="rounded-2xl border border-dashed border-[#D6F0E8] bg-[#F8FAFC] px-4 py-6 text-sm text-[#64748B]">
-          Patient safety tools are available on Standard, Premium, and Enterprise retail pharmacies only.
-        </div>
-      </Card>
-    );
+    return null;
   }
 
   if (cartItems.length === 0) {
-    return (
-      <Card
-        header={
-          <div className="flex items-center gap-2">
-            <ShieldCheck size={16} className="text-[#1A6B5C]" />
-            <span className="text-sm font-semibold text-[#0D4035]">Patient safety</span>
-          </div>
-        }
-      >
-        <p className="text-sm text-[#64748B]">
-          Add medicines to start interaction checks, contraindication review, and precaution alerts.
-        </p>
-      </Card>
-    );
+    return null;
+  }
+
+  if (reviewQuery.isLoading) {
+    return null;
+  }
+
+  if (!reviewQuery.isError && review && !hasSafetyAlerts) {
+    return null;
   }
 
   return (
@@ -181,20 +218,10 @@ export const PatientSafetyPanel: React.FC<{
             <Badge variant="warning" size="sm">
               PIC override required
             </Badge>
-          ) : (
-            <Badge variant="success" size="sm">
-              Reviewed
-            </Badge>
-          )}
+          ) : null}
         </div>
       }
     >
-      {reviewQuery.isLoading && (
-        <div className="rounded-2xl bg-[#F8FAFC] px-4 py-5 text-sm text-[#64748B]">
-          Running interaction, contraindication, and precaution checks...
-        </div>
-      )}
-
       {reviewQuery.isError && (
         <div className="rounded-2xl border border-[#FECACA] bg-[#FEF2F2] px-4 py-5 text-sm text-[#991B1B]">
           Patient safety review could not be loaded right now.
@@ -231,41 +258,19 @@ export const PatientSafetyPanel: React.FC<{
             </div>
           )}
 
-          <div className="grid gap-3 md:grid-cols-4">
-            <div className="rounded-2xl bg-[#EDF7F3] px-4 py-3">
-              <p className="text-xs uppercase tracking-wide text-[#64748B]">Reviewed drugs</p>
-              <p className="mt-1 text-lg font-semibold text-[#0D4035]">{review.resolvedDrugs.length}</p>
-            </div>
-            <div className="rounded-2xl bg-[#FEF2F2] px-4 py-3">
-              <p className="text-xs uppercase tracking-wide text-[#64748B]">High alerts</p>
-              <p className="mt-1 text-lg font-semibold text-[#991B1B]">{review.severitySummary.high}</p>
-            </div>
-            <div className="rounded-2xl bg-[#FFFBEB] px-4 py-3">
-              <p className="text-xs uppercase tracking-wide text-[#64748B]">Moderate alerts</p>
-              <p className="mt-1 text-lg font-semibold text-[#92400E]">{review.severitySummary.moderate}</p>
-            </div>
-            <div className="rounded-2xl bg-[#EFF6FF] px-4 py-3">
-              <p className="text-xs uppercase tracking-wide text-[#64748B]">Informational</p>
-              <p className="mt-1 text-lg font-semibold text-[#1D4ED8]">{review.severitySummary.informational}</p>
-            </div>
-          </div>
-
           <InteractionAlert
             title="Interaction alerts"
             alerts={review.interactions}
-            emptyMessage="No approved interaction alerts for the current basket."
           />
 
           <InteractionAlert
             title="Contraindication alerts"
             alerts={review.contraindications}
-            emptyMessage="No approved contraindication alerts for the current patient flags."
           />
 
           <InteractionAlert
             title="Precaution alerts"
             alerts={review.precautions}
-            emptyMessage="No approved precaution alerts for the current patient flags."
           />
 
           <NCDHints hints={review.ncdHints} />

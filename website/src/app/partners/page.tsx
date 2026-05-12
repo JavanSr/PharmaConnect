@@ -1,8 +1,8 @@
 import ContactForm from "@/components/ContactForm";
 
 export const metadata = {
-  title: "Partners - PharmaConnect",
-  description: "Partner with PharmaConnect.",
+  title: "Partners - APOTEKH",
+  description: "Partner with APOTEKH.",
 };
 
 export default function PartnersPage() {
@@ -11,7 +11,7 @@ export default function PartnersPage() {
       <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
         <h1 className="font-serif text-5xl font-semibold text-slate">Partners</h1>
         <p className="mt-5 max-w-3xl text-slate/70">
-          PharmaConnect is seeking institutional partnerships with pharmacy,
+          APOTEKH is seeking institutional partnerships with pharmacy,
           regulatory, clinical, technology, and implementation partners in Tanzania.
         </p>
         <div className="mt-12 grid gap-5 md:grid-cols-3">

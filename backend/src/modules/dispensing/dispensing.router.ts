@@ -79,7 +79,6 @@ const lineItemSchema = z.object({
   quantity: z.number().int().positive(),
   unitPrice: z.number().nonnegative(),
   dose: z.string().trim().max(200).optional(),
-  counsellingNotes: z.string().trim().max(500).optional(),
 });
 
 const safetyContextSchema = z.object({
@@ -101,6 +100,8 @@ const checkoutSchema = z.object({
   safetyContext: safetyContextSchema.optional(),
   discountAmount: z.number().nonnegative().optional(),
   discountReason: z.string().trim().min(3).max(255).optional(),
+  localSessionId: z.string().trim().min(1).max(120).optional(),
+  localTimestamp: z.string().datetime().optional(),
   override: z
     .object({
       reason: z.string().trim().min(5).max(255),
@@ -134,7 +135,6 @@ type DispensingEventItem = {
   unitPrice: number;
   lineTotal: number;
   dose?: string;
-  counsellingNotes?: string;
 };
 
 type DispensingEventLookupRow = {
@@ -194,7 +194,6 @@ function formatReceiptResponse(event: DispensingEventRow, lines: DispensingEvent
       totalAmount: line.lineTotal,
       batchNumber: line.batchNumber,
       dose: line.dose,
-      counsellingNotes: line.counsellingNotes,
     })),
   };
 }
@@ -280,6 +279,8 @@ async function reverseDispensingEvent(input: {
           type: 'RETURNED',
           quantity: item.quantity,
           notes: `${input.source === 'RETURN' ? 'Return flow' : 'Void'} reversal for ${input.eventId}: ${input.reason}`,
+          localCreatedAt: new Date(),
+          syncedAt: new Date(),
         },
       });
     }
@@ -379,6 +380,350 @@ function normalizeDispensingPaymentMethods(value: Prisma.JsonValue | null | unde
   }
 
   return normalized;
+}
+
+type CheckoutPayload = z.infer<typeof checkoutSchema>;
+
+function parseLocalTimestamp(value: string | undefined): Date | null {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+async function completeDispensingCheckout(input: {
+  payload: CheckoutPayload;
+  pharmacyId: string;
+  currentUserId: string;
+  user: NonNullable<AuthRequest['user']>;
+  prescriptionPhotoPath?: string | null;
+  source: 'ONLINE' | 'OFFLINE_SYNC';
+}) {
+  const { payload, pharmacyId, currentUserId, user } = input;
+  const discountAmount = payload.discountAmount ?? 0;
+  const discountReason = payload.discountReason?.trim() || null;
+  const localSessionId = payload.localSessionId?.trim() || null;
+  const localCreatedAt = parseLocalTimestamp(payload.localTimestamp);
+  const syncedAt = new Date();
+
+  if (localSessionId) {
+    const existing = await prisma.$queryRaw<(DispensingEventLookupRow & { local_session_id: string | null })[]>(Prisma.sql`
+      SELECT
+        "id",
+        "reference_number",
+        "payment_method",
+        "payment_reference",
+        "prescription_photo_path",
+        "subtotal_amount",
+        "discount_amount",
+        "total_amount",
+        "status",
+        "vfd_status",
+        "created_at",
+        "updated_at",
+        "void_reason",
+        "voided_at",
+        "items",
+        "local_session_id"
+      FROM "dispensing_events"
+      WHERE "pharmacy_id" = ${pharmacyId} AND "local_session_id" = ${localSessionId}
+      LIMIT 1
+    `);
+
+    if (existing[0]) {
+      const lines = Array.isArray(existing[0].items) ? (existing[0].items as DispensingEventItem[]) : [];
+      return {
+        ...formatReceiptResponse(existing[0], lines),
+        duplicate: true,
+      };
+    }
+  }
+
+  if ((discountAmount > 0 || discountReason) && !user) {
+    throw Object.assign(new Error('Authentication required'), { status: 401, code: 'AUTHENTICATION_REQUIRED' });
+  }
+
+  if (discountAmount > 0 || discountReason) {
+    const canDiscount = hasPermission(user.role, 'dispensing.apply_discount', user.pharmacy);
+    if (!canDiscount) {
+      throw Object.assign(new Error('Role insufficient'), { status: 403, code: 'ROLE_INSUFFICIENT' });
+    }
+    if (!(discountAmount > 0 && discountReason)) {
+      throw Object.assign(new Error('Discount reason required'), { status: 400, code: 'DISCOUNT_REASON_REQUIRED' });
+    }
+  }
+
+  const safetyContext = payload.safetyContext
+    ? {
+        ...payload.safetyContext,
+        productIds: payload.items.map((item) => item.productId),
+      }
+    : undefined;
+
+  let review:
+    | Awaited<ReturnType<typeof sessionReview>>
+    | null = null;
+
+  if (safetyContext) {
+    review = await sessionReview(safetyContext);
+    if (review.requiresPicPin) {
+      if (!payload.override?.reason || !payload.override.pic_pin) {
+        throw Object.assign(new Error('PIC override required'), { status: 403, code: 'PIC_OVERRIDE_REQUIRED', review });
+      }
+    }
+  }
+
+  const referenceNumber = localSessionId
+    ? `RX-OFF-${localSessionId.replace(/[^a-zA-Z0-9]/g, '').slice(0, 24).toUpperCase() || Date.now().toString(36).toUpperCase()}`
+    : `RX-${Date.now().toString(36).toUpperCase()}`;
+  const pharmacySnapshot = await prisma.pharmacy.findUnique({
+    where: { id: pharmacyId },
+    select: { vfdEnabled: true },
+  });
+  const products = await prisma.product.findMany({
+    where: {
+      pharmacyId,
+      id: { in: payload.items.map((item) => item.productId) },
+    },
+    select: {
+      id: true,
+      name: true,
+      genericName: true,
+    },
+  });
+  const productMap = new Map(products.map((product) => [product.id, product]));
+  const lines: DispensingEventItem[] = [];
+  let subtotalAmount = 0;
+
+  for (const item of payload.items) {
+    const product = productMap.get(item.productId);
+    if (!product) {
+      throw Object.assign(new Error('Product not found'), { status: 404, code: 'PRODUCT_NOT_FOUND' });
+    }
+
+    const batch = await resolveFefoBatch(pharmacyId, item.productId, item.quantity);
+    const unitPrice = Number(item.unitPrice);
+    const lineTotal = Number((unitPrice * item.quantity).toFixed(2));
+    subtotalAmount += lineTotal;
+    lines.push({
+      productId: item.productId,
+      productName: product.name,
+      genericName: product.genericName,
+      batchId: batch.id,
+      batchNumber: batch.batchNumber,
+      quantity: item.quantity,
+      unitPrice,
+      lineTotal,
+      dose: item.dose,
+    });
+  }
+
+  const totalAmount = Number((subtotalAmount - discountAmount).toFixed(2));
+  if (totalAmount < 0) {
+    throw Object.assign(new Error('Discount cannot exceed subtotal'), { status: 400, code: 'DISCOUNT_EXCEEDS_SUBTOTAL' });
+  }
+
+  let verifiedPicUser: Awaited<ReturnType<typeof verifyPicPinForPharmacy>> = null;
+  if (review?.requiresPicPin && payload.override) {
+    verifiedPicUser = await verifyPicPinForPharmacy({
+      pharmacyId,
+      picPin: payload.override.pic_pin,
+      picUserId: payload.override.pic_user_id,
+    });
+
+    if (!verifiedPicUser) {
+      throw Object.assign(new Error('PIC PIN invalid'), { status: 403, code: 'PIC_PIN_INVALID' });
+    }
+  }
+
+  const checkoutResult = await prisma.$transaction(async (tx) => {
+    for (const line of lines) {
+      const batchUpdate = await tx.batch.updateMany({
+        where: {
+          id: line.batchId,
+          quantityRemaining: { gte: line.quantity },
+        },
+        data: { quantityRemaining: { decrement: line.quantity } },
+      });
+
+      if (batchUpdate.count === 0) {
+        throw Object.assign(new Error('Insufficient batch stock for FEFO allocation'), {
+          status: 409,
+          code: 'INSUFFICIENT_STOCK',
+        });
+      }
+
+      await tx.stockMovement.create({
+        data: {
+          pharmacyId,
+          productId: line.productId,
+          batchId: line.batchId,
+          userId: currentUserId,
+          type: 'DISPENSED',
+          quantity: line.quantity,
+          notes: `Dispensed via ${referenceNumber}`,
+          localCreatedAt: localCreatedAt ?? syncedAt,
+          syncedAt,
+        },
+      });
+    }
+
+    const inserted = await tx.$queryRaw<DispensingEventRow[]>(Prisma.sql`
+      INSERT INTO "dispensing_events" (
+        "pharmacy_id",
+        "dispensed_by",
+        "cashier_id",
+        "reference_number",
+        "payment_method",
+        "payment_reference",
+        "prescription_photo_path",
+        "subtotal_amount",
+        "discount_amount",
+        "discount_reason",
+        "total_amount",
+        "items",
+        "status",
+        "vfd_status",
+        "local_session_id",
+        "local_created_at",
+        "synced_at"
+      )
+      VALUES (
+        ${pharmacyId},
+        ${currentUserId},
+        ${user.normalizedRole === 'CASHIER' ? currentUserId : null},
+        ${referenceNumber},
+        ${payload.paymentMethod}::"PaymentMethod",
+        ${payload.paymentRef || null},
+        ${input.prescriptionPhotoPath ?? null},
+        ${subtotalAmount},
+        ${discountAmount},
+        ${discountReason},
+        ${totalAmount},
+        ${JSON.stringify(lines)}::jsonb,
+        'COMPLETED',
+        ${pharmacySnapshot?.vfdEnabled ? 'PENDING' : 'NOT_ENABLED'},
+        ${localSessionId},
+        ${localCreatedAt},
+        ${syncedAt}
+      )
+      RETURNING
+        "id",
+        "reference_number",
+        "payment_method",
+        "payment_reference",
+        "prescription_photo_path",
+        "subtotal_amount",
+        "discount_amount",
+        "total_amount",
+        "status",
+        "vfd_status",
+        "created_at"
+    `);
+
+    const event = inserted[0];
+
+    await tx.$executeRaw(Prisma.sql`
+      INSERT INTO "dispensing_transactions" (
+        "pharmacy_id",
+        "local_session_id",
+        "dispensing_event_id",
+        "reference_number",
+        "status",
+        "payload",
+        "local_created_at",
+        "synced_at",
+        "created_by"
+      )
+      VALUES (
+        ${pharmacyId},
+        ${localSessionId},
+        ${event.id},
+        ${referenceNumber},
+        'COMPLETED',
+        ${JSON.stringify({ source: input.source, checkout: payload, lines })}::jsonb,
+        ${localCreatedAt},
+        ${syncedAt},
+        ${currentUserId}
+      )
+      ON CONFLICT DO NOTHING
+    `);
+
+    if (input.prescriptionPhotoPath) {
+      await tx.$executeRaw(Prisma.sql`
+        INSERT INTO "prescriptions" (
+          "pharmacy_id",
+          "dispensing_event_id",
+          "reference_number",
+          "photo_path",
+          "metadata",
+          "created_by"
+        )
+        VALUES (
+          ${pharmacyId},
+          ${event.id},
+          ${referenceNumber},
+          ${input.prescriptionPhotoPath},
+          ${JSON.stringify({ source: input.source, localSessionId })}::jsonb,
+          ${currentUserId}
+        )
+      `);
+    }
+
+    return {
+      event,
+      lines,
+    };
+  });
+
+  if (review?.requiresPicPin && payload.override) {
+    const criticalInteraction = review.interactions.find((item) => item.requiresPicPin);
+    const criticalContraindication = review.contraindications.find((item) => item.requiresPicPin);
+
+    await prisma.overrideLog.create({
+      data: {
+        pharmacyId,
+        userId: currentUserId,
+        picUserId: verifiedPicUser!.userId,
+        alertType: criticalContraindication ? 'CONTRAINDICATION' : 'INTERACTION',
+        reason: payload.override.reason,
+        interactionId: criticalInteraction?.id,
+        contraindicationId: criticalContraindication?.id,
+        payload: {
+          referenceNumber,
+          dispensingEventId: checkoutResult.event.id,
+          review,
+          localSessionId,
+        } as Prisma.JsonObject,
+      },
+    });
+  }
+
+  await prisma.$executeRaw(Prisma.sql`
+    INSERT INTO "audit_log" ("pharmacy_id", "table_name", "record_id", "action", "acted_by", "new_data")
+    VALUES (
+      ${pharmacyId},
+      'dispensing_events',
+      ${checkoutResult.event.id},
+      'INSERT',
+      ${currentUserId},
+      ${JSON.stringify({
+        referenceNumber,
+        totalAmount,
+        lines: checkoutResult.lines,
+        prescriptionPhotoPath: input.prescriptionPhotoPath ?? null,
+        localSessionId,
+        source: input.source,
+      })}::jsonb
+    )
+  `);
+
+  return {
+    ...formatReceiptResponse(checkoutResult.event, checkoutResult.lines),
+    safetyReview: review,
+  };
 }
 
 export const dispensingRouter = Router();
@@ -501,7 +846,6 @@ dispensingRouter.post('/checkout', requirePermission('dispensing.access'), uploa
         unitPrice,
         lineTotal,
         dose: item.dose,
-        counsellingNotes: item.counsellingNotes,
       });
     }
 
@@ -556,6 +900,8 @@ dispensingRouter.post('/checkout', requirePermission('dispensing.access'), uploa
             type: 'DISPENSED',
             quantity: line.quantity,
             notes: `Dispensed via ${referenceNumber}`,
+            localCreatedAt: new Date(),
+            syncedAt: new Date(),
           },
         });
       }
@@ -575,7 +921,8 @@ dispensingRouter.post('/checkout', requirePermission('dispensing.access'), uploa
           "total_amount",
           "items",
           "status",
-          "vfd_status"
+          "vfd_status",
+          "synced_at"
         )
         VALUES (
           ${pharmacyId},
@@ -591,7 +938,8 @@ dispensingRouter.post('/checkout', requirePermission('dispensing.access'), uploa
           ${totalAmount},
           ${JSON.stringify(lines)}::jsonb,
           'COMPLETED',
-          ${pharmacySnapshot?.vfdEnabled ? 'PENDING' : 'NOT_ENABLED'}
+          ${pharmacySnapshot?.vfdEnabled ? 'PENDING' : 'NOT_ENABLED'},
+          CURRENT_TIMESTAMP
         )
         RETURNING
           "id",
@@ -614,6 +962,27 @@ dispensingRouter.post('/checkout', requirePermission('dispensing.access'), uploa
         lines,
       };
     });
+
+    if (prescriptionPhotoPath) {
+      await prisma.$executeRaw(Prisma.sql`
+        INSERT INTO "prescriptions" (
+          "pharmacy_id",
+          "dispensing_event_id",
+          "reference_number",
+          "photo_path",
+          "metadata",
+          "created_by"
+        )
+        VALUES (
+          ${pharmacyId},
+          ${checkoutResult.event.id},
+          ${referenceNumber},
+          ${prescriptionPhotoPath},
+          ${JSON.stringify({ source: 'ONLINE' })}::jsonb,
+          ${currentUserId}
+        )
+      `);
+    }
 
     if (review?.requiresPicPin && payload.override) {
       const criticalInteraction = review.interactions.find((item) => item.requiresPicPin);
@@ -653,6 +1022,102 @@ dispensingRouter.post('/checkout', requirePermission('dispensing.access'), uploa
       data: {
         ...formatReceiptResponse(checkoutResult.event, checkoutResult.lines),
         safetyReview: review,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+const syncBatchSessionSchema = z
+  .object({
+    localSessionId: z.string().trim().min(1).max(120).optional(),
+    localTimestamp: z.string().datetime().optional(),
+    payload: checkoutSchema.optional(),
+    checkout: checkoutSchema.optional(),
+  })
+  .refine((value) => Boolean(value.payload || value.checkout), {
+    message: 'Each session requires a payload or checkout object',
+  });
+
+dispensingRouter.post('/sync-batch', requirePermission('dispensing.access'), async (req: AuthRequest, res, next) => {
+  try {
+    const { sessions } = z
+      .object({
+        sessions: z.array(syncBatchSessionSchema).min(1).max(50),
+      })
+      .parse(req.body);
+    const pharmacyId = getPharmacyId(req);
+    const currentUserId = getUserId(req);
+
+    const results: Array<{
+      localSessionId: string;
+      status: 'SYNCED' | 'CONFLICT';
+      data?: unknown;
+      conflictId?: string;
+      error?: string;
+    }> = [];
+    for (const session of sessions) {
+      const basePayload = (session.payload ?? session.checkout)!;
+      const payload: CheckoutPayload = {
+        ...basePayload,
+        localSessionId: basePayload.localSessionId ?? session.localSessionId,
+        localTimestamp: basePayload.localTimestamp ?? session.localTimestamp,
+      };
+      const localSessionId: string = payload.localSessionId ?? session.localSessionId ?? `session-${results.length}`;
+
+      try {
+        const data = await completeDispensingCheckout({
+          payload,
+          pharmacyId,
+          currentUserId,
+          user: req.user!,
+          source: 'OFFLINE_SYNC',
+        });
+        results.push({
+          localSessionId,
+          status: 'SYNCED',
+          data,
+        });
+      } catch (error: any) {
+        const status = Number(error?.status ?? 500);
+        const code = typeof error?.code === 'string' ? error.code : 'DISPENSING_SYNC_FAILED';
+
+        if (status >= 400 && status < 500) {
+          const conflict = await prisma.syncConflict.create({
+            data: {
+              pharmacyId,
+              entityType: 'DISPENSING_SESSION',
+              entityId: localSessionId,
+              conflictType: code,
+              localPayload: payload as Prisma.InputJsonValue,
+              serverPayload: {
+                status,
+                code,
+                message: error?.message ?? 'Offline dispensing session was rejected during sync.',
+                review: error?.review ?? null,
+              },
+            },
+          });
+
+          results.push({
+            localSessionId,
+            status: 'CONFLICT',
+            conflictId: conflict.id,
+            error: code,
+          });
+          continue;
+        }
+
+        throw error;
+      }
+    }
+
+    res.json({
+      data: {
+        results,
+        synced: results.filter((result) => result.status === 'SYNCED').length,
+        conflicts: results.filter((result) => result.status === 'CONFLICT').length,
       },
     });
   } catch (error) {
@@ -784,31 +1249,190 @@ dispensingRouter.put('/events/:id', requirePermission('dispensing.void_sale'), a
   res.status(400).json({ error: 'NO_EDITABLE_FIELDS' });
 });
 
-dispensingRouter.post(
+const dailyClosePayloadSchema = z.object({
+  actualCashCounted: z.coerce.number().nonnegative(),
+  notes: z.string().trim().max(255).optional(),
+  closingDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+});
+
+type DailyClosePaymentBreakdown = {
+  paymentMethod: string;
+  salesCount: number;
+  totalAmount: number;
+};
+
+type DailyCloseSummary = {
+  date: string;
+  totalSales: number;
+  totalRevenueTzs: number;
+  expectedCash: number;
+  itemsDispensed: number;
+  uniqueProducts: number;
+  paymentBreakdown: DailyClosePaymentBreakdown[];
+};
+
+function dailyCloseDateSql(closingDate?: string) {
+  return closingDate
+    ? Prisma.sql`CAST(${closingDate} AS date)`
+    : Prisma.sql`DATE(NOW() AT TIME ZONE 'Africa/Nairobi')`;
+}
+
+async function getDailyCloseSummary(pharmacyId: string, closingDate?: string): Promise<DailyCloseSummary> {
+  const [summaryRows, itemRows, paymentRows] = await Promise.all([
+    prisma.$queryRaw<Array<{
+      close_date: Date | string;
+      total_sales: string | number;
+      total_revenue_tzs: string | number;
+      expected_cash: string | number;
+    }>>(Prisma.sql`
+      WITH events AS (
+        SELECT "id", "payment_method"::text AS "payment_method", "total_amount", "items"
+        FROM "dispensing_events"
+        WHERE
+          "pharmacy_id" = ${pharmacyId}
+          AND "status" = 'COMPLETED'
+          AND DATE("created_at" AT TIME ZONE 'Africa/Nairobi') = ${dailyCloseDateSql(closingDate)}
+      )
+      SELECT
+        ${dailyCloseDateSql(closingDate)} AS "close_date",
+        COUNT(*)::int AS "total_sales",
+        COALESCE(SUM("total_amount"), 0)::text AS "total_revenue_tzs",
+        COALESCE(SUM("total_amount") FILTER (WHERE "payment_method" = 'CASH'), 0)::text AS "expected_cash"
+      FROM events
+    `),
+    prisma.$queryRaw<Array<{
+      items_dispensed: string | number;
+      unique_products: string | number;
+    }>>(Prisma.sql`
+      WITH events AS (
+        SELECT "items"
+        FROM "dispensing_events"
+        WHERE
+          "pharmacy_id" = ${pharmacyId}
+          AND "status" = 'COMPLETED'
+          AND DATE("created_at" AT TIME ZONE 'Africa/Nairobi') = ${dailyCloseDateSql(closingDate)}
+      ),
+      line_items AS (
+        SELECT
+          COALESCE(item.value->>'productId', item.value->>'product_id') AS "product_id",
+          COALESCE(NULLIF(item.value->>'quantity', '')::numeric, 0) AS "quantity"
+        FROM events
+        CROSS JOIN LATERAL jsonb_array_elements("items") AS item(value)
+      )
+      SELECT
+        COALESCE(SUM("quantity"), 0)::int AS "items_dispensed",
+        COUNT(DISTINCT "product_id") FILTER (WHERE "product_id" IS NOT NULL)::int AS "unique_products"
+      FROM line_items
+    `),
+    prisma.$queryRaw<Array<{
+      payment_method: string;
+      sales_count: string | number;
+      total_amount: string | number;
+    }>>(Prisma.sql`
+      SELECT
+        "payment_method"::text,
+        COUNT(*)::int AS "sales_count",
+        COALESCE(SUM("total_amount"), 0)::text AS "total_amount"
+      FROM "dispensing_events"
+      WHERE
+        "pharmacy_id" = ${pharmacyId}
+        AND "status" = 'COMPLETED'
+        AND DATE("created_at" AT TIME ZONE 'Africa/Nairobi') = ${dailyCloseDateSql(closingDate)}
+      GROUP BY "payment_method"
+      ORDER BY "payment_method"
+    `),
+  ]);
+
+  const closeDate = summaryRows[0]?.close_date;
+
+  return {
+    date: closeDate instanceof Date ? closeDate.toISOString().slice(0, 10) : String(closeDate),
+    totalSales: Number(summaryRows[0]?.total_sales ?? 0),
+    totalRevenueTzs: Number(summaryRows[0]?.total_revenue_tzs ?? 0),
+    expectedCash: Number(summaryRows[0]?.expected_cash ?? 0),
+    itemsDispensed: Number(itemRows[0]?.items_dispensed ?? 0),
+    uniqueProducts: Number(itemRows[0]?.unique_products ?? 0),
+    paymentBreakdown: paymentRows.map((row) => ({
+      paymentMethod: row.payment_method,
+      salesCount: Number(row.sales_count ?? 0),
+      totalAmount: Number(row.total_amount ?? 0),
+    })),
+  };
+}
+
+async function getDailyCloseRecord(pharmacyId: string, closingDate?: string) {
+  const rows = await prisma.$queryRaw<
+    Array<{
+      id: string;
+      closing_date: Date;
+      expected_cash: string | number;
+      actual_cash_counted: string | number;
+      discrepancy: string | number;
+      notes: string | null;
+      created_at: Date;
+    }>
+  >(Prisma.sql`
+    SELECT "id", "closing_date", "expected_cash", "actual_cash_counted", "discrepancy", "notes", "created_at"
+    FROM "daily_closings"
+    WHERE "pharmacy_id" = ${pharmacyId}
+      AND "closing_date" = ${dailyCloseDateSql(closingDate)}
+    LIMIT 1
+  `);
+
+  const row = rows[0];
+  if (!row) {
+    return null;
+  }
+
+  return {
+    id: row.id,
+    closingDate: row.closing_date,
+    expectedCash: Number(row.expected_cash),
+    actualCashCounted: Number(row.actual_cash_counted),
+    discrepancy: Number(row.discrepancy),
+    notes: row.notes,
+    createdAt: row.created_at,
+  };
+}
+
+dispensingRouter.get(
   '/daily-close',
   requireRole('PHARMACIST_IN_CHARGE', 'OWNER', 'SUPER_ADMIN'),
   async (req: AuthRequest, res, next) => {
     try {
-      const { actualCashCounted, notes } = z.object({
-        actualCashCounted: z.number().nonnegative(),
-        notes: z.string().trim().max(255).optional(),
-      }).parse(req.body);
+      const { closingDate } = z
+        .object({ closingDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() })
+        .parse(req.query);
+      const pharmacyId = getPharmacyId(req);
+      const [summary, existing] = await Promise.all([
+        getDailyCloseSummary(pharmacyId, closingDate),
+        getDailyCloseRecord(pharmacyId, closingDate),
+      ]);
+
+      res.json({
+        data: {
+          ...summary,
+          closing: existing,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+dispensingRouter.post(
+  ['/daily-close', '/close-day'],
+  requireRole('PHARMACIST_IN_CHARGE', 'OWNER', 'SUPER_ADMIN'),
+  async (req: AuthRequest, res, next) => {
+    try {
+      const { actualCashCounted, notes, closingDate } = dailyClosePayloadSchema.parse(req.body);
       const normalizedNotes = notes?.trim() || null;
 
       const pharmacyId = getPharmacyId(req);
       const currentUserId = getUserId(req);
-      const rows = await prisma.$queryRaw<Array<{ expected_cash: string | number }>>(Prisma.sql`
-        SELECT COALESCE(SUM("total_amount"), 0)::text AS "expected_cash"
-        FROM "dispensing_events"
-        WHERE
-          "pharmacy_id" = ${pharmacyId}
-          AND "payment_method" = 'CASH'
-          AND "status" = 'COMPLETED'
-          AND DATE("created_at" AT TIME ZONE 'Africa/Nairobi') = DATE(NOW() AT TIME ZONE 'Africa/Nairobi')
-      `);
-
-      const expectedCash = Number(rows[0]?.expected_cash ?? 0);
-      const discrepancy = Number((actualCashCounted - expectedCash).toFixed(2));
+      const summary = await getDailyCloseSummary(pharmacyId, closingDate);
+      const discrepancy = Number((actualCashCounted - summary.expectedCash).toFixed(2));
       if (Math.abs(discrepancy) > 5000 && !normalizedNotes) {
         res.status(400).json({ error: 'VARIANCE_NOTE_REQUIRED' });
         return;
@@ -837,30 +1461,58 @@ dispensingRouter.post(
           ${pharmacyId},
           ${currentUserId},
           ${currentUserId},
-          DATE(NOW() AT TIME ZONE 'Africa/Nairobi'),
-          ${expectedCash},
+          ${dailyCloseDateSql(closingDate)},
+          ${summary.expectedCash},
           ${actualCashCounted},
           ${discrepancy},
           ${normalizedNotes}
         )
         ON CONFLICT ("pharmacy_id", "closing_date")
-        DO UPDATE SET
-          "closed_by" = EXCLUDED."closed_by",
-          "signed_off_by" = EXCLUDED."signed_off_by",
-          "expected_cash" = EXCLUDED."expected_cash",
-          "actual_cash_counted" = EXCLUDED."actual_cash_counted",
-          "discrepancy" = EXCLUDED."discrepancy",
-          "notes" = EXCLUDED."notes"
+        DO NOTHING
         RETURNING "id", "closing_date", "expected_cash", "actual_cash_counted", "discrepancy"
+      `);
+
+      if (!result[0]) {
+        res.status(409).json({ error: 'DAILY_CLOSE_ALREADY_EXISTS' });
+        return;
+      }
+
+      await prisma.$executeRaw(Prisma.sql`
+        INSERT INTO "audit_log" ("pharmacy_id", "table_name", "record_id", "action", "acted_by", "new_data")
+        VALUES (
+          ${pharmacyId},
+          'daily_closings',
+          ${result[0].id},
+          'INSERT',
+          ${currentUserId},
+          ${JSON.stringify({
+            date: summary.date,
+            totalSales: summary.totalSales,
+            totalRevenueTzs: summary.totalRevenueTzs,
+            expectedCash: summary.expectedCash,
+            actualCashCounted,
+            discrepancy,
+            itemsDispensed: summary.itemsDispensed,
+            uniqueProducts: summary.uniqueProducts,
+            paymentBreakdown: summary.paymentBreakdown,
+          })}::jsonb
+        )
       `);
 
       res.status(201).json({
         data: {
           id: result[0].id,
+          date: summary.date,
           closingDate: result[0].closing_date,
-          expectedCash,
+          totalSales: summary.totalSales,
+          totalRevenueTzs: summary.totalRevenueTzs,
+          itemsDispensed: summary.itemsDispensed,
+          uniqueProducts: summary.uniqueProducts,
+          paymentBreakdown: summary.paymentBreakdown,
+          expectedCash: summary.expectedCash,
           actualCashCounted: Number(result[0].actual_cash_counted),
           discrepancy: Number(result[0].discrepancy),
+          notes: normalizedNotes,
         },
       });
     } catch (error) {

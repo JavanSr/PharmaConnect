@@ -18,7 +18,9 @@ const upload = multer({
   },
 });
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const client = process.env.ANTHROPIC_API_KEY
+  ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+  : null;
 
 catalogueImportRouter.post(
   '/extract',
@@ -29,6 +31,12 @@ catalogueImportRouter.post(
     try {
       if (!req.file) {
         res.status(400).json({ error: 'No PDF file uploaded' });
+        return;
+      }
+      if (!client) {
+        res.status(503).json({
+          error: 'PDF catalogue import is disabled. Use Products CSV upload or manual product entry.',
+        });
         return;
       }
 

@@ -47,6 +47,7 @@ export const ROLE_NORMALIZATION: Record<KnownRole, AppRole> = {
 
 export const SUPPORTED_TIERS = [
   'ADDO',
+  'ESSENTIAL',
   'STANDARD',
   'PREMIUM',
   'WHOLESALE',
@@ -58,8 +59,9 @@ export type KnownTier = SubscriptionTier | 'FREE' | 'ADDO_PLUS';
 
 const TIER_RANK: Record<SupportedTier, number> = {
   ADDO: 1,
-  STANDARD: 2,
-  PREMIUM: 3,
+  ESSENTIAL: 2,
+  STANDARD: 3,
+  PREMIUM: 4,
   WHOLESALE: 4,
   ENTERPRISE: 5,
 };
@@ -91,8 +93,10 @@ export function normalizeTier(tier: string | null | undefined): SupportedTier | 
   switch (tier) {
     case 'FREE':
     case 'ADDO':
-    case 'ADDO_PLUS':
       return 'ADDO';
+    case 'ADDO_PLUS':
+    case 'ESSENTIAL':
+      return 'ESSENTIAL';
     case 'STANDARD':
     case 'PREMIUM':
     case 'WHOLESALE':

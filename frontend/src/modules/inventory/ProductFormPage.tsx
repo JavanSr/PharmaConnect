@@ -1,11 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Save, Search } from 'lucide-react';
+import { ArrowLeft, Save, Search, ScanLine, X } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
+import { BarcodeScanner } from '@/components/BarcodeScanner';
 import { useNotificationStore } from '@/stores/notificationStore';
 import { api } from '@/lib/api';
 import { useDebounce } from '@/hooks/useDebounce';
@@ -116,6 +117,7 @@ export const ProductFormPage: React.FC = () => {
   const [form, setForm] = useState<FormState>(empty);
   const [drugSearch, setDrugSearch] = useState('');
   const [selectedDrug, setSelectedDrug] = useState<DrugMaster | null>(null);
+  const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
   const debouncedSearch = useDebounce(drugSearch, 300);
 
   const { data: drugResults } = useQuery({
@@ -208,6 +210,17 @@ export const ProductFormPage: React.FC = () => {
     }));
   };
 
+  const handleBarcodeDetected = useCallback((barcode: string) => {
+    const value = barcode.trim();
+    if (!value) return;
+
+    setSelectedDrug(null);
+    setDrugSearch(value);
+    setForm(f => ({ ...f, barcode: value }));
+    setShowBarcodeScanner(false);
+    toast.success('Barcode captured');
+  }, [toast]);
+
   const mutation = useMutation({
     mutationFn: () => {
       const payload = {
@@ -274,6 +287,17 @@ export const ProductFormPage: React.FC = () => {
             }}
             placeholder="e.g. Amoxicillin, Paracetamol, TZ-TMDA-0001, 10030001..."
             leftIcon={<Search size={16} />}
+            rightIcon={
+              <button
+                type="button"
+                aria-label={showBarcodeScanner ? 'Close barcode scanner' : 'Open barcode scanner'}
+                title={showBarcodeScanner ? 'Close barcode scanner' : 'Open barcode scanner'}
+                onClick={() => setShowBarcodeScanner(open => !open)}
+                className="rounded-lg p-1 text-[#64748B] transition-colors hover:bg-[#EDF7F3] hover:text-[#1A6B5C]"
+              >
+                {showBarcodeScanner ? <X size={16} /> : <ScanLine size={16} />}
+              </button>
+            }
           />
           {drugs.length > 0 && !selectedDrug && (
             <div className="absolute z-10 top-full mt-1 w-full bg-white border border-[#D6F0E8] rounded-xl shadow-lg overflow-hidden">
@@ -300,6 +324,15 @@ export const ProductFormPage: React.FC = () => {
             </div>
           )}
         </div>
+        {showBarcodeScanner && (
+          <div className="mt-3">
+            <BarcodeScanner
+              label="Scan barcode for this product"
+              placeholder="Scan or type product barcode"
+              onDetected={handleBarcodeDetected}
+            />
+          </div>
+        )}
         {showManualFallbackNotice && (
           <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
             <p className="text-sm font-medium text-[#92400E]">No master-catalog match found yet.</p>
