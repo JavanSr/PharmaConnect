@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 
 interface LogoProps {
@@ -13,20 +14,6 @@ const sizeMap = {
   xl: 64,
 };
 
-function NexusCross({ color, ringColor }: { color: string; ringColor: string }) {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 100 100" className="h-full w-full">
-      <rect x="43.3" y="6.7" width="13.3" height="86.6" rx="1.7" fill={color} />
-      <rect x="6.7" y="43.3" width="86.6" height="13.3" rx="1.7" fill={color} />
-      <circle cx="50" cy="13.3" r="6.7" fill={color} />
-      <circle cx="50" cy="86.7" r="6.7" fill={color} />
-      <circle cx="13.3" cy="50" r="6.7" fill={color} />
-      <circle cx="86.7" cy="50" r="6.7" fill={color} />
-      <circle cx="50" cy="50" r="9.2" fill="none" stroke={ringColor} strokeWidth="2" />
-    </svg>
-  );
-}
-
 export default function Logo({
   size = "md",
   variant = "full",
@@ -34,30 +21,47 @@ export default function Logo({
 }: LogoProps) {
   const markSize = sizeMap[size];
   const isWhite = variant === "white";
-  const markColor = isWhite ? "#FFFFFF" : "#1A6B5C";
-  const ringColor = "rgba(255,255,255,0.35)";
-  const wordColor = isWhite ? "#FFFFFF" : "#0D4035";
+  const markSrc = isWhite
+    ? "/assets/logo/apotekh-mark-dark.svg"
+    : "/assets/logo/apotekh-mark-light.svg";
 
   if (variant === "mark") {
     return (
       <span className={cn("inline-flex items-center", className)}>
-        <span style={{ height: markSize, width: markSize }}>
-          <NexusCross color={markColor} ringColor={ringColor} />
-        </span>
+        <Image
+          src={markSrc}
+          alt="APOTEKH"
+          height={markSize}
+          width={markSize}
+          className="block h-auto shrink-0"
+          unoptimized
+        />
       </span>
     );
   }
 
   return (
-    <span className={cn("inline-flex items-center gap-3", className)}>
-      <span style={{ height: markSize, width: markSize }}>
-        <NexusCross color={markColor} ringColor={ringColor} />
-      </span>
+    <span className={cn("inline-flex items-center gap-2.5", className)}>
+      <Image
+        src={markSrc}
+        alt="APOTEKH"
+        height={markSize}
+        width={markSize}
+        className="block h-auto shrink-0"
+        unoptimized
+      />
       <span
-        className="font-serif text-[clamp(1rem,2vw,2rem)] leading-none tracking-tight"
-        style={{ color: wordColor }}
+        className={cn(
+          "inline-flex items-baseline gap-0 font-sans font-extrabold leading-none tracking-normal",
+          size === "sm" && "text-[1.15rem]",
+          size === "md" && "text-[1.55rem]",
+          size === "lg" && "text-[2.35rem]",
+          size === "xl" && "text-[3rem]",
+        )}
+        aria-hidden="true"
       >
-        APOTEKH
+        <span className={isWhite ? "text-white" : "text-[#0D4035]"}>APOTEK</span>
+        <span className="-ml-[0.015em] text-[#7ECFB4]">H</span>
       </span>
     </span>
   );

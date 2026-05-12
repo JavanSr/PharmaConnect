@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="460" height="96" viewBox="0 0 460 96" fill="none">
+  <g transform="translate(6 8) scale(0.333333)">
+    <path d="M120 56V200" stroke="#0D4035" stroke-width="14" stroke-linecap="round"/>
+    <path d="M56 120H184" stroke="#0D4035" stroke-width="14" stroke-linecap="round"/>
+    <circle cx="120" cy="120" r="12" fill="#0D4035"/>
+    <circle cx="120" cy="36" r="14" fill="#0D4035"/>
+    <circle cx="120" cy="210" r="13" fill="#0D4035"/>
+    <circle cx="36" cy="120" r="13" fill="#0D4035"/>
+    <circle cx="204" cy="120" r="15" fill="#E8A020"/>
+    <circle cx="204" cy="120" r="6" fill="#FFFFFF" opacity="0.6"/>
+  </g>
+  <text x="102" y="66" font-family="'DM Sans', 'Segoe UI', Arial, sans-serif" font-size="56" font-weight="800" letter-spacing="0">
+    <tspan fill="#0D4035">APOTEK</tspan><tspan fill="#7ECFB4">H</tspan>
+  </text>
+</svg>

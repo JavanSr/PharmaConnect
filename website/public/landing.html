@@ -1,0 +1,1222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>APOTEKH · The operating system for pharmacies</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+:root {
+  --pc-50:#EDF7F3; --pc-100:#D6F0E8; --pc-200:#AFDFD3;
+  --pc-500:#2A9478; --pc-600:#1A6B5C; --pc-700:#145748;
+  --pc-800:#0D4035; --pc-900:#082B23;
+  --paper:#F7FBF8; --ink:#0D4035; --muted:#516965;
+  --amber:#E8913A; --amber-soft:#F6C58A; --line:#E2EDE8;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--paper);color:var(--ink);font-family:'DM Sans',system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;overflow-x:hidden;line-height:1.6}
+.serif{font-family:'DM Serif Display',Georgia,serif}
+.mono{font-family:'JetBrains Mono',Menlo,monospace}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none}
+.grid-bg{background-image:radial-gradient(rgba(13,64,53,0.08) 1px,transparent 1px);background-size:22px 22px}
+@keyframes marquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+.marquee-track{animation:marquee 38s linear infinite}
+@keyframes livepulse{0%,100%{box-shadow:0 0 0 0 rgba(42,148,120,0.55)}50%{box-shadow:0 0 0 7px rgba(42,148,120,0)}}
+.live-dot{animation:livepulse 1.8s ease-out infinite}
+.reveal{opacity:0;transform:translateY(14px);transition:opacity 700ms ease,transform 700ms ease}
+.reveal.in{opacity:1;transform:none}
+.tape{background:linear-gradient(180deg,var(--amber-soft),#f0b272);color:#5a330d;font-weight:600}
+.no-scrollbar::-webkit-scrollbar{display:none}.no-scrollbar{scrollbar-width:none}
+.tab-btn{padding:10px 18px;font-size:13px;font-weight:500;border-bottom:2px solid transparent;
+  color:var(--muted);cursor:pointer;transition:all 150ms;background:none;
+  border-top:none;border-left:none;border-right:none;font-family:'DM Sans',system-ui,sans-serif}
+.tab-btn:hover{color:var(--ink)}
+.tab-btn.active{color:var(--pc-600);border-bottom-color:var(--pc-600)}
+.billing-btn{padding:8px 20px;border-radius:999px;font-size:13px;font-weight:500;
+  transition:all 150ms;cursor:pointer;font-family:inherit;background:none;border:none;color:var(--muted)}
+.billing-btn.active{background:var(--pc-600);color:white}
+.faq-item{border-bottom:1px solid var(--line)}
+.faq-btn{width:100%;display:flex;justify-content:space-between;align-items:center;
+  gap:16px;padding:20px 0;text-align:left;cursor:pointer;background:none;border:none;
+  font-family:'DM Sans',system-ui,sans-serif;font-size:15px;font-weight:500;color:var(--ink)}
+input,select{font-family:'DM Sans',system-ui,sans-serif;outline:none;transition:border-color 150ms}
+input:focus,select:focus{border-color:var(--pc-600) !important}
+@keyframes fadeUp{from{opacity:0;transform:translateY(26px)}to{opacity:1;transform:translateY(0)}}
+@keyframes drawLine{from{stroke-dashoffset:440}to{stroke-dashoffset:0}}
+@keyframes fadeArea{from{opacity:0}to{opacity:1}}
+.chart-line{stroke-dasharray:440;stroke-dashoffset:440;animation:drawLine 2.8s cubic-bezier(0.4,0,0.2,1) forwards 0.5s}
+.chart-area{opacity:0;animation:fadeArea 2.5s ease forwards 1.1s}
+.card-stagger{opacity:0}
+.reveal.in .card-stagger{animation:fadeUp 560ms ease both}
+.reveal.in .card-stagger:nth-child(1){animation-delay:0ms}
+.reveal.in .card-stagger:nth-child(2){animation-delay:65ms}
+.reveal.in .card-stagger:nth-child(3){animation-delay:130ms}
+.reveal.in .card-stagger:nth-child(4){animation-delay:195ms}
+.reveal.in .card-stagger:nth-child(5){animation-delay:260ms}
+.reveal.in .card-stagger:nth-child(6){animation-delay:325ms}
+.reveal.in .card-stagger:nth-child(7){animation-delay:390ms}
+.reveal.in .card-stagger:nth-child(8){animation-delay:455ms}
+.reveal.in .card-stagger:nth-child(9){animation-delay:520ms}
+.reveal.in .card-stagger:nth-child(10){animation-delay:585ms}
+.reveal.in .card-stagger:nth-child(11){animation-delay:650ms}
+.reveal.in .card-stagger:nth-child(12){animation-delay:715ms}
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useEffect} = React;
+
+// ── DATA ──────────────────────────────────────────────────────────────────────
+
+const TIERS = [
+  {
+    id:'addo',name:'ADDO',price:20000,outlets:1,users:3,popular:false,
+    desc:'For ADDOs and small pharmacies starting with digital operations.',
+    features:['Basic POS and dispensing','Drug interaction checking (full suite)','FEFO inventory with expiry alerts',
+      'DLDM compliance tracker','Barcode scanning on intake and counter','Knowledge Hub read-only','14-day free trial'],
+    out:['Owner Dashboard','Void / reissue audit trail','Accounting module'],
+  },
+  {
+    id:'basic',name:'BASIC',price:39000,outlets:2,users:5,popular:false,
+    desc:'For growing pharmacies that need visibility, roles, and full compliance.',
+    features:['Everything in ADDO','Owner Dashboard — remote oversight','Roles & permissions for all staff',
+      'Void / reissue audit trail','Full compliance tracker (TMDA + PC licences)','Knowledge Hub read-only','14-day free trial'],
+    out:['Accounting module','Patient Ordering Portal'],
+  },
+  {
+    id:'standard',name:'STANDARD',price:55000,outlets:3,users:10,popular:true,
+    desc:'For pharmacies that want full operations, reporting, and patient access.',
+    features:['Everything in BASIC','Accounting module','Customer purchase history',
+      'Patient Ordering Portal','Basic marketing campaigns','Multi-shop reporting','Knowledge Hub full access'],
+    out:['Demand forecasting','Revenue projections'],
+  },
+  {
+    id:'premium',name:'PREMIUM',price:75000,outlets:5,users:20,popular:false,
+    desc:'For high-performing pharmacies that want full intelligence and growth tools.',
+    features:['Everything in STANDARD','Demand forecasting','Dead stock scoring',
+      'Revenue projections','Peer benchmarking','Knowledge Hub with courses','Priority support'],
+    out:[],
+  },
+];
+
+const MODULES = [
+  {name:'Dashboard',icon:'◈',desc:'Live operating view — sales, compliance, and team priorities in one place.'},
+  {name:'Inventory',icon:'⬡',desc:'Batch-level stock control with FEFO enforcement and 5-window expiry alerts.'},
+  {name:'Dispensing',icon:'⊕',desc:'Safe dispensing workflow with drug interaction checking built into every sale.'},
+  {name:'Compliance',icon:'◉',desc:'TMDA and PC licence tracking with deadline reminders and evidence upload.'},
+  {name:'Analytics',icon:'▦',desc:'Sales trends, stock movement, and compliance summaries across every branch.'},
+  {name:'Knowledge Hub',icon:'◎',desc:'Clinical and regulatory reference library for daily dispensing decisions.'},
+];
+
+const COMING = [
+  {name:'NHIF Claims',phase:2},{name:'CPD Tracker',phase:2},{name:'Stock Exchange',phase:2},
+  {name:'B2B Platform',phase:3},{name:'Patient App',phase:3},{name:'AI Safety',phase:4},{name:'Data Products',phase:4},
+];
+
+const TABS = [
+  {id:'dispensing',label:'Dispensing',
+    headline:'Safe dispensing at every counter',
+    body:'Every sale runs through a controlled flow — product selection, drug interaction checking, FEFO guidance, and payment — without double entry or skipped safety steps.',
+    items:['Drug interaction checking — MINOR through CONTRAINDICATED','FEFO guidance on every product selection',
+      'Barcode scan to select and verify in one tap','Anonymous session — no patient names or IDs stored',
+      'Dispensing receipt generated automatically'],
+  },
+  {id:'inventory',label:'Inventory',
+    headline:'Batch-level control from intake to sale',
+    body:'Every product tracked by batch, expiry, and supplier. Alerts at five expiry windows. FEFO enforced at every sale. All adjustments stay fully auditable.',
+    items:['Batch and expiry tracked from intake to dispensing','Alerts at 90, 60, 30, 7, and 1-day windows',
+      'Low-stock and near-expiry banners always visible','QR and barcode scanning on intake',
+      'Offline-ready — all changes sync when reconnected'],
+  },
+  {id:'safety',label:'Patient Safety',
+    headline:'Clinical checks built into every sale',
+    body:'APOTEKH checks interactions, contraindications, and allergy flags before medicine leaves the counter — on every tier, at no extra cost.',
+    items:['MINOR, MODERATE, MAJOR, CONTRAINDICATED severity levels','8 contraindication flags including pregnancy and renal failure',
+      'Dose range checking for paediatrics and adults','Alternative medicine suggestions and therapeutic equivalence matching',
+      'Override logging with pharmacist justification required',
+      'Never tier-gated — full Clinical Decision Support on every plan'],
+  },
+  {id:'compliance',label:'Compliance',
+    headline:'Every deadline visible before it becomes a crisis',
+    body:'TMDA licences, PC registrations, and inspection dates — tracked with colour-coded status, early reminders, and evidence upload in one place.',
+    items:['TMDA and Pharmacy Council licence tracking built in','Colour-coded status: green, amber, red, overdue',
+      'Configurable reminders before every deadline','Evidence attachment and non-editable audit trail',
+      'EFDMS integration runs silently in the background'],
+  },
+  {id:'analytics',label:'Analytics',
+    headline:'Manage your pharmacy from anywhere',
+    body:"Sales trends, stock movement, and compliance summaries on any device. Owners see every branch in one account — no separate logins, no WhatsApp reports.",
+    items:['Daily and monthly sales performance','Stock movement and dead-stock scoring',
+      'Compliance status summary across all branches','Multi-branch visibility in one account',
+      'Exportable reports for management review'],
+  },
+];
+
+
+const WHOLESALE_TIERS = [
+  {
+    id:'wholesale',name:'WHOLESALE',price:100000,popular:false,
+    desc:'For pharmaceutical wholesalers and distributors supplying retail pharmacies.',
+    features:['Wholesale catalogue management','B2B order management and fulfilment','Client pharmacy account management','Delivery staff access and route tracking','Goods intake with barcode scanning','Knowledge Hub read access','14-day free trial'],
+    out:['Retail dispensing','Clinical Decision Support'],
+  },
+];
+
+const FAQS = [
+  {q:'Does APOTEKH work without internet?',
+   a:'Yes. APOTEKH is offline-first — dispensing, stock updates, and safety checks all work without a connection. Data syncs automatically the moment connectivity returns. You never lose a sale or a record because of network problems.'},
+  {q:'Which devices does it support?',
+   a:'APOTEKH runs in any modern browser on desktop, tablet, or Android phone. A dedicated Android app is in active development for faster offline use at the dispensing counter.'},
+  {q:'How does the QR and barcode scanner work?',
+   a:'Use any phone camera or USB barcode reader. Scan a product during stock intake to auto-fill batch details, or scan at the dispensing counter to select and verify a medicine instantly. No separate hardware purchase required.'},
+  {q:'Is patient data stored?',
+   a:'No patient personal data is stored. All dispensing safety checks run on an anonymous session — no names, national IDs, or patient records are saved. This is by design and by PDPC guidance.'},
+  {q:'Can I manage multiple pharmacy branches?',
+   a:'Yes — from Basic (2 outlets) through Premium (5 outlets). All branches appear in a single Owner Dashboard with live revenue, stock levels, and compliance status. Enterprise supports unlimited outlets.'},
+  {q:'How does pricing work?',
+   a:'Retail subscriptions start at TZS 20,000/month for ADDOs and scale to TZS 75,000/month for Premium. All plans include a 14-day free trial. Annual billing gives two months free — you pay for 10, get 12.'},
+  {q:'Is the drug interaction checker available on all plans?',
+   a:'Yes — Clinical Decision Support (drug interaction checking, contraindication alerts, dose calculations) is never tier-gated. Every pharmacy on every plan gets the full suite. Override permissions are role-based.'},
+];
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+
+const fmt = n => 'TZS ' + n.toLocaleString();
+
+function Check() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{flexShrink:0,marginTop:2}}>
+      <circle cx="7" cy="7" r="7" fill="#1A6B5C" opacity=".12"/>
+      <path d="M4 7l2 2 4-4" stroke="#1A6B5C" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+function Cross() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{flexShrink:0,marginTop:2}}>
+      <circle cx="7" cy="7" r="7" fill="#516965" opacity=".1"/>
+      <path d="M5 5l4 4M9 5l-4 4" stroke="#516965" strokeWidth="1.5" strokeLinecap="round"/>
+    </svg>
+  );
+}
+
+// ── LOGO ──────────────────────────────────────────────────────────────────────
+
+function Logo({white=false,height=30}) {
+  const c = white ? '#fff' : '#0D4035';
+  const w = Math.round(height*(460/96));
+  return (
+    <svg width={w} height={height} viewBox="0 0 460 96" fill="none">
+      <g transform="translate(6 8) scale(0.333333)">
+        <path d="M120 56V200" stroke={c} strokeWidth="14" strokeLinecap="round"/>
+        <path d="M56 120H184" stroke={c} strokeWidth="14" strokeLinecap="round"/>
+        <circle cx="120" cy="120" r="12" fill={c}/>
+        <circle cx="120" cy="36" r="14" fill={c}/>
+        <circle cx="120" cy="210" r="13" fill={c}/>
+        <circle cx="36" cy="120" r="13" fill={c}/>
+        <circle cx="204" cy="120" r="15" fill="#E8A020"/>
+        <circle cx="204" cy="120" r="6" fill="#fff" opacity=".6"/>
+      </g>
+      <text x="102" y="66" fontFamily="'DM Sans','Segoe UI',Arial,sans-serif" fontSize="56" fontWeight="800" letterSpacing="0">
+        <tspan fill={c}>APOTEK</tspan><tspan fill="#7ECFB4">H</tspan>
+      </text>
+    </svg>
+  );
+}
+
+// ── NAV ───────────────────────────────────────────────────────────────────────
+
+function Nav() {
+  const [scrolled,setScrolled] = useState(false);
+  useEffect(()=>{
+    const fn=()=>setScrolled(window.scrollY>50);
+    window.addEventListener('scroll',fn);
+    return ()=>window.removeEventListener('scroll',fn);
+  },[]);
+  return (
+    <header style={{position:'sticky',top:0,zIndex:50,
+      background:scrolled?'rgba(247,251,248,0.94)':'transparent',
+      backdropFilter:scrolled?'blur(14px)':'none',
+      borderBottom:`1px solid ${scrolled?'var(--line)':'transparent'}`,
+      transition:'all 200ms ease'}}>
+      <div style={{maxWidth:1280,margin:'0 auto',padding:'0 32px',height:64,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+        <Logo height={28}/>
+        <nav style={{display:'flex',gap:28}}>
+          {[['Features','#features'],['Modules','#modules'],['Pricing','#pricing'],['FAQ','#faq']].map(([l,h])=>(
+            <a key={l} href={h}
+               style={{fontSize:13,fontWeight:500,color:'var(--ink)',opacity:.65,transition:'opacity 150ms'}}
+               onMouseEnter={e=>e.currentTarget.style.opacity=1}
+               onMouseLeave={e=>e.currentTarget.style.opacity=.65}>{l}</a>
+          ))}
+        </nav>
+        <div style={{display:'flex',gap:10,alignItems:'center'}}>
+          <a href="/login" style={{padding:'8px 18px',fontSize:13,fontWeight:500,color:'var(--ink)',opacity:.7}}>Sign in</a>
+          <a href="/contact#waitlist" style={{padding:'8px 18px',borderRadius:8,background:'var(--pc-800)',color:'white',fontSize:13,fontWeight:600}}>Start free trial</a>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+// ── HERO ──────────────────────────────────────────────────────────────────────
+
+function Hero() {
+  return (
+    <section className="grid-bg" style={{background:'var(--paper)',padding:'88px 32px 80px',overflow:'hidden'}}>
+      <div style={{maxWidth:1280,margin:'0 auto'}}>
+        <h1 className="serif" style={{fontSize:'clamp(48px,6vw,76px)',lineHeight:1.05,letterSpacing:'-0.02em',
+          color:'var(--ink)',margin:'0 0 24px',maxWidth:900,animation:'fadeUp 700ms ease both 100ms'}}>
+          The operating system<br/>
+          <span style={{color:'var(--pc-600)'}}>for pharmacies</span>
+        </h1>
+        <p style={{fontSize:18,lineHeight:1.78,color:'var(--muted)',maxWidth:560,marginBottom:36,animation:'fadeUp 700ms ease both 420ms'}}>
+          Tanzania's pharmacies need more than a point-of-sale system. APOTEKH gives them inventory control,
+          patient safety checks, regulatory compliance, and analytics — in one platform built for how pharmacies actually work.
+        </p>
+        <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'center',marginBottom:16,animation:'fadeUp 700ms ease both 560ms'}}>
+          <a href="/contact#waitlist" style={{display:'inline-flex',alignItems:'center',padding:'13px 24px',
+            borderRadius:10,background:'var(--pc-600)',color:'white',fontSize:14,fontWeight:600,
+            boxShadow:'0 4px 14px rgba(26,107,92,0.25)'}}>
+            Start free trial — 14 days free
+          </a>
+          <a href="/platform" style={{display:'inline-flex',alignItems:'center',gap:6,padding:'13px 24px',
+            borderRadius:10,border:'1.5px solid var(--line)',background:'white',color:'var(--ink)',fontSize:14,fontWeight:600}}>
+            Explore the platform →
+          </a>
+        </div>
+        <p style={{fontSize:12,color:'var(--muted)',opacity:.7,animation:'fadeUp 600ms ease both 700ms'}}>No credit card required · Cancel anytime · Clinical Decision Support on every plan</p>
+      </div>
+    </section>
+  );
+}
+
+// ── MARQUEE ───────────────────────────────────────────────────────────────────
+
+function Marquee() {
+  const t = 'Drug Interaction Checking · Expiry Monitoring · Barcode Scanning · Compliance Alerts · Inventory Management · Patient Safety · Knowledge Hub · Dispensing · Analytics · Offline-First · Regulatory Compliance · FEFO Enforcement · Role-Based Access · Multi-Branch · ';
+  return (
+    <div style={{background:'var(--pc-800)',padding:'12px 0',overflow:'hidden',borderTop:'1px solid rgba(255,255,255,0.06)'}}>
+      <div className="marquee-track" style={{display:'flex',whiteSpace:'nowrap'}}>
+        {[0,1].map(i=>(
+          <span key={i} style={{fontSize:11,fontWeight:600,letterSpacing:'0.18em',textTransform:'uppercase',color:'rgba(255,255,255,0.65)',paddingRight:40}}>{t}</span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+
+// ── FEATURE TABS ──────────────────────────────────────────────────────────────
+
+function TabPanel({id}) {
+  const wrap = {background:'var(--paper)',borderRadius:16,border:'1px solid var(--line)',padding:20,display:'flex',flexDirection:'column',gap:12};
+  const hdr = (label) => (
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+      <span className="mono" style={{fontSize:11,color:'var(--muted)'}}>{label} · Live view</span>
+      <span style={{background:'var(--pc-50)',color:'var(--pc-600)',fontSize:11,fontWeight:600,borderRadius:999,padding:'3px 10px'}}>● Active</span>
+    </div>
+  );
+  if(id==='dispensing') return (
+    <div style={wrap}>
+      {hdr('Dispensing')}
+      <div style={{border:'1px solid var(--line)',borderRadius:8,padding:'8px 12px',display:'flex',alignItems:'center',gap:8,background:'white'}}>
+        <span style={{fontSize:14,color:'var(--muted)',opacity:.45,fontFamily:'system-ui'}}>⌘</span>
+        <span style={{fontSize:12,color:'var(--muted)',opacity:.5}}>Search or scan a product…</span>
+      </div>
+      <div style={{background:'white',borderRadius:12,border:'1px solid var(--line)',overflow:'hidden'}}>
+        {[{n:'Amoxicillin 500mg',q:'×2',p:'3,150'},{n:'Paracetamol 500mg',q:'×1',p:'350'}].map(({n,q,p})=>(
+          <div key={n} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 14px',borderBottom:'1px solid var(--line)',fontSize:12}}>
+            <span style={{color:'var(--ink)',fontWeight:500}}>{n}</span>
+            <div style={{display:'flex',gap:14}}><span style={{color:'var(--muted)',fontSize:11}}>{q}</span><span style={{color:'var(--ink)'}}>{p}</span></div>
+          </div>
+        ))}
+        <div style={{display:'flex',justifyContent:'space-between',padding:'10px 14px',background:'var(--pc-800)'}}>
+          <span style={{fontSize:11,fontWeight:700,color:'white',letterSpacing:'0.08em'}}>TOTAL · TZS</span>
+          <span style={{fontSize:16,fontWeight:800,color:'white'}}>3,500</span>
+        </div>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:6}}>
+        {['Cash','NHIF','M-Pesa'].map(p=>(
+          <button key={p} style={{padding:'7px',borderRadius:8,border:'1px solid var(--line)',fontSize:11,fontWeight:600,color:'var(--ink)',background:'white',cursor:'pointer'}}>{p}</button>
+        ))}
+      </div>
+      <div style={{display:'flex',alignItems:'center',gap:8,padding:'8px 12px',borderRadius:8,background:'var(--pc-50)',border:'1px solid var(--pc-100)'}}>
+        <Check/><span style={{fontSize:12,color:'var(--pc-700)'}}>No interactions detected · Safe to dispense</span>
+      </div>
+    </div>
+  );
+  if(id==='inventory') return (
+    <div style={wrap}>
+      {hdr('Inventory')}
+      <div style={{background:'white',borderRadius:12,border:'1px solid var(--line)',overflow:'hidden'}}>
+        <div style={{padding:'8px 14px',borderBottom:'1px solid var(--line)',background:'rgba(217,119,6,0.06)'}}>
+          <p style={{fontSize:10,fontWeight:700,letterSpacing:'0.1em',textTransform:'uppercase',color:'#D97706',margin:0}}>Expiry alerts — next 30 days</p>
+        </div>
+        {[{n:'Amoxicillin Batch 241',d:'3 days',w:true},{n:'Ibuprofen Batch 189',d:'8 days',w:true},{n:'ORS WHO Batch 202',d:'20 days',w:false}].map(({n,d,w},i)=>(
+          <div key={n} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'9px 14px',borderBottom:i<2?'1px solid var(--line)':'none',fontSize:12}}>
+            <span style={{color:'var(--ink)'}}>{n}</span>
+            <span style={{fontSize:11,fontWeight:600,color:w?'#D97706':'var(--muted)'}}>{d}</span>
+          </div>
+        ))}
+      </div>
+      <p style={{fontSize:10,fontWeight:700,letterSpacing:'0.1em',textTransform:'uppercase',color:'var(--muted)',margin:0}}>Stock vs par</p>
+      {[{name:'Amoxicillin 500mg',pct:20,stock:'80/400',low:true},{name:'Metformin 500mg',pct:90,stock:'180/200',low:false},{name:'Paracetamol 500mg',pct:60,stock:'240/400',low:false}].map(({name,pct,stock,low})=>(
+        <div key={name}>
+          <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
+            <span style={{fontSize:11,color:'var(--ink)'}}>{name}</span>
+            <span style={{fontSize:10,color:'var(--muted)'}}>{stock}</span>
+          </div>
+          <div style={{height:5,borderRadius:999,background:'var(--pc-50)'}}><div style={{height:'100%',borderRadius:999,width:`${pct}%`,background:low?'#D97706':'#1A6B5C'}}/></div>
+        </div>
+      ))}
+    </div>
+  );
+  if(id==='safety') return (
+    <div style={wrap}>
+      {hdr('Patient Safety')}
+      <div style={{background:'#FFF7ED',border:'1.5px solid #FCA869',borderRadius:12,padding:'12px 14px'}}>
+        <p className="mono" style={{fontSize:9,fontWeight:700,letterSpacing:'0.14em',color:'#9A3412',margin:'0 0 4px'}}>MAJOR INTERACTION</p>
+        <p style={{fontSize:12,fontWeight:600,color:'#9A3412',margin:'0 0 4px'}}>Ibuprofen 400mg + Warfarin 5mg</p>
+        <p style={{fontSize:11,color:'#9A3412',margin:'0 0 10px',opacity:.8}}>Increased bleeding risk — PIC override required</p>
+        <div style={{display:'flex',alignItems:'center',gap:8,padding:'7px 10px',borderRadius:8,background:'white',border:'1px solid #FCA869'}}>
+          <span style={{fontSize:10,color:'var(--muted)',fontWeight:500}}>→ Alternative:</span>
+          <span style={{fontSize:11,fontWeight:700,color:'var(--pc-600)'}}>Paracetamol 500mg — therapeutically equivalent</span>
+        </div>
+      </div>
+      <div style={{background:'white',borderRadius:12,border:'1px solid var(--line)',overflow:'hidden'}}>
+        {[{n:'Amoxicillin 500mg',s:'Safe',c:'var(--pc-600)'},{n:'Metformin 850mg',s:'Safe',c:'var(--pc-600)'},{n:'Paracetamol 500mg',s:'Safe',c:'var(--pc-600)'}].map(({n,s,c},i)=>(
+          <div key={n} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 14px',borderBottom:i<2?'1px solid var(--line)':'none',fontSize:12}}>
+            <span style={{color:'var(--ink)'}}>{n}</span><span style={{color:c,fontWeight:600,fontSize:11}}>{s}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+  if(id==='compliance') return (
+    <div style={wrap}>
+      {hdr('Compliance')}
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+        <p style={{fontSize:11,fontWeight:600,color:'var(--ink)',margin:0}}>Compliance year</p>
+        <span style={{fontSize:10,fontWeight:700,color:'var(--pc-600)',background:'var(--pc-50)',padding:'2px 8px',borderRadius:999}}>2026</span>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:3}}>
+        {[{m:'Jan'},{m:'Feb'},{m:'Mar',d:'r'},{m:'Apr',d:'r'},{m:'May',cur:true},{m:'Jun',d:'a'},{m:'Jul'},{m:'Aug'},{m:'Sep',d:'r'},{m:'Oct'},{m:'Nov',d:'r'},{m:'Dec'}].map(({m,d,cur})=>(
+          <div key={m} style={{textAlign:'center',padding:'4px 2px',borderRadius:5,background:cur?'var(--pc-100)':'transparent'}}>
+            <p style={{fontSize:9,fontWeight:cur?700:400,color:cur?'var(--pc-700)':'var(--muted)',margin:0}}>{m}</p>
+            {d?<div style={{width:4,height:4,borderRadius:'50%',margin:'2px auto 0',background:d==='r'?'#EF4444':'#D97706'}}/>:<div style={{height:6}}/>}
+          </div>
+        ))}
+      </div>
+      <div style={{background:'white',borderRadius:12,border:'1px solid var(--line)',overflow:'hidden'}}>
+        {[{c:'#1A6B5C',l:'TMDA Premises Licence',d:'Mar 2027'},{c:'#D97706',l:'Annual fire inspection',d:'18 days'},{c:'#EF4444',l:'Refrigerator log',d:'Today'},{c:'#1A6B5C',l:'PC Registration',d:'Jun 2026'}].map(({c,l,d},i)=>(
+          <div key={l} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'9px 14px',borderBottom:i<3?'1px solid var(--line)':'none',fontSize:12}}>
+            <div style={{display:'flex',alignItems:'center',gap:8}}><div style={{width:7,height:7,borderRadius:'50%',background:c,flexShrink:0}}/><span style={{color:'var(--ink)'}}>{l}</span></div>
+            <span style={{color:'var(--muted)',fontSize:11}}>{d}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+  return (
+    <div style={wrap}>
+      {hdr('Analytics')}
+      <div style={{background:'white',borderRadius:12,border:'1px solid var(--line)',overflow:'hidden'}}>
+        <div style={{padding:'10px 14px',borderBottom:'1px solid var(--line)'}}>
+          <p style={{fontSize:10,fontWeight:600,letterSpacing:'0.08em',textTransform:'uppercase',color:'var(--muted)',margin:0}}>Revenue · last 30 days</p>
+        </div>
+        <div style={{padding:'14px 14px 8px'}}>
+          <p className="serif" style={{fontSize:22,color:'var(--ink)',margin:'0 0 10px'}}>TZS 1,240,000</p>
+          <div style={{display:'flex',alignItems:'flex-end',gap:4,height:60}}>
+            {[45,60,52,70,65,80,58,75,82,90,78,85,95,88,92,100].map((h,i)=>(
+              <div key={i} style={{flex:1,borderRadius:3,background:i===15?'var(--pc-600)':'var(--pc-100)',height:`${h}%`}}/>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div style={{background:'white',borderRadius:12,border:'1px solid var(--line)',overflow:'hidden'}}>
+        <div style={{padding:'8px 14px',borderBottom:'1px solid var(--line)'}}><p style={{fontSize:10,fontWeight:600,letterSpacing:'0.08em',textTransform:'uppercase',color:'var(--muted)',margin:0}}>Top medicines</p></div>
+        {[{n:'Amoxicillin 500mg',v:'TZS 284,000'},{n:'Paracetamol 500mg',v:'TZS 197,000'},{n:'Metformin 500mg',v:'TZS 143,000'}].map(({n,v},i)=>(
+          <div key={n} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'9px 14px',borderBottom:i<2?'1px solid var(--line)':'none',fontSize:12}}>
+            <div style={{display:'flex',alignItems:'center',gap:8}}><span style={{fontSize:10,color:'var(--muted)',minWidth:14}}>{i+1}.</span><span style={{color:'var(--ink)'}}>{n}</span></div>
+            <span style={{color:'var(--pc-600)',fontWeight:600,fontSize:11}}>{v}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FeatureTabs() {
+  const [a,setA] = useState(0);
+  const tab = TABS[a];
+  return (
+    <section id="features" className="reveal" style={{background:'white',padding:'88px 32px',borderBottom:'1px solid var(--line)'}}>
+      <div style={{maxWidth:1280,margin:'0 auto'}}>
+        <p className="mono" style={{fontSize:11,letterSpacing:'0.18em',textTransform:'uppercase',color:'var(--pc-600)',marginBottom:12}}>What it does</p>
+        <h2 className="serif" style={{fontSize:'clamp(32px,4vw,48px)',color:'var(--ink)',margin:'0 0 40px',lineHeight:1.1}}>
+          Built for every part of pharmacy work
+        </h2>
+        <div style={{display:'flex',borderBottom:'2px solid var(--line)',marginBottom:48,gap:4,flexWrap:'wrap'}}>
+          {TABS.map((t,i)=>(
+            <button key={t.id} className={`tab-btn${i===a?' active':''}`} onClick={()=>setA(i)}>{t.label}</button>
+          ))}
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:64,alignItems:'start'}}>
+          <div>
+            <h3 className="serif" style={{fontSize:32,color:'var(--ink)',margin:'0 0 16px',lineHeight:1.15}}>{tab.headline}</h3>
+            <p style={{fontSize:15,lineHeight:1.78,color:'var(--muted)',marginBottom:28}}>{tab.body}</p>
+            <ul style={{listStyle:'none',display:'grid',gap:12}}>
+              {tab.items.map(item=>(
+                <li key={item} style={{display:'flex',alignItems:'flex-start',gap:10,fontSize:14,color:'var(--ink)'}}>
+                  <Check/>{item}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <TabPanel id={tab.id}/>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ── DASHBOARD SCREENS ─────────────────────────────────────────────────────────
+
+function DashboardScreens() {
+  return (
+    <section className="reveal" style={{background:'var(--paper)',padding:'88px 32px'}}>
+      <div style={{maxWidth:1280,margin:'0 auto'}}>
+        <div style={{maxWidth:600,marginBottom:48}}>
+          <p className="mono" style={{fontSize:11,letterSpacing:'0.18em',textTransform:'uppercase',color:'var(--pc-600)',marginBottom:12}}>Inside APOTEKH</p>
+          <h2 className="serif" style={{fontSize:'clamp(28px,3.5vw,44px)',color:'var(--ink)',margin:'0 0 16px',lineHeight:1.1}}>Built for the pharmacy counter</h2>
+          <p style={{fontSize:15,color:'var(--muted)',lineHeight:1.78}}>One platform connecting dispensing, stock, compliance, and management — from any device, online or off.</p>
+        </div>
+        <div style={{border:'1px solid var(--line)',borderRadius:16,overflow:'hidden',boxShadow:'0 24px 64px rgba(13,64,53,0.12)',background:'white'}}>
+          {/* Browser chrome */}
+          <div style={{background:'var(--pc-800)',padding:'12px 20px',display:'flex',alignItems:'center',gap:10}}>
+            <div style={{display:'flex',gap:6}}>
+              {['#ff5f57','#ffbd2e','#28c840'].map(c=><span key={c} style={{width:10,height:10,borderRadius:'50%',background:c,opacity:.8}}/>)}
+            </div>
+            <div style={{flex:1,display:'flex',justifyContent:'center'}}>
+              <span className="mono" style={{fontSize:11,color:'rgba(255,255,255,0.4)',background:'rgba(255,255,255,0.08)',padding:'3px 20px',borderRadius:6}}>app.apotekh.co.tz / dashboard</span>
+            </div>
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'196px 1fr',minHeight:460}}>
+            {/* Sidebar */}
+            <div style={{background:'var(--pc-800)',padding:'16px 12px',display:'flex',flexDirection:'column',borderRight:'1px solid rgba(255,255,255,0.07)'}}>
+              <div style={{marginBottom:20,padding:'0 4px'}}><Logo white height={22}/></div>
+              {[['Dashboard',true],['Dispensing',false],['Inventory',false],['Compliance',false],['Analytics',false],['Knowledge Hub',false],['Reports',false],['Settings',false]].map(([l,a])=>(
+                <div key={l} style={{padding:'8px 12px',borderRadius:8,marginBottom:2,fontSize:12,
+                  fontWeight:a?600:400,background:a?'rgba(255,255,255,0.13)':'transparent',
+                  color:a?'white':'rgba(255,255,255,0.42)'}}>
+                  {l}
+                </div>
+              ))}
+              <div style={{marginTop:'auto',display:'flex',alignItems:'center',gap:10,padding:'10px 8px',borderTop:'1px solid rgba(255,255,255,0.08)'}}>
+                <div style={{width:28,height:28,borderRadius:'50%',background:'#2A9478',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:700,color:'white',flexShrink:0}}>EJ</div>
+                <div>
+                  <p style={{fontSize:11,fontWeight:600,color:'white',lineHeight:1.2,margin:0}}>Elihaki Javan</p>
+                  <p style={{fontSize:10,color:'rgba(255,255,255,0.4)',margin:0}}>Owner · All branches</p>
+                </div>
+              </div>
+            </div>
+            {/* Main */}
+            <div style={{padding:24,background:'white',overflow:'hidden'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16}}>
+                <div>
+                  <p style={{fontSize:10,fontWeight:700,letterSpacing:'0.12em',textTransform:'uppercase',color:'var(--muted)',marginBottom:4}}>ALL BRANCHES · ARUSHA</p>
+                  <h3 className="serif" style={{fontSize:24,color:'var(--ink)',margin:0,lineHeight:1}}>Today, 12 May</h3>
+                </div>
+                <div style={{display:'flex',alignItems:'center',gap:6}}>
+                  <span className="live-dot" style={{width:7,height:7,borderRadius:'50%',background:'#2A9478',display:'block'}}/>
+                  <span style={{fontSize:11,color:'var(--muted)'}}>Live · synced 2s ago</span>
+                </div>
+              </div>
+              {/* 4 stat cards */}
+              <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:16}}>
+                {[
+                  {l:'SALES TODAY',v:'TZS 412,500',b:'+18%',bc:'var(--pc-600)'},
+                  {l:'ITEMS DISPENSED',v:'142',b:'+9',bc:'var(--pc-600)'},
+                  {l:'COMPLIANCE',v:'All clear',b:'3/3 branches',bc:'var(--pc-600)'},
+                  {l:'EXPIRING ≤30D',v:'4 batches',b:'Review',bc:'#D97706'},
+                ].map(({l,v,b,bc})=>(
+                  <div key={l} style={{border:'1px solid var(--line)',borderRadius:10,padding:'12px 14px'}}>
+                    <p style={{fontSize:9,fontWeight:700,letterSpacing:'0.12em',textTransform:'uppercase',color:'var(--muted)',marginBottom:6,margin:'0 0 6px'}}>{l}</p>
+                    <p style={{fontSize:18,fontWeight:700,color:'var(--ink)',margin:'0 0 4px',lineHeight:1}}>{v}</p>
+                    <p style={{fontSize:10,fontWeight:600,color:bc,margin:0}}>{b}</p>
+                  </div>
+                ))}
+              </div>
+              {/* Chart + Activity */}
+              <div style={{display:'grid',gridTemplateColumns:'1.5fr 1fr',gap:14}}>
+                <div style={{border:'1px solid var(--line)',borderRadius:12,overflow:'hidden'}}>
+                  <div style={{padding:'10px 14px',borderBottom:'1px solid var(--line)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                    <p style={{fontSize:10,fontWeight:600,letterSpacing:'0.08em',textTransform:'uppercase',color:'var(--muted)',margin:0}}>Dispensing trend · last 14 days</p>
+                    <p style={{fontSize:10,color:'var(--muted)',margin:0}}>TZS · thousands</p>
+                  </div>
+                  <div style={{padding:'14px 14px 8px'}}>
+                    <svg viewBox="0 0 380 90" style={{width:'100%',height:90,display:'block'}}>
+                      <defs>
+                        <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#1A6B5C" stopOpacity="0.18"/>
+                          <stop offset="100%" stopColor="#1A6B5C" stopOpacity="0"/>
+                        </linearGradient>
+                      </defs>
+                      <path className="chart-area" d="M0,82 L29,70 L58,78 L87,58 L116,45 L145,54 L174,36 L203,27 L232,18 L261,23 L290,10 L319,5 L348,13 L380,20 L380,90 L0,90 Z" fill="url(#chartGrad)"/>
+                      <polyline className="chart-line" points="0,82 29,70 58,78 87,58 116,45 145,54 174,36 203,27 232,18 261,23 290,10 319,5 348,13 380,20" fill="none" stroke="#1A6B5C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                    <div style={{display:'flex',justifyContent:'space-between',marginTop:4}}>
+                      <span style={{fontSize:9,color:'var(--muted)'}}>Apr 25</span>
+                      <span style={{fontSize:9,color:'var(--muted)'}}>May 1</span>
+                      <span style={{fontSize:9,color:'var(--muted)'}}>May 12</span>
+                    </div>
+                  </div>
+                </div>
+                <div style={{border:'1px solid var(--line)',borderRadius:12,overflow:'hidden'}}>
+                  <div style={{padding:'10px 14px',borderBottom:'1px solid var(--line)',background:'var(--paper)'}}>
+                    <p style={{fontSize:10,fontWeight:600,letterSpacing:'0.08em',textTransform:'uppercase',color:'var(--muted)',margin:0}}>Live activity</p>
+                  </div>
+                  {[
+                    {t:'14:02',who:'Asha M.',act:'Dispensed Amoxicillin 500mg × 21',tag:'NHIF',tBg:'rgba(26,107,92,0.1)',tC:'#1A6B5C'},
+                    {t:'14:01',who:'System',act:'Re-order: Paracetamol 500mg below par',tag:'Stock',tBg:'rgba(217,119,6,0.1)',tC:'#D97706'},
+                    {t:'14:01',who:'Juma K.',act:'Closed cash drawer · TZS 412,500',tag:'Daily',tBg:'rgba(81,105,101,0.1)',tC:'#516965'},
+                    {t:'13:58',who:'Asha M.',act:'Logged ADR for Diclofenac suspension',tag:'PV',tBg:'rgba(124,58,237,0.1)',tC:'#7C3AED'},
+                  ].map(({t,who,act,tag,tBg,tC},i)=>(
+                    <div key={i} style={{display:'flex',gap:8,padding:'9px 14px',borderBottom:i<3?'1px solid var(--line)':'none',alignItems:'flex-start'}}>
+                      <span style={{fontSize:9,color:'var(--muted)',flexShrink:0,marginTop:1}}>{t}</span>
+                      <div style={{flex:1,minWidth:0}}>
+                        <span style={{fontSize:11,fontWeight:600,color:'var(--ink)'}}>{who} </span>
+                        <span style={{fontSize:11,color:'var(--muted)'}}>{act}</span>
+                      </div>
+                      <span style={{fontSize:9,fontWeight:700,padding:'2px 6px',borderRadius:4,flexShrink:0,background:tBg,color:tC,whiteSpace:'nowrap'}}>{tag}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ── CALM AT THE TILL ──────────────────────────────────────────────────────────
+
+function CallatTheTill() {
+  return (
+    <section className="reveal" style={{background:'var(--paper)',padding:'88px 32px',borderTop:'1px solid var(--line)'}}>
+      <div style={{maxWidth:1280,margin:'0 auto'}}>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:64,alignItems:'center',marginBottom:56}}>
+          <div>
+            <p className="mono" style={{fontSize:11,letterSpacing:'0.18em',textTransform:'uppercase',color:'var(--pc-600)',marginBottom:16}}>Designed for the counter</p>
+            <h2 className="serif" style={{fontSize:'clamp(36px,4.5vw,58px)',color:'var(--ink)',margin:0,lineHeight:1.0}}>
+              Calm at the till.<br/>Clear at the desk.
+            </h2>
+          </div>
+          <p style={{fontSize:16,lineHeight:1.8,color:'var(--muted)'}}>Every screen is built for the speed of a real pharmacy day. Big buttons, fast keyboard paths, large legible numbers — and quiet, sensible defaults so new staff are productive in an hour, not a week.</p>
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:20}}>
+
+          {/* Dispensing POS */}
+          <div style={{border:'1px solid var(--line)',borderRadius:16,overflow:'hidden',background:'white'}}>
+            <div style={{padding:'12px 16px',borderBottom:'1px solid var(--line)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <div>
+                <p style={{fontSize:12,fontWeight:600,color:'var(--ink)',margin:0}}>Dispensing</p>
+                <p style={{fontSize:10,color:'var(--muted)',margin:0}}>Point of sale</p>
+              </div>
+              <span className="mono" style={{fontSize:9,color:'var(--muted)',opacity:.5}}>APOTEKH</span>
+            </div>
+            <div style={{padding:16}}>
+              <div style={{border:'1px solid var(--line)',borderRadius:8,padding:'8px 12px',display:'flex',alignItems:'center',gap:8,marginBottom:14}}>
+                <span style={{fontSize:14,color:'var(--muted)',opacity:.5,fontFamily:'system-ui'}}>⌘</span>
+                <span style={{fontSize:12,color:'var(--muted)',opacity:.55}}>Search or scan a product…</span>
+              </div>
+              {[
+                {name:'Amoxicillin 500mg',qty:'×21',price:'3,150'},
+                {name:'Paracetamol 500mg',qty:'×20',price:'1,000'},
+                {name:'ORS · WHO',qty:'×4',price:'800'},
+              ].map(({name,qty,price})=>(
+                <div key={name} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:'1px solid var(--line)',fontSize:12}}>
+                  <span style={{color:'var(--ink)',fontWeight:500}}>{name}</span>
+                  <div style={{display:'flex',gap:14,alignItems:'center'}}>
+                    <span style={{color:'var(--muted)',fontSize:11}}>{qty}</span>
+                    <span style={{color:'var(--ink)',minWidth:40,textAlign:'right'}}>{price}</span>
+                  </div>
+                </div>
+              ))}
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'11px 14px',borderRadius:8,background:'var(--pc-800)',marginTop:12}}>
+                <span style={{fontSize:10,fontWeight:700,color:'white',letterSpacing:'0.1em'}}>TOTAL · TZS</span>
+                <span style={{fontSize:22,fontWeight:800,color:'white'}}>4,958</span>
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginTop:10}}>
+                {['NHIF','Cash','M-Pesa'].map(p=>(
+                  <button key={p} style={{padding:'8px',borderRadius:8,border:'1px solid var(--line)',fontSize:11,fontWeight:600,color:'var(--ink)',background:'var(--paper)',cursor:'pointer'}}>{p}</button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Inventory */}
+          <div style={{border:'1px solid var(--line)',borderRadius:16,overflow:'hidden',background:'white'}}>
+            <div style={{padding:'12px 16px',borderBottom:'1px solid var(--line)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <div>
+                <p style={{fontSize:12,fontWeight:600,color:'var(--ink)',margin:0}}>Inventory</p>
+                <p style={{fontSize:10,color:'var(--muted)',margin:0}}>Batch & expiry</p>
+              </div>
+              <span className="mono" style={{fontSize:9,color:'var(--muted)',opacity:.5}}>APOTEKH</span>
+            </div>
+            <div style={{padding:16}}>
+              <p style={{fontSize:10,fontWeight:700,letterSpacing:'0.1em',textTransform:'uppercase',color:'var(--muted)',marginBottom:14}}>Stock vs par level</p>
+              {[
+                {name:'Amoxicillin 500mg',stock:80,par:400,pct:20},
+                {name:'Paracetamol 500mg',stock:240,par:400,pct:60},
+                {name:'ORS · WHO',stock:312,par:150,pct:100,over:true},
+                {name:'Diclofenac 50mg',stock:48,par:60,pct:80},
+                {name:'Metformin 500mg',stock:180,par:200,pct:90},
+                {name:'Loratadine 10mg',stock:65,par:100,pct:65},
+              ].map(({name,stock,par,pct,over})=>{
+                const warn = pct < 40 || over;
+                return (
+                  <div key={name} style={{marginBottom:11}}>
+                    <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
+                      <span style={{fontSize:11,color:'var(--ink)'}}>{name}</span>
+                      <span style={{fontSize:10,color:'var(--muted)'}}>{stock}/{par}</span>
+                    </div>
+                    <div style={{height:5,borderRadius:999,background:'var(--pc-50)',overflow:'hidden'}}>
+                      <div style={{height:'100%',borderRadius:999,width:`${Math.min(pct,100)}%`,background:warn?'#D97706':'#1A6B5C'}}/>
+                    </div>
+                  </div>
+                );
+              })}
+              <div style={{marginTop:14,padding:'8px 12px',borderRadius:8,background:'#FEF3C7',border:'1px solid #FDE68A'}}>
+                <p style={{fontSize:11,color:'#92400E',margin:0}}>2 SKUs below par. <span style={{fontWeight:600,cursor:'pointer',textDecoration:'underline'}}>Build a wholesaler order in one click.</span></p>
+              </div>
+            </div>
+          </div>
+
+          {/* Compliance */}
+          <div style={{border:'1px solid var(--line)',borderRadius:16,overflow:'hidden',background:'white'}}>
+            <div style={{padding:'12px 16px',borderBottom:'1px solid var(--line)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <div>
+                <p style={{fontSize:12,fontWeight:600,color:'var(--ink)',margin:0}}>Compliance</p>
+                <p style={{fontSize:10,color:'var(--muted)',margin:0}}>TMDA binder</p>
+              </div>
+              <span className="mono" style={{fontSize:9,color:'var(--muted)',opacity:.5}}>APOTEKH</span>
+            </div>
+            <div style={{padding:16}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+                <p style={{fontSize:11,fontWeight:600,color:'var(--ink)',margin:0}}>Compliance year</p>
+                <span style={{fontSize:10,fontWeight:700,color:'var(--pc-600)',background:'var(--pc-50)',padding:'2px 8px',borderRadius:999}}>2026</span>
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:4,marginBottom:18}}>
+                {[
+                  {m:'Jan',dot:null},{m:'Feb',dot:null},{m:'Mar',dot:'r'},{m:'Apr',dot:'r'},{m:'May',cur:true},{m:'Jun',dot:'a'},
+                  {m:'Jul',dot:null},{m:'Aug',dot:null},{m:'Sep',dot:'r'},{m:'Oct',dot:null},{m:'Nov',dot:'r'},{m:'Dec',dot:null},
+                ].map(({m,dot,cur})=>(
+                  <div key={m} style={{textAlign:'center',padding:'5px 2px',borderRadius:6,
+                    background:cur?'var(--pc-100)':'transparent'}}>
+                    <p style={{fontSize:9,fontWeight:cur?700:400,color:cur?'var(--pc-700)':'var(--muted)',margin:0}}>{m}</p>
+                    {dot&&<div style={{width:5,height:5,borderRadius:'50%',margin:'3px auto 0',background:dot==='r'?'#EF4444':'#D97706'}}/>}
+                    {!dot&&!cur&&<div style={{height:8}}/>}
+                  </div>
+                ))}
+              </div>
+              <div style={{display:'grid',gap:12}}>
+                {[
+                  {c:'#1A6B5C',l:'TMDA Premises Licence',d:'Mar 2027'},
+                  {c:'#D97706',l:'Annual fire inspection',d:'18 days'},
+                  {c:'#EF4444',l:'Refrigerator log',d:'Today'},
+                ].map(({c,l,d})=>(
+                  <div key={l} style={{display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:11}}>
+                    <div style={{display:'flex',alignItems:'center',gap:8}}>
+                      <div style={{width:7,height:7,borderRadius:'50%',background:c,flexShrink:0}}/>
+                      <span style={{color:'var(--ink)'}}>{l}</span>
+                    </div>
+                    <span style={{color:'var(--muted)'}}>{d}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ── HOW IT WORKS ──────────────────────────────────────────────────────────────
+
+function HowItWorks() {
+  return (
+    <section className="reveal" style={{background:'white',padding:'88px 32px',borderTop:'1px solid var(--line)'}}>
+      <div style={{maxWidth:1280,margin:'0 auto'}}>
+        <h2 className="serif" style={{fontSize:'clamp(28px,3.5vw,44px)',color:'var(--ink)',margin:'0 0 8px',lineHeight:1.1}}>How it works</h2>
+        <p style={{fontSize:15,color:'var(--muted)',marginBottom:52}}>From sign-up to daily operations in three steps.</p>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:48}}>
+          {[
+            {n:1,c:'var(--pc-600)',title:'Set up your pharmacy',body:'Register, load your products from the catalogue or by scanning, and build your team. Most pharmacies are running within the same day — no training workshop required.'},
+            {n:2,c:'#D97706',title:'Work smarter at the counter',body:'Dispensing, drug interaction checks, and stock updates happen in one controlled flow. Scan a product, confirm safety, complete the sale. No separate tools, no double entry.'},
+            {n:3,c:'var(--pc-500)',title:'Manage from anywhere',body:'Compliance deadlines, inventory levels, and sales performance update in real-time. See everything across your branches from a phone or laptop — in Dodoma or wherever you are.'},
+          ].map(({n,c,title,body})=>(
+            <div key={n}>
+              <div style={{width:40,height:40,borderRadius:10,display:'flex',alignItems:'center',justifyContent:'center',marginBottom:20,background:n===1?'var(--pc-50)':n===2?'#FEF3C7':'var(--pc-50)'}}>
+                <span style={{fontSize:15,fontWeight:800,color:c}}>{n}</span>
+              </div>
+              <h3 style={{fontSize:17,fontWeight:700,color:'var(--ink)',margin:'0 0 10px'}}>{title}</h3>
+              <p style={{fontSize:14,color:'var(--muted)',lineHeight:1.78,margin:0}}>{body}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ── EVERYTHING INCLUDED ───────────────────────────────────────────────────────
+
+function EverythingIncluded() {
+  const features = [
+    {icon:'⊞',name:'FEFO Dispensing',desc:'First expiry-first out enforced at every sale — no manual stock decisions.'},
+    {icon:'⏱',name:'Expiry Alerts',desc:'90, 60, 30, 7, 1-day warnings tracked automatically on every batch.'},
+    {icon:'◎',name:'Batch & Lot Tracking',desc:'Every product tracked by batch, supplier, and date from intake to sale.'},
+    {icon:'⊕',name:'Drug Interaction Checks',desc:'MINOR through CONTRAINDICATED screened before medicine leaves the counter.'},
+    {icon:'◉',name:'Role-Based Access',desc:'Staff see only what they need — dispensers, cashiers, owners, and clerks all separated.'},
+    {icon:'⊙',name:'Offline-First Sync',desc:'Works without internet. Syncs all pending actions the moment connectivity returns.'},
+    {icon:'◈',name:'QR & Barcode Scanning',desc:'Scan on intake and at the counter. Any phone camera or USB barcode reader.'},
+    {icon:'⬡',name:'Multi-Branch Dashboard',desc:'All your branches in one account. No jumping between logins.'},
+    {icon:'▦',name:'Compliance Calendar',desc:'TMDA licences, inspections, and renewals tracked with every deadline and evidence uploaded.'},
+    {icon:'▣',name:'Receipts & PDF Export',desc:'Professional dispensing receipts and printable records generated automatically.'},
+    {icon:'▩',name:'Analytics & Reporting',desc:'Sales trends, stock movement, and compliance summaries — one management view.'},
+    {icon:'◼',name:'Permanent Audit Log',desc:'Every void, edit, and override is a revision permanently recorded — tamper-proof by design.'},
+  ];
+  const coming = [
+    {name:'NHIF Claims',phase:2},{name:'Stock Exchange',phase:2},
+    {name:'B2B Platform',phase:3},{name:'Patient App',phase:3},
+    {name:'AI Safety',phase:4},{name:'Data Products',phase:4},
+  ];
+  return (
+    <section id="modules" className="reveal" style={{background:'var(--paper)',padding:'88px 32px',borderTop:'1px solid var(--line)'}}>
+      <div style={{maxWidth:1280,margin:'0 auto'}}>
+        <h2 className="serif" style={{fontSize:'clamp(28px,3.5vw,44px)',color:'var(--ink)',margin:'0 0 8px',lineHeight:1.1}}>Everything included</h2>
+        <p style={{fontSize:15,color:'var(--muted)',marginBottom:48}}>No add-ons. No separate tools. Every capability ships with your plan.</p>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:16,marginBottom:40}}>
+          {features.map(({icon,name,desc})=>(
+            <div key={name} className="card-stagger" style={{background:'white',border:'1px solid var(--line)',borderRadius:12,padding:20}}>
+              <span style={{fontSize:20,display:'block',marginBottom:10,color:'var(--pc-600)'}}>{icon}</span>
+              <p style={{fontSize:13,fontWeight:700,color:'var(--ink)',margin:'0 0 6px'}}>{name}</p>
+              <p style={{fontSize:12,color:'var(--muted)',lineHeight:1.65,margin:0}}>{desc}</p>
+            </div>
+          ))}
+        </div>
+        <div style={{borderTop:'1px solid var(--line)',paddingTop:28,display:'flex',alignItems:'center',gap:16,flexWrap:'wrap'}}>
+          <p style={{fontSize:11,fontWeight:700,letterSpacing:'0.14em',textTransform:'uppercase',color:'var(--muted)',margin:0,flexShrink:0}}>Coming soon</p>
+          <div style={{display:'flex',flexWrap:'wrap',gap:8}}>
+            {coming.map(({name})=>(
+              <span key={name} style={{border:'1px dashed var(--line)',borderRadius:999,padding:'4px 14px',fontSize:12,color:'var(--muted)'}}>
+                {name}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ── SAFETY CHECKS ─────────────────────────────────────────────────────────────
+
+function SafetyChecks() {
+  return (
+    <section className="reveal" style={{background:'white',padding:'88px 32px',borderTop:'1px solid var(--line)'}}>
+      <div style={{maxWidth:1280,margin:'0 auto',display:'grid',gridTemplateColumns:'1fr 1fr',gap:72,alignItems:'center'}}>
+        <div>
+          <p className="mono" style={{fontSize:11,letterSpacing:'0.18em',textTransform:'uppercase',color:'var(--pc-600)',marginBottom:12}}>Patient safety</p>
+          <h2 className="serif" style={{fontSize:'clamp(28px,3.5vw,44px)',color:'var(--ink)',margin:'0 0 20px',lineHeight:1.1}}>Safety checks at every dispensing event</h2>
+          <p style={{fontSize:15,color:'var(--muted)',lineHeight:1.8,marginBottom:28}}>
+            No community pharmacy in Tanzania currently checks drug interactions at the point of dispensing. APOTEKH changes this — checking interactions, contraindications, and allergy flags before medicine leaves the counter.
+          </p>
+          <ul style={{listStyle:'none',display:'grid',gap:14,padding:0}}>
+            {[
+              'Drug interaction checking — MINOR through CONTRAINDICATED',
+              'Contraindication alerts — pregnancy, renal, elderly, allergy',
+              'Anonymous session — no patient names or national IDs stored',
+            ].map(item=>(
+              <li key={item} style={{display:'flex',alignItems:'flex-start',gap:10,fontSize:14,color:'var(--ink)'}}>
+                <Check/>{item}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div style={{display:'grid',gap:12}}>
+          {[
+            {level:'MINOR',desc:'Counselling recommended',bg:'#ECFDF5',border:'#6EE7B7',text:'#065F46',badge:null},
+            {level:'MODERATE',desc:'Pharmacist review required',bg:'#FFFBEB',border:'#FCD34D',text:'#92400E',badge:null},
+            {level:'MAJOR',desc:'Pharmacist PIC required',bg:'#FFF7ED',border:'#FCA869',text:'#9A3412',badge:'PIC required'},
+            {level:'CONTRAINDICATED',desc:'Dispensing blocked',bg:'#FEF2F2',border:'#FCA5A5',text:'#7F1D1D',badge:'PIC required'},
+          ].map(({level,desc,bg,border,text,badge})=>(
+            <div key={level} style={{background:bg,border:`1.5px solid ${border}`,borderRadius:12,padding:'18px 22px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <div>
+                <p className="mono" style={{fontSize:10,fontWeight:700,letterSpacing:'0.14em',color:text,margin:'0 0 5px'}}>{level}</p>
+                <p style={{fontSize:15,fontWeight:500,color:text,margin:0}}>{desc}</p>
+              </div>
+              {badge&&<span style={{fontSize:10,fontWeight:700,padding:'3px 9px',borderRadius:6,background:text,color:'white',whiteSpace:'nowrap',flexShrink:0,marginLeft:12}}>{badge}</span>}
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+
+// ── ROLES ─────────────────────────────────────────────────────────────────────
+
+function RoleSection() {
+  const [tab,setTab] = useState(0);
+  const roles = [
+    {
+      label:'Owner',
+      headline:'Your whole business, in your pocket.',
+      features:['Live sales and stock across all outlets','Compliance status before every deadline','Staff access controls without being on site','Profitability analytics across your portfolio','Attendance and shift oversight','Supplier performance at a glance'],
+      stat:{eye:'OWNER · IN NUMBERS',val:'5 branches.\n1 login.',sub:'Zero WhatsApp reports.'},
+    },
+    {
+      label:'Pharmacist-in-Charge',
+      headline:'Stay inspection-ready every day.',
+      features:['TMDA licence tracker','Inspection checklist','Controlled drugs register','Staff credential vault','Drug interaction oversight before every sale','Clinical override with logged justification'],
+      stat:{eye:'PHARMACIST-IN-CHARGE · IN NUMBERS',val:'0',sub:'inspection pack rebuilds — it is always live'},
+    },
+    {
+      label:'Counter team',
+      headline:'Fast, guided, impossible to get wrong.',
+      features:['Barcode scan to select and verify instantly','FEFO-guided product selection every time','Drug interaction check on every dispense','Offline-ready during network outages','Dispensing receipt generated automatically','Anonymous session — no patient data stored'],
+      stat:{eye:'COUNTER TEAM · IN NUMBERS',val:'< 30s',sub:'from scan to verified dispensing receipt'},
+    },
+  ];
+  const r = roles[tab];
+  return (
+    <section className="reveal" style={{background:'var(--paper)',padding:'88px 32px'}}>
+      <div style={{maxWidth:1280,margin:'0 auto'}}>
+        <p className="mono" style={{fontSize:11,letterSpacing:'0.18em',textTransform:'uppercase',color:'var(--pc-600)',marginBottom:12}}>For every role behind the counter</p>
+        <h2 className="serif" style={{fontSize:'clamp(32px,4vw,54px)',color:'var(--ink)',margin:'0 0 32px',lineHeight:1.05}}>
+          One platform. Three jobs.<br/>Each made simple.
+        </h2>
+        <div style={{display:'flex',gap:10,marginBottom:36,flexWrap:'wrap'}}>
+          {roles.map((ro,i)=>(
+            <button key={ro.label} onClick={()=>setTab(i)} style={{
+              padding:'10px 22px',borderRadius:999,fontSize:14,fontWeight:500,
+              border:`1px solid ${i===tab?'transparent':'var(--line)'}`,cursor:'pointer',
+              transition:'all 150ms',background:i===tab?'var(--pc-800)':'white',
+              color:i===tab?'white':'var(--ink)'}}>
+              {ro.label}
+            </button>
+          ))}
+        </div>
+        <div style={{background:'white',border:'1px solid var(--line)',borderRadius:20,padding:40,display:'grid',gridTemplateColumns:'1fr 1fr',gap:48,alignItems:'center'}}>
+          <div>
+            <h3 className="serif" style={{fontSize:'clamp(22px,3vw,34px)',color:'var(--ink)',margin:'0 0 24px',lineHeight:1.1}}>{r.headline}</h3>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+              {r.features.map(f=>(
+                <div key={f} style={{display:'flex',alignItems:'flex-start',gap:8,fontSize:13,color:'var(--muted)'}}>
+                  <Check/>{f}
+                </div>
+              ))}
+            </div>
+          </div>
+          <div style={{background:'var(--pc-800)',borderRadius:16,padding:32,position:'relative',overflow:'hidden',minHeight:180}}>
+            <div style={{position:'absolute',top:-40,right:-40,width:140,height:140,borderRadius:'50%',background:'radial-gradient(circle,rgba(42,148,120,0.35),transparent 70%)'}}/>
+            <p className="mono" style={{fontSize:9,letterSpacing:'0.18em',textTransform:'uppercase',color:'rgba(255,255,255,0.35)',marginBottom:20}}>{r.stat.eye}</p>
+            <p className="serif" style={{fontSize:52,color:'white',lineHeight:1.05,marginBottom:12,whiteSpace:'pre-line'}}>{r.stat.val}</p>
+            <p style={{fontSize:13,color:'rgba(255,255,255,0.55)',lineHeight:1.6}}>{r.stat.sub}</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ── PRICING ───────────────────────────────────────────────────────────────────
+
+function TierCard({tier,bill,wide}) {
+  const price = bill==='annual'?Math.round(tier.price*10/12):tier.price;
+  return (
+    <div className="card-stagger" style={{
+      border:tier.popular?'2px solid var(--pc-600)':'1px solid var(--line)',
+      borderRadius:16,padding:wide?28:24,position:'relative',
+      background:tier.popular?'var(--pc-50)':'white',
+      boxShadow:tier.popular?'0 8px 30px rgba(26,107,92,0.12)':'none'
+    }}>
+      {tier.popular&&<div className="tape" style={{position:'absolute',top:-12,left:'50%',transform:'translateX(-50%)',borderRadius:999,padding:'3px 12px',fontSize:10,whiteSpace:'nowrap'}}>Most popular</div>}
+      <p style={{fontSize:11,fontWeight:700,letterSpacing:'0.12em',textTransform:'uppercase',color:'var(--muted)',marginBottom:8}}>{tier.name}</p>
+      <div style={{display:'flex',alignItems:'baseline',gap:4,marginBottom:4}}>
+        <p className="serif" style={{fontSize:28,color:'var(--ink)',lineHeight:1}}>{fmt(price)}</p>
+        <span style={{fontSize:12,color:'var(--muted)'}}>/mo</span>
+      </div>
+      {bill==='annual'&&<p style={{fontSize:11,color:'var(--pc-500)',marginBottom:6}}>Billed TZS {(tier.price*10).toLocaleString()} /year</p>}
+      {tier.outlets&&<p style={{fontSize:12,color:'var(--muted)',marginBottom:6}}>{tier.outlets} outlet{tier.outlets>1?'s':''} · {tier.users} users</p>}
+      <p style={{fontSize:12,color:'var(--muted)',lineHeight:1.65,marginBottom:18,minHeight:44}}>{tier.desc}</p>
+      <a href="/contact#waitlist" style={{display:'block',textAlign:'center',padding:'10px',borderRadius:8,marginBottom:20,
+        background:tier.popular?'var(--pc-600)':'transparent',border:tier.popular?'none':'1px solid var(--line)',
+        color:tier.popular?'white':'var(--ink)',fontSize:13,fontWeight:600}}>Start free trial</a>
+      <ul style={{listStyle:'none',display:'grid',gap:9}}>
+        {tier.features.map(f=><li key={f} style={{display:'flex',alignItems:'flex-start',gap:8,fontSize:12,color:'var(--ink)'}}><Check/>{f}</li>)}
+        {tier.out&&tier.out.map(f=><li key={f} style={{display:'flex',alignItems:'flex-start',gap:8,fontSize:12,color:'var(--muted)',opacity:.5}}><Cross/>{f}</li>)}
+      </ul>
+    </div>
+  );
+}
+
+function PricingSection() {
+  const [bill,setBill] = useState('monthly');
+  const [cat,setCat] = useState('retail');
+  return (
+    <section id="pricing" className="reveal" style={{background:'white',padding:'88px 32px',borderTop:'1px solid var(--line)'}}>
+      <div style={{maxWidth:1280,margin:'0 auto'}}>
+        <p className="mono" style={{fontSize:11,letterSpacing:'0.18em',textTransform:'uppercase',color:'var(--pc-600)',marginBottom:12}}>Pricing</p>
+        <h2 className="serif" style={{fontSize:'clamp(28px,3.5vw,44px)',color:'var(--ink)',margin:'0 0 12px',lineHeight:1.1}}>Priced for Tanzania's pharmaceutical reality</h2>
+        <p style={{fontSize:15,color:'var(--muted)',marginBottom:28,maxWidth:500}}>14-day free trial on every plan. No credit card required.</p>
+
+        {/* Category selector */}
+        <div style={{display:'inline-flex',border:'1px solid var(--line)',borderRadius:12,padding:4,marginBottom:36,background:'var(--paper)'}}>
+          {[['retail','For retail pharmacies'],['wholesale','For Wholesale & Enterprise']].map(([k,l])=>(
+            <button key={k} onClick={()=>setCat(k)} style={{
+              padding:'10px 24px',borderRadius:9,fontSize:14,fontWeight:500,cursor:'pointer',
+              transition:'all 150ms',background:cat===k?'var(--pc-800)':'transparent',
+              color:cat===k?'white':'var(--muted)',border:'none',fontFamily:'inherit'}}>
+              {l}
+            </button>
+          ))}
+        </div>
+
+        {cat==='retail'&&(
+          <>
+            <div style={{marginBottom:36}}>
+              <div style={{display:'inline-flex',border:'1px solid var(--line)',borderRadius:999,padding:4,background:'var(--paper)'}}>
+                {['monthly','annual'].map(b=>(
+                  <button key={b} className={`billing-btn${bill===b?' active':''}`} onClick={()=>setBill(b)}>
+                    {b==='monthly'?'Monthly':'Annual'}
+                    {b==='annual'&&<span style={{marginLeft:8,fontSize:10,fontWeight:700,borderRadius:999,padding:'2px 8px',
+                      background:bill==='annual'?'rgba(255,255,255,0.2)':'var(--pc-50)',
+                      color:bill==='annual'?'white':'var(--pc-600)'}}>2 months free</span>}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:20,marginBottom:20}}>
+              {TIERS.map(tier=><TierCard key={tier.id} tier={tier} bill={bill}/>)}
+            </div>
+            <p style={{fontSize:13,color:'var(--muted)',textAlign:'center'}}>
+              Need wholesale or enterprise? <button onClick={()=>setCat('wholesale')} style={{background:'none',border:'none',color:'var(--pc-600)',fontWeight:600,cursor:'pointer',fontSize:13,fontFamily:'inherit'}}>See wholesale & distributor plans →</button>
+            </p>
+          </>
+        )}
+
+        {cat==='wholesale'&&(
+          <>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20,maxWidth:880,marginBottom:16}}>
+              {/* Wholesale card */}
+              <TierCard tier={WHOLESALE_TIERS[0]} bill="monthly" wide/>
+              {/* Enterprise card */}
+              <div className="card-stagger" style={{border:'1px solid var(--pc-800)',borderRadius:16,padding:28,position:'relative',background:'var(--pc-800)'}}>
+                <p style={{fontSize:11,fontWeight:700,letterSpacing:'0.12em',textTransform:'uppercase',color:'rgba(255,255,255,0.45)',marginBottom:8}}>ENTERPRISE</p>
+                <div style={{display:'flex',alignItems:'baseline',gap:6,marginBottom:4}}>
+                  <p className="serif" style={{fontSize:28,color:'white',lineHeight:1}}>Custom</p>
+                </div>
+                <p style={{fontSize:12,color:'rgba(255,255,255,0.55)',lineHeight:1.65,marginBottom:18,minHeight:44}}>For 6+ outlet chains, hospital pharmacies, and large distributors. Priced on account size.</p>
+                <a href="/contact" style={{display:'block',textAlign:'center',padding:'10px',borderRadius:8,marginBottom:20,
+                  background:'white',border:'none',color:'var(--pc-800)',fontSize:13,fontWeight:600}}>Contact us →</a>
+                <ul style={{listStyle:'none',display:'grid',gap:9}}>
+                  {['All Premium features included','Unlimited outlets and users','Custom analytics and reporting','Dedicated onboarding and support','SLA-backed uptime guarantee','Negotiated pricing'].map(f=>(
+                    <li key={f} style={{display:'flex',alignItems:'flex-start',gap:8,fontSize:12,color:'rgba(255,255,255,0.7)'}}>
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{flexShrink:0,marginTop:2}}>
+                        <circle cx="7" cy="7" r="7" fill="rgba(255,255,255,0.15)"/>
+                        <path d="M4 7l2 2 4-4" stroke="#7ECFB4" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+            <p style={{fontSize:13,color:'var(--muted)'}}>
+              Looking for retail pharmacy plans? <button onClick={()=>setCat('retail')} style={{background:'none',border:'none',color:'var(--pc-600)',fontWeight:600,cursor:'pointer',fontSize:13,fontFamily:'inherit'}}>See retail plans →</button>
+            </p>
+          </>
+        )}
+      </div>
+    </section>
+  );
+}
+
+// ── FAQ ───────────────────────────────────────────────────────────────────────
+
+function FAQ() {
+  const [open,setOpen] = useState(null);
+  return (
+    <section id="faq" className="reveal" style={{background:'var(--paper)',padding:'88px 32px'}}>
+      <div style={{maxWidth:860,margin:'0 auto'}}>
+        <h2 className="serif" style={{fontSize:'clamp(28px,3.5vw,44px)',color:'var(--ink)',margin:'0 0 40px',lineHeight:1.1}}>Common questions</h2>
+        {FAQS.map((f,i)=>(
+          <div key={i} className="faq-item">
+            <button className="faq-btn" onClick={()=>setOpen(open===i?null:i)}>
+              <span>{f.q}</span>
+              <span style={{color:'var(--pc-600)',fontSize:20,transform:open===i?'rotate(45deg)':'none',transition:'transform 200ms',flexShrink:0,lineHeight:1}}>+</span>
+            </button>
+            {open===i&&<p style={{fontSize:14,lineHeight:1.85,color:'var(--muted)',paddingBottom:20}}>{f.a}</p>}
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// ── FINAL CTA ─────────────────────────────────────────────────────────────────
+
+function FinalCTA() {
+  const [form,setForm] = useState({name:'',email:'',pharmacy:'',tier:'STANDARD — TZS 55,000/month'});
+  const [sent,setSent] = useState(false);
+  const field = {width:'100%',padding:'10px 14px',borderRadius:8,border:'1.5px solid var(--line)',fontSize:13,color:'var(--ink)',fontFamily:'inherit',background:'white'};
+  return (
+    <section className="reveal" style={{background:'var(--pc-800)',padding:'96px 32px',color:'white'}}>
+      <div style={{maxWidth:960,margin:'0 auto'}}>
+        <div style={{textAlign:'center',marginBottom:48}}>
+          <p className="mono" style={{fontSize:11,letterSpacing:'0.18em',textTransform:'uppercase',color:'#7ECFB4',marginBottom:16}}>Early access</p>
+          <h2 className="serif" style={{fontSize:'clamp(32px,5vw,56px)',color:'white',margin:'0 0 16px',lineHeight:1.05}}>Tanzania's pharmacies need this. Now.</h2>
+          <p style={{fontSize:16,color:'rgba(255,255,255,0.65)',maxWidth:500,margin:'0 auto'}}>Join the Arusha early access programme — 14-day free trial on every plan. No credit card. Running in minutes.</p>
+        </div>
+        <div style={{background:'white',borderRadius:20,padding:'40px 48px',maxWidth:640,margin:'0 auto'}}>
+          {sent ? (
+            <div style={{textAlign:'center',padding:'20px 0'}}>
+              <div style={{fontSize:40,marginBottom:16}}>✓</div>
+              <h3 className="serif" style={{fontSize:24,color:'var(--ink)',marginBottom:8}}>We'll be in touch</h3>
+              <p style={{fontSize:14,color:'var(--muted)'}}>Thanks — we'll reach out within 24 hours to get you set up.</p>
+            </div>
+          ):(
+            <form onSubmit={e=>{e.preventDefault();setSent(true)}} style={{display:'grid',gap:16}}>
+              <div>
+                <h3 className="serif" style={{fontSize:22,color:'var(--ink)',marginBottom:4}}>Request early access</h3>
+                <p style={{fontSize:13,color:'var(--muted)'}}>We'll get back to you within 24 hours.</p>
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
+                <div>
+                  <label style={{fontSize:12,fontWeight:600,color:'var(--ink)',display:'block',marginBottom:6}}>Your name</label>
+                  <input required placeholder="Amina Hassan" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} style={field}/>
+                </div>
+                <div>
+                  <label style={{fontSize:12,fontWeight:600,color:'var(--ink)',display:'block',marginBottom:6}}>Email address</label>
+                  <input required type="email" placeholder="amina@pharmacy.co.tz" value={form.email} onChange={e=>setForm({...form,email:e.target.value})} style={field}/>
+                </div>
+              </div>
+              <div>
+                <label style={{fontSize:12,fontWeight:600,color:'var(--ink)',display:'block',marginBottom:6}}>Pharmacy name</label>
+                <input required placeholder="Arusha Central Pharmacy" value={form.pharmacy} onChange={e=>setForm({...form,pharmacy:e.target.value})} style={field}/>
+              </div>
+              <div>
+                <label style={{fontSize:12,fontWeight:600,color:'var(--ink)',display:'block',marginBottom:6}}>Plan you're interested in</label>
+                <select value={form.tier} onChange={e=>setForm({...form,tier:e.target.value})} style={field}>
+                  <option>ADDO — TZS 20,000/month</option>
+                  <option>BASIC — TZS 39,000/month</option>
+                  <option>STANDARD — TZS 55,000/month</option>
+                  <option>PREMIUM — TZS 75,000/month</option>
+                  <option>Wholesale / Enterprise — let's talk</option>
+                </select>
+              </div>
+              <button type="submit" style={{padding:'13px',borderRadius:10,background:'var(--pc-600)',color:'white',
+                fontSize:14,fontWeight:700,boxShadow:'0 4px 14px rgba(26,107,92,0.3)',marginTop:4}}>
+                Request early access →
+              </button>
+            </form>
+          )}
+        </div>
+        <p style={{textAlign:'center',marginTop:24,fontSize:12,color:'rgba(255,255,255,0.4)'}}>
+          elihaki.yusuph@gmail.com · +255 764 591 374 · @APOTEKH · Arusha, Tanzania
+        </p>
+      </div>
+    </section>
+  );
+}
+
+// ── FOOTER ────────────────────────────────────────────────────────────────────
+
+function Footer() {
+  return (
+    <footer style={{background:'var(--pc-900)',color:'white',padding:'64px 32px 32px'}}>
+      <div style={{maxWidth:1280,margin:'0 auto'}}>
+        <div style={{display:'grid',gridTemplateColumns:'2fr 1fr 1fr 1fr',gap:48,marginBottom:48}}>
+          <div>
+            <Logo white height={26}/>
+            <p style={{fontSize:13,color:'rgba(255,255,255,0.55)',lineHeight:1.75,margin:'16px 0 12px',maxWidth:280}}>The pharmacy-side platform for better pharmaceutical services in Tanzania.</p>
+            <p style={{fontSize:12,color:'rgba(255,255,255,0.35)'}}>Arusha, Tanzania · 2026</p>
+            <a href="mailto:elihaki.yusuph@gmail.com" style={{display:'block',marginTop:8,fontSize:12,color:'rgba(255,255,255,0.5)'}}>elihaki.yusuph@gmail.com</a>
+          </div>
+          {[
+            {title:'Platform',links:[['Dashboard','/platform/dashboard'],['Inventory','/platform/inventory'],['Dispensing','/platform/dispensing'],['Compliance','/platform/compliance-tracker'],['Analytics','/platform/analytics'],['Knowledge Hub','/platform/knowledge-hub']]},
+            {title:'Company',links:[['About','/about'],['Blog','/blog'],['Investors','/investors'],['Partners','/partners'],['Contact','/contact']]},
+            {title:'Legal',links:[['Privacy Policy','/privacy'],['Terms of Service','/terms']]},
+          ].map(({title,links})=>(
+            <div key={title}>
+              <p style={{fontSize:11,fontWeight:700,letterSpacing:'0.18em',textTransform:'uppercase',color:'rgba(255,255,255,0.35)',marginBottom:16}}>{title}</p>
+              <div style={{display:'grid',gap:10}}>
+                {links.map(([l,h])=>(
+                  <a key={l} href={h} style={{fontSize:13,color:'rgba(255,255,255,0.55)'}}
+                    onMouseEnter={e=>e.currentTarget.style.color='white'}
+                    onMouseLeave={e=>e.currentTarget.style.color='rgba(255,255,255,0.55)'}>{l}</a>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div style={{borderTop:'1px solid rgba(255,255,255,0.08)',paddingTop:24,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <p style={{fontSize:11,color:'rgba(255,255,255,0.3)'}}>© 2026 APOTEKH System · Elihaki M. Y. Javan · Tanzania</p>
+          <p style={{fontSize:11,color:'rgba(255,255,255,0.2)'}}>All plans include Clinical Decision Support</p>
+        </div>
+      </div>
+    </footer>
+  );
+}
+
+// ── APP ───────────────────────────────────────────────────────────────────────
+
+function App() {
+  useEffect(()=>{
+    const els = document.querySelectorAll('.reveal');
+    const io = new IntersectionObserver(entries=>{
+      entries.forEach(e=>{ if(e.isIntersecting) e.target.classList.add('in'); });
+    },{threshold:0.1});
+    els.forEach(el=>io.observe(el));
+    return ()=>io.disconnect();
+  },[]);
+  return (
+    <div>
+      <Nav/>
+      <Hero/>
+      <Marquee/>
+      <HowItWorks/>
+      <FeatureTabs/>
+      <DashboardScreens/>
+      <CallatTheTill/>
+      <EverythingIncluded/>
+      <SafetyChecks/>
+      <RoleSection/>
+      <PricingSection/>
+      <FAQ/>
+      <FinalCTA/>
+      <Footer/>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

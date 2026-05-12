@@ -20,7 +20,7 @@ export const metadata: Metadata = {
     locale: "en_TZ",
     url: process.env.NEXT_PUBLIC_SITE_URL ?? "https://apotekh.co.tz",
     siteName: "APOTEKH",
-    images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "APOTEKH" }],
+    images: [{ url: "/api/og", width: 1200, height: 630, alt: "APOTEKH" }],
   },
   twitter: { card: "summary_large_image", site: "@APOTEKH" },
 };
@@ -34,7 +34,7 @@ export default function RootLayout({
       className={`${dmSerif.variable} ${dmSans.variable} ${jetbrainsMono.variable}`}
     >
       <head>
-        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <link rel="icon" type="image/svg+xml" href="/assets/logo/apotekh-icon.svg" />
       </head>
       <body>
         <Nav />
