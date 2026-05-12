@@ -99,7 +99,7 @@ Canvas: 100×100. Geometry (icon variant, dark teal #0D4035 background):
 
 Logo wordmark (`apotekh-logo.svg`, light backgrounds):
 - Cross in #1A3328, amber right node #E8930A
-- Text: `APOTEK` in #1A3328, `H` in #1A6B5C
+- Text: `APOTEK` in #1A3328, `H` in #7ECFB4
 
 Logo wordmark (`apotekh-logo-white.svg`, dark backgrounds):
 - White cross, amber right node
