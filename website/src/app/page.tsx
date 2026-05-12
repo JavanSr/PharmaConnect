@@ -1,20 +1,14 @@
-import dynamic from "next/dynamic";
 import Link from "next/link";
 import Script from "next/script";
-import { AlertTriangle, ArrowUpDown, BarChart3, Bell, Building2, CalendarCheck, Check, FileText, Lock, ScanLine, ScrollText, Shield, Tag, Users, Warehouse, Wifi } from "lucide-react";
-import ContactForm from "@/components/ContactForm";
+import {
+  BarChart3, Bell, BookOpen, Building2, CalendarCheck, Check,
+  FileText, LayoutDashboard, Package, Pill, ScanLine, Shield,
+  ShieldCheck, Users, Warehouse, Wifi,
+} from "lucide-react";
 import FaqAccordion from "@/components/FaqAccordion";
-import PlatformGrid from "@/components/PlatformGrid";
+import FeatureTabs from "@/components/FeatureTabs";
 import PricingToggle from "@/components/PricingToggle";
-import SeveritySpectrum from "@/components/SeveritySpectrum";
-import AnimatedSection from "@/components/ui/AnimatedSection";
-import Badge from "@/components/ui/Badge";
-import Button from "@/components/ui/Button";
-import StatCard from "@/components/ui/StatCard";
-import { ARTICLES } from "@/lib/data/articles";
-import { MODULES } from "@/lib/data/modules";
-
-const AppMockup = dynamic(() => import("@/components/AppMockup"), { ssr: false });
+import ContactForm from "@/components/ContactForm";
 
 const jsonLd = {
   "@context": "https://schema.org",
@@ -25,357 +19,478 @@ const jsonLd = {
   description: "Pharmacy-side platform for Tanzania's 14,000+ pharmacies and ADDOs",
   offers: [
     { "@type": "Offer", price: "20000", priceCurrency: "TZS" },
-    { "@type": "Offer", price: "35000", priceCurrency: "TZS" },
+    { "@type": "Offer", price: "39000", priceCurrency: "TZS" },
     { "@type": "Offer", price: "55000", priceCurrency: "TZS" },
+    { "@type": "Offer", price: "75000", priceCurrency: "TZS" },
   ],
   publisher: { "@type": "Organization", name: "APOTEKH" },
 };
 
-const availableModules = MODULES.filter((m) => m.available);
+const LIVE_MODULES = [
+  { icon: LayoutDashboard, name: "Dashboard", desc: "Live operating view — sales, compliance, and priorities in one place.", phase: 1 },
+  { icon: Package, name: "Inventory", desc: "Batch-level stock control with FEFO, expiry alerts, and offline sync.", phase: 1 },
+  { icon: Pill, name: "Dispensing", desc: "Safe dispensing workflow with interaction checking and FEFO guidance.", phase: 1 },
+  { icon: ShieldCheck, name: "Compliance", desc: "TMDA and PC licence tracking with deadline reminders and evidence upload.", phase: 1 },
+  { icon: BarChart3, name: "Analytics", desc: "Sales, stock, and compliance reports across every branch.", phase: 1 },
+  { icon: BookOpen, name: "Knowledge Hub", desc: "Clinical and regulatory reference library for daily dispensing work.", phase: 1 },
+];
+
+const COMING_MODULES = [
+  { name: "NHIF Claims", phase: 2 },
+  { name: "CPD Tracker", phase: 2 },
+  { name: "Stock Exchange", phase: 2 },
+  { name: "B2B Platform", phase: 3 },
+  { name: "Patient App", phase: 3 },
+  { name: "AI Safety", phase: 4 },
+];
+
+const ROLES = [
+  {
+    title: "Pharmacy Owner",
+    sub: "Remote oversight, every branch",
+    items: [
+      "Live sales and stock across all outlets",
+      "Compliance status before every deadline",
+      "Staff access controls without being on site",
+      "Profitability analytics across your portfolio",
+    ],
+  },
+  {
+    title: "Pharmacist In Charge",
+    sub: "Full clinical + operational control",
+    items: [
+      "Drug interaction oversight before every sale",
+      "Clinical override with logged justification",
+      "Compliance calendar and evidence upload",
+      "Full inventory and dispensing authority",
+    ],
+  },
+  {
+    title: "Dispenser",
+    sub: "Counter-level safety and speed",
+    items: [
+      "Dispensing flow with embedded safety checks",
+      "Barcode scan to select and verify instantly",
+      "FEFO-guided product selection every time",
+      "Offline-ready — works during network outages",
+    ],
+  },
+  {
+    title: "Data Entry Clerk",
+    sub: "Stock intake and supplier management",
+    items: [
+      "Stock intake form with batch and expiry fields",
+      "Barcode scan on incoming goods",
+      "Supplier records and delivery tracking",
+      "No access to financials or dispensing",
+    ],
+  },
+];
 
 export default function HomePage() {
   return (
     <main>
-      <Script id="pharmaconnect-jsonld" strategy="beforeInteractive" type="application/ld+json">
+      <Script id="apotekh-jsonld" strategy="beforeInteractive" type="application/ld+json">
         {JSON.stringify(jsonLd)}
       </Script>
 
-      <AnimatedSection className="hero-pattern overflow-hidden bg-mist">
-        <section className="mx-auto grid max-w-7xl items-center gap-10 px-4 py-20 sm:px-6 lg:grid-cols-[1.05fr_.95fr] lg:px-8 lg:py-24">
-          <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-white/70 px-3 py-1.5 backdrop-blur-sm">
-              <span className="relative flex h-2 w-2 flex-shrink-0">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
-              </span>
-              <span className="font-mono text-xs text-primary">Phase 1 live &middot; Dodoma, Tanzania</span>
-            </div>
-            <h1 className="mt-4 font-serif text-5xl tracking-tight text-slate lg:text-6xl">
-              The operating system for{" "}
-              <span className="bg-gradient-to-r from-primary via-primary-mid to-[#3db89a] bg-clip-text text-transparent">
-                better pharmaceutical services
-              </span>
-            </h1>
-            <p className="mt-6 max-w-xl text-lg leading-relaxed text-slate/70">
-              Tanzania&apos;s pharmacies and ADDOs must operate with greater accuracy,
-              compliance, and clinical care. APOTEKH gives them the tools to do exactly that.
-            </p>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <Button href="/contact#waitlist" variant="primary">
-                Request early access
-              </Button>
-              <Button href="/platform" variant="ghost">
-                See the platform &rarr;
-              </Button>
-            </div>
+      {/* ── Hero ── */}
+      <section className="dot-grid overflow-hidden bg-paper">
+        <div className="mx-auto max-w-7xl px-4 py-24 sm:px-6 lg:px-8 lg:py-32">
+          <div className="inline-flex items-center gap-2.5 rounded-full border border-line bg-white px-3.5 py-1.5">
+            <span className="live-dot block h-2 w-2 rounded-full bg-[#2A9478]" />
+            <span className="font-mono text-xs text-muted">Phase 1 live &middot; Arusha, Tanzania</span>
           </div>
-          <AppMockup />
-        </section>
-        <div className="overflow-hidden bg-primary-dark py-4 text-sm font-medium uppercase tracking-[0.18em] text-white">
-          <div className="marquee-track flex w-max gap-10 whitespace-nowrap">
-            <span>
-              Drug Interaction Checking &middot; Expiry Monitoring &middot;
-              Barcode Scanning &middot; Compliance Alerts &middot; Inventory Management &middot;
-              Patient Safety &middot; Knowledge Hub &middot; Dispensing &middot;
-              Analytics &middot; Offline-First &middot; Regulatory Compliance &middot;
-            </span>
-            <span>
-              Drug Interaction Checking &middot; Expiry Monitoring &middot;
-              Barcode Scanning &middot; Compliance Alerts &middot; Inventory Management &middot;
-              Patient Safety &middot; Knowledge Hub &middot; Dispensing &middot;
-              Analytics &middot; Offline-First &middot; Regulatory Compliance &middot;
-            </span>
+
+          <h1 className="mt-6 max-w-4xl font-serif text-5xl font-semibold leading-[1.08] tracking-tight text-ink sm:text-6xl lg:text-7xl">
+            The operating system<br />
+            <span className="text-[#1A6B5C]">for pharmacies</span>
+          </h1>
+
+          <p className="mt-6 max-w-xl text-lg leading-relaxed text-muted">
+            Tanzania&rsquo;s pharmacies need more than a point-of-sale system. APOTEKH gives them
+            inventory control, patient safety checks, regulatory compliance, and analytics —
+            in one platform built for how pharmacies actually work.
+          </p>
+
+          <div className="mt-8 flex flex-wrap gap-3">
+            <Link
+              href="/contact#waitlist"
+              className="inline-flex items-center gap-2 rounded-lg bg-[#1A6B5C] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#145748]"
+            >
+              Start free trial
+            </Link>
+            <Link
+              href="/platform"
+              className="inline-flex items-center gap-2 rounded-lg border border-line bg-white px-5 py-3 text-sm font-semibold text-ink transition hover:bg-mist"
+            >
+              See the platform &rarr;
+            </Link>
           </div>
         </div>
-      </AnimatedSection>
+      </section>
 
-      <AnimatedSection className="bg-primary-dark py-16" delay={0.05}>
-        <section className="mx-auto grid max-w-7xl gap-4 px-4 sm:px-6 lg:grid-cols-2 lg:px-8">
-          <StatCard label="Pharmacies and ADDOs serving Tanzania" suffix="+" value={14000} />
-          <StatCard label="Tanzania pharmaceutical market — 6.1% CAGR" value="USD 243M" />
-        </section>
-      </AnimatedSection>
+      {/* ── Marquee ── */}
+      <div className="overflow-hidden bg-[#0D4035] py-4 text-sm font-medium uppercase tracking-[0.18em] text-white">
+        <div className="marquee-track flex w-max gap-10 whitespace-nowrap">
+          {[0, 1].map((i) => (
+            <span key={i}>
+              Drug Interaction Checking &middot; Expiry Monitoring &middot; Barcode Scanning &middot;
+              Compliance Alerts &middot; Inventory Management &middot; Patient Safety &middot;
+              Knowledge Hub &middot; Dispensing &middot; Analytics &middot; Offline-First &middot;
+              Regulatory Compliance &middot;
+            </span>
+          ))}
+        </div>
+      </div>
 
-      <AnimatedSection className="bg-white py-20" delay={0.08}>
-        <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <h2 className="font-serif text-3xl font-semibold text-slate">
-            Built for how pharmacies actually work
-          </h2>
-          <p className="mt-3 text-slate/65">Real-world features for Tanzania&apos;s pharmaceutical environment.</p>
-          <div className="mt-8 grid gap-5 md:grid-cols-2">
-            {[
-              {
-                icon: Wifi,
-                title: "Works offline and online",
-                body: "Dispensing, safety checks, and stock updates run without internet. Data syncs automatically when connectivity returns — no lost sales, no lost records.",
-              },
-              {
-                icon: ScanLine,
-                title: "QR & Barcode Scanner",
-                body: "Scan medicines on arrival to fill batch details automatically. Scan at the dispensing counter to select and verify a product in one tap. Any phone or USB reader.",
-              },
-              {
-                icon: Warehouse,
-                title: "Wholesale catalogue built in",
-                body: "Your registered wholesale supplier's products are searchable directly inside APOTEKH. Browse stock, record deliveries, and link arrivals to inventory — no re-entry.",
-              },
-              {
-                icon: Lock,
-                title: "Sales privacy controls",
-                body: "Role-based access limits what each staff member can see and do. Every transaction is logged with a timestamped user record — a clear trail that protects against theft and unrecorded losses.",
-              },
-              {
-                icon: Building2,
-                title: "Multi-branch visibility",
-                body: "Owners see sales, stock levels, and compliance status across every branch from a single account. No separate logins, no WhatsApp reports.",
-              },
-              {
-                icon: Bell,
-                title: "Compliance deadline tracking",
-                body: "TMDA licences, inspection dates, and renewal deadlines stay visible before they become problems. Colour-coded status, early reminders, and an evidence trail built in.",
-              },
-            ].map(({ icon: Icon, title, body }) => (
-              <div key={title} className="rounded-xl border border-slate/10 bg-mist p-6">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-white">
-                  <Icon size={18} />
-                </div>
-                <h3 className="mt-4 text-base font-semibold text-slate">{title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-slate/65">{body}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-      </AnimatedSection>
+      {/* ── Trust Strip ── */}
+      <section className="border-b border-line bg-white">
+        <div className="mx-auto grid max-w-7xl grid-cols-2 divide-x divide-line px-4 sm:px-6 lg:grid-cols-4 lg:px-8">
+          {[
+            { value: "14,000+", label: "Pharmacies & ADDOs in Tanzania" },
+            { value: "TZS 243M", label: "Pharmaceutical market size" },
+            { value: "7-day", label: "Full offline capability" },
+            { value: "Phase 1", label: "Live in Arusha — expanding nationally" },
+          ].map(({ value, label }) => (
+            <div key={label} className="px-6 py-10">
+              <p className="font-serif text-3xl font-semibold text-ink">{value}</p>
+              <p className="mt-1.5 text-sm text-muted">{label}</p>
+            </div>
+          ))}
+        </div>
+      </section>
 
-      <AnimatedSection className="bg-white py-20" delay={0.1}>
-        <section className="mx-auto max-w-6xl px-4 text-center sm:px-6 lg:px-8">
-          <div className="font-serif text-[120px] leading-none text-primary/20">&ldquo;</div>
-          <blockquote className="mx-auto max-w-3xl font-serif text-2xl text-slate">
-            Tanzania&apos;s pharmacies deserve more than a point-of-sale system.
-            Generic software was built for sales.
-            APOTEKH is built for better pharmaceutical services.
-          </blockquote>
-          <p className="mt-5 text-sm italic text-slate/50">- APOTEKH, 2026</p>
-          <div className="mt-12 grid gap-5 md:grid-cols-2">
-            <article className="rounded-xl border border-primary/15 bg-primary-lightest p-6 text-left">
-              <div className="mb-4 flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-white">
-                <Building2 size={18} />
-              </div>
-              <h2 className="text-lg font-semibold text-primary-dark">For pharmacy owners</h2>
-              <ul className="mt-4 space-y-3">
-                {[
-                  "Remote visibility into every branch",
-                  "Compliance protection before every deadline",
-                  "Profitability analytics across your portfolio",
-                ].map((item) => (
-                  <li className="flex items-start gap-2 text-sm text-slate/70" key={item}>
-                    <Check className="mt-0.5 shrink-0 text-primary" size={15} />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-            </article>
-            <article className="rounded-xl border border-slate/10 bg-white p-6 text-left shadow-sm">
-              <div className="mb-4 flex h-9 w-9 items-center justify-center rounded-lg bg-slate/8 text-slate">
-                <Users size={18} />
-              </div>
-              <h2 className="text-lg font-semibold text-slate">For pharmacists and dispensers</h2>
-              <ul className="mt-4 space-y-3">
-                {[
-                  "Patient safety alerts at the dispensing moment",
-                  "Drug interaction checking before medicine leaves the counter",
-                  "Compliance and expiry alerts built into daily work",
-                ].map((item) => (
-                  <li className="flex items-start gap-2 text-sm text-slate/70" key={item}>
-                    <Check className="mt-0.5 shrink-0 text-slate/40" size={15} />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-            </article>
-          </div>
-        </section>
-      </AnimatedSection>
+      {/* ── Feature Tabs ── */}
+      <FeatureTabs />
 
-      <AnimatedSection className="bg-mist py-20" delay={0.15}>
-        <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="max-w-3xl">
-            <h2 className="font-serif text-4xl font-semibold text-slate">
-              Everything a pharmacy needs to operate, protect, and grow
+      {/* ── App Screen Mockup ── */}
+      <section className="bg-paper py-24">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-2xl text-center">
+            <p className="font-mono text-xs font-medium uppercase tracking-[0.18em] text-[#1A6B5C]">
+              Inside APOTEKH
+            </p>
+            <h2 className="mt-3 font-serif text-4xl font-semibold text-ink">
+              Built for the pharmacy counter
             </h2>
-            <p className="mt-4 text-slate/70">Six modules, built for Tanzania&apos;s pharmaceutical environment.</p>
+            <p className="mt-4 text-muted">
+              One platform that keeps dispensing, stock, compliance, and oversight in one controlled view.
+            </p>
           </div>
-          <div className="mt-8">
-            <PlatformGrid hideFilter modules={availableModules} />
-          </div>
-          <Link className="mt-8 inline-flex text-sm font-medium text-primary" href="/platform">
-            Explore the full platform &rarr;
-          </Link>
-        </section>
-      </AnimatedSection>
 
-      <AnimatedSection className="bg-white py-20" delay={0.18}>
-        <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="max-w-2xl">
-            <h2 className="font-serif text-4xl font-semibold text-slate">How it works</h2>
-            <p className="mt-4 text-slate/65">From sign-up to daily operations in three steps.</p>
-          </div>
-          <div className="mt-10 grid gap-8 md:grid-cols-3">
-            {[
-              {
-                step: "01",
-                title: "Set up your pharmacy",
-                body: "Register, load your products from the catalogue or by scanning, and invite your team. Most pharmacies are running within the same day — no training workshop required.",
-              },
-              {
-                step: "02",
-                title: "Work smarter at the counter",
-                body: "Dispensing, drug interaction checks, and stock updates happen in one controlled flow. Scan a product, confirm safety, complete the sale. No separate tools, no double entry.",
-              },
-              {
-                step: "03",
-                title: "Manage from anywhere",
-                body: "Compliance deadlines, inventory levels, and sales performance update in real time. See everything across your branches from a phone or laptop — in Dodoma or wherever you are.",
-              },
-            ].map(({ step, title, body }) => (
-              <div key={step} className="relative pl-16">
-                <div className="absolute left-0 top-0 flex h-10 w-10 items-center justify-center rounded-full bg-primary font-mono text-sm font-bold text-white">
-                  {step}
+          {/* Styled app mockup */}
+          <div className="mt-12 overflow-hidden rounded-2xl border border-line shadow-card">
+            {/* Window chrome */}
+            <div className="flex items-center gap-3 border-b border-line bg-[#0D4035] px-4 py-3">
+              <div className="flex gap-1.5">
+                <span className="block h-2.5 w-2.5 rounded-full bg-white/20" />
+                <span className="block h-2.5 w-2.5 rounded-full bg-white/20" />
+                <span className="block h-2.5 w-2.5 rounded-full bg-white/20" />
+              </div>
+              <span className="font-mono text-xs text-white/50">APOTEKH &middot; Dashboard</span>
+            </div>
+            <div className="grid lg:grid-cols-[220px_1fr]">
+              {/* Sidebar */}
+              <div className="hidden border-r border-line bg-paper p-4 lg:block">
+                <div className="space-y-0.5">
+                  {[
+                    { label: "Dashboard", active: true },
+                    { label: "Dispensing", active: false },
+                    { label: "Inventory", active: false },
+                    { label: "Compliance", active: false },
+                    { label: "Analytics", active: false },
+                    { label: "Knowledge Hub", active: false },
+                  ].map(({ label, active }) => (
+                    <div
+                      key={label}
+                      className={`rounded-lg px-3 py-2 text-sm ${
+                        active
+                          ? "bg-[#1A6B5C] font-medium text-white"
+                          : "text-muted hover:bg-line"
+                      }`}
+                    >
+                      {label}
+                    </div>
+                  ))}
                 </div>
-                <h3 className="text-lg font-semibold text-slate">{title}</h3>
-                <p className="mt-3 text-sm leading-relaxed text-slate/65">{body}</p>
+              </div>
+              {/* Main content */}
+              <div className="bg-white p-6">
+                <div className="grid gap-4 sm:grid-cols-3">
+                  {[
+                    { label: "Today's Sales", value: "TZS 124,500", trend: "+12%" },
+                    { label: "Stock Alerts", value: "3 items", trend: "near-expiry" },
+                    { label: "Compliance", value: "100%", trend: "all clear" },
+                  ].map(({ label, value, trend }) => (
+                    <div key={label} className="rounded-xl border border-line p-4">
+                      <p className="text-xs text-muted">{label}</p>
+                      <p className="mt-1 text-xl font-semibold text-ink">{value}</p>
+                      <p className="mt-0.5 text-xs text-[#2A9478]">{trend}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-5 overflow-hidden rounded-xl border border-line">
+                  <div className="border-b border-line bg-paper px-4 py-2.5">
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted">Recent Dispensing</p>
+                  </div>
+                  {[
+                    { drug: "Amoxicillin 500mg", qty: "×2", status: "Safe" },
+                    { drug: "Metformin 850mg", qty: "×1", status: "Safe" },
+                    { drug: "Ibuprofen 400mg + Warfarin", qty: "×1", status: "Alert" },
+                    { drug: "Paracetamol 500mg", qty: "×3", status: "Safe" },
+                  ].map(({ drug, qty, status }) => (
+                    <div
+                      key={drug}
+                      className="flex items-center justify-between border-t border-line px-4 py-3 text-sm"
+                    >
+                      <span className="text-ink">{drug}</span>
+                      <div className="flex items-center gap-3">
+                        <span className="text-muted">{qty}</span>
+                        <span
+                          className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                            status === "Alert"
+                              ? "bg-amber/10 text-amber"
+                              : "bg-[#EDF7F3] text-[#1A6B5C]"
+                          }`}
+                        >
+                          {status}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Modules Grid ── */}
+      <section className="border-t border-line bg-white py-24">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="grid gap-10 lg:grid-cols-[1fr_2fr]">
+            <div>
+              <p className="font-mono text-xs font-medium uppercase tracking-[0.18em] text-[#1A6B5C]">
+                Platform
+              </p>
+              <h2 className="mt-3 font-serif text-4xl font-semibold text-ink">
+                Everything a pharmacy needs
+              </h2>
+              <p className="mt-4 text-muted">
+                Six modules live in Phase 1. More shipping through 2026–2027.
+              </p>
+              <Link
+                href="/platform"
+                className="mt-6 inline-flex text-sm font-medium text-[#1A6B5C] hover:underline"
+              >
+                Explore the full platform &rarr;
+              </Link>
+            </div>
+            <div>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {LIVE_MODULES.map(({ icon: Icon, name, desc }) => (
+                  <div key={name} className="rounded-xl border border-line bg-paper p-5">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#EDF7F3] text-[#1A6B5C]">
+                      <Icon size={18} />
+                    </div>
+                    <h3 className="mt-4 text-sm font-semibold text-ink">{name}</h3>
+                    <p className="mt-1.5 text-xs leading-relaxed text-muted">{desc}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {COMING_MODULES.map(({ name, phase }) => (
+                  <span
+                    key={name}
+                    className="rounded-full border border-line bg-paper px-3 py-1.5 text-xs text-muted"
+                  >
+                    {name} &middot; Phase {phase}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Tanzania Band ── */}
+      <section className="bg-[#0D4035] py-24 text-white">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="grid gap-16 lg:grid-cols-2 lg:items-center">
+            <div>
+              <p className="font-mono text-xs font-medium uppercase tracking-[0.18em] text-[#7ECFB4]">
+                Built for Tanzania
+              </p>
+              <h2 className="mt-3 font-serif text-4xl font-semibold lg:text-5xl">
+                Tanzania&rsquo;s pharmacies are at an inflection point
+              </h2>
+              <p className="mt-5 leading-relaxed text-white/70">
+                The Universal Health Insurance mandate requires dispensing records. TMDA enforcement
+                is tightening. And 14,000+ independent pharmacies are still operating on paper
+                records, WhatsApp messages, and single-point-of-sale tools built for retail —
+                not clinical care.
+              </p>
+              <p className="mt-4 leading-relaxed text-white/70">
+                APOTEKH was built for this moment — offline-first, regulation-aware, and priced
+                for independent pharmacies across Tanzania.
+              </p>
+              <div className="mt-8 flex flex-wrap gap-3">
+                <Link
+                  href="/contact#waitlist"
+                  className="inline-flex rounded-lg bg-white px-5 py-3 text-sm font-semibold text-[#0D4035] transition hover:bg-[#EDF7F3]"
+                >
+                  Get early access
+                </Link>
+                <Link
+                  href="/about"
+                  className="inline-flex rounded-lg border border-white/20 px-5 py-3 text-sm font-semibold text-white transition hover:border-white/40"
+                >
+                  Our story &rarr;
+                </Link>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              {[
+                { value: "14,000+", label: "Pharmacies and ADDOs in Tanzania" },
+                { value: "TZS 243M", label: "Pharmaceutical market size (USD at current rates)" },
+                { value: "6.1%", label: "Annual market growth rate (CAGR)" },
+                { value: "UHI", label: "Universal Health Insurance mandate — dispensing records required" },
+              ].map(({ value, label }) => (
+                <div key={label} className="rounded-xl border border-white/10 p-6">
+                  <p className="font-serif text-3xl font-semibold text-white">{value}</p>
+                  <p className="mt-2 text-sm text-white/60">{label}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Roles ── */}
+      <section className="bg-paper py-24">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <p className="font-mono text-xs font-medium uppercase tracking-[0.18em] text-[#1A6B5C]">
+            Who it&rsquo;s for
+          </p>
+          <h2 className="mt-3 font-serif text-4xl font-semibold text-ink">
+            Every role in your pharmacy, covered
+          </h2>
+          <p className="mt-4 max-w-xl text-muted">
+            Role-based access means each person sees exactly what they need — and nothing they shouldn&rsquo;t.
+          </p>
+          <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {ROLES.map(({ title, sub, items }) => (
+              <div key={title} className="rounded-2xl border border-line bg-white p-6">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#EDF7F3] text-[#1A6B5C]">
+                  <Users size={18} />
+                </div>
+                <h3 className="mt-4 text-base font-semibold text-ink">{title}</h3>
+                <p className="mt-1 text-xs text-muted">{sub}</p>
+                <ul className="mt-5 space-y-2.5">
+                  {items.map((item) => (
+                    <li key={item} className="flex items-start gap-2">
+                      <Check size={13} className="mt-0.5 shrink-0 text-[#1A6B5C]" />
+                      <span className="text-xs leading-relaxed text-muted">{item}</span>
+                    </li>
+                  ))}
+                </ul>
               </div>
             ))}
           </div>
-        </section>
-      </AnimatedSection>
+        </div>
+      </section>
 
-      <AnimatedSection className="bg-mist py-20" delay={0.19}>
-        <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <h2 className="font-serif text-4xl font-semibold text-slate">Everything included</h2>
-          <p className="mt-3 text-slate/65">No add-ons. No separate tools. Every capability ships with your plan.</p>
-          <div className="mt-10 grid gap-x-8 gap-y-10 sm:grid-cols-2 lg:grid-cols-4">
+      {/* ── Pricing ── */}
+      <section className="border-t border-line bg-white py-24">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <p className="font-mono text-xs font-medium uppercase tracking-[0.18em] text-[#1A6B5C]">
+            Pricing
+          </p>
+          <h2 className="mt-3 font-serif text-4xl font-semibold text-ink">
+            Priced for Tanzania&rsquo;s pharmaceutical reality
+          </h2>
+          <p className="mt-4 max-w-xl text-muted">
+            All retail tiers include a 14-day free trial. Annual billing gives two months free.
+            No hidden fees.
+          </p>
+          <div className="mt-10">
+            <PricingToggle />
+          </div>
+          <Link
+            href="/pricing"
+            className="mt-6 inline-flex text-sm font-medium text-[#1A6B5C] hover:underline"
+          >
+            Full pricing details &rarr;
+          </Link>
+        </div>
+      </section>
+
+      {/* ── What's included ── */}
+      <section className="bg-paper py-24">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <h2 className="font-serif text-3xl font-semibold text-ink">Everything included</h2>
+          <p className="mt-3 text-muted">No add-ons. No separate tools. Every capability ships with your plan.</p>
+          <div className="mt-10 grid gap-x-8 gap-y-8 sm:grid-cols-2 lg:grid-cols-4">
             {[
-              { icon: ArrowUpDown, title: "FEFO Dispensing", body: "First-expiry-first-out enforced at every sale — no expired stock leaving the counter." },
+              { icon: Pill, title: "FEFO Dispensing", body: "First-expiry-first-out enforced at every sale — no expired stock leaving the counter." },
               { icon: Bell, title: "Expiry Alerts", body: "90, 60, 30, 7, and 1-day warnings tracked automatically per batch." },
-              { icon: Tag, title: "Batch & Lot Tracking", body: "Every product logged by batch, supplier, and date from intake to sale." },
               { icon: Shield, title: "Drug Interaction Checks", body: "MINOR through CONTRAINDICATED screened before medicine leaves the counter." },
-              { icon: Users, title: "Role-Based Access", body: "Staff see only what their role allows — dispensers, cashiers, owners, and clerks all separated." },
+              { icon: Users, title: "Role-Based Access", body: "Staff see only what their role allows — dispensers, cashiers, owners, clerks, all separated." },
               { icon: Wifi, title: "Offline-First Sync", body: "Works without internet. Syncs all pending actions the moment connectivity returns." },
               { icon: ScanLine, title: "QR & Barcode Scanning", body: "Scan on intake and at the counter. Any phone camera or USB barcode reader." },
               { icon: Building2, title: "Multi-Branch Dashboard", body: "All your locations in one account. No jumping between logins." },
-              { icon: CalendarCheck, title: "Compliance Calendar", body: "TMDA licences, inspections, and renewals tracked with early reminders and evidence upload." },
+              { icon: CalendarCheck, title: "Compliance Calendar", body: "TMDA licences, inspections, and renewals tracked with early reminders." },
               { icon: FileText, title: "Receipts & PDF Export", body: "Professional dispensing receipts and printable records generated automatically." },
               { icon: BarChart3, title: "Analytics & Reporting", body: "Sales trends, stock movement, and compliance summaries in one management view." },
-              { icon: ScrollText, title: "Permanent Audit Log", body: "Every override, void, and transaction permanently recorded — tamper-proof by design." },
+              { icon: Warehouse, title: "Supplier Catalogue", body: "Registered wholesale supplier products searchable directly inside APOTEKH." },
+              { icon: ShieldCheck, title: "Permanent Audit Log", body: "Every override, void, and transaction permanently recorded — tamper-proof by design." },
             ].map(({ icon: Icon, title, body }) => (
               <div key={title}>
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#EDF7F3] text-[#1A6B5C]">
                   <Icon size={16} />
                 </div>
-                <h3 className="mt-3 text-sm font-semibold text-slate">{title}</h3>
-                <p className="mt-1 text-xs leading-relaxed text-slate/60">{body}</p>
+                <h3 className="mt-3 text-sm font-semibold text-ink">{title}</h3>
+                <p className="mt-1 text-xs leading-relaxed text-muted">{body}</p>
               </div>
             ))}
           </div>
-        </section>
-      </AnimatedSection>
+        </div>
+      </section>
 
-      <AnimatedSection className="bg-white py-20" delay={0.2}>
-        <section className="mx-auto grid max-w-7xl gap-10 px-4 sm:px-6 lg:grid-cols-2 lg:px-8">
-          <div>
-            <p className="font-mono text-xs text-primary">Patient Safety</p>
-            <h2 className="mt-3 font-serif text-4xl font-semibold text-slate">
-              Safety checks at every dispensing event
-            </h2>
-            <p className="mt-5 text-slate/70">
-              No community pharmacy in Tanzania currently checks drug interactions at the
-              point of dispensing. APOTEKH changes this — checking interactions,
-              contraindications, and allergy flags before medicine leaves the counter.
-            </p>
-            <div className="mt-6 grid gap-3">
-              <div className="flex items-center gap-3 rounded-xl bg-mist p-4">
-                <Shield className="text-primary" size={18} />
-                <span className="text-sm font-medium text-slate">
-                  Drug interaction checking — MINOR through CONTRAINDICATED
-                </span>
-              </div>
-              <div className="flex items-center gap-3 rounded-xl bg-mist p-4">
-                <AlertTriangle className="text-primary" size={18} />
-                <span className="text-sm font-medium text-slate">
-                  Contraindication alerts — pregnancy, renal, elderly, allergy
-                </span>
-              </div>
-              <div className="flex items-center gap-3 rounded-xl bg-mist p-4">
-                <Lock className="text-primary" size={18} />
-                <span className="text-sm font-medium text-slate">
-                  Anonymous session — no patient names or national IDs stored
-                </span>
-              </div>
-            </div>
-          </div>
-          <SeveritySpectrum />
-        </section>
-      </AnimatedSection>
-
-      <AnimatedSection className="bg-mist py-20" delay={0.25}>
-        <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <h2 className="font-serif text-4xl font-semibold text-slate">
-            Priced for Tanzania&apos;s pharmaceutical reality
-          </h2>
-          <div className="mt-8">
-            <PricingToggle />
-          </div>
-          <Link className="mt-6 inline-flex text-sm font-medium text-primary" href="/pricing">
-            Full pricing details &rarr;
-          </Link>
-        </section>
-      </AnimatedSection>
-
-      <AnimatedSection className="bg-primary-lightest py-20" delay={0.3}>
-        <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <h2 className="font-serif text-4xl font-semibold text-slate">Knowledge Hub preview</h2>
-          <div className="mt-8 grid gap-5 md:grid-cols-3">
-            {ARTICLES.slice(0, 3).map((article) => (
-              <article className="rounded-xl border border-slate/10 bg-white p-6" key={article.slug}>
-                <Badge>{article.category}</Badge>
-                <h3 className="mt-4 text-lg font-medium text-slate">{article.title}</h3>
-                <p className="mt-3 text-sm text-slate/65">{article.excerpt}</p>
-                <Link className="mt-4 inline-flex text-sm font-medium text-primary" href={`/blog/${article.slug}`}>
-                  Read &rarr;
-                </Link>
-              </article>
-            ))}
-          </div>
-          <Link className="mt-8 inline-flex text-sm font-medium text-primary" href="/blog">
-            Visit the Knowledge Hub &rarr;
-          </Link>
-        </section>
-      </AnimatedSection>
-
-      <AnimatedSection className="bg-white py-20" delay={0.32}>
-        <section className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
-          <h2 className="font-serif text-4xl font-semibold text-slate">Common questions</h2>
+      {/* ── FAQ ── */}
+      <section className="border-t border-line bg-white py-24">
+        <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
+          <h2 className="font-serif text-4xl font-semibold text-ink">Common questions</h2>
           <div className="mt-8">
             <FaqAccordion />
           </div>
-        </section>
-      </AnimatedSection>
+        </div>
+      </section>
 
-      <AnimatedSection className="bg-primary-dark py-20 text-white" delay={0.35}>
-        <section className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-          <h2 className="font-serif text-4xl font-semibold">Tanzania&apos;s pharmacies need this. Now.</h2>
-          <p className="mt-4 text-white/70">
-            Join the Dodoma early access programme — first 20 pharmacies at no charge.
-          </p>
-          <div className="mt-8 rounded-2xl bg-white p-6 text-slate">
+      {/* ── Final CTA ── */}
+      <section className="bg-[#0D4035] py-24 text-white">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
+          <div className="text-center">
+            <p className="font-mono text-xs font-medium uppercase tracking-[0.18em] text-[#7ECFB4]">
+              Early access
+            </p>
+            <h2 className="mt-3 font-serif text-4xl font-semibold sm:text-5xl">
+              Tanzania&rsquo;s pharmacies need this. Now.
+            </h2>
+            <p className="mt-4 text-white/70">
+              Join the Arusha early access programme — 14-day free trial on every plan.
+              No credit card required. Running in minutes.
+            </p>
+          </div>
+          <div className="mt-10 rounded-2xl bg-white p-6 text-ink sm:p-8">
             <ContactForm variant="waitlist" />
           </div>
-          <p className="mt-5 text-sm text-white/70">
-            Or contact directly: elihaki.yusuph@gmail.com &middot; +255 764 591 374 &middot; @APOTEKH
+          <p className="mt-6 text-center text-sm text-white/50">
+            Or reach us directly: elihaki.yusuph@gmail.com &middot; +255 764 591 374 &middot; @APOTEKH
           </p>
-        </section>
-      </AnimatedSection>
+        </div>
+      </section>
     </main>
   );
 }
