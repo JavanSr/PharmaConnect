@@ -23,7 +23,7 @@ export const TrialConfirmPage: React.FC = () => {
     <div className="min-h-screen bg-[#EDF7F3] flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="flex justify-center mb-8">
-          <img src="/brand/pharmaconnect-logo.svg" alt="APOTEKH" className="h-10 w-auto" />
+          <img src="/brand/apotekh-logo.svg" alt="APOTEKH" className="h-10 w-auto" />
         </div>
 
         <div className="bg-white rounded-2xl border border-[#D6F0E8] shadow-sm p-8">

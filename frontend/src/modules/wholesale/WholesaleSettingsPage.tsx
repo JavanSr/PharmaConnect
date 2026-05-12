@@ -330,7 +330,7 @@ export const WholesaleSettingsPage: React.FC = () => {
                   </div>
                 )}
                 {clientSearch.length >= 2 && (pharmacySearchQuery.data ?? []).length === 0 && !pharmacySearchQuery.isLoading && (
-                  <p className="text-xs text-[#94A3B8]">No pharmacies found. They must be registered on PharmaConnect.</p>
+                  <p className="text-xs text-[#94A3B8]">No pharmacies found. They must be registered on APOTEKH.</p>
                 )}
                 {newClientId && (
                   <div className="flex items-end gap-3">

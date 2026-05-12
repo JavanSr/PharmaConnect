@@ -110,7 +110,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, collapsed, on
       {/* Logo */}
       <div className={`flex items-center gap-3 px-4 py-5 border-b border-[#D6F0E8] ${collapsed ? 'justify-center' : ''}`}>
         <img
-          src="/brand/pharmaconnect-icon.svg"
+          src="/brand/apotekh-icon.svg"
           alt="APOTEKH"
           className="w-9 h-9 shrink-0"
         />

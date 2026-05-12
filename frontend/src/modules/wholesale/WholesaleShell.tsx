@@ -68,7 +68,7 @@ export const WholesaleShell: React.FC<{ children: React.ReactNode }> = ({ childr
             <h1 className="text-3xl font-semibold leading-tight">
               {mode === 'seller'
                 ? 'Separate wholesale workspace, shared platform backbone.'
-                : 'Order from wholesale pharmacies on PharmaConnect.'}
+                : 'Order from wholesale pharmacies on APOTEKH.'}
             </h1>
             <p className="max-w-2xl text-sm text-white/80">
               {mode === 'seller'

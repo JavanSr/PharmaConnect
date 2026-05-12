@@ -1,8 +1,8 @@
-# PharmaConnect — Claude Code Guidance
+# APOTEKH — Claude Code Guidance
 
 ## What this project is
 
-PharmaConnect is a pharmacy-side operating system for Tanzania. It handles
+APOTEKH is a pharmacy-side operating system for Tanzania. It handles
 inventory management, patient safety, regulatory compliance, dispensing, NHIF
 claims, CPD tracking (Phase 2), and analytics. The system is live in Phase 1 and designed
 to grow through four phases.
@@ -84,17 +84,26 @@ To deploy frontend to Vercel:
 
 ## Brand identity
 
-### Logo mark — Nexus Cross
+### Logo mark — Living Cross
 
-A cross with 4 circular tip nodes and a hollow centre ring. Symbolises:
-connection, pharmacy cross, network nodes.
+A cross with 4 solid circular tip nodes and a filled centre swelling. The right
+node is amber — signalling an active pharmacy. Symbolises: connection, pharmacy
+cross, network nodes.
 
-Canvas: 100×100. Geometry:
-- Vertical bar: x=43.3, y=6.7, w=13.3, h=86.6, rx=1.7
-- Horizontal bar: x=6.7, y=43.3, w=86.6, h=13.3, rx=1.7
-- Tip nodes (circles r=6.7): (50,13.3), (50,86.7), (13.3,50), (86.7,50)
-- Hollow centre: cx=50, cy=50, r=9.2, fill=none, stroke=rgba(255,255,255,0.35)
-- Background gradient: #2A9478 → #0D4035
+Canvas: 100×100. Geometry (icon variant, dark teal #0D4035 background):
+- Vertical bar: x=45, y=21, w=10, h=58, rx=2, fill=white
+- Horizontal bar: x=21, y=45, w=58, h=10, rx=2, fill=white
+- Centre swelling: cx=50, cy=50, r=8, fill=white
+- Top/bottom/left nodes: r=9, fill=white, at (50,9), (50,91), (9,50)
+- Right node (active signal): r=9, fill=#E8930A, + inner circle r=4 fill=white opacity=0.30
+
+Logo wordmark (`apotekh-logo.svg`, light backgrounds):
+- Cross in #1A3328, amber right node #E8930A
+- Text: `APOTEK` in #1A3328, `H` in #1A6B5C
+
+Logo wordmark (`apotekh-logo-white.svg`, dark backgrounds):
+- White cross, amber right node
+- Text: `APOTEK` in white, `H` in #7ECFB4
 
 ### Colour system — Slate Teal
 
@@ -282,7 +291,7 @@ These are the target standards for new code:
 - The override_log table must have a database-level trigger preventing DELETE
   from any role including superadmin. This is a permanent medical record.
 - The B2B ordering network is closed. Retail pharmacies can only order from
-  wholesale pharmacies registered on PharmaConnect. Enforce at API level.
+  wholesale pharmacies registered on APOTEKH. Enforce at API level.
 
 ## Deferred features — placeholder pages only
 
@@ -323,7 +332,7 @@ Recommended commands:
 
 ## Language
 
-- The app name is **PharmaConnect** — one word, capital P and C.
-  Never write "Pharma Connect" with a space.
+- The app name is **APOTEKH** — all caps, one word.
+  Never write "Apotekh" in mixed case or "Apotek H" with a space.
 - The country is Tanzania. Use TZS for currency, Tanzanian regions for addresses.
 - Regulatory bodies: TMDA, NHIF, PC (Pharmacy Council).

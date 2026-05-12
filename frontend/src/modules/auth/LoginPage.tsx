@@ -117,7 +117,7 @@ export const LoginPage: React.FC = () => {
         {/* Logo */}
         <div className="flex justify-center mb-8">
           <img
-            src="/brand/pharmaconnect-logo.svg"
+            src="/brand/apotekh-logo.svg"
             alt="APOTEKH"
             className="h-10 w-auto"
           />
