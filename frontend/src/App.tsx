@@ -9,7 +9,7 @@ import { useNotificationStore } from '@/stores/notificationStore';
 import { useAuthStore } from '@/stores/authStore';
 import { usePharmacyStore } from '@/stores/pharmacyStore';
 import { api } from '@/lib/api';
-import { cacheProducts, getProductCacheTimestamp } from '@/lib/offlineProducts';
+import { cacheProducts, getProductCacheTimestamp, markProductCatalogSynced } from '@/lib/offlineProducts';
 import type { UserRole } from '@/types';
 
 const queryClient = new QueryClient({
@@ -112,6 +112,8 @@ const OfflineSyncBootstrap: React.FC = () => {
 };
 
 const PRODUCT_CACHE_REFRESH_MS = 60 * 60 * 1000; // 1 hour
+const PRODUCT_CACHE_PAGE_LIMIT = 1000;
+const PRODUCT_CACHE_MAX_PAGES = 5;
 
 const ProductCacheWarmer: React.FC = () => {
   const pharmacy = usePharmacyStore((state) => state.pharmacy);
@@ -119,6 +121,7 @@ const ProductCacheWarmer: React.FC = () => {
 
   React.useEffect(() => {
     if (!pharmacy?.id) return;
+    let warmTimer: number | undefined;
 
     const warm = async () => {
       if (isWarmingRef.current || !navigator.onLine) return;
@@ -126,10 +129,22 @@ const ProductCacheWarmer: React.FC = () => {
       if (lastSynced && Date.now() - new Date(lastSynced).getTime() < PRODUCT_CACHE_REFRESH_MS) return;
       isWarmingRef.current = true;
       try {
-        const response = await api.get('/inventory/products', { params: { limit: 500 } });
-        const products = response.data?.data ?? [];
-        if (Array.isArray(products) && products.length > 0) {
+        let page = 1;
+        let cachedCount = 0;
+        while (page <= PRODUCT_CACHE_MAX_PAGES) {
+          const response = await api.get('/inventory/products/offline-cache', {
+            params: { page, limit: PRODUCT_CACHE_PAGE_LIMIT },
+            timeout: 10_000,
+          });
+          const products = response.data?.data ?? [];
+          if (!Array.isArray(products) || products.length === 0) break;
           await cacheProducts(products);
+          cachedCount += products.length;
+          if (products.length < PRODUCT_CACHE_PAGE_LIMIT) break;
+          page += 1;
+        }
+        if (cachedCount > 0) {
+          await markProductCatalogSynced();
         }
       } catch {
         // best-effort — never block the app
@@ -138,9 +153,27 @@ const ProductCacheWarmer: React.FC = () => {
       }
     };
 
-    void warm();
-    window.addEventListener('online', warm);
-    return () => window.removeEventListener('online', warm);
+    const scheduleWarm = () => {
+      if (warmTimer) {
+        window.clearTimeout(warmTimer);
+      }
+      warmTimer = window.setTimeout(() => {
+        if ('requestIdleCallback' in window) {
+          window.requestIdleCallback(() => void warm(), { timeout: 10_000 });
+          return;
+        }
+        void warm();
+      }, 15_000);
+    };
+
+    scheduleWarm();
+    window.addEventListener('online', scheduleWarm);
+    return () => {
+      if (warmTimer) {
+        window.clearTimeout(warmTimer);
+      }
+      window.removeEventListener('online', scheduleWarm);
+    };
   }, [pharmacy?.id]);
 
   return null;

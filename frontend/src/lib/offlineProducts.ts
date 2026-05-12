@@ -4,6 +4,12 @@ const DB_NAME = 'pharmaconnect-products';
 const DB_VERSION = 1;
 const CATALOG_STORE = 'catalog';
 const META_STORE = 'meta';
+const CATALOG_SYNC_KEY = 'catalogLastSynced';
+const LAST_WRITE_KEY = 'lastUpdated';
+
+type CacheProductsOptions = {
+  catalogSnapshot?: boolean;
+};
 
 function supportsIndexedDb() {
   return typeof window !== 'undefined' && 'indexedDB' in window;
@@ -37,7 +43,7 @@ function openDb(): Promise<IDBDatabase> {
   });
 }
 
-export async function cacheProducts(products: Product[]): Promise<void> {
+export async function cacheProducts(products: Product[], options: CacheProductsOptions = {}): Promise<void> {
   if (!supportsIndexedDb() || products.length === 0) return;
   const db = await openDb();
   const tx = db.transaction([CATALOG_STORE, META_STORE], 'readwrite');
@@ -46,7 +52,23 @@ export async function cacheProducts(products: Product[]): Promise<void> {
   for (const product of products) {
     store.put(product);
   }
-  metaStore.put({ key: 'lastSynced', value: new Date().toISOString() });
+  const now = new Date().toISOString();
+  metaStore.put({ key: LAST_WRITE_KEY, value: now });
+  if (options.catalogSnapshot) {
+    metaStore.put({ key: CATALOG_SYNC_KEY, value: now });
+  }
+  await new Promise<void>((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+  db.close();
+}
+
+export async function markProductCatalogSynced(): Promise<void> {
+  if (!supportsIndexedDb()) return;
+  const db = await openDb();
+  const tx = db.transaction(META_STORE, 'readwrite');
+  tx.objectStore(META_STORE).put({ key: CATALOG_SYNC_KEY, value: new Date().toISOString() });
   await new Promise<void>((resolve, reject) => {
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
@@ -89,7 +111,7 @@ export async function getProductCacheTimestamp(): Promise<string | null> {
   const db = await openDb();
   const tx = db.transaction(META_STORE, 'readonly');
   const meta = await requestToPromise(
-    tx.objectStore(META_STORE).get('lastSynced') as IDBRequest<
+    tx.objectStore(META_STORE).get(CATALOG_SYNC_KEY) as IDBRequest<
       { key: string; value: string } | undefined
     >,
   );
