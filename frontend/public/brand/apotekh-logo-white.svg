@@ -1,24 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 44" fill="none">
-  <!-- Cross mark (44×44) -->
-  <!-- Vertical bar -->
-  <rect x="20.25" y="10" width="4.5" height="24" rx="1" fill="white"/>
-  <!-- Horizontal bar -->
-  <rect x="10" y="20.25" width="24" height="4.5" rx="1" fill="white"/>
-  <!-- Centre swelling -->
-  <circle cx="22.5" cy="22.5" r="3.5" fill="white"/>
-  <!-- Top node -->
-  <circle cx="22.5" cy="4" r="4" fill="white"/>
-  <!-- Bottom node -->
-  <circle cx="22.5" cy="41" r="4" fill="white"/>
-  <!-- Left node -->
-  <circle cx="4" cy="22.5" r="4" fill="white"/>
-  <!-- Right node — amber -->
-  <circle cx="41" cy="22.5" r="4" fill="#F5A623"/>
-  <circle cx="41" cy="22.5" r="1.8" fill="white" opacity="0.35"/>
-  <!-- Wordmark -->
-  <text x="54" y="30"
-    font-family="'DM Sans', 'Segoe UI', system-ui, sans-serif"
-    font-size="22" font-weight="700" letter-spacing="1.5">
-    <tspan fill="white">APOTEK</tspan><tspan fill="#7ECFB4">H</tspan>
+<svg xmlns="http://www.w3.org/2000/svg" width="460" height="96" viewBox="0 0 460 96" fill="none">
+  <g transform="translate(6 8) scale(0.333333)">
+    <path d="M120 56V200" stroke="#FFFFFF" stroke-width="14" stroke-linecap="round"/>
+    <path d="M56 120H184" stroke="#FFFFFF" stroke-width="14" stroke-linecap="round"/>
+    <circle cx="120" cy="120" r="12" fill="#FFFFFF"/>
+    <circle cx="120" cy="36" r="14" fill="#FFFFFF"/>
+    <circle cx="120" cy="210" r="13" fill="#FFFFFF"/>
+    <circle cx="36" cy="120" r="13" fill="#FFFFFF"/>
+    <circle cx="204" cy="120" r="15" fill="#E8A020"/>
+    <circle cx="204" cy="120" r="6" fill="#FFFFFF" opacity="0.6"/>
+  </g>
+  <text x="102" y="66" font-family="'DM Sans', 'Segoe UI', Arial, sans-serif" font-size="56" font-weight="800" letter-spacing="0">
+    <tspan fill="#FFFFFF">APOTEK</tspan><tspan fill="#7ECFB4">H</tspan>
   </text>
 </svg>
