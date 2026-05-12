@@ -90,19 +90,22 @@ A cross with 4 solid circular tip nodes and a filled centre swelling. The right
 node is amber — signalling an active pharmacy. Symbolises: connection, pharmacy
 cross, network nodes.
 
-Canvas: 100×100. Geometry (icon variant, dark teal #0D4035 background):
-- Vertical bar: x=45, y=21, w=10, h=58, rx=2, fill=white
-- Horizontal bar: x=21, y=45, w=58, h=10, rx=2, fill=white
-- Centre swelling: cx=50, cy=50, r=8, fill=white
-- Top/bottom/left nodes: r=9, fill=white, at (50,9), (50,91), (9,50)
-- Right node (active signal): r=9, fill=#E8930A, + inner circle r=4 fill=white opacity=0.30
+Canvas: 100×100. Geometry (icon variant, primary teal #1A6B5C background):
+- Vertical bar: x=45, y=21, w=10, h=58, rx=2, fill=#0D4035
+- Horizontal bar: x=21, y=45, w=58, h=10, rx=2, fill=#0D4035
+- Centre swelling: cx=50, cy=50, r=8, fill=#0D4035
+- Top/bottom/left nodes: r=9, fill=#0D4035, at (50,9), (50,91), (9,50)
+- Right node (active signal): r=9, fill=#F5A623, + inner circle r=4 fill=white opacity=0.30
 
 Logo wordmark (`apotekh-logo.svg`, light backgrounds):
-- Cross in #1A3328, amber right node #E8930A
+- Bars + centre: #1A3328 (dark forest)
+- Top/bottom/left nodes: #1A6B5C (primary teal)
+- Right node: #F5A623 (amber)
 - Text: `APOTEK` in #1A3328, `H` in #7ECFB4
 
 Logo wordmark (`apotekh-logo-white.svg`, dark backgrounds):
-- White cross, amber right node
+- Bars + nodes: white
+- Right node: #F5A623 (amber)
 - Text: `APOTEK` in white, `H` in #7ECFB4
 
 ### Colour system — Slate Teal

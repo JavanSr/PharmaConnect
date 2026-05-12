@@ -7,13 +7,13 @@
   <!-- Centre swelling -->
   <circle cx="22.5" cy="22.5" r="3.5" fill="#1A3328"/>
   <!-- Top node -->
-  <circle cx="22.5" cy="4" r="4" fill="#1A3328"/>
+  <circle cx="22.5" cy="4" r="4" fill="#1A6B5C"/>
   <!-- Bottom node -->
-  <circle cx="22.5" cy="41" r="4" fill="#1A3328"/>
+  <circle cx="22.5" cy="41" r="4" fill="#1A6B5C"/>
   <!-- Left node -->
-  <circle cx="4" cy="22.5" r="4" fill="#1A3328"/>
+  <circle cx="4" cy="22.5" r="4" fill="#1A6B5C"/>
   <!-- Right node — amber -->
-  <circle cx="41" cy="22.5" r="4" fill="#E8930A"/>
+  <circle cx="41" cy="22.5" r="4" fill="#F5A623"/>
   <circle cx="41" cy="22.5" r="1.8" fill="white" opacity="0.35"/>
   <!-- Wordmark -->
   <text x="54" y="30"
