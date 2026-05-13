@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   flushOfflineWrites,
   getOfflineWriteCount,
@@ -8,13 +8,17 @@ import {
 import { useConnectivityStore } from '@/stores/connectivityStore';
 
 export function useOfflineSync(autoFlush = true) {
-  const [isOnline, setIsOnline] = useState(() => navigator.onLine);
+  // Single source of truth — read directly from the connectivity store
+  const isOnline = useConnectivityStore((s) => s.isOnline);
+  const isReachable = useConnectivityStore((s) => s.isReachable);
+  const setConnectivityOnline = useConnectivityStore((s) => s.setOnline);
+  const setPendingSyncCount = useConnectivityStore((s) => s.setPendingSyncCount);
+
   const [pendingWrites, setPendingWrites] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
   const [lastWarning, setLastWarning] = useState<string | null>(null);
-  const setConnectivityOnline = useConnectivityStore((state) => state.setOnline);
-  const setPendingSyncCount = useConnectivityStore((state) => state.setPendingSyncCount);
+  const prevReachableRef = useRef<boolean | null>(null);
 
   const refreshPendingWrites = useCallback(async () => {
     const count = await getOfflineWriteCount();
@@ -35,37 +39,44 @@ export function useOfflineSync(autoFlush = true) {
       setPendingWrites(result.remaining);
       setPendingSyncCount(result.remaining);
       if (result.purgedExpired > 0) {
-        setLastWarning(`${result.purgedExpired} queued offline write${result.purgedExpired === 1 ? '' : 's'} expired after 7 days and were removed.`);
+        setLastWarning(
+          `${result.purgedExpired} queued offline write${result.purgedExpired === 1 ? '' : 's'} expired after 7 days and were removed.`,
+        );
       }
       return result;
     } finally {
       setIsSyncing(false);
     }
-  }, [refreshPendingWrites]);
+  }, [refreshPendingWrites, setPendingSyncCount]);
+
+  // Flush when the heartbeat confirms the server is reachable after being unreachable
+  useEffect(() => {
+    if (prevReachableRef.current === false && isReachable && autoFlush) {
+      void flush();
+    }
+    prevReachableRef.current = isReachable;
+  }, [isReachable, autoFlush, flush]);
 
   useEffect(() => {
     void refreshPendingWrites();
 
     const handleOnline = () => {
-      setIsOnline(true);
       setConnectivityOnline(true);
-      if (autoFlush) {
-        void flush();
-      }
+      if (autoFlush) void flush();
     };
 
     const handleOffline = () => {
-      setIsOnline(false);
       setConnectivityOnline(false);
     };
+
     const handleQueueChange = () => void refreshPendingWrites();
+
     const handleSyncStatus = (event: Event) => {
       const detail = (event as CustomEvent<{ message?: string }>).detail;
-      if (detail?.message) {
-        setLastWarning(detail.message);
-      }
+      if (detail?.message) setLastWarning(detail.message);
       void refreshPendingWrites();
     };
+
     const handleServiceWorkerMessage = (event: MessageEvent) => {
       if (event.data?.type === 'PC_SYNC_STATUS') {
         window.dispatchEvent(new CustomEvent(OFFLINE_SYNC_STATUS_EVENT, { detail: event.data }));
@@ -78,9 +89,7 @@ export function useOfflineSync(autoFlush = true) {
     window.addEventListener(OFFLINE_SYNC_STATUS_EVENT, handleSyncStatus);
     navigator.serviceWorker?.addEventListener('message', handleServiceWorkerMessage);
 
-    if (autoFlush && navigator.onLine) {
-      void flush();
-    }
+    if (autoFlush && navigator.onLine) void flush();
 
     return () => {
       window.removeEventListener('online', handleOnline);
@@ -89,7 +98,10 @@ export function useOfflineSync(autoFlush = true) {
       window.removeEventListener(OFFLINE_SYNC_STATUS_EVENT, handleSyncStatus);
       navigator.serviceWorker?.removeEventListener('message', handleServiceWorkerMessage);
     };
-  }, [autoFlush, flush, refreshPendingWrites, setConnectivityOnline]);
+  // flush and refreshPendingWrites are stable refs — ESLint exhaustive-deps is intentionally
+  // limited here to avoid re-subscribing on every render.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoFlush, setConnectivityOnline]);
 
   return {
     isOnline,
