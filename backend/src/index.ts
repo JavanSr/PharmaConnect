@@ -34,6 +34,7 @@ import { reviewRouter } from './modules/review/review.router';
 import { founderRouter } from './modules/founder/founder.router';
 import { catalogueImportRouter } from './modules/catalogue-import/catalogue-import.router';
 import { sourceSyncRouter } from './modules/source-sync/source-sync.router';
+import { agentsRouter } from './modules/agents/agents.router';
 import { registerExpiryAlertsJob } from './jobs/expiry-alerts';
 import { registerLowStockAlertsJob } from './jobs/low-stock-alerts';
 import { registerComplianceAlertsJob, registerComplianceHealthJob } from './jobs/compliance-alerts';
@@ -198,6 +199,7 @@ app.use(`${v1}/review-queue`, reviewRouter);
 app.use(`${v1}/founder`,           founderRouter);
 app.use(`${v1}/catalogue-import`,  catalogueImportRouter);
 app.use(`${v1}/source-sync`,       sourceSyncRouter);
+app.use(`${v1}/agents`,            authenticate, agentsRouter);
 
 // ── Error handling ────────────────────────────────────────────────────────────
 app.use(notFound);
