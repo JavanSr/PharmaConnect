@@ -54,8 +54,8 @@ export default function ModulePage({ params }: ModulePageProps) {
 
         {!currentModule.available ? (
           <div className="mt-8 rounded-lg border border-amber/30 bg-amber/10 p-5 text-sm text-slate">
-            This feature is coming soon. Join early access to be among the first pharmacies
-            to receive it.
+            This feature is coming soon. Request access to be among the first pharmacies
+            to receive it when it is available.
           </div>
         ) : null}
 
@@ -101,7 +101,7 @@ export default function ModulePage({ params }: ModulePageProps) {
         </section>
 
         <div className="mt-10">
-          <Button href="/contact#waitlist">Get early access</Button>
+          <Button href="/contact#waitlist">Get access</Button>
         </div>
       </div>
     </main>

@@ -5,7 +5,7 @@ import ContactForm from "@/components/ContactForm";
 import { cn } from "@/lib/utils";
 
 const tabs = [
-  { label: "Get early access", value: "waitlist" as const },
+  { label: "Get access", value: "waitlist" as const },
   { label: "Investor inquiry", value: "investor" as const },
   { label: "Partnership inquiry", value: "partner" as const },
 ];

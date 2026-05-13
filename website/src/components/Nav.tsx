@@ -67,7 +67,7 @@ export default function Nav() {
 
           <div className="hidden items-center gap-3 lg:flex">
             <Button href="/contact#waitlist" size="sm" variant="primary">
-              Get early access
+              Get access
             </Button>
             <Button href="/investors" size="sm" variant="ghost">
               Investors
@@ -117,7 +117,7 @@ export default function Nav() {
             </nav>
             <div className="mt-8 grid gap-3">
               <Button href="/contact#waitlist" size="lg" variant="primary">
-                Get early access
+                Get access
               </Button>
               <Button href="/investors" size="lg" variant="ghost">
                 Investors

@@ -1015,9 +1015,6 @@ function PricingSection() {
             <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:20,marginBottom:20}}>
               {TIERS.map(tier=><TierCard key={tier.id} tier={tier} bill={bill}/>)}
             </div>
-            <p style={{fontSize:13,color:'var(--muted)',textAlign:'center'}}>
-              Need wholesale or enterprise? <button onClick={()=>setCat('wholesale')} style={{background:'none',border:'none',color:'var(--pc-600)',fontWeight:600,cursor:'pointer',fontSize:13,fontFamily:'inherit'}}>See wholesale & distributor plans →</button>
-            </p>
           </>
         )}
 
@@ -1090,9 +1087,9 @@ function FinalCTA() {
     <section className="reveal" style={{background:'var(--pc-800)',padding:'96px 32px',color:'white'}}>
       <div style={{maxWidth:960,margin:'0 auto'}}>
         <div style={{textAlign:'center',marginBottom:48}}>
-          <p className="mono" style={{fontSize:11,letterSpacing:'0.18em',textTransform:'uppercase',color:'#7ECFB4',marginBottom:16}}>Early access</p>
+          <p className="mono" style={{fontSize:11,letterSpacing:'0.18em',textTransform:'uppercase',color:'#7ECFB4',marginBottom:16}}>Total access</p>
           <h2 className="serif" style={{fontSize:'clamp(32px,5vw,56px)',color:'white',margin:'0 0 16px',lineHeight:1.05}}>Tanzania's pharmacies need this. Now.</h2>
-          <p style={{fontSize:16,color:'rgba(255,255,255,0.65)',maxWidth:500,margin:'0 auto'}}>Join the Arusha early access programme — 14-day free trial on every plan. No credit card. Running in minutes.</p>
+          <p style={{fontSize:16,color:'rgba(255,255,255,0.65)',maxWidth:500,margin:'0 auto'}}>Get full APOTEKH access — 14-day free trial on every plan. No credit card. Running in minutes.</p>
         </div>
         <div style={{background:'white',borderRadius:20,padding:'40px 48px',maxWidth:640,margin:'0 auto'}}>
           {sent ? (
@@ -1104,22 +1101,22 @@ function FinalCTA() {
           ):(
             <form onSubmit={e=>{e.preventDefault();setSent(true)}} style={{display:'grid',gap:16}}>
               <div>
-                <h3 className="serif" style={{fontSize:22,color:'var(--ink)',marginBottom:4}}>Request early access</h3>
+                <h3 className="serif" style={{fontSize:22,color:'var(--ink)',marginBottom:4}}>Request access</h3>
                 <p style={{fontSize:13,color:'var(--muted)'}}>We'll get back to you within 24 hours.</p>
               </div>
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
                 <div>
-                  <label style={{fontSize:12,fontWeight:600,color:'var(--ink)',display:'block',marginBottom:6}}>Your name</label>
-                  <input required placeholder="Amina Hassan" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} style={field}/>
+                  <label style={{fontSize:12,fontWeight:600,color:'var(--ink)',display:'block',marginBottom:6}}>Full name</label>
+                  <input required placeholder="Full name" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} style={field}/>
                 </div>
                 <div>
                   <label style={{fontSize:12,fontWeight:600,color:'var(--ink)',display:'block',marginBottom:6}}>Email address</label>
-                  <input required type="email" placeholder="amina@pharmacy.co.tz" value={form.email} onChange={e=>setForm({...form,email:e.target.value})} style={field}/>
+                  <input required type="email" placeholder="example@email.co.tz" value={form.email} onChange={e=>setForm({...form,email:e.target.value})} style={field}/>
                 </div>
               </div>
               <div>
                 <label style={{fontSize:12,fontWeight:600,color:'var(--ink)',display:'block',marginBottom:6}}>Pharmacy name</label>
-                <input required placeholder="Arusha Central Pharmacy" value={form.pharmacy} onChange={e=>setForm({...form,pharmacy:e.target.value})} style={field}/>
+                <input required placeholder="Pharmacy name" value={form.pharmacy} onChange={e=>setForm({...form,pharmacy:e.target.value})} style={field}/>
               </div>
               <div>
                 <label style={{fontSize:12,fontWeight:600,color:'var(--ink)',display:'block',marginBottom:6}}>Plan you're interested in</label>
@@ -1133,13 +1130,13 @@ function FinalCTA() {
               </div>
               <button type="submit" style={{padding:'13px',borderRadius:10,background:'var(--pc-600)',color:'white',
                 fontSize:14,fontWeight:700,boxShadow:'0 4px 14px rgba(26,107,92,0.3)',marginTop:4}}>
-                Request early access →
+                Request access →
               </button>
             </form>
           )}
         </div>
         <p style={{textAlign:'center',marginTop:24,fontSize:12,color:'rgba(255,255,255,0.4)'}}>
-          elihaki.yusuph@gmail.com · +255 764 591 374 · @APOTEKH · Arusha, Tanzania
+          elihaki.yusuph@gmail.com · +255 764 591 374 · @APOTEKH · Tanzania
         </p>
       </div>
     </section>
@@ -1156,7 +1153,7 @@ function Footer() {
           <div>
             <Logo white height={26}/>
             <p style={{fontSize:13,color:'rgba(255,255,255,0.55)',lineHeight:1.75,margin:'16px 0 12px',maxWidth:280}}>The pharmacy-side platform for better pharmaceutical services in Tanzania.</p>
-            <p style={{fontSize:12,color:'rgba(255,255,255,0.35)'}}>Arusha, Tanzania · 2026</p>
+            <p style={{fontSize:12,color:'rgba(255,255,255,0.35)'}}>Tanzania · 2026</p>
             <a href="mailto:elihaki.yusuph@gmail.com" style={{display:'block',marginTop:8,fontSize:12,color:'rgba(255,255,255,0.5)'}}>elihaki.yusuph@gmail.com</a>
           </div>
           {[

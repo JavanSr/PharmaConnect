@@ -243,7 +243,7 @@ export default function PricingPage() {
           <h2 className="font-serif text-3xl font-semibold">Ready to get started?</h2>
           <p className="mt-3 text-white/70">Tell us about your pharmacy and we will respond within 48 hours.</p>
           <div className="mt-6">
-            <Button href="/contact#waitlist" variant="outline">Get early access</Button>
+            <Button href="/contact#waitlist" variant="outline">Get access</Button>
           </div>
         </section>
       </div>

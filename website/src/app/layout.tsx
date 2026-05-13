@@ -1,20 +1,18 @@
 import type { Metadata } from "next";
 import { Analytics } from "@vercel/analytics/react";
-import Footer from "@/components/Footer";
-import Nav from "@/components/Nav";
 import { dmSans, dmSerif, jetbrainsMono } from "@/lib/fonts";
 import "./globals.css";
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://apotekh.co.tz"),
   title: {
-    default: "APOTEKH - Better Pharmaceutical Services for Tanzania",
-    template: "%s - APOTEKH",
+    default: "APOTEKH · The operating system for pharmacies",
+    template: "%s · APOTEKH",
   },
   description:
-    "The pharmacy-side platform for Tanzania's 14,000+ pharmacies and ADDOs. Inventory, dispensing, patient safety, and compliance — live in Dodoma.",
+    "Tanzania's pharmacies need more than a point-of-sale system. APOTEKH gives them inventory control, patient safety checks, regulatory compliance, and analytics — in one platform.",
   keywords:
-    "Tanzania pharmacy software, pharmaceutical management, inventory, dispensing, patient safety, Dodoma, APOTEKH",
+    "Tanzania pharmacy software, pharmaceutical management, inventory, dispensing, patient safety, APOTEKH, TMDA",
   openGraph: {
     type: "website",
     locale: "en_TZ",
@@ -37,9 +35,7 @@ export default function RootLayout({
         <link rel="icon" type="image/svg+xml" href="/assets/logo/apotekh-icon.svg" />
       </head>
       <body>
-        <Nav />
         {children}
-        <Footer />
         <Analytics />
       </body>
     </html>

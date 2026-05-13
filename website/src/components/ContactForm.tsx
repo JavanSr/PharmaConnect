@@ -152,7 +152,7 @@ export default function ContactForm({ variant }: ContactFormProps) {
 
       <Button className="w-full" size="lg" type="submit" variant="primary">
         {variant === "waitlist"
-          ? "Request early access →"
+          ? "Request access →"
           : variant === "investor"
             ? "Send inquiry →"
             : "Send partnership inquiry →"}
