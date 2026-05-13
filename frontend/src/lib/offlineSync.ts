@@ -276,6 +276,7 @@ export async function flushOfflineWrites(): Promise<FlushResult> {
         method: queuedWrite.method,
         data: queuedWrite.body,
         headers: queuedWrite.headers,
+        _offlineQueued: true,
       });
       await removeOfflineWrite(queuedWrite.id);
       synced += 1;

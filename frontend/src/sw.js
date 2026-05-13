@@ -62,9 +62,12 @@ registerRoute(
   }),
 );
 
-// API GET requests — 7 days
+// API GET requests — 7 days (health endpoint excluded so heartbeat always tests live network)
 registerRoute(
-  ({ request, url }) => request.method === 'GET' && url.pathname.startsWith('/api/'),
+  ({ request, url }) =>
+    request.method === 'GET' &&
+    url.pathname.startsWith('/api/') &&
+    !url.pathname.endsWith('/health'),
   new NetworkFirst({
     cacheName: API_READ_CACHE,
     networkTimeoutSeconds: 5,

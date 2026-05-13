@@ -469,7 +469,9 @@ export const StockIntakePage: React.FC = () => {
             await api.post('/inventory/batches', payload);
             results.push({ queuedOffline: false });
           } catch (e: any) {
-            if (!e.response) {
+            if (e?.isOfflineQueued) {
+              results.push({ queuedOffline: true });
+            } else if (!e.response) {
               await enqueueOfflineWrite({
                 feature: 'inventory',
                 entityType: 'BATCH',

@@ -52,7 +52,7 @@ api.interceptors.request.use((config) => {
 
 const WRITE_METHODS = new Set(['post', 'put', 'patch', 'delete']);
 const SKIP_OFFLINE_QUEUE_URLS = new RegExp(
-  '^(/api/v1)?/(auth/|health$|inventory/conflicts)',
+  '^(/api/v1)?/(auth/|health$|inventory/conflicts|dispensing/checkout)',
 );
 
 function deriveOfflineMeta(url: string, offlineMeta?: { feature?: string; entityType?: string; entityId?: string }) {
@@ -66,6 +66,10 @@ function deriveOfflineMeta(url: string, offlineMeta?: { feature?: string; entity
 
 // Extend AxiosRequestConfig with optional offline metadata
 declare module 'axios' {
+  interface AxiosRequestConfig {
+    _offlineMeta?: { feature?: string; entityType?: string; entityId?: string };
+    _offlineQueued?: boolean;
+  }
   interface InternalAxiosRequestConfig {
     _offlineMeta?: { feature?: string; entityType?: string; entityId?: string };
     _offlineQueued?: boolean;
