@@ -28,7 +28,7 @@ export default function NhifFlow() {
       <div className="mt-6 rounded-xl bg-amber/10 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm font-medium text-slate">
-            Target: ≥70% NHIF claims acceptance rate across early access pharmacies.
+            Target: ≥70% NHIF claims acceptance rate across APOTEKH pharmacies.
           </p>
           <span className="text-xs font-semibold text-amber">70% target</span>
         </div>

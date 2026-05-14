@@ -2,7 +2,7 @@ import ContactTabs from "@/components/ContactTabs";
 
 export const metadata = {
   title: "Contact - APOTEKH",
-  description: "Get in touch with APOTEKH — early access requests, investor inquiries, and institutional partnerships.",
+  description: "Get in touch with APOTEKH — access requests, investor inquiries, and institutional partnerships.",
 };
 
 export default function ContactPage() {
