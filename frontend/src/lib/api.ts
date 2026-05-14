@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { useAuthStore } from '@/stores/authStore';
+import { useConnectivityStore } from '@/stores/connectivityStore';
 
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '0.0.0.0', '::1']);
 
@@ -47,7 +48,37 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Handle 401 — refresh or logout
+// ── Offline write queue ──────────────────────────────────────────────────────
+
+const WRITE_METHODS = new Set(['post', 'put', 'patch', 'delete']);
+const SKIP_OFFLINE_QUEUE_URLS = new RegExp(
+  '^(/api/v1)?/(auth/|health$|inventory/conflicts|dispensing/checkout)',
+);
+
+function deriveOfflineMeta(url: string, offlineMeta?: { feature?: string; entityType?: string; entityId?: string }) {
+  const path = url.replace(/^\/api\/v1/, '').replace(/^\/+/, '');
+  const segments = path.split('/').filter(Boolean);
+  const feature = offlineMeta?.feature ?? segments[0] ?? 'unknown';
+  const entityType = offlineMeta?.entityType ?? segments.slice(0, 2).join('_').toUpperCase();
+  const entityId = offlineMeta?.entityId ?? `offline-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  return { feature, entityType, entityId };
+}
+
+// Extend AxiosRequestConfig with optional offline metadata
+declare module 'axios' {
+  interface AxiosRequestConfig {
+    _offlineMeta?: { feature?: string; entityType?: string; entityId?: string };
+    _offlineQueued?: boolean;
+  }
+  interface InternalAxiosRequestConfig {
+    _offlineMeta?: { feature?: string; entityType?: string; entityId?: string };
+    _offlineQueued?: boolean;
+    _retry?: boolean;
+  }
+}
+
+// ── 401 refresh queue ────────────────────────────────────────────────────────
+
 let isRefreshing = false;
 let queue: Array<{ resolve: (t: string) => void; reject: (e: unknown) => void }> = [];
 
@@ -60,6 +91,53 @@ api.interceptors.response.use(
   (res) => res,
   async (error) => {
     const original = error.config;
+
+    // Auto-queue write operations that fail due to network unavailability
+    if (
+      !error.response &&
+      original &&
+      !original._offlineQueued &&
+      WRITE_METHODS.has((original.method ?? '').toLowerCase()) &&
+      !SKIP_OFFLINE_QUEUE_URLS.test(original.url ?? '')
+    ) {
+      original._offlineQueued = true;
+      try {
+        const { enqueueOfflineWrite } = await import('@/lib/offlineSync');
+        const meta = deriveOfflineMeta(original.url ?? '', original._offlineMeta);
+        let body: Record<string, unknown> = {};
+        try {
+          body = typeof original.data === 'string'
+            ? JSON.parse(original.data)
+            : (original.data ?? {});
+        } catch { /* keep empty body */ }
+
+        await enqueueOfflineWrite({
+          feature: meta.feature,
+          entityType: meta.entityType,
+          entityId: meta.entityId,
+          url: original.url ?? '',
+          method: (original.method?.toUpperCase() ?? 'POST') as 'POST' | 'PUT' | 'PATCH' | 'DELETE',
+          body,
+        });
+
+        useConnectivityStore.getState().incrementPending();
+
+        try {
+          const { useNotificationStore } = await import('@/stores/notificationStore');
+          useNotificationStore.getState().toast.info(
+            'Saved offline — will sync when back online.',
+            5000,
+          );
+        } catch { /* notification is best-effort */ }
+
+        const queuedErr = Object.assign(new Error('OFFLINE_QUEUED'), { code: 'OFFLINE_QUEUED', isOfflineQueued: true });
+        return Promise.reject(queuedErr);
+      } catch (queueErr: unknown) {
+        const e = queueErr as { isOfflineQueued?: boolean };
+        if (e?.isOfflineQueued) return Promise.reject(queueErr);
+        // IndexedDB unavailable — fall through to original error
+      }
+    }
 
     if (error.response?.status === 401 && !original._retry) {
       if (isRefreshing) {

@@ -110,13 +110,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, collapsed, on
       {/* Logo */}
       <div className={`flex items-center gap-3 px-4 py-5 border-b border-[#D6F0E8] ${collapsed ? 'justify-center' : ''}`}>
         <img
-          src="/brand/apotekh-icon.svg"
+          src="/assets/logo/apotekh-mark-light.svg"
           alt="APOTEKH"
           className="w-9 h-9 shrink-0"
         />
         {!collapsed && (
           <div className="min-w-0">
-            <p className="text-sm font-bold text-[#0D4035] leading-tight">APOTEKH</p>
+            <p className="text-sm font-bold leading-tight">
+              <span className="text-[#0D4035]">APOTEK</span>
+              <span className="text-[#7ECFB4]">H</span>
+            </p>
             <p className="text-xs text-[#64748B] truncate">{pharmacy?.name || 'Loading...'}</p>
           </div>
         )}

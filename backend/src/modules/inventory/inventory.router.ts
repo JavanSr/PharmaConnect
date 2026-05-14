@@ -143,6 +143,20 @@ inventoryRouter.get('/products/suggestions', requirePermission('inventory.view_p
   }
 });
 
+inventoryRouter.get('/products/offline-cache', requirePermission('inventory.view_products'), async (req: AuthRequest, res, next) => {
+  try {
+    const params = z
+      .object({
+        page: z.coerce.number().optional(),
+        limit: z.coerce.number().optional(),
+      })
+      .parse(req.query);
+    res.json(await svc.listProductsForOfflineCache(pid(req), params));
+  } catch (e) {
+    next(e);
+  }
+});
+
 inventoryRouter.get('/products/:id', requirePermission('inventory.view_products'), async (req: AuthRequest, res, next) => {
   try {
     res.json({ data: await svc.getProduct(req.params.id, pid(req)) });

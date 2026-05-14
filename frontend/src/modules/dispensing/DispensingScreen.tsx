@@ -230,6 +230,7 @@ export const DispensingScreen: React.FC = () => {
           .get('/inventory/products/suggestions', {
             params: { search: immediateDrugSearch, limit: 12 },
             signal,
+            timeout: 2500,
           })
           .then((r) => r.data);
         if (Array.isArray(response.data)) {
@@ -240,8 +241,11 @@ export const DispensingScreen: React.FC = () => {
           };
         }
         return response;
-      } catch (error) {
-        if (!navigator.onLine) {
+      } catch (error: any) {
+        if (error?.code === 'ERR_CANCELED' || error?.name === 'CanceledError') {
+          throw error;
+        }
+        if (!navigator.onLine || !error?.response) {
           const cached = await searchCachedProducts(immediateDrugSearch, 12);
           return { data: await applyInventoryDeltasToProducts(cached), offline: true };
         }
@@ -261,13 +265,29 @@ export const DispensingScreen: React.FC = () => {
 
   const products: Product[] = productResults?.data || [];
   useEffect(() => {
+    let cancelled = false;
+    if (!immediateDrugSearch) {
+      setCachedMedicineProducts([]);
+      return;
+    }
+    void searchCachedProducts(immediateDrugSearch, 12)
+      .then((cached) => applyInventoryDeltasToProducts(cached))
+      .then((cached) => {
+        if (!cancelled) setCachedMedicineProducts(cached);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [immediateDrugSearch]);
+  useEffect(() => {
     if (Array.isArray(productResults?.data)) {
       setCachedMedicineProducts(productResults.data);
     }
   }, [productResults]);
   const visibleProducts = useMemo(
-    () => (productResults ? products : cachedMedicineProducts).filter((product) => productMatchesSearch(product, immediateDrugSearch)),
-    [cachedMedicineProducts, immediateDrugSearch, productResults, products],
+    () => (products.length > 0 ? products : cachedMedicineProducts).filter((product) => productMatchesSearch(product, immediateDrugSearch)),
+    [cachedMedicineProducts, immediateDrugSearch, products],
   );
   const serverPaymentMethods = (paymentMethodsQuery.data?.data?.methods ?? []) as DispensingPaymentMethodOption[];
   const availablePaymentMethods =

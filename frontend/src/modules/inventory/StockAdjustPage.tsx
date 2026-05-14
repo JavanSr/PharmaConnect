@@ -113,6 +113,7 @@ export const StockAdjustPage: React.FC = () => {
           headers: { 'Content-Type': 'multipart/form-data' },
         });
       } catch (e: any) {
+        if (e?.isOfflineQueued) return { queued: true };
         if (!e.response) {
           await enqueueOfflineWrite({
             feature: 'inventory',

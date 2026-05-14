@@ -440,65 +440,73 @@ export async function receiveStockOrderItems(
       throw Object.assign(new Error('Stock order is not open for receiving'), { status: 400 });
     }
 
-    for (const receipt of receipts) {
+    // Validate all receipts first and track cumulative quantities across receipts for the same item
+    const cumulativeMap = new Map<string, number>();
+    const validated = receipts.map((receipt) => {
       const item = order.items.find((entry) => entry.id === receipt.itemId);
-      if (!item) {
-        throw Object.assign(new Error('Stock order item not found'), { status: 404 });
-      }
-      if (!item.productId) {
-        throw Object.assign(new Error('Cannot receive an item until it is linked to a product'), { status: 400 });
-      }
-      const remaining = item.quantityOrdered - item.quantityReceived;
-      if (receipt.quantityReceived > remaining) {
-        throw Object.assign(new Error('Received quantity exceeds outstanding quantity'), { status: 400 });
-      }
+      if (!item) throw Object.assign(new Error('Stock order item not found'), { status: 404 });
+      if (!item.productId) throw Object.assign(new Error('Cannot receive an item until it is linked to a product'), { status: 400 });
+      const alreadyReceived = cumulativeMap.get(item.id) ?? item.quantityReceived;
+      const remaining = item.quantityOrdered - alreadyReceived;
+      if (receipt.quantityReceived > remaining) throw Object.assign(new Error('Received quantity exceeds outstanding quantity'), { status: 400 });
+      const cumulativeReceived = alreadyReceived + receipt.quantityReceived;
+      cumulativeMap.set(item.id, cumulativeReceived);
+      return { receipt, item, cumulativeReceived };
+    });
 
-      const batch = await tx.batch.create({
-        data: {
-          productId: item.productId,
-          pharmacyId,
-          batchNumber: receipt.batchNumber.trim(),
-          expiryDate: new Date(receipt.expiryDate),
-          quantityRemaining: receipt.quantityReceived,
-          purchasePrice: receipt.unitCost,
-          supplierId: item.supplierId,
-        },
-      });
-
-      await tx.stockMovement.create({
-        data: {
-          pharmacyId,
-          productId: item.productId,
-          batchId: batch.id,
-          userId,
-          type: 'RECEIVED',
-          quantity: receipt.quantityReceived,
-          notes: `Received via ${order.orderNumber}`,
-        },
-      });
-
-      const cumulativeReceived = item.quantityReceived + receipt.quantityReceived;
-      await tx.stockOrderItem.update({
-        where: { id: item.id },
-        data: {
-          quantityReceived: cumulativeReceived,
-          status: cumulativeReceived >= item.quantityOrdered ? 'RECEIVED' : 'PARTIALLY_RECEIVED',
-        },
-      });
-
-      item.quantityReceived = cumulativeReceived;
-      item.status = cumulativeReceived >= item.quantityOrdered ? 'RECEIVED' : 'PARTIALLY_RECEIVED';
-
-      if (item.supplierId || receipt.sellingPrice) {
-        await tx.product.update({
-          where: { id: item.productId },
+    // Create all batches in parallel
+    const createdBatches = await Promise.all(
+      validated.map(({ receipt, item }) =>
+        tx.batch.create({
           data: {
-            ...(item.supplierId ? { lastSupplierId: item.supplierId } : {}),
-            ...(receipt.sellingPrice ? { sellingPrice: receipt.sellingPrice } : {}),
+            productId: item.productId!,
+            pharmacyId,
+            batchNumber: receipt.batchNumber.trim(),
+            expiryDate: new Date(receipt.expiryDate),
+            quantityRemaining: receipt.quantityReceived,
+            purchasePrice: receipt.unitCost,
+            supplierId: item.supplierId,
           },
-        });
-      }
-    }
+        }),
+      ),
+    );
+
+    // Create all stock movements in one round-trip
+    await tx.stockMovement.createMany({
+      data: validated.map(({ receipt, item }, i) => ({
+        pharmacyId,
+        productId: item.productId!,
+        batchId: createdBatches[i].id,
+        userId,
+        type: 'RECEIVED' as const,
+        quantity: receipt.quantityReceived,
+        notes: `Received via ${order.orderNumber}`,
+      })),
+    });
+
+    // Update order items and products in parallel
+    await Promise.all([
+      ...validated.map(({ item, cumulativeReceived }) =>
+        tx.stockOrderItem.update({
+          where: { id: item.id },
+          data: {
+            quantityReceived: cumulativeReceived,
+            status: cumulativeReceived >= item.quantityOrdered ? 'RECEIVED' : 'PARTIALLY_RECEIVED',
+          },
+        }),
+      ),
+      ...validated
+        .filter(({ receipt, item }) => Boolean(item.supplierId) || Boolean(receipt.sellingPrice))
+        .map(({ receipt, item }) =>
+          tx.product.update({
+            where: { id: item.productId! },
+            data: {
+              ...(item.supplierId ? { lastSupplierId: item.supplierId } : {}),
+              ...(receipt.sellingPrice ? { sellingPrice: receipt.sellingPrice } : {}),
+            },
+          }),
+        ),
+    ]);
 
     const freshItems = await tx.stockOrderItem.findMany({ where: { stockOrderId: orderId } });
     const nextStatus = freshItems.every((item) => item.status === 'RECEIVED' || item.status === 'CANCELLED')

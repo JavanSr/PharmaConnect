@@ -4,42 +4,52 @@ import { alertAlreadySentToday, lowStockReport } from '../modules/inventory/inve
 
 export async function runLowStockAlerts(): Promise<{ queued: number }> {
   const pharmacies = await prisma.pharmacy.findMany({
-    select: {
-      id: true,
-      name: true,
-    },
+    select: { id: true, name: true },
   });
 
   let queued = 0;
+  const startOfDay = new Date();
+  startOfDay.setHours(0, 0, 0, 0);
+  const endOfDay = new Date(startOfDay);
+  endOfDay.setDate(endOfDay.getDate() + 1);
 
   for (const pharmacy of pharmacies) {
     const products = await lowStockReport(pharmacy.id);
-    for (const product of products) {
-      const existing = await alertAlreadySentToday(pharmacy.id, product.id, 'IN_APP');
-      if (existing) {
-        continue;
-      }
+    if (products.length === 0) continue;
 
-      await prisma.alertLog.create({
-        data: {
-          pharmacyId: pharmacy.id,
-          referenceId: product.id,
-          referenceType: 'PRODUCT_LOW_STOCK',
-          alertType: 'LOW_STOCK',
-          channel: 'IN_APP',
-          recipient: pharmacy.name,
-          status: 'QUEUED',
-          metadata: {
-            productName: product.name,
-            currentStock: product.currentStock ?? 0,
-            reorderLevel: product.reorderLevel,
-            shortage: product.shortage,
-          },
+    // Fetch all today's IN_APP alerts for this pharmacy in one query
+    const sentToday = await prisma.alertLog.findMany({
+      where: {
+        pharmacyId: pharmacy.id,
+        channel: 'IN_APP',
+        createdAt: { gte: startOfDay, lt: endOfDay },
+      },
+      select: { referenceId: true },
+    });
+    const sentIds = new Set(sentToday.map((a) => a.referenceId));
+
+    const toCreate = products.filter((p) => !sentIds.has(p.id));
+    if (toCreate.length === 0) continue;
+
+    await prisma.alertLog.createMany({
+      data: toCreate.map((product) => ({
+        pharmacyId: pharmacy.id,
+        referenceId: product.id,
+        referenceType: 'PRODUCT_LOW_STOCK',
+        alertType: 'LOW_STOCK',
+        channel: 'IN_APP',
+        recipient: pharmacy.name,
+        status: 'QUEUED',
+        metadata: {
+          productName: product.name,
+          currentStock: product.currentStock ?? 0,
+          reorderLevel: product.reorderLevel,
+          shortage: product.shortage,
         },
-      });
+      })),
+    });
 
-      queued += 1;
-    }
+    queued += toCreate.length;
   }
 
   return { queued };

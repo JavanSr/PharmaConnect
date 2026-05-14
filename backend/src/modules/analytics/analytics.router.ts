@@ -81,7 +81,7 @@ analyticsRouter.get('/overview', async (req: AuthRequest, res, next) => {
         where: {
           pharmacyId,
           isActive: true,
-          batches: { none: { quantityRemaining: { gt: 0 } } },
+          batches: { none: { pharmacyId, quantityRemaining: { gt: 0 } } },
         },
       }),
       prisma.batch.count({

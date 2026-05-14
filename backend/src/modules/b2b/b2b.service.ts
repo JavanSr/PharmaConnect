@@ -811,25 +811,18 @@ export async function updateOrderStatus(input: {
     });
   }
 
-  const query = `
+  const tsCol = Prisma.raw(`"${timestampColumn}"`);
+  const updatedRows = await prisma.$queryRaw<OrderRow[]>(Prisma.sql`
     UPDATE "orders"
     SET
-      "status" = $1::"OrderStatus",
-      "assigned_picker" = COALESCE($2, "assigned_picker"),
-      "assigned_driver" = COALESCE($3, "assigned_driver"),
+      "status" = ${input.nextStatus}::"OrderStatus",
+      "assigned_picker" = COALESCE(${input.assignedPicker ?? null}, "assigned_picker"),
+      "assigned_driver" = COALESCE(${input.assignedDriver ?? null}, "assigned_driver"),
       "updated_at" = NOW(),
-      "${timestampColumn}" = COALESCE("${timestampColumn}", NOW())
-    WHERE "id" = $4
+      ${tsCol} = COALESCE(${tsCol}, NOW())
+    WHERE "id" = ${order.id}
     RETURNING *
-  `;
-
-  const updatedRows = await prisma.$queryRawUnsafe<OrderRow[]>(
-    query,
-    input.nextStatus,
-    input.assignedPicker ?? null,
-    input.assignedDriver ?? null,
-    order.id,
-  );
+  `);
 
   const updated = updatedRows[0];
   const invoice = input.nextStatus === 'CONFIRMED' ? await generateVatInvoice(updated) : null;

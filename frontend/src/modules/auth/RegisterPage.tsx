@@ -71,7 +71,7 @@ export const RegisterPage: React.FC = () => {
       <div className="w-full max-w-2xl">
         <div className="flex justify-center mb-8">
           <img
-            src="/brand/apotekh-logo.svg"
+            src="/assets/logo/apotekh-logo.svg"
             alt="APOTEKH"
             className="h-10 w-auto"
           />
