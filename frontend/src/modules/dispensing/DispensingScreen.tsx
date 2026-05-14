@@ -1164,7 +1164,7 @@ export const DispensingScreen: React.FC = () => {
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                   <ShoppingCart size={16} className="text-[#1A6B5C]" />
-                  <span className="text-sm font-semibold text-[#0D4035]">Basket and payment</span>
+                  <span className="text-sm font-semibold text-[#0D4035]">Basket</span>
                 </div>
                 <Badge variant={cartItems.length > 0 ? 'success' : 'muted'} size="sm">
                   {cartItems.length} item{cartItems.length === 1 ? '' : 's'}
@@ -1186,11 +1186,11 @@ export const DispensingScreen: React.FC = () => {
                   const topAlertText = itemAlerts[0]?.text ?? '';
 
                   return (
-                    <div key={item.id} className="px-5 py-4">
+                    <div key={item.id} className="px-5 py-3">
                       <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
-                            <p className="text-sm font-semibold text-[#0D4035]">
+                            <p className="text-sm font-bold text-[#0D4035]">
                               {item.product.genericName || item.product.name}
                             </p>
                             <AwarBadge awarClass={item.product.awarClass} />
@@ -1217,20 +1217,20 @@ export const DispensingScreen: React.FC = () => {
                             )}
                           </div>
                           {isHintExpanded && topAlertText && (
-                            <p className={`mt-1 text-xs ${isModerate ? 'text-[#92400E]' : 'text-[#475569]'}`}>
+                            <p className={`mt-0.5 text-xs ${isModerate ? 'text-[#92400E]' : 'text-[#475569]'}`}>
                               {topAlertText}
                             </p>
                           )}
-                          <p className="mt-1 text-xs text-[#64748B]">{item.quantity} x {money(item.unitPrice)}</p>
+                          <p className="mt-0.5 text-xs text-[#64748B]">{item.quantity} × {money(item.unitPrice)}</p>
                         </div>
                         <div className="text-right">
-                          <p className="text-sm font-bold text-[#0D4035]">{money(item.lineTotal)}</p>
+                          <p className="text-base font-bold text-[#0D4035]">{money(item.lineTotal)}</p>
                           <button
                             type="button"
                             onClick={() => setCartItems((current) => current.filter((cartItem) => cartItem.id !== item.id))}
-                            className="mt-2 inline-flex items-center gap-1 text-xs text-[#DC2626] hover:underline"
+                            className="mt-1 inline-flex items-center gap-1 text-xs text-[#DC2626] hover:underline"
                           >
-                            <Trash2 size={12} />
+                            <Trash2 size={11} />
                             Remove
                           </button>
                         </div>
@@ -1241,7 +1241,7 @@ export const DispensingScreen: React.FC = () => {
               </div>
             )}
 
-            <div className="space-y-4 rounded-b-2xl bg-[#F8FAFC] px-5 py-5">
+            <div className="space-y-4 rounded-b-2xl border-t-2 border-[#D6F0E8] bg-[#F8FAFC] px-5 py-5">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-[#64748B]">Subtotal</span>
                 <span className="text-sm font-semibold text-[#0D4035]">{money(cartTotal)}</span>
@@ -1325,10 +1325,10 @@ export const DispensingScreen: React.FC = () => {
                   )}
                 </div>
 
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-[#64748B]">Total due</span>
-                <span className="text-xl font-bold text-[#0D4035]">{money(totalDue)}</span>
-              </div>
+                <div className="flex items-center justify-between rounded-2xl bg-[#EDF7F3] px-4 py-3">
+                  <span className="text-sm font-semibold text-[#1A6B5C]">Total due</span>
+                  <span className="text-2xl font-bold tracking-tight text-[#0D4035]">{money(totalDue)}</span>
+                </div>
 
               {safetyStatus.requiresOverride && !safetyStatus.overrideDraft && (
                 <div className="rounded-2xl border border-[#FDE68A] bg-[#FFFBEB] px-4 py-3 text-xs text-[#92400E]">
@@ -1338,7 +1338,8 @@ export const DispensingScreen: React.FC = () => {
 
               <Button
                 className="w-full"
-                leftIcon={<CheckCircle size={16} />}
+                size="lg"
+                leftIcon={<CheckCircle size={18} />}
                 loading={checkoutMutation.isPending}
                 disabled={
                   cartItems.length === 0 ||
