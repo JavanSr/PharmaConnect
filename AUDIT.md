@@ -278,3 +278,23 @@ Remaining honest constraints:
 - External email/SMS/WhatsApp delivery remains only partially verifiable until provider credentials and sender registration are complete.
 - The live Supabase pooler is still intermittently unstable from this environment, so DB-backed browser E2E is not yet a reliable CI target.
 - Backend automated coverage remains far below the CODEX 80% target, even though the deterministic default suite is green.
+
+## Safety Reporting and Tasks 1-8 Follow-up (2026-05-14)
+
+Completed in this pass:
+- Anonymous long-term safety events are now retained in `safety_events` without storing patient names, phone numbers, addresses, national IDs, exact DOB, or reusable patient profiles.
+- Dispensing checkout and offline sync now record anonymous safety signals for interactions, allergy/contraindication warnings, precautions, NCD hints, and PIC overrides.
+- `/api/v1/reports/safety-impact` now returns pharmacy-level safety impact for OWNER/PIC users and APOTEKH Office aggregate safety impact for SUPER_ADMIN.
+- `/reports` now includes the safety impact view, with APOTEKH Office accounts seeing aggregate signal volume and pharmacy-level ranking.
+- Patient-safety active-ingredient name lookup is cached under the existing safety catalogue TTL, closing the warm-cache five-drug review timing gap.
+
+Tasks 1-8 evidence refreshed:
+- Task 3: targeted Playwright offline stock intake acceptance passed.
+- Task 5: targeted backend safety reporting/timing test passed, including warm-cache five-drug `sessionReview` under 500ms.
+- Task 8: targeted Playwright dispenser denial on `/wholesale` passed.
+
+Verification commands run:
+- `backend`: `npx vitest run tests/safety-events.test.ts --coverage=false` passed.
+- `frontend`: `npx playwright test --grep "offline stock intake|dispenser is denied on wholesale dashboard"` passed.
+- `backend`: `npm run build` passed.
+- `frontend`: `npm run typecheck` passed.

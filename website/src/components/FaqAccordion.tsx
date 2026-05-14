@@ -27,7 +27,7 @@ const FAQS = [
   },
   {
     q: "Can I manage multiple pharmacy branches?",
-    a: "Yes — from Basic (2 outlets) through Premium (5 outlets). All branches appear in a single Owner Dashboard with live revenue, stock levels, and compliance status. Enterprise supports unlimited outlets.",
+    a: "Yes - ADDO includes a single-outlet Owner Dashboard. Basic (2 outlets) through Premium (5 outlets) add multi-outlet Owner Dashboard visibility with live revenue, stock levels, and compliance status. Enterprise supports unlimited outlets.",
   },
   {
     q: "How does pricing work?",

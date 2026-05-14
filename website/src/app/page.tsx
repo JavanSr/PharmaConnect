@@ -11,19 +11,17 @@ const TIERS = [
     features: [
       'Basic POS and dispensing', 'Drug interaction checking (full suite)',
       'FEFO inventory with expiry alerts', 'DLDM compliance tracker',
-      'Barcode scanning on intake and counter', 'Knowledge Hub read-only', '14-day free trial',
+      'Barcode scanning on intake and counter', 'Owner Dashboard', 'Knowledge Hub read-only', '14-day free trial',
     ],
-    out: ['Owner Dashboard', 'Void / reissue audit trail', 'Accounting module'],
   },
   {
     id: 'basic', name: 'BASIC', price: 39000, outlets: 2, users: 5, popular: false,
     desc: 'For growing pharmacies that need visibility, roles, and full compliance.',
     features: [
-      'Everything in ADDO', 'Owner Dashboard — remote oversight',
+      'Everything in ADDO', 'Multi-outlet Owner Dashboard - remote oversight',
       'Roles & permissions for all staff', 'Void / reissue audit trail',
       'Full compliance tracker (TMDA + PC licences)', 'Knowledge Hub read-only', '14-day free trial',
     ],
-    out: ['Accounting module', 'Patient Ordering Portal'],
   },
   {
     id: 'standard', name: 'STANDARD', price: 55000, outlets: 3, users: 10, popular: true,
@@ -33,7 +31,6 @@ const TIERS = [
       'Patient Ordering Portal', 'Basic marketing campaigns',
       'Multi-shop reporting', 'Knowledge Hub full access',
     ],
-    out: ['Demand forecasting', 'Revenue projections'],
   },
   {
     id: 'premium', name: 'PREMIUM', price: 75000, outlets: 5, users: 20, popular: false,
@@ -42,7 +39,6 @@ const TIERS = [
       'Everything in STANDARD', 'Demand forecasting', 'Dead stock scoring',
       'Revenue projections', 'Peer benchmarking', 'Knowledge Hub with courses', 'Priority support',
     ],
-    out: [],
   },
 ];
 
@@ -119,7 +115,6 @@ const WHOLESALE_TIERS = [
       'Client pharmacy account management', 'Delivery staff access and route tracking',
       'Goods intake with barcode scanning', 'Knowledge Hub read access', '14-day free trial',
     ],
-    out: ['Retail dispensing', 'Clinical Decision Support'],
   },
 ];
 
@@ -142,7 +137,7 @@ const FAQS = [
   },
   {
     q: 'Can I manage multiple pharmacy branches?',
-    a: 'Yes — from Basic (2 outlets) through Premium (5 outlets). All branches appear in a single Owner Dashboard with live revenue, stock levels, and compliance status. Enterprise supports unlimited outlets.',
+    a: 'Yes - ADDO includes a single-outlet Owner Dashboard. Basic (2 outlets) through Premium (5 outlets) add multi-outlet Owner Dashboard visibility with live revenue, stock levels, and compliance status. Enterprise supports unlimited outlets.',
   },
   {
     q: 'How does pricing work?',
@@ -163,15 +158,6 @@ function Check() {
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0, marginTop: 2 }}>
       <circle cx="7" cy="7" r="7" fill="#1A6B5C" opacity={0.12} />
       <path d="M4 7l2 2 4-4" stroke="#1A6B5C" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function Cross() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0, marginTop: 2 }}>
-      <circle cx="7" cy="7" r="7" fill="#516965" opacity={0.1} />
-      <path d="M5 5l4 4M9 5l-4 4" stroke="#516965" strokeWidth="1.5" strokeLinecap="round" />
     </svg>
   );
 }
@@ -916,7 +902,7 @@ function RoleSection() {
 
 // ── PRICING ───────────────────────────────────────────────────────────────────
 
-type AnyTier = { id: string; name: string; price: number; popular: boolean; desc: string; features: string[]; out?: string[]; outlets?: number; users?: number };
+type AnyTier = { id: string; name: string; price: number; popular: boolean; desc: string; features: string[]; outlets?: number; users?: number };
 
 function TierCard({ tier, bill, wide }: { tier: AnyTier; bill: string; wide?: boolean }) {
   const price = bill === 'annual' ? Math.round(tier.price * 10 / 12) : tier.price;
@@ -943,7 +929,6 @@ function TierCard({ tier, bill, wide }: { tier: AnyTier; bill: string; wide?: bo
       }}>Start free trial</a>
       <ul style={{ listStyle: 'none', display: 'grid', gap: 9 }}>
         {tier.features.map(f => <li key={f} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 12, color: '#0D4035' }}><Check />{f}</li>)}
-        {tier.out && tier.out.map(f => <li key={f} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 12, color: '#516965', opacity: 0.5 }}><Cross />{f}</li>)}
       </ul>
     </div>
   );

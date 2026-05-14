@@ -347,7 +347,8 @@ test('dispenser is denied on wholesale dashboard in browser flow', async ({ page
 
   await expectProtectedRoute(page, '/wholesale');
 
-  await expect(page.getByRole('heading', { name: 'Wholesale access is restricted' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Access is restricted' })).toBeVisible();
+  await expect(page.getByText('Your current role does not have access to this workspace.')).toBeVisible();
 });
 
 test('wholesale workspace has its own nav and keeps the legacy orders route working', async ({ page }) => {
@@ -777,7 +778,7 @@ test('dispensing hides patient checks until medicine rules trigger them and remo
   });
   await mockShell(page, { subscription: pharmacies.active });
 
-  await page.route('**/api/v1/inventory/products**', async (route) => {
+  await page.route('**/api/v1/inventory/products/suggestions**', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -1444,7 +1445,7 @@ test('offline stock intake queues locally and flushes to live batches when back 
   await expectProtectedRoute(page, '/inventory/receive');
 
   await expect(page.getByRole('button', { name: 'Scan' })).toBeVisible();
-  await page.getByLabel('Product search').fill('990000000001');
+  await page.getByLabel('Product search').fill('para');
   await page.getByRole('button', { name: /Paracetamol/i }).click();
   await expect(page.locator('input[name="productId"]')).toHaveValue(product.id);
   await page.getByLabel('Batch Number').fill(batchNumber);
@@ -1571,4 +1572,83 @@ test('receiving falls back from GS1 barcode detection to a saved product mapping
 
   await expect(page.locator('input[name="productId"]')).toHaveValue(product.id);
   await expect(page.getByText('Loaded saved mapping for Amoxicillin')).toBeVisible();
+});
+
+test('warm-cache five-drug safety review renders in under 500 ms', async ({ page }) => {
+  const drugs = [
+    { id: 'perf-1', name: 'Amoxicillin 500', genericName: 'amoxicillin', strength: '500mg', dosageForm: 'TABLET' as const, currentStock: 30, sellingPrice: 1000 },
+    { id: 'perf-2', name: 'Metformin 500', genericName: 'metformin', strength: '500mg', dosageForm: 'TABLET' as const, currentStock: 30, sellingPrice: 500 },
+    { id: 'perf-3', name: 'Atenolol 50', genericName: 'atenolol', strength: '50mg', dosageForm: 'TABLET' as const, currentStock: 30, sellingPrice: 600 },
+    { id: 'perf-4', name: 'Omeprazole 20', genericName: 'omeprazole', strength: '20mg', dosageForm: 'CAPSULE' as const, currentStock: 30, sellingPrice: 800 },
+    { id: 'perf-5', name: 'Aspirin 75', genericName: 'aspirin', strength: '75mg', dosageForm: 'TABLET' as const, currentStock: 30, sellingPrice: 300 },
+  ];
+
+  await bootstrapSession(page, {
+    user: browserUsers.activeOwner,
+    pharmacy: pharmacies.active,
+  });
+  await mockShell(page, { subscription: pharmacies.active });
+
+  await page.route('**/api/v1/inventory/products**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ data: drugs, total: drugs.length, page: 1, limit: 10, totalPages: 1 }),
+    });
+  });
+
+  let reviewCallCount = 0;
+  await page.route('**/api/v1/patient-safety/session-review', async (route) => {
+    reviewCallCount += 1;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: {
+          resolvedDrugs: drugs.slice(0, reviewCallCount).map((d) => ({
+            id: `resolved-${d.id}`,
+            genericName: d.genericName,
+            source: d.id,
+            sourceType: 'product',
+          })),
+          interactions: [],
+          contraindications: [],
+          diagnosisMatches: [],
+          ncdHints: [],
+          dosageSuggestions: [],
+          requiredPatientInputs: reviewCallCount >= 5
+            ? [{ key: 'weight', label: 'Patient weight', reason: 'Aspirin requires weight check.' }]
+            : [],
+          requiresPicPin: false,
+        },
+      }),
+    });
+  });
+
+  await page.route('**/api/v1/patient-safety/counselling-suggestions', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ data: [] }),
+    });
+  });
+
+  await expectProtectedRoute(page, '/dispensing');
+
+  for (const drug of drugs.slice(0, 4)) {
+    await page.getByLabel('Medicine').fill(drug.genericName.slice(0, 4));
+    await page.getByRole('button', { name: new RegExp(drug.name, 'i') }).click();
+    await page.getByRole('button', { name: 'Add to basket' }).click();
+  }
+
+  await expect(page.getByText('Rule-triggered patient checks')).not.toBeVisible();
+
+  await page.getByLabel('Medicine').fill('aspi');
+  await page.getByRole('button', { name: /Aspirin 75/i }).click();
+
+  const t0 = Date.now();
+  await page.getByRole('button', { name: 'Add to basket' }).click();
+  await expect(page.getByText('Rule-triggered patient checks')).toBeVisible({ timeout: 500 });
+  const elapsed = Date.now() - t0;
+  expect(elapsed).toBeLessThan(500);
 });

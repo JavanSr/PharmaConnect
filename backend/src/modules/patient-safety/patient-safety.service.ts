@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import type {
   ActiveIngredient,
   DrugContraindication,
@@ -7,7 +8,6 @@ import type {
   HepaticFlag,
   LactationFlag,
   PregnancyFlag,
-  Prisma,
   RenalFlag,
   Warning,
 } from '@prisma/client';
@@ -133,6 +133,7 @@ let pregnancyFlagCache: { value: PregnancyFlagCatalogueRow[]; expiresAt: number 
 let lactationFlagCache: { value: LactationFlagCatalogueRow[]; expiresAt: number } | null = null;
 let renalFlagCache: { value: RenalFlagCatalogueRow[]; expiresAt: number } | null = null;
 let hepaticFlagCache: { value: HepaticFlagCatalogueRow[]; expiresAt: number } | null = null;
+let activeIngredientNameCache: { value: Map<string, string>; expiresAt: number } | null = null;
 
 export type SafetySessionContext = {
   productIds?: string[];
@@ -497,6 +498,19 @@ async function getHepaticFlagCatalogue() {
   return value;
 }
 
+async function getActiveIngredientNameMap(): Promise<Map<string, string>> {
+  if (activeIngredientNameCache && activeIngredientNameCache.expiresAt > Date.now()) {
+    return activeIngredientNameCache.value;
+  }
+
+  const rows = await prisma.activeIngredient.findMany({
+    select: { id: true, normalizedName: true },
+  });
+  const value = new Map(rows.map((row) => [row.normalizedName, row.id]));
+  activeIngredientNameCache = { value, expiresAt: Date.now() + CACHE_TTL_MS };
+  return value;
+}
+
 function matchDrugFromCatalogue(catalogue: DrugDatabase[], term: string): DrugDatabase | null {
   const normalized = normalizeText(term);
   if (!normalized) {
@@ -591,15 +605,12 @@ async function resolveSafetyTargets(
 
   const normalizedDrugNames = uniqueStrings(resolvedDrugs.map((drug) => drug.genericName));
   if (normalizedDrugNames.length > 0) {
-    const ingredientMatches = await prisma.activeIngredient.findMany({
-      where: {
-        normalizedName: { in: normalizedDrugNames },
-      },
-      select: { id: true },
-    });
-
-    for (const ingredient of ingredientMatches) {
-      activeIngredientIds.add(ingredient.id);
+    const ingredientNameMap = await getActiveIngredientNameMap();
+    for (const normalizedDrugName of normalizedDrugNames) {
+      const activeIngredientId = ingredientNameMap.get(normalizedDrugName);
+      if (activeIngredientId) {
+        activeIngredientIds.add(activeIngredientId);
+      }
     }
   }
 
@@ -1249,6 +1260,345 @@ export async function sessionReview(context: SafetySessionContext) {
     requiresPicPin:
       interactionResult.interactions.some((item) => item.requiresPicPin) ||
       contraindicationResult.contraindications.some((item) => item.requiresPicPin),
+  };
+}
+
+type SafetyReview = Awaited<ReturnType<typeof sessionReview>>;
+
+type SafetyReportDateRange = {
+  from?: string;
+  to?: string;
+};
+
+function deriveAgeBand(ageYears: number | null | undefined): string | null {
+  if (typeof ageYears !== 'number' || Number.isNaN(ageYears)) {
+    return null;
+  }
+  if (ageYears < 2) {
+    return 'INFANT';
+  }
+  if (ageYears < 12) {
+    return 'CHILD';
+  }
+  if (ageYears < 18) {
+    return 'ADOLESCENT';
+  }
+  if (ageYears >= 65) {
+    return 'OLDER_ADULT';
+  }
+  return 'ADULT';
+}
+
+function safeArray(values: Array<string | null | undefined> | undefined): string[] {
+  return [...new Set((values ?? []).map((value) => value?.trim()).filter(Boolean) as string[])];
+}
+
+function createSafetyEventBase(input: {
+  pharmacyId: string;
+  userId?: string | null;
+  dispensingEventId?: string | null;
+  referenceNumber?: string | null;
+  context?: SafetySessionContext;
+  review: SafetyReview;
+  source: string;
+}) {
+  const context = input.context;
+  const productIds = safeArray(context?.productIds);
+
+  return {
+    pharmacyId: input.pharmacyId,
+    userId: input.userId ?? null,
+    dispensingEventId: input.dispensingEventId ?? null,
+    referenceNumber: input.referenceNumber ?? null,
+    productIds,
+    ageBand: deriveAgeBand(context?.ageYears),
+    pregnancyFlag: Boolean(context?.pregnant),
+    breastfeedingFlag: Boolean(context?.breastfeeding),
+    renalFlag: Boolean(context?.renalImpairment),
+    hepaticFlag: Boolean(context?.hepaticImpairment),
+    allergyFlag: Boolean(context?.allergies?.length),
+    diagnosisFlag: Boolean(context?.diagnoses?.length),
+    source: input.source,
+  };
+}
+
+function drugClassLookup(review: SafetyReview): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const drug of review.resolvedDrugs) {
+    const classes = [drug.therapeuticCategory, drug.awarClass].filter(Boolean).join(' / ');
+    if (classes) {
+      map.set(normalizeText(drug.genericName), classes);
+    }
+  }
+  return map;
+}
+
+function classesForDrugs(drugNames: string[], lookup: Map<string, string>): string[] {
+  return safeArray(drugNames.map((name) => lookup.get(normalizeText(name))));
+}
+
+export async function recordAnonymousSafetyEvents(input: {
+  pharmacyId: string;
+  userId?: string | null;
+  dispensingEventId?: string | null;
+  referenceNumber?: string | null;
+  review: SafetyReview | null;
+  context?: SafetySessionContext;
+  source?: 'DISPENSING_CHECKOUT' | 'OFFLINE_SYNC';
+  overrideEntered?: boolean;
+}) {
+  if (!input.review) {
+    return { count: 0 };
+  }
+
+  const review = input.review;
+  const base = createSafetyEventBase({
+    pharmacyId: input.pharmacyId,
+    userId: input.userId,
+    dispensingEventId: input.dispensingEventId,
+    referenceNumber: input.referenceNumber,
+    context: input.context,
+    review,
+    source: input.source ?? 'DISPENSING_CHECKOUT',
+  });
+  const classLookup = drugClassLookup(review);
+  const data: Prisma.SafetyEventCreateManyInput[] = [];
+
+  for (const alert of review.interactions) {
+    const drugNames = safeArray([alert.drugA, alert.drugB]);
+    data.push({
+      ...base,
+      eventType: 'INTERACTION_WARNING',
+      severity: normalizeFlagSeverity(alert.severity),
+      actionTaken: 'WARNING_SHOWN',
+      drugNames,
+      drugClasses: classesForDrugs(drugNames, classLookup),
+      metadata: {
+        alertId: alert.id,
+        ruleType: alert.ruleType ?? 'INTERACTION',
+        effectSummary: alert.effectSummary,
+        management: alert.management,
+        requiresPicPin: alert.requiresPicPin,
+        sourceTitle: alert.sourceTitle,
+      },
+    });
+  }
+
+  for (const alert of review.contraindications) {
+    const drugNames = safeArray([alert.drug]);
+    data.push({
+      ...base,
+      eventType: alert.conditionType === 'ALLERGY_CLASS' ? 'ALLERGY_WARNING' : 'CONTRAINDICATION_WARNING',
+      severity: normalizeFlagSeverity(alert.severity),
+      actionTaken: 'WARNING_SHOWN',
+      drugNames,
+      drugClasses: classesForDrugs(drugNames, classLookup),
+      metadata: {
+        alertId: alert.id,
+        ruleType: alert.ruleType ?? 'CONTRAINDICATION',
+        conditionType: alert.conditionType,
+        conditionValue: alert.conditionValue,
+        message: alert.message,
+        requiresPicPin: alert.requiresPicPin,
+        sourceTitle: alert.sourceTitle,
+      },
+    });
+  }
+
+  for (const alert of review.precautions) {
+    const drugNames = safeArray([alert.drug]);
+    data.push({
+      ...base,
+      eventType: 'PRECAUTION_WARNING',
+      severity: normalizeFlagSeverity(alert.severity),
+      actionTaken: 'WARNING_SHOWN',
+      drugNames,
+      drugClasses: classesForDrugs(drugNames, classLookup),
+      metadata: {
+        alertId: alert.id,
+        ruleType: alert.ruleType,
+        message: alert.message,
+        requiresPicPin: alert.requiresPicPin,
+        sourceTitle: alert.sourceTitle,
+      },
+    });
+  }
+
+  if (review.ncdHints.length > 0) {
+    data.push({
+      ...base,
+      eventType: 'NCD_COUNSELLING_HINT',
+      severity: 'INFO',
+      actionTaken: 'WARNING_SHOWN',
+      drugNames: review.resolvedDrugs.map((drug) => drug.genericName),
+      drugClasses: safeArray([...classLookup.values()]),
+      metadata: {
+        hintCount: review.ncdHints.length,
+        hints: review.ncdHints,
+      },
+    });
+  }
+
+  if (input.overrideEntered) {
+    const highestSeverity =
+      review.contraindications.find((item) => item.requiresPicPin)?.severity ??
+      review.interactions.find((item) => item.requiresPicPin)?.severity ??
+      'MAJOR';
+    data.push({
+      ...base,
+      eventType: 'PIC_OVERRIDE_DOCUMENTED',
+      severity: normalizeFlagSeverity(highestSeverity),
+      actionTaken: 'OVERRIDE_ENTERED',
+      drugNames: review.resolvedDrugs.map((drug) => drug.genericName),
+      drugClasses: safeArray([...classLookup.values()]),
+      metadata: {
+        requiresPicPin: true,
+        interactionWarnings: review.interactions.filter((item) => item.requiresPicPin).length,
+        contraindicationWarnings: review.contraindications.filter((item) => item.requiresPicPin).length,
+      },
+    });
+  }
+
+  if (data.length === 0) {
+    return { count: 0 };
+  }
+
+  return prisma.safetyEvent.createMany({ data });
+}
+
+function parseReportDate(value: string | undefined, fallback: Date): Date {
+  if (!value) {
+    return fallback;
+  }
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? fallback : date;
+}
+
+function groupRows<T extends { _count: { _all: number } }>(
+  rows: T[],
+  key: keyof T,
+): Array<{ key: string; count: number }> {
+  return rows.map((row) => ({
+    key: String(row[key] ?? 'UNKNOWN'),
+    count: row._count._all,
+  }));
+}
+
+export async function getSafetyImpactReport(input: SafetyReportDateRange & {
+  pharmacyId?: string;
+  officeScope?: boolean;
+}) {
+  const now = new Date();
+  const defaultFrom = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+  const from = parseReportDate(input.from, defaultFrom);
+  const to = parseReportDate(input.to, now);
+  const where: Prisma.SafetyEventWhereInput = {
+    createdAt: {
+      gte: from,
+      lte: to,
+    },
+  };
+  if (!input.officeScope && input.pharmacyId) {
+    where.pharmacyId = input.pharmacyId;
+  }
+  const sqlScope = input.officeScope
+    ? Prisma.empty
+    : Prisma.sql`AND "safety_events"."pharmacy_id" = ${input.pharmacyId}`;
+
+  const [
+    totalEvents,
+    byType,
+    bySeverity,
+    byAction,
+    topDrugs,
+    contextFlags,
+    officePharmacies,
+  ] = await Promise.all([
+    prisma.safetyEvent.count({ where }),
+    prisma.safetyEvent.groupBy({
+      by: ['eventType'],
+      where,
+      _count: { _all: true },
+      orderBy: { _count: { eventType: 'desc' } },
+    }),
+    prisma.safetyEvent.groupBy({
+      by: ['severity'],
+      where,
+      _count: { _all: true },
+      orderBy: { _count: { severity: 'desc' } },
+    }),
+    prisma.safetyEvent.groupBy({
+      by: ['actionTaken'],
+      where,
+      _count: { _all: true },
+      orderBy: { _count: { actionTaken: 'desc' } },
+    }),
+    prisma.$queryRaw<Array<{ name: string; count: bigint }>>(Prisma.sql`
+      SELECT drug_name AS "name", COUNT(*) AS "count"
+      FROM "safety_events", UNNEST("drug_names") AS drug_name
+      WHERE "created_at" >= ${from} AND "created_at" <= ${to} ${sqlScope}
+      GROUP BY drug_name
+      ORDER BY COUNT(*) DESC, drug_name ASC
+      LIMIT 8
+    `),
+    prisma.$queryRaw<Array<{
+      pregnancy: bigint;
+      breastfeeding: bigint;
+      renal: bigint;
+      hepatic: bigint;
+      allergy: bigint;
+      diagnosis: bigint;
+    }>>(Prisma.sql`
+      SELECT
+        COUNT(*) FILTER (WHERE "pregnancy_flag") AS "pregnancy",
+        COUNT(*) FILTER (WHERE "breastfeeding_flag") AS "breastfeeding",
+        COUNT(*) FILTER (WHERE "renal_flag") AS "renal",
+        COUNT(*) FILTER (WHERE "hepatic_flag") AS "hepatic",
+        COUNT(*) FILTER (WHERE "allergy_flag") AS "allergy",
+        COUNT(*) FILTER (WHERE "diagnosis_flag") AS "diagnosis"
+      FROM "safety_events"
+      WHERE "created_at" >= ${from} AND "created_at" <= ${to} ${sqlScope}
+    `),
+    input.officeScope
+      ? prisma.$queryRaw<Array<{ pharmacyId: string; pharmacyName: string; count: bigint }>>(Prisma.sql`
+          SELECT "safety_events"."pharmacy_id" AS "pharmacyId", "pharmacies"."name" AS "pharmacyName", COUNT(*) AS "count"
+          FROM "safety_events"
+          JOIN "pharmacies" ON "pharmacies"."id" = "safety_events"."pharmacy_id"
+          WHERE "safety_events"."created_at" >= ${from} AND "safety_events"."created_at" <= ${to}
+          GROUP BY "safety_events"."pharmacy_id", "pharmacies"."name"
+          ORDER BY COUNT(*) DESC, "pharmacies"."name" ASC
+          LIMIT 8
+        `)
+      : Promise.resolve([]),
+  ]);
+
+  const highRiskCount = bySeverity
+    .filter((row) => ['CONTRAINDICATED', 'MAJOR'].includes(row.severity))
+    .reduce((sum, row) => sum + row._count._all, 0);
+
+  return {
+    scope: input.officeScope ? 'office' : 'pharmacy',
+    from: from.toISOString(),
+    to: to.toISOString(),
+    totalEvents,
+    highRiskCount,
+    byType: groupRows(byType, 'eventType'),
+    bySeverity: groupRows(bySeverity, 'severity'),
+    byAction: groupRows(byAction, 'actionTaken'),
+    topDrugs: topDrugs.map((row) => ({ name: row.name, count: Number(row.count) })),
+    contextFlags: {
+      pregnancy: Number(contextFlags[0]?.pregnancy ?? 0),
+      breastfeeding: Number(contextFlags[0]?.breastfeeding ?? 0),
+      renal: Number(contextFlags[0]?.renal ?? 0),
+      hepatic: Number(contextFlags[0]?.hepatic ?? 0),
+      allergy: Number(contextFlags[0]?.allergy ?? 0),
+      diagnosis: Number(contextFlags[0]?.diagnosis ?? 0),
+    },
+    officePharmacies: officePharmacies.map((row) => ({
+      pharmacyId: row.pharmacyId,
+      pharmacyName: row.pharmacyName,
+      count: Number(row.count),
+    })),
   };
 }
 

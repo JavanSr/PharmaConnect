@@ -284,6 +284,7 @@ model Pharmacy {
   featureTelemetry           FeatureTelemetry[]
   prescriptions              Prescription[]
   dispensingTransactions     DispensingTransaction[]
+  safetyEvents               SafetyEvent[]
 
   @@map("pharmacies")
 }
@@ -335,6 +336,7 @@ model User {
   createdFeatureTelemetry            FeatureTelemetry[]          @relation("FeatureTelemetryCreatedBy")
   prescriptions                      Prescription[]              @relation("PrescriptionCreatedBy")
   dispensingTransactions             DispensingTransaction[]      @relation("DispensingTransactionCreatedBy")
+  safetyEvents                       SafetyEvent[]               @relation("SafetyEventUser")
 
   @@map("users")
 }
@@ -1508,6 +1510,38 @@ model OverrideLog {
 
   @@index([pharmacyId, createdAt], map: "override_log_pharmacy_created_at_idx")
   @@map("override_log")
+}
+
+model SafetyEvent {
+  id                String   @id @default(uuid())
+  pharmacyId        String   @map("pharmacy_id")
+  userId            String?  @map("user_id")
+  dispensingEventId String?  @map("dispensing_event_id")
+  referenceNumber   String?  @map("reference_number")
+  eventType         String   @map("event_type")
+  severity          String   @default("INFO")
+  actionTaken       String   @default("WARNING_SHOWN") @map("action_taken")
+  drugNames         String[] @default([]) @map("drug_names")
+  drugClasses       String[] @default([]) @map("drug_classes")
+  productIds        String[] @default([]) @map("product_ids")
+  ageBand           String?  @map("age_band")
+  pregnancyFlag     Boolean  @default(false) @map("pregnancy_flag")
+  breastfeedingFlag Boolean  @default(false) @map("breastfeeding_flag")
+  renalFlag         Boolean  @default(false) @map("renal_flag")
+  hepaticFlag       Boolean  @default(false) @map("hepatic_flag")
+  allergyFlag       Boolean  @default(false) @map("allergy_flag")
+  diagnosisFlag     Boolean  @default(false) @map("diagnosis_flag")
+  source            String   @default("DISPENSING_CHECKOUT")
+  metadata          Json     @default("{}")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  user     User?    @relation("SafetyEventUser", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([pharmacyId, createdAt], map: "safety_events_pharmacy_created_at_idx")
+  @@index([eventType, createdAt], map: "safety_events_type_created_at_idx")
+  @@index([severity, createdAt], map: "safety_events_severity_created_at_idx")
+  @@map("safety_events")
 }
 
 // ─── Dispensing Attachments ───────────────────────────────────────────────────

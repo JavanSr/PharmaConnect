@@ -271,7 +271,7 @@ export const App: React.FC = () => (
           <Route path="/wholesale/settings" element={page(<WholesaleSettingsPage />, ['OWNER', 'WHOLESALE_MANAGER'])} />
           <Route path="/b2b" element={<Navigate to="/wholesale/orders" replace />} />
           <Route path="/orders" element={<Navigate to="/wholesale/orders" replace />} />
-          <Route path="/reports" element={page(<ReportsPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'CASHIER', 'WHOLESALE_MANAGER'])} />
+          <Route path="/reports" element={page(<ReportsPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'CASHIER', 'WHOLESALE_MANAGER', 'SUPER_ADMIN'])} />
           <Route path="/attendance" element={<Suspense fallback={<PageLoader />}><AttendancePage /></Suspense>} />
           <Route path="/patients/new" element={<Navigate to="/patient-records" replace />} />
           <Route path="/patients/:id" element={<Navigate to="/patient-records" replace />} />

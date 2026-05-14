@@ -35,6 +35,7 @@ export const TIERS: Tier[] = [
       "1 outlet · 3 users · 14-day trial",
       "FEFO inventory · expiry alerts (5 thresholds) · bulk Excel import",
       "Basic POS & dispensing · customer database · sales reports",
+      "Owner Dashboard - live revenue + stock from any device",
       "Barcode scanning (EAN-13 via phone camera) · offline-first sync",
       "DLDM compliance tracker · document storage · inspection checklist",
       "TMDA bulletins & recall feed · SMS/WhatsApp notifications",
@@ -53,7 +54,7 @@ export const TIERS: Tier[] = [
     trialDays: 14,
     features: [
       "Up to 2 outlets · 5 users · 14-day trial",
-      "Owner Dashboard — live revenue + stock from any device",
+      "Multi-outlet Owner Dashboard - live revenue + stock from any device",
       "Multi-outlet consolidated dashboard",
       "Receipts, proformas, PDF export · discount management",
       "Roles & permissions · void/reissue workflow with audit trail",

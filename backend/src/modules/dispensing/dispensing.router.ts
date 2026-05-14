@@ -11,7 +11,7 @@ import { enforceTrialRestrictions } from '../../middleware/trial';
 import { picPinLimiter, verifyPicPinForPharmacy } from '../../middleware/pic-pin';
 import { prisma } from '../../lib/prisma';
 import { resolveFefoBatch } from '../inventory/inventory.service';
-import { sessionReview } from '../patient-safety/patient-safety.service';
+import { recordAnonymousSafetyEvents, sessionReview } from '../patient-safety/patient-safety.service';
 import { ensurePaymentMethodConfig } from '../settings/payment-method-config';
 import { trackFeatureTelemetry } from '../telemetry/feature-telemetry.service';
 
@@ -393,6 +393,14 @@ function parseLocalTimestamp(value: string | undefined): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+async function persistAnonymousSafetyEvents(input: Parameters<typeof recordAnonymousSafetyEvents>[0]) {
+  try {
+    await recordAnonymousSafetyEvents(input);
+  } catch (error) {
+    console.warn('Failed to record anonymous safety events', error);
+  }
+}
+
 async function completeDispensingCheckout(input: {
   payload: CheckoutPayload;
   pharmacyId: string;
@@ -725,6 +733,17 @@ async function completeDispensingCheckout(input: {
     });
   }
 
+  await persistAnonymousSafetyEvents({
+    pharmacyId,
+    userId: currentUserId,
+    dispensingEventId: checkoutResult.event.id,
+    referenceNumber,
+    review,
+    context: safetyContext,
+    source: input.source === 'OFFLINE_SYNC' ? 'OFFLINE_SYNC' : 'DISPENSING_CHECKOUT',
+    overrideEntered: Boolean(review?.requiresPicPin && payload.override),
+  });
+
   await prisma.$executeRaw(Prisma.sql`
     INSERT INTO "audit_log" ("pharmacy_id", "table_name", "record_id", "action", "acted_by", "new_data")
     VALUES (
@@ -1027,11 +1046,22 @@ dispensingRouter.post('/checkout', requirePermission('dispensing.access'), uploa
             review,
           } as Prisma.JsonObject,
         },
-      });
-    }
+    });
+  }
 
-    await prisma.$executeRaw(Prisma.sql`
-      INSERT INTO "audit_log" ("pharmacy_id", "table_name", "record_id", "action", "acted_by", "new_data")
+  await persistAnonymousSafetyEvents({
+    pharmacyId,
+    userId: currentUserId,
+    dispensingEventId: checkoutResult.event.id,
+    referenceNumber,
+    review,
+    context: safetyContext,
+    source: 'DISPENSING_CHECKOUT',
+    overrideEntered: Boolean(review?.requiresPicPin && payload.override),
+  });
+
+  await prisma.$executeRaw(Prisma.sql`
+    INSERT INTO "audit_log" ("pharmacy_id", "table_name", "record_id", "action", "acted_by", "new_data")
       VALUES (
         ${pharmacyId},
         'dispensing_events',

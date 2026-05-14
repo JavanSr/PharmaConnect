@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { authenticate, requireRole, type AuthRequest } from '../../middleware/auth';
 import { requirePermission } from '../../middleware/permissions';
 import { enforceTrialRestrictions } from '../../middleware/trial';
+import { getSafetyImpactReport } from '../patient-safety/patient-safety.service';
 import {
   getInventoryReports,
   getPeerBenchmark,
@@ -86,6 +87,33 @@ reportsRouter.get('/benchmarking/peer', requireRole('OWNER', 'PHARMACIST_IN_CHAR
   try {
     ensureFinancialReportAccess(req);
     res.json({ data: await getPeerBenchmark(pid(req)) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+reportsRouter.get('/safety-impact', requireRole('OWNER', 'PHARMACIST_IN_CHARGE', 'SUPER_ADMIN'), async (req: AuthRequest, res, next) => {
+  try {
+    const { scope, from, to } = z.object({
+      scope: z.enum(['pharmacy', 'office']).optional(),
+      from: z.string().optional(),
+      to: z.string().optional(),
+    }).parse(req.query);
+    const officeScope = scope === 'office';
+
+    if (officeScope && req.user!.normalizedRole !== 'SUPER_ADMIN') {
+      res.status(403).json({ error: 'OFFICE_SCOPE_REQUIRES_SUPER_ADMIN' });
+      return;
+    }
+
+    res.json({
+      data: await getSafetyImpactReport({
+        pharmacyId: officeScope ? undefined : pid(req),
+        officeScope,
+        from,
+        to,
+      }),
+    });
   } catch (error) {
     next(error);
   }

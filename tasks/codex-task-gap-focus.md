@@ -17,6 +17,12 @@ Close concrete gaps identified from `CODEX_TASKS.md` without rewriting existing 
 - [x] Re-run typechecks for touched frontend and backend code.
 - [x] Re-run production frontend build.
 - [x] Re-run backend typecheck after inter-branch transfer changes.
+- [x] Add anonymous safety event retention for dispensing safety reviews.
+- [x] Add pharmacy-level and APOTEKH Office aggregate safety impact reporting.
+- [x] Prove Task 3 offline receive acceptance with targeted Playwright coverage.
+- [x] Prove Task 5 warm-cache five-drug safety review stays under 500ms.
+- [x] Prove Task 8 dispenser denial on wholesale workspace with targeted Playwright coverage.
+- [x] Re-run backend build and frontend typecheck after safety/reporting changes.
 
 ## Out Of Scope For This Pass
 
