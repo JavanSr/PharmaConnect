@@ -15,9 +15,26 @@ import type { UserRole } from '@/types';
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      retry: 1,
-      staleTime: 30_000,
+      // Fire queries even when navigator.onLine is false so the service worker
+      // can intercept the fetch and serve from its API cache.
+      // Without this, React Query pauses all queries offline and the app shows
+      // infinite loading spinners even though the SW has cached every response.
+      networkMode: 'offlineFirst',
+      // Don't retry when offline — the SW will serve from cache on the first
+      // attempt. Extra retries just add 2× the wait time for no benefit.
+      retry: (failureCount, error: unknown) => {
+        if (!navigator.onLine) return false;
+        const code = (error as { code?: string } | null)?.code;
+        if (code === 'OFFLINE_QUEUED' || code === 'ERR_NETWORK') return false;
+        return failureCount < 1;
+      },
+      staleTime: 60_000,
       refetchOnWindowFocus: false,
+    },
+    mutations: {
+      // Same reasoning — don't pause mutations; api.ts interceptor queues them
+      // in IndexedDB when offline and the user gets a toast confirmation.
+      networkMode: 'offlineFirst',
     },
   },
 });
