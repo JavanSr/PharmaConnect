@@ -56,7 +56,11 @@ backend/node_modules/.prisma/
 
 # Website build
 website/.next/
+website/.next-build/
 website/build-output/
+
+# Generated review/export bundles
+review-package/
 
 # Codex task artifacts (test output, not code)
 backend/task*.json
