@@ -167,6 +167,7 @@ export const DispensingScreen: React.FC = () => {
   const [discountAmount, setDiscountAmount] = useState('');
   const [discountReason, setDiscountReason] = useState('');
   const [receipt, setReceipt] = useState<DispensingReceipt | null>(null);
+  const [expandedHints, setExpandedHints] = useState<Set<string>>(new Set());
 
   const [showPatientPanel, setShowPatientPanel] = useState(false);
   const [patientLabel, setPatientLabel] = useState(WALK_IN_LABEL);
@@ -192,6 +193,36 @@ export const DispensingScreen: React.FC = () => {
     () => cartItems.reduce((sum, item) => sum + (item.unitPrice ?? 0) * item.quantity, 0),
     [cartItems],
   );
+  const productAlertMap = useMemo(() => {
+    const map = new Map<string, Array<{ severity: string; text: string }>>();
+    const review = safetyStatus.review;
+    if (!review) return map;
+
+    const LOW_SEVERITY = new Set(['MODERATE', 'MINOR', 'INFO']);
+    const nameToProduct = new Map<string, string>();
+    for (const resolved of review.resolvedDrugs) {
+      if (resolved.sourceType === 'product') {
+        nameToProduct.set(resolved.genericName.toLowerCase(), resolved.source);
+      }
+    }
+
+    const allAlerts = [...review.interactions, ...review.contraindications, ...review.precautions];
+    for (const alert of allAlerts) {
+      const sev = alert.severity?.toUpperCase() ?? '';
+      if (!LOW_SEVERITY.has(sev)) continue;
+      const text = alert.message || alert.effectSummary || '';
+      const names = [alert.drug, alert.drugA, alert.drugB].filter(Boolean) as string[];
+      for (const name of names) {
+        const productId = nameToProduct.get(name.toLowerCase());
+        if (productId) {
+          if (!map.has(productId)) map.set(productId, []);
+          map.get(productId)!.push({ severity: sev, text });
+        }
+      }
+    }
+    return map;
+  }, [safetyStatus.review]);
+
   const parsedDiscount = Number(discountAmount || 0);
   const totalDue = Math.max(0, cartTotal - (Number.isFinite(parsedDiscount) ? parsedDiscount : 0));
   const canApplyDiscount = ['OWNER', 'PHARMACIST_IN_CHARGE', 'SUPER_ADMIN'].includes(user?.role || '');
@@ -1147,32 +1178,66 @@ export const DispensingScreen: React.FC = () => {
               </div>
             ) : (
               <div className="divide-y divide-[#D6F0E8]">
-                {cartItems.map((item) => (
-                  <div key={item.id} className="px-5 py-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="text-sm font-semibold text-[#0D4035]">
-                            {item.product.genericName || item.product.name}
-                          </p>
-                          <AwarBadge awarClass={item.product.awarClass} />
+                {cartItems.map((item) => {
+                  const itemAlerts = productAlertMap.get(item.product.id) ?? [];
+                  const isModerate = itemAlerts.some((a) => a.severity === 'MODERATE');
+                  const isMinor = !isModerate && itemAlerts.length > 0;
+                  const isHintExpanded = expandedHints.has(item.id);
+                  const topAlertText = itemAlerts[0]?.text ?? '';
+
+                  return (
+                    <div key={item.id} className="px-5 py-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-sm font-semibold text-[#0D4035]">
+                              {item.product.genericName || item.product.name}
+                            </p>
+                            <AwarBadge awarClass={item.product.awarClass} />
+                            {(isModerate || isMinor) && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setExpandedHints((prev) => {
+                                    const next = new Set(prev);
+                                    if (next.has(item.id)) next.delete(item.id);
+                                    else next.add(item.id);
+                                    return next;
+                                  })
+                                }
+                                className={`inline-flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold leading-none ${
+                                  isModerate
+                                    ? 'bg-[#FEF3C7] text-[#92400E] ring-1 ring-[#FDE68A]'
+                                    : 'bg-[#D6F0E8] text-[#1A6B5C] ring-1 ring-[#AFDFD3]'
+                                }`}
+                                title={topAlertText}
+                              >
+                                {isModerate ? '!' : 'i'}
+                              </button>
+                            )}
+                          </div>
+                          {isHintExpanded && topAlertText && (
+                            <p className={`mt-1 text-xs ${isModerate ? 'text-[#92400E]' : 'text-[#475569]'}`}>
+                              {topAlertText}
+                            </p>
+                          )}
+                          <p className="mt-1 text-xs text-[#64748B]">{item.quantity} x {money(item.unitPrice)}</p>
                         </div>
-                        <p className="mt-1 text-xs text-[#64748B]">{item.quantity} x {money(item.unitPrice)}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-bold text-[#0D4035]">{money(item.lineTotal)}</p>
-                        <button
-                          type="button"
-                          onClick={() => setCartItems((current) => current.filter((cartItem) => cartItem.id !== item.id))}
-                          className="mt-2 inline-flex items-center gap-1 text-xs text-[#DC2626] hover:underline"
-                        >
-                          <Trash2 size={12} />
-                          Remove
-                        </button>
+                        <div className="text-right">
+                          <p className="text-sm font-bold text-[#0D4035]">{money(item.lineTotal)}</p>
+                          <button
+                            type="button"
+                            onClick={() => setCartItems((current) => current.filter((cartItem) => cartItem.id !== item.id))}
+                            className="mt-2 inline-flex items-center gap-1 text-xs text-[#DC2626] hover:underline"
+                          >
+                            <Trash2 size={12} />
+                            Remove
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
 

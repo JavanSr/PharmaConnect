@@ -14,32 +14,10 @@ type OverrideDraft = {
   pic_pin: string;
 };
 
-type CounsellingSuggestion = {
-  id: string;
-  suggestionText: string;
-  severity?: string;
-  drug?: string;
-  cached?: boolean;
-};
-
-type CounsellingTrigger = {
-  rule: string;
-  severity: string;
-  drug: string;
-  flags: string[];
-};
-
-const patientFlagLabels: Array<[keyof SafetySessionPayload, string]> = [
-  ['pregnant', 'pregnant'],
-  ['breastfeeding', 'breastfeeding'],
-  ['renalImpairment', 'renal impairment'],
-  ['hepaticImpairment', 'hepatic impairment'],
-];
+const HIGH_SEVERITY = new Set(['CONTRAINDICATED', 'MAJOR']);
 
 const normalizeReview = (raw: SafetyReviewResponse | null): SafetyReviewResponse | null => {
-  if (!raw) {
-    return null;
-  }
+  if (!raw) return null;
 
   const interactions = raw.interactions ?? [];
   const contraindications = raw.contraindications ?? [];
@@ -87,6 +65,7 @@ export const PatientSafetyPanel: React.FC<{
 }> = ({ enabled, cartItems, sessionPayload, onStatusChange }) => {
   const [overrideReason, setOverrideReason] = useState('');
   const [overridePin, setOverridePin] = useState('');
+
   const requestPayload = useMemo(
     () => ({
       ...sessionPayload,
@@ -97,72 +76,28 @@ export const PatientSafetyPanel: React.FC<{
 
   const reviewQuery = useQuery({
     queryKey: ['patient-safety-session-review', requestPayload],
-    queryFn: () => api.post('/patient-safety/session-review', requestPayload).then((response) => response.data),
+    queryFn: () =>
+      api.post('/patient-safety/session-review', requestPayload).then((r) => r.data),
     enabled: enabled && cartItems.length > 0,
     staleTime: 10_000,
   });
 
   const review = normalizeReview((reviewQuery.data?.data ?? null) as SafetyReviewResponse | null);
-  const counsellingTriggers = useMemo<CounsellingTrigger[]>(() => {
-    if (!review) {
-      return [];
-    }
 
-    const flags = [
-      ...patientFlagLabels
-        .filter(([key]) => Boolean(sessionPayload[key]))
-        .map(([, label]) => label),
-      ...(sessionPayload.allergies ?? []).map((allergy) => `allergy: ${allergy}`),
-      ...(sessionPayload.diagnoses ?? []).map((diagnosis) => `diagnosis: ${diagnosis}`),
-    ];
-
-    return [
-      ...review.interactions.map((alert) => ({
-        rule: alert.effectSummary || alert.management || 'Interaction alert',
-        severity: alert.severity,
-        drug: [alert.drugA, alert.drugB].filter(Boolean).join(' + ') || 'Selected medicines',
-        flags,
-      })),
-      ...review.contraindications.map((alert) => ({
-        rule: alert.message || alert.conditionValue || 'Contraindication alert',
-        severity: alert.severity,
-        drug: alert.drug || 'Selected medicine',
-        flags,
-      })),
-      ...review.precautions.map((alert) => ({
-        rule: alert.message || alert.ruleType || 'Precaution alert',
-        severity: alert.severity,
-        drug: alert.drug || 'Selected medicine',
-        flags,
-      })),
-    ].filter((trigger) => trigger.rule.trim() && trigger.drug.trim());
-  }, [review, sessionPayload]);
-
-  const counsellingQuery = useQuery({
-    queryKey: ['patient-safety-counselling-suggestions', counsellingTriggers],
-    queryFn: () =>
-      api
-        .post('/patient-safety/counselling-suggestions', { triggers: counsellingTriggers })
-        .then((response) => response.data),
-    enabled: counsellingTriggers.length > 0,
-    staleTime: 10_000,
-  });
-  const counsellingSuggestions = (counsellingQuery.data?.data ?? []) as CounsellingSuggestion[];
-  const hasSafetyAlerts = Boolean(
+  const hasHighSeverityAlerts = Boolean(
     review &&
-      (review.interactions.length > 0 ||
-        review.contraindications.length > 0 ||
-        review.precautions.length > 0 ||
-        review.requiresPicPin),
+      (
+        [...review.interactions, ...review.contraindications, ...review.precautions].some(
+          (a) => HIGH_SEVERITY.has(a.severity?.toUpperCase() ?? ''),
+        ) || review.requiresPicPin
+      ),
   );
-  const riskSignature = useMemo(() => {
-    if (!review) {
-      return 'none';
-    }
 
+  const riskSignature = useMemo(() => {
+    if (!review) return 'none';
     return JSON.stringify({
-      interactions: review.interactions.filter((item) => item.requiresPicPin).map((item) => item.id).sort(),
-      contraindications: review.contraindications.filter((item) => item.requiresPicPin).map((item) => item.id).sort(),
+      interactions: review.interactions.filter((i) => i.requiresPicPin).map((i) => i.id).sort(),
+      contraindications: review.contraindications.filter((i) => i.requiresPicPin).map((i) => i.id).sort(),
     });
   }, [review]);
 
@@ -176,35 +111,18 @@ export const PatientSafetyPanel: React.FC<{
       onStatusChange({ review: null, requiresOverride: false });
       return;
     }
-
     onStatusChange({
       review,
       requiresOverride: Boolean(review?.requiresPicPin),
       overrideDraft:
         review?.requiresPicPin && overrideReason.trim() && overridePin.trim()
-          ? {
-              reason: overrideReason.trim(),
-              pic_pin: overridePin.trim(),
-            }
+          ? { reason: overrideReason.trim(), pic_pin: overridePin.trim() }
           : undefined,
     });
   }, [cartItems.length, enabled, onStatusChange, overridePin, overrideReason, review]);
 
-  if (!enabled) {
-    return null;
-  }
-
-  if (cartItems.length === 0) {
-    return null;
-  }
-
-  if (reviewQuery.isLoading) {
-    return null;
-  }
-
-  if (!reviewQuery.isError && review && !hasSafetyAlerts) {
-    return null;
-  }
+  if (!enabled || cartItems.length === 0 || reviewQuery.isLoading) return null;
+  if (!reviewQuery.isError && review && !hasHighSeverityAlerts) return null;
 
   return (
     <Card
@@ -214,11 +132,9 @@ export const PatientSafetyPanel: React.FC<{
             <ShieldCheck size={16} className="text-[#1A6B5C]" />
             <span className="text-sm font-semibold text-[#0D4035]">Patient safety</span>
           </div>
-          {review?.requiresPicPin ? (
-            <Badge variant="warning" size="sm">
-              PIC override required
-            </Badge>
-          ) : null}
+          {review?.requiresPicPin && (
+            <Badge variant="warning" size="sm">PIC override required</Badge>
+          )}
         </div>
       }
     >
@@ -242,14 +158,14 @@ export const PatientSafetyPanel: React.FC<{
                     <Input
                       label="Override reason"
                       value={overrideReason}
-                      onChange={(event) => setOverrideReason(event.target.value)}
+                      onChange={(e) => setOverrideReason(e.target.value)}
                       placeholder="Clinical reason for proceeding"
                     />
                     <Input
                       label="PIC PIN"
                       type="password"
                       value={overridePin}
-                      onChange={(event) => setOverridePin(event.target.value)}
+                      onChange={(e) => setOverridePin(e.target.value)}
                       placeholder="Enter PIC PIN"
                     />
                   </div>
@@ -258,41 +174,10 @@ export const PatientSafetyPanel: React.FC<{
             </div>
           )}
 
-          <InteractionAlert
-            title="Interaction alerts"
-            alerts={review.interactions}
-          />
-
-          <InteractionAlert
-            title="Contraindication alerts"
-            alerts={review.contraindications}
-          />
-
-          <InteractionAlert
-            title="Precaution alerts"
-            alerts={review.precautions}
-          />
-
+          <InteractionAlert title="Interaction alerts" alerts={review.interactions} />
+          <InteractionAlert title="Contraindication alerts" alerts={review.contraindications} />
+          <InteractionAlert title="Precaution alerts" alerts={review.precautions} />
           <NCDHints hints={review.ncdHints} />
-
-          {counsellingSuggestions.length > 0 && (
-            <div className="rounded-2xl border border-[#D6F0E8] bg-[#F8FAFC] px-4 py-4">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-sm font-semibold text-[#0D4035]">AI counselling suggestions</p>
-                {counsellingSuggestions.some((suggestion) => suggestion.cached) && (
-                  <Badge variant="info" size="sm">Cached</Badge>
-                )}
-              </div>
-              <div className="mt-3 space-y-2">
-                {counsellingSuggestions.map((suggestion) => (
-                  <p key={suggestion.id} className="text-sm text-[#475569]">
-                    {suggestion.suggestionText}
-                  </p>
-                ))}
-              </div>
-            </div>
-          )}
-
         </div>
       )}
     </Card>
