@@ -3,7 +3,7 @@ export interface Tier {
   name: string;
   price: number | null;
   annualPrice: number | null;
-  currency: "TZS";
+  currency: "Tsh";
   period: "month";
   features: string[];
   isPopular: boolean;
@@ -28,7 +28,7 @@ export const TIERS: Tier[] = [
     name: "ADDO",
     price: 20_000,
     annualPrice: 200_000,
-    currency: "TZS",
+    currency: "Tsh",
     period: "month",
     trialDays: 14,
     features: [
@@ -49,7 +49,7 @@ export const TIERS: Tier[] = [
     name: "Basic",
     price: 39_000,
     annualPrice: 390_000,
-    currency: "TZS",
+    currency: "Tsh",
     period: "month",
     trialDays: 14,
     features: [
@@ -68,7 +68,7 @@ export const TIERS: Tier[] = [
     name: "Standard",
     price: 55_000,
     annualPrice: 550_000,
-    currency: "TZS",
+    currency: "Tsh",
     period: "month",
     trialDays: 14,
     features: [
@@ -87,7 +87,7 @@ export const TIERS: Tier[] = [
     name: "Premium",
     price: 75_000,
     annualPrice: 750_000,
-    currency: "TZS",
+    currency: "Tsh",
     period: "month",
     trialDays: 14,
     features: [

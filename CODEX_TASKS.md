@@ -75,11 +75,11 @@ RULE-06  The following features are deferred and must NOT be
            - Controlled Substances TMDA Reporting
 
 RULE-07  Pricing, tier names, and user limits are fixed as:
-           ADDO:        TZS 20,000/month - 3 users - 1 outlet
-           ESSENTIAL:   TZS 35,000/month - 4 users - 1 outlet
-           STANDARD:    TZS 55,000/month - 7 users - up to 3 outlets
-           PREMIUM:     TZS 75,000/month - 12 users - up to 5 outlets
-           WHOLESALE:   TZS 100,000/month - 10+ users - 1 wholesale outlet
+           ADDO:        Tsh 20,000/month - 3 users - 1 outlet
+           ESSENTIAL:   Tsh 35,000/month - 4 users - 1 outlet
+           STANDARD:    Tsh 55,000/month - 7 users - up to 3 outlets
+           PREMIUM:     Tsh 75,000/month - 12 users - up to 5 outlets
+           WHOLESALE:   Tsh 100,000/month - 10+ users - 1 wholesale outlet
            ENTERPRISE:  Custom - unlimited users and outlets
            Annual billing: 10x monthly (2 months free)
          Do not change these values anywhere in the codebase

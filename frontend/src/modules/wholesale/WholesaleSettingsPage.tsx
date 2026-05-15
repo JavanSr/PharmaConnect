@@ -279,14 +279,14 @@ export const WholesaleSettingsPage: React.FC = () => {
                     <div>
                       <p className="font-medium text-[#0D4035]">{item.productName}</p>
                       <p className="text-sm text-[#64748B]">
-                        Base TZS {item.price.toLocaleString()}
-                        {typeof item.effectivePrice === 'number' ? ` · Effective TZS ${item.effectivePrice.toLocaleString()}` : ''}
+                        Base Tsh {item.price.toLocaleString()}
+                        {typeof item.effectivePrice === 'number' ? ` · Effective Tsh ${item.effectivePrice.toLocaleString()}` : ''}
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {Object.entries(item.tierPrices ?? {}).map(([tier, price]) => (
                         <span key={tier} className="rounded-full bg-[#EDF7F3] px-3 py-1 text-xs font-semibold text-[#0D4035]">
-                          {tier}: TZS {Number(price).toLocaleString()}
+                          {tier}: Tsh {Number(price).toLocaleString()}
                         </span>
                       ))}
                     </div>
@@ -335,7 +335,7 @@ export const WholesaleSettingsPage: React.FC = () => {
                 {newClientId && (
                   <div className="flex items-end gap-3">
                     <Input
-                      label="Initial credit limit (TZS)"
+                      label="Initial credit limit (Tsh)"
                       type="number"
                       value={newClientLimit}
                       onChange={(e) => setNewClientLimit(e.target.value)}
@@ -358,7 +358,7 @@ export const WholesaleSettingsPage: React.FC = () => {
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="font-medium text-[#0D4035]">{limit.clientName ?? limit.clientPharmacyId}</p>
-                    <p className="text-sm text-[#64748B]">Outstanding TZS {limit.outstandingBalance.toLocaleString()}</p>
+                    <p className="text-sm text-[#64748B]">Outstanding Tsh {limit.outstandingBalance.toLocaleString()}</p>
                   </div>
                   <span className={`rounded-full px-3 py-1 text-xs font-semibold ${creditDrafts[limit.id]?.blockNewOrders ? 'bg-[#FEF2F2] text-[#B91C1C]' : 'bg-[#EDF7F3] text-[#0D4035]'}`}>
                     {creditDrafts[limit.id]?.blockNewOrders ? 'Blocked' : 'Open'}

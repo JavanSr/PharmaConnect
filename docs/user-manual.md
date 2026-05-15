@@ -141,16 +141,16 @@ Current pricing:
 
 | Plan | Monthly price | Annual price | Included scale |
 |---|---:|---:|---|
-| ADDO | TZS 20,000 | TZS 200,000 | 1 outlet, 3 users |
-| BASIC | TZS 39,000 | TZS 390,000 | 2 outlets, 5 users |
-| STANDARD | TZS 55,000 | TZS 550,000 | 3 outlets, 10 users |
-| PREMIUM | TZS 75,000 | TZS 750,000 | 5 outlets, 20 users |
+| ADDO | Tsh 20,000 | Tsh 200,000 | 1 outlet, 3 users |
+| BASIC | Tsh 39,000 | Tsh 390,000 | 2 outlets, 5 users |
+| STANDARD | Tsh 55,000 | Tsh 550,000 | 3 outlets, 10 users |
+| PREMIUM | Tsh 75,000 | Tsh 750,000 | 5 outlets, 20 users |
 
 **Wholesale / distributor tiers:**
 
 | Plan | Monthly price | Annual price | Included scale |
 |---|---:|---:|---|
-| WHOLESALE | TZS 100,000 | TZS 1,000,000 | 1 wholesale outlet, 10 users + delivery staff |
+| WHOLESALE | Tsh 100,000 | Tsh 1,000,000 | 1 wholesale outlet, 10 users + delivery staff |
 | ENTERPRISE | Custom | Custom | 6+ outlets, unlimited users |
 
 Annual billing is 10x the monthly price. Enterprise pricing is negotiated for custom rollout, reporting, and governance needs.
@@ -1506,16 +1506,16 @@ Current pricing:
 
 | Plan | Monthly price | Annual price | Included scale |
 |---|---:|---:|---|
-| ADDO | TZS 20,000 | TZS 200,000 | 1 outlet, 3 users |
-| BASIC | TZS 39,000 | TZS 390,000 | 2 outlets, 5 users |
-| STANDARD | TZS 55,000 | TZS 550,000 | 3 outlets, 10 users |
-| PREMIUM | TZS 75,000 | TZS 750,000 | 5 outlets, 20 users |
+| ADDO | Tsh 20,000 | Tsh 200,000 | 1 outlet, 3 users |
+| BASIC | Tsh 39,000 | Tsh 390,000 | 2 outlets, 5 users |
+| STANDARD | Tsh 55,000 | Tsh 550,000 | 3 outlets, 10 users |
+| PREMIUM | Tsh 75,000 | Tsh 750,000 | 5 outlets, 20 users |
 
 **Wholesale / distributor tiers:**
 
 | Plan | Monthly price | Annual price | Included scale |
 |---|---:|---:|---|
-| WHOLESALE | TZS 100,000 | TZS 1,000,000 | 1 wholesale outlet, 10 users + delivery staff |
+| WHOLESALE | Tsh 100,000 | Tsh 1,000,000 | 1 wholesale outlet, 10 users + delivery staff |
 | ENTERPRISE | Custom | Custom | 6+ outlets, unlimited users |
 
 Annual billing is 10x the monthly price. Enterprise pricing is negotiated for custom rollout, reporting, and governance needs.
@@ -1633,7 +1633,7 @@ Yes. Users can have multiple pharmacy memberships and switch the active outlet. 
 
 ### What should sales staff say about pricing?
 
-Use the current pricing matrix: ADDO TZS 20,000/month, BASIC TZS 39,000/month, STANDARD TZS 55,000/month, PREMIUM TZS 75,000/month, WHOLESALE TZS 100,000/month, and ENTERPRISE custom. Annual billing is 10x monthly pricing.
+Use the current pricing matrix: ADDO Tsh 20,000/month, BASIC Tsh 39,000/month, STANDARD Tsh 55,000/month, PREMIUM Tsh 75,000/month, WHOLESALE Tsh 100,000/month, and ENTERPRISE custom. Annual billing is 10x monthly pricing.
 
 ### What makes APOTEKH Tanzania-specific?
 

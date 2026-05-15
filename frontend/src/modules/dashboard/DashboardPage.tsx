@@ -28,8 +28,8 @@ interface StatCard {
   children?: React.ReactNode;
 }
 
-const formatTzs = (value: number | string | null | undefined) =>
-  `TZS ${Number(value ?? 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+const formatTsh = (value: number | string | null | undefined) =>
+  `Tsh ${Number(value ?? 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
 
 const RevenueSparkline: React.FC<{ data?: Array<{ date: string; revenue: number }> }> = ({ data }) => {
   const values = data?.map((point) => Number(point.revenue || 0)) ?? [];
@@ -123,7 +123,7 @@ export const DashboardPage: React.FC = () => {
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         <StatCardEl
           label="Today's Revenue"
-          value={formatTzs(todayStats.revenue)}
+          value={formatTsh(todayStats.revenue)}
           icon={<Wallet size={20} className="text-[#1A6B5C]" />}
           color="bg-[#D6F0E8]"
           link="/reports"

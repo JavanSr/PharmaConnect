@@ -33,7 +33,7 @@ const BatchManagerRow = React.memo(function BatchManagerRow({ batch }: BatchMana
       <td className="px-5 py-3 text-sm font-mono text-[#0D4035]">{batch.batchNumber}</td>
       <td className="px-5 py-3 text-sm text-[#0D4035]">{format(new Date(batch.expiryDate), 'dd MMM yyyy')}</td>
       <td className="px-5 py-3 text-sm font-bold text-[#0D4035]">{batch.quantityRemaining.toLocaleString()}</td>
-      <td className="px-5 py-3 text-sm text-[#64748B]">TZS {(batch.purchasePrice || 0).toLocaleString()}</td>
+      <td className="px-5 py-3 text-sm text-[#64748B]">Tsh {(batch.purchasePrice || 0).toLocaleString()}</td>
       <td className="px-5 py-3">
         <Badge variant={variant} size="sm">{label}</Badge>
       </td>

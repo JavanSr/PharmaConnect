@@ -65,7 +65,7 @@ export const ReportsPage: React.FC = () => {
           <div className="grid gap-4 lg:grid-cols-3">
             <Card>
               <p className="text-sm text-[#64748B]">Revenue</p>
-              <p className="mt-2 text-3xl font-semibold text-[#0D4035]">TZS {(revenueQuery.data?.totalRevenue ?? 0).toFixed(2)}</p>
+              <p className="mt-2 text-3xl font-semibold text-[#0D4035]">Tsh {(revenueQuery.data?.totalRevenue ?? 0).toFixed(2)}</p>
             </Card>
             <Card>
               <p className="text-sm text-[#64748B]">Transactions</p>
@@ -80,9 +80,9 @@ export const ReportsPage: React.FC = () => {
           <Card header={<h2 className="text-lg font-semibold text-[#0D4035]">Peer Benchmark</h2>}>
             {benchmarkQuery.data?.available ? (
               <div className="space-y-2 text-sm text-[#4B5563]">
-                <p>Own revenue: TZS {Number(benchmarkQuery.data.ownRevenue ?? 0).toFixed(2)}</p>
-                <p>Average cohort revenue: TZS {Number(benchmarkQuery.data.averageRevenue ?? 0).toFixed(2)}</p>
-                <p>Median cohort revenue: TZS {Number(benchmarkQuery.data.medianRevenue ?? 0).toFixed(2)}</p>
+                <p>Own revenue: Tsh {Number(benchmarkQuery.data.ownRevenue ?? 0).toFixed(2)}</p>
+                <p>Average cohort revenue: Tsh {Number(benchmarkQuery.data.averageRevenue ?? 0).toFixed(2)}</p>
+                <p>Median cohort revenue: Tsh {Number(benchmarkQuery.data.medianRevenue ?? 0).toFixed(2)}</p>
               </div>
             ) : (
               <p className="text-sm text-[#64748B]">{benchmarkQuery.data?.message ?? 'Benchmark data is not available yet.'}</p>
@@ -94,7 +94,7 @@ export const ReportsPage: React.FC = () => {
               {(customMutation.data ?? []).map((row: { dimension: string; value: number }) => (
                 <div key={row.dimension} className="flex items-center justify-between rounded-xl bg-[#EDF7F3] px-4 py-3 text-sm">
                   <span className="font-medium text-[#0D4035]">{row.dimension || 'Unknown'}</span>
-                  <span className="text-[#0D4035]">TZS {Number(row.value ?? 0).toFixed(2)}</span>
+                  <span className="text-[#0D4035]">Tsh {Number(row.value ?? 0).toFixed(2)}</span>
                 </div>
               ))}
             </div>

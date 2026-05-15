@@ -49,7 +49,7 @@ export const OrdersPage: React.FC = () => {
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <p className="font-medium text-[#0D4035]">{order.orderNumber}</p>
-                  <p className="text-sm text-[#64748B]">TZS {order.totalAmount.toFixed(2)}</p>
+                  <p className="text-sm text-[#64748B]">Tsh {order.totalAmount.toFixed(2)}</p>
                   <p className="text-xs text-[#94A3B8]">{order.items.length} line items</p>
                   {order.scheduledDeliveryAt && (
                     <p className="mt-1 text-xs text-[#64748B]">

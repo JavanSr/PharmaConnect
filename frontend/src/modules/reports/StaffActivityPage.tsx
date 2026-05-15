@@ -1,6 +1,6 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Activity, AlertTriangle, CalendarDays, ShieldCheck, UserRound } from 'lucide-react';
+import { Activity, AlertTriangle, CalendarDays, ShieldCheck, UserRound, X } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
@@ -71,7 +71,8 @@ interface StaffActivityReport {
   }>;
 }
 
-const formatTzs = (value: number) => `TZS ${Math.round(value || 0).toLocaleString('en-TZ')}`;
+const formatTsh = (value: number) => `Tsh ${Math.round(value || 0).toLocaleString('en-TZ')}`;
+const formatTshAxis = (value: number) => `Tsh ${Math.round(value || 0).toLocaleString('en-TZ')}`;
 
 const formatRole = (role: string) => role.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 
@@ -116,13 +117,7 @@ export const StaffActivityPage: React.FC = () => {
   });
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
 
-  React.useEffect(() => {
-    if (!selectedId && data?.staff?.[0]) {
-      setSelectedId(data.staff[0].id);
-    }
-  }, [data?.staff, selectedId]);
-
-  const selected = data?.staff.find((staff) => staff.id === selectedId) ?? data?.staff[0] ?? null;
+  const selected = data?.staff.find((staff) => staff.id === selectedId) ?? null;
 
   if (isLoading) {
     return (
@@ -171,13 +166,15 @@ export const StaffActivityPage: React.FC = () => {
 
       <div className="grid gap-4 lg:grid-cols-3">
         {data.staff.map((staff) => {
-          const isSelected = staff.id === selected?.id;
+          const isSelected = staff.id === selectedId;
+          // PIN override amber threshold: flag if > 3 overrides in the rolling 7-day window.
+          // Adjust the threshold here if the spec changes.
           const flagged = staff.week.pinOverrides > 3;
           return (
             <button
               key={staff.id}
               type="button"
-              onClick={() => setSelectedId(staff.id)}
+              onClick={() => setSelectedId((prev) => (prev === staff.id ? null : staff.id))}
               className={`rounded-2xl border bg-white p-5 text-left shadow-[0_1px_3px_rgba(13,64,53,0.08)] transition ${
                 isSelected ? 'border-[#1A6B5C] ring-2 ring-[#D6F0E8]' : 'border-[#D6F0E8] hover:border-[#1D9E75]'
               } ${flagged ? 'bg-amber-50/60' : ''}`}
@@ -195,12 +192,12 @@ export const StaffActivityPage: React.FC = () => {
               <div className="mt-4 grid grid-cols-3 gap-3">
                 <Metric label="Login" value={formatTime(staff.today.loginTime)} />
                 <Metric label="Today" value={`${staff.today.dispenses} dispenses`} />
-                <Metric label="Revenue" value={formatTzs(staff.today.revenue)} />
+                <Metric label="Revenue" value={formatTsh(staff.today.revenue)} />
               </div>
 
               <div className="mt-4 grid grid-cols-3 gap-3 border-t border-[#D6F0E8] pt-4">
                 <Metric label="Week dispenses" value={staff.week.dispenses} />
-                <Metric label="Week revenue" value={formatTzs(staff.week.revenue)} />
+                <Metric label="Week revenue" value={formatTsh(staff.week.revenue)} />
                 <Metric label="PIN overrides" value={staff.week.pinOverrides} />
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
@@ -224,7 +221,17 @@ export const StaffActivityPage: React.FC = () => {
                     <h2 className="font-semibold text-[#0D4035]">{selected.name}</h2>
                     <p className="text-sm text-gray-500">{formatRole(selected.role)}</p>
                   </div>
-                  <CalendarDays size={20} className="text-[#1A6B5C]" />
+                  <div className="flex items-center gap-3">
+                    <CalendarDays size={20} className="text-[#1A6B5C]" />
+                    <button
+                      type="button"
+                      onClick={() => setSelectedId(null)}
+                      className="rounded-md p-1 text-gray-400 hover:bg-[#EDF7F3] hover:text-[#1A6B5C]"
+                      aria-label="Close detail panel"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
                 </div>
               )}
             >
@@ -251,8 +258,8 @@ export const StaffActivityPage: React.FC = () => {
                       <BarChart data={selected.detail.revenueByDay} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2EFEA" />
                         <XAxis dataKey="date" tickFormatter={shortDate} tick={{ fontSize: 10 }} interval="preserveStartEnd" />
-                        <YAxis tick={{ fontSize: 10 }} width={42} />
-                        <Tooltip formatter={(value) => formatTzs(Number(value))} labelFormatter={(label) => shortDate(String(label))} />
+                        <YAxis tick={{ fontSize: 10 }} width={72} tickFormatter={formatTshAxis} />
+                        <Tooltip formatter={(value) => formatTsh(Number(value))} labelFormatter={(label) => shortDate(String(label))} />
                         <Bar dataKey="revenue" fill="#1A6B5C" radius={[6, 6, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
@@ -323,7 +330,7 @@ export const StaffActivityPage: React.FC = () => {
                     </div>
                     <div className="mt-3 grid grid-cols-2 gap-3">
                       <Metric label="Dispenses" value={row.dispenses} />
-                      <Metric label="Revenue" value={formatTzs(row.revenue)} />
+                      <Metric label="Revenue" value={formatTsh(row.revenue)} />
                     </div>
                   </div>
                 ))}

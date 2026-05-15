@@ -220,6 +220,7 @@ export async function loginService(email: string, password: string, preferredPha
       pharmacyId: selectedPharmacyId,
     }, { refreshTokenWrite: 'background' }));
 
+  // Login timestamp capture: writes user_id + current timestamp to users.last_login on every login.
   void withPrismaRetry(() => prisma.user.update({
     where: { id: user.id },
     data: {
@@ -230,6 +231,7 @@ export async function loginService(email: string, password: string, preferredPha
     console.error('[auth.login.lastLoginUpdateFailed]', error);
   });
 
+  // Login audit event: writes user_id + timestamp to audit_log (table_name='auth_sessions', action='LOGIN') on every login.
   await recordLoginAuditEvent({
     userId: user.id,
     pharmacyId: selectedPharmacyId,

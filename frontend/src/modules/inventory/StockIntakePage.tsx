@@ -712,7 +712,7 @@ export const StockIntakePage: React.FC = () => {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Input
-                label={watchedPriceMode === 'PACK' ? 'Pack Price (TZS)' : 'Purchase Price (TZS)'}
+                label={watchedPriceMode === 'PACK' ? 'Pack Price (Tsh)' : 'Purchase Price (Tsh)'}
                 type="number" step="0.01" min="0.01" placeholder="1500.00"
                 {...register('enteredPrice')}
                 error={errors.enteredPrice?.message}
@@ -729,7 +729,7 @@ export const StockIntakePage: React.FC = () => {
                 />
               )}
               <Input
-                label="Selling price per unit (TZS)"
+                label="Selling price per unit (Tsh)"
                 type="number" step="0.01" min="0.01" placeholder="2000.00"
                 {...register('sellingPrice')}
                 error={errors.sellingPrice?.message}
@@ -739,7 +739,7 @@ export const StockIntakePage: React.FC = () => {
 
             {watchedPriceMode === 'PACK' && Number(watchedPackSize) > 1 && Number(watchedEnteredPrice) > 0 && (
               <p className="text-xs text-[#64748B]">
-                Unit cost: <strong className="text-[#0D4035]">TZS {currentUnitPrice.toLocaleString('en-TZ', { maximumFractionDigits: 2 })}</strong>
+                Unit cost: <strong className="text-[#0D4035]">Tsh {currentUnitPrice.toLocaleString('en-TZ', { maximumFractionDigits: 2 })}</strong>
               </p>
             )}
 
@@ -751,14 +751,14 @@ export const StockIntakePage: React.FC = () => {
                 <AlertTriangle size={15} className="mt-0.5 shrink-0" />
                 <span>
                   {liveHint.status === 'HIGH'
-                    ? `Price looks high — more than 2× the median (TZS ${liveHint.median.toLocaleString('en-TZ', { maximumFractionDigits: 0 })}). Check if this is a pack price entered as a unit price.`
-                    : `Price looks low — less than half the median (TZS ${liveHint.median.toLocaleString('en-TZ', { maximumFractionDigits: 0 })}). Verify the amount.`}
+                    ? `Price looks high — more than 2× the median (Tsh ${liveHint.median.toLocaleString('en-TZ', { maximumFractionDigits: 0 })}). Check if this is a pack price entered as a unit price.`
+                    : `Price looks low — less than half the median (Tsh ${liveHint.median.toLocaleString('en-TZ', { maximumFractionDigits: 0 })}). Verify the amount.`}
                 </span>
               </div>
             )}
             {liveHint && liveHint.status === 'OK' && existingPrices.length >= 2 && (
               <p className="text-xs text-[#1A6B5C]">
-                Price is consistent with historical data (median TZS {liveHint.median.toLocaleString('en-TZ', { maximumFractionDigits: 0 })}).
+                Price is consistent with historical data (median Tsh {liveHint.median.toLocaleString('en-TZ', { maximumFractionDigits: 0 })}).
               </p>
             )}
           </div>
@@ -811,10 +811,10 @@ export const StockIntakePage: React.FC = () => {
                   </p>
                   <p className="text-xs text-[#64748B]">
                     {line.priceMode === 'PACK'
-                      ? `Pack TZS ${line.enteredPrice.toLocaleString()} ÷ ${line.packSize} = `
+                      ? `Pack Tsh ${line.enteredPrice.toLocaleString()} ÷ ${line.packSize} = `
                       : ''}
-                    Cost TZS {line.unitPrice.toLocaleString('en-TZ', { maximumFractionDigits: 2 })}
-                    {line.sellingPrice ? ` · Sell TZS ${line.sellingPrice.toLocaleString('en-TZ', { maximumFractionDigits: 2 })}` : ''}
+                    Cost Tsh {line.unitPrice.toLocaleString('en-TZ', { maximumFractionDigits: 2 })}
+                    {line.sellingPrice ? ` · Sell Tsh ${line.sellingPrice.toLocaleString('en-TZ', { maximumFractionDigits: 2 })}` : ''}
                   </p>
                 </div>
                 <button type="button" onClick={() => setCart(prev => prev.filter(l => l.id !== line.id))}

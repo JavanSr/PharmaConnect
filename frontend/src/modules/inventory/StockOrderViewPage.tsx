@@ -30,7 +30,7 @@ const emptyReceiptDraft: ReceiptDraft = {
 
 function money(value: number | string | null | undefined) {
   const amount = Number(value ?? 0);
-  return amount > 0 ? `TZS ${amount.toLocaleString('en-TZ', { maximumFractionDigits: 2 })}` : '-';
+  return amount > 0 ? `Tsh ${amount.toLocaleString('en-TZ', { maximumFractionDigits: 2 })}` : '-';
 }
 
 function outstanding(item: StockOrderItem) {

@@ -41,7 +41,7 @@ export default function PricingPage() {
             <div className="grid gap-10 lg:grid-cols-2">
               <div>
                 <p className="font-mono text-xs font-semibold uppercase tracking-[0.18em] text-primary-mid">
-                  Wholesale · TZS {tier.price!.toLocaleString()}/month
+                  Wholesale · Tsh {tier.price!.toLocaleString()}/month
                 </p>
                 <h2 className="mt-3 font-serif text-3xl font-semibold">
                   1 outlet · 10 users + delivery staff
@@ -78,7 +78,7 @@ export default function PricingPage() {
                 <h3 className="text-lg font-semibold text-slate">{tier.name}</h3>
                 <p className="mt-1 text-sm text-slate/55">{tier.tagline}</p>
                 <p className="mt-4 font-serif text-3xl leading-none text-slate">
-                  {tier.price === null ? "Negotiated" : `${tier.price.toLocaleString()} TZS`}
+                  {tier.price === null ? "Negotiated" : `${tier.price.toLocaleString()} Tsh`}
                   {tier.price !== null && (
                     <span className="ml-1 text-base font-sans font-normal text-slate/45">/month</span>
                   )}

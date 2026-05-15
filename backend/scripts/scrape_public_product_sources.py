@@ -116,7 +116,7 @@ def absolute_url(base_url: str, href: str | None) -> str | None:
 
 
 def parse_price_tzs(value: str) -> str | None:
-    match = re.search(r"(?:TZS|Tsh)\s*([0-9][0-9,\.]*)", value, flags=re.I)
+    match = re.search(r"(?:Tsh|T[Zz][Ss])\s*([0-9][0-9,\.]*)", value, flags=re.I)
     if not match:
         return None
     return match.group(1).replace(",", "")

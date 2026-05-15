@@ -138,7 +138,7 @@ const ProductsListRow = React.memo(function ProductsListRow({
 
       <td className="px-4 py-3 text-sm text-[#0D4035] whitespace-nowrap">
         {product.sellingPrice != null
-          ? `TZS ${Number(product.sellingPrice).toLocaleString()}`
+          ? `Tsh ${Number(product.sellingPrice).toLocaleString()}`
           : <span className="text-[#D6F0E8]">-</span>}
       </td>
 

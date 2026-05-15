@@ -214,16 +214,16 @@ CANNOT:
 **Retail tiers:**
 | Tier | Price | Outlets | Users | Trial |
 |------|-------|---------|-------|-------|
-| ADDO | TZS 20,000/month | 1 | 3 | 14 days |
-| BASIC | TZS 39,000/month | 2 | 5 | 14 days |
-| STANDARD | TZS 55,000/month | 3 | 10 | 14 days |
-| PREMIUM | TZS 75,000/month | 5 | 20 | 14 days |
+| ADDO | Tsh 20,000/month | 1 | 3 | 14 days |
+| BASIC | Tsh 39,000/month | 2 | 5 | 14 days |
+| STANDARD | Tsh 55,000/month | 3 | 10 | 14 days |
+| PREMIUM | Tsh 75,000/month | 5 | 20 | 14 days |
 
 **Wholesale / distributor tiers (separate product/page):**
 | Tier | Price | Notes |
 |------|-------|-------|
-| WHOLESALE | TZS 100,000/month | 1 wholesale outlet, 10 users + delivery staff |
-| HYBRID | TZS 100,000/month | Retail + wholesale, same owner, unified dashboard |
+| WHOLESALE | Tsh 100,000/month | 1 wholesale outlet, 10 users + delivery staff |
+| HYBRID | Tsh 100,000/month | Retail + wholesale, same owner, unified dashboard |
 | ENTERPRISE | Negotiated | 6+ outlets, chains, hospital pharmacies |
 
 Annual billing: 10× monthly (2 months free).
@@ -304,7 +304,7 @@ These are the target standards for new code:
 ### Dashboard rules
 
 - Owner dashboard summary cards should prioritise operational decisions. The
-  first summary card is **Today's Revenue** in TZS, derived from completed
+  first summary card is **Today's Revenue** in Tsh, derived from completed
   dispense transactions, with a 7-day sparkline when enough data exists.
 - Do not show seeded/test product names in operational alert panels. Empty low
   stock or expiry panels should render neutral empty states.
@@ -403,5 +403,5 @@ Recommended commands:
 
 - The app name is **APOTEKH** — all caps, one word.
   Never write "Apotekh" in mixed case or "Apotek H" with a space.
-- The country is Tanzania. Use TZS for currency, Tanzanian regions for addresses.
+- The country is Tanzania. Use Tsh for currency, Tanzanian regions for addresses.
 - Regulatory bodies: TMDA, NHIF, PC (Pharmacy Council).

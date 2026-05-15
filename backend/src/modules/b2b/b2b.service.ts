@@ -287,14 +287,14 @@ async function renderInvoicePdf(input: {
 
     input.items.forEach((item) => {
       doc.font('Helvetica-Bold').text(item.productName);
-      doc.font('Helvetica').text(`Qty ${item.quantity} x TZS ${item.unitPrice.toFixed(2)} = TZS ${item.lineTotal.toFixed(2)}`);
+      doc.font('Helvetica').text(`Qty ${item.quantity} x Tsh ${item.unitPrice.toFixed(2)} = Tsh ${item.lineTotal.toFixed(2)}`);
       doc.moveDown(0.25);
     });
 
     doc.moveDown();
-    doc.font('Helvetica-Bold').text(`Subtotal: TZS ${input.subtotalAmount.toFixed(2)}`);
-    doc.text(`VAT (18%): TZS ${input.vatAmount.toFixed(2)}`);
-    doc.text(`Total: TZS ${input.totalAmount.toFixed(2)}`);
+    doc.font('Helvetica-Bold').text(`Subtotal: Tsh ${input.subtotalAmount.toFixed(2)}`);
+    doc.text(`VAT (18%): Tsh ${input.vatAmount.toFixed(2)}`);
+    doc.text(`Total: Tsh ${input.totalAmount.toFixed(2)}`);
     doc.end();
   });
 }

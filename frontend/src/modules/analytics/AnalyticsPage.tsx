@@ -82,7 +82,7 @@ type CompareResponse = {
 const COMPARE_METRIC_OPTIONS = [
   { value: 'DISPENSED_UNITS', label: 'Dispensed units' },
   { value: 'RECEIVED_UNITS', label: 'Received units' },
-  { value: 'REVENUE_TZS', label: 'Revenue (TZS)' },
+  { value: 'REVENUE_TZS', label: 'Revenue (Tsh)' },
 ] as const;
 
 const COMPARE_RANGE_OPTIONS = [
@@ -94,12 +94,8 @@ const COMPARE_RANGE_OPTIONS = [
 
 const COMPARE_COLORS = ['#1A6B5C', '#D97706', '#1D4ED8', '#DC2626', '#7C3AED'];
 
-const TZS = (value: number) =>
-  new Intl.NumberFormat('en-TZ', {
-    style: 'currency',
-    currency: 'TZS',
-    maximumFractionDigits: 0,
-  }).format(value);
+const Tsh = (value: number) =>
+  `Tsh ${Number(value ?? 0).toLocaleString('en-TZ', { maximumFractionDigits: 0 })}`;
 
 const MOVEMENT_COLORS: Record<MovementKey, string> = {
   received: '#1A6B5C',
@@ -366,7 +362,7 @@ export const AnalyticsPage: React.FC = () => {
                   <Tooltip
                     contentStyle={{ borderRadius: 12, border: '1px solid #D6F0E8', fontSize: 12 }}
                     formatter={(value) => [
-                      compareMetric === 'REVENUE_TZS' ? TZS(Number(value)) : Number(value).toLocaleString(),
+                      compareMetric === 'REVENUE_TZS' ? Tsh(Number(value)) : Number(value).toLocaleString(),
                       '',
                     ]}
                   />
@@ -395,7 +391,7 @@ export const AnalyticsPage: React.FC = () => {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
           label="Total Stock Value"
-          value={TZS(summary.inventory.totalStockValue)}
+          value={Tsh(summary.inventory.totalStockValue)}
           sub="Based on selling prices"
           icon={<Package size={20} className="text-[#1A6B5C]" />}
           color="bg-[#D6F0E8]"

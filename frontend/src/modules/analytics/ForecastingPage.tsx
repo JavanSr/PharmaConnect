@@ -50,12 +50,8 @@ type RegionalStub = {
   message: string;
 };
 
-const TZS = (value: number) =>
-  new Intl.NumberFormat('en-TZ', {
-    style: 'currency',
-    currency: 'TZS',
-    maximumFractionDigits: 0,
-  }).format(value);
+const Tsh = (value: number) =>
+  `Tsh ${Number(value ?? 0).toLocaleString('en-TZ', { maximumFractionDigits: 0 })}`;
 
 export const ForecastingPage: React.FC = () => {
   const featuresQuery = useQuery<{ data: AnalyticsFeatures }>({
@@ -158,7 +154,7 @@ export const ForecastingPage: React.FC = () => {
                   </div>
                   <div>
                     <p className="text-xs text-[#64748B]">At-risk value</p>
-                    <p className="font-semibold text-[#0D4035]">{TZS(item.valueTzs)}</p>
+                    <p className="font-semibold text-[#0D4035]">{Tsh(item.valueTzs)}</p>
                   </div>
                 </div>
               </div>
@@ -188,7 +184,7 @@ export const ForecastingPage: React.FC = () => {
                 <Tooltip
                   contentStyle={{ borderRadius: 12, border: '1px solid #D6F0E8', fontSize: 12 }}
                   formatter={(value, name) => [
-                    name === 'revenueTzs' ? TZS(Number(value)) : Number(value).toLocaleString(),
+                    name === 'revenueTzs' ? Tsh(Number(value)) : Number(value).toLocaleString(),
                     name === 'revenueTzs' ? 'Revenue' : 'Dispensed units',
                   ]}
                 />
@@ -234,7 +230,7 @@ export const ForecastingPage: React.FC = () => {
                           {item.currentStock} units on hand • {item.daysSinceSale} days since sale
                         </p>
                       </div>
-                      <Badge variant="warning" size="sm">{TZS(item.deadStockScore)}</Badge>
+                      <Badge variant="warning" size="sm">{Tsh(item.deadStockScore)}</Badge>
                     </div>
                   </div>
                 ))}
@@ -245,7 +241,7 @@ export const ForecastingPage: React.FC = () => {
                   <YAxis tick={{ fontSize: 11, fill: '#64748B' }} axisLine={false} tickLine={false} />
                   <Tooltip
                     contentStyle={{ borderRadius: 12, border: '1px solid #D6F0E8', fontSize: 12 }}
-                    formatter={(value) => [TZS(Number(value)), 'Dead-stock score']}
+                    formatter={(value) => [Tsh(Number(value)), 'Dead-stock score']}
                   />
                   <Bar dataKey="deadStockScore" fill="#D97706" radius={[8, 8, 0, 0]} />
                 </BarChart>

@@ -471,7 +471,7 @@ export const ProductFormPage: React.FC = () => {
         <p className="text-xs font-semibold text-[#64748B] uppercase tracking-wide mb-4">Pricing</p>
         <div className="grid grid-cols-2 gap-4">
           <Input
-            label="Default Purchase Price (TZS)"
+            label="Default Purchase Price (Tsh)"
             type="number"
             value={form.purchasePriceDefault}
             onChange={set('purchasePriceDefault')}
@@ -479,7 +479,7 @@ export const ProductFormPage: React.FC = () => {
             min="0"
           />
           <Input
-            label="Selling Price (TZS)"
+            label="Selling Price (Tsh)"
             type="number"
             value={form.sellingPrice}
             onChange={set('sellingPrice')}
@@ -489,7 +489,7 @@ export const ProductFormPage: React.FC = () => {
         </div>
         {form.purchasePriceDefault && form.sellingPrice && (
           <p className="text-xs text-[#1A6B5C] mt-2">
-            Margin: TZS {(parseFloat(form.sellingPrice) - parseFloat(form.purchasePriceDefault)).toLocaleString()}
+            Margin: Tsh {(parseFloat(form.sellingPrice) - parseFloat(form.purchasePriceDefault)).toLocaleString()}
             {' '}({Math.round(((parseFloat(form.sellingPrice) - parseFloat(form.purchasePriceDefault)) / parseFloat(form.purchasePriceDefault)) * 100)}%)
           </p>
         )}

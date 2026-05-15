@@ -26,7 +26,7 @@ export default function PricingCard({ tier, billing }: PricingCardProps) {
       <h3 className="text-base font-medium text-slate">{tier.name}</h3>
       <div className="mt-4 flex items-end gap-2">
         <p className="font-serif text-4xl leading-none text-slate">
-          {price === null ? "Custom pricing" : `${price.toLocaleString()} TZS`}
+          {price === null ? "Custom pricing" : `${price.toLocaleString()} Tsh`}
         </p>
         <span className="pb-1 text-sm text-slate/50">{price === null ? "" : suffix}</span>
       </div>

@@ -12,7 +12,7 @@ All tasks below are backend or full-stack and require direct file editing + migr
 - **Backend entry**: `backend/src/index.ts`. Modules are in `backend/src/modules/`.
 - **Schema**: `backend/prisma/schema.prisma`. Run `npx prisma migrate dev --name <name>` after schema changes.
 - **Conventions**: `{ data: ... }` API responses. Zod at router layer. `prisma.$transaction` for multi-table ops. Named exports, no class components.
-- **Currency**: TZS. Country: Tanzania. Regulatory: TMDA, NHIF, PC (Pharmacy Council). Never PPB.
+- **Currency**: Tsh. Country: Tanzania. Regulatory: TMDA, NHIF, PC (Pharmacy Council). Never PPB.
 - **Do not touch**: `src/` at repo root (old prototype). Do not commit `.env`.
 
 ---
@@ -23,7 +23,7 @@ All tasks below are backend or full-stack and require direct file editing + migr
 
 The `POST /dispensing/close-day` route and its service function are truncated around line 775. Complete the daily-close logic:
 1. Aggregate all `SaleTransaction` records for `today` (midnight → midnight, outlet-scoped).
-2. Compute: total sales count, total revenue (TZS), total items dispensed, unique products, payment method breakdown.
+2. Compute: total sales count, total revenue (Tsh), total items dispensed, unique products, payment method breakdown.
 3. Write a `DailyClose` record (or equivalent — check schema; add model + migration if absent).
 4. Return `{ data: { date, totalSales, totalRevenueTzs, itemsDispensed, paymentBreakdown } }`.
 5. Guard: one close per outlet per calendar day (return 409 if already closed).
@@ -154,7 +154,7 @@ No tests exist. Add foundational coverage:
 - Add `npm run test` script.
 
 **Frontend** (`frontend/src/__tests__/`):
-- `SubscriptionPage.test.tsx` — renders all five tiers with correct TZS prices.
+- `SubscriptionPage.test.tsx` — renders all five tiers with correct Tsh prices.
 - `ForecastingPage.test.tsx` — preview banner is always visible.
 - `DeferredFeaturePage.test.tsx` — "Back to platform" links to `/dashboard`.
 

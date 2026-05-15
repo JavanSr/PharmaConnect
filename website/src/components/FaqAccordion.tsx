@@ -31,7 +31,7 @@ const FAQS = [
   },
   {
     q: "How does pricing work?",
-    a: "Retail subscriptions start at TZS 20,000/month for ADDOs and scale to TZS 75,000/month for Premium (5 outlets, 20 users). All retail tiers include a 14-day free trial. Annual billing gives two months free. Wholesale and Enterprise pricing is separate — contact us to discuss.",
+    a: "Retail subscriptions start at Tsh 20,000/month for ADDOs and scale to Tsh 75,000/month for Premium (5 outlets, 20 users). All retail tiers include a 14-day free trial. Annual billing gives two months free. Wholesale and Enterprise pricing is separate — contact us to discuss.",
   },
 ];
 

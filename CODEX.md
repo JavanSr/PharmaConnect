@@ -87,7 +87,7 @@ The marketing website (`/website/`) is separate — do not confuse the two.
 
 ## Subscription Tiers — Reference
 
-| Tier | TZS/month | User Seats | Outlets |
+| Tier | Tsh/month | User Seats | Outlets |
 |---|---|---|---|
 | ADDO / DLDM | 20,000 | 3 | 1 |
 | Essential | 35,000 | 4 | 1 |
@@ -158,7 +158,7 @@ Constraints:
 
 ### P2 — Premium Tier Dashboard Features
 
-All four must be complete before Premium tier is actively sold at TZS 75,000/month.
+All four must be complete before Premium tier is actively sold at Tsh 75,000/month.
 
 **2a. Predictive low-stock (7–14 day forecast)**
 ```
@@ -293,7 +293,7 @@ Inaccurate interaction data is clinically worse than no interaction data.
 | Phase 3 | 200+ paying pharmacies | Data licensing. Open API. AI clinical decision support. Patient-facing features. Dar es Salaam expansion. |
 
 Building Phase 2 or 3 features in Phase 1 is a resource allocation failure. Bootstrap
-capital is TZS 2.4M. Every build hour spent on Phase 3 features is an hour not spent
+capital is Tsh 2.4M. Every build hour spent on Phase 3 features is an hour not spent
 getting to 10 paying pharmacies.
 
 ---

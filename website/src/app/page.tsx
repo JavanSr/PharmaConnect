@@ -141,7 +141,7 @@ const FAQS = [
   },
   {
     q: 'How does pricing work?',
-    a: 'Retail subscriptions start at TZS 20,000/month for ADDOs and scale to TZS 75,000/month for Premium. All plans include a 14-day free trial. Annual billing gives two months free — you pay for 10, get 12.',
+    a: 'Retail subscriptions start at Tsh 20,000/month for ADDOs and scale to Tsh 75,000/month for Premium. All plans include a 14-day free trial. Annual billing gives two months free — you pay for 10, get 12.',
   },
   {
     q: 'Is the drug interaction checker available on all plans?',
@@ -149,7 +149,7 @@ const FAQS = [
   },
 ];
 
-const fmt = (n: number) => 'TZS ' + n.toLocaleString();
+const fmt = (n: number) => 'Tsh ' + n.toLocaleString();
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 
@@ -301,7 +301,7 @@ function TabPanel({ id }: { id: string }) {
           </div>
         ))}
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 14px', background: '#0D4035' }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: 'white', letterSpacing: '0.08em' }}>TOTAL · TZS</span>
+          <span style={{ fontSize: 11, fontWeight: 700, color: 'white', letterSpacing: '0.08em' }}>TOTAL · Tsh</span>
           <span style={{ fontSize: 16, fontWeight: 800, color: 'white' }}>3,500</span>
         </div>
       </div>
@@ -399,7 +399,7 @@ function TabPanel({ id }: { id: string }) {
           <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#516965', margin: 0 }}>Revenue · last 30 days</p>
         </div>
         <div style={{ padding: '14px 14px 8px' }}>
-          <p className="serif" style={{ fontSize: 22, color: '#0D4035', margin: '0 0 10px' }}>TZS 1,240,000</p>
+          <p className="serif" style={{ fontSize: 22, color: '#0D4035', margin: '0 0 10px' }}>Tsh 1,240,000</p>
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 60 }}>
             {[45, 60, 52, 70, 65, 80, 58, 75, 82, 90, 78, 85, 95, 88, 92, 100].map((h, i) => (
               <div key={i} style={{ flex: 1, borderRadius: 3, background: i === 15 ? '#1A6B5C' : '#D6F0E8', height: `${h}%` }} />
@@ -409,7 +409,7 @@ function TabPanel({ id }: { id: string }) {
       </div>
       <div style={{ background: 'white', borderRadius: 12, border: '1px solid #E2EDE8', overflow: 'hidden' }}>
         <div style={{ padding: '8px 14px', borderBottom: '1px solid #E2EDE8' }}><p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#516965', margin: 0 }}>Top medicines</p></div>
-        {[{ n: 'Amoxicillin 500mg', v: 'TZS 284,000' }, { n: 'Paracetamol 500mg', v: 'TZS 197,000' }, { n: 'Metformin 500mg', v: 'TZS 143,000' }].map(({ n, v }, i) => (
+        {[{ n: 'Amoxicillin 500mg', v: 'Tsh 284,000' }, { n: 'Paracetamol 500mg', v: 'Tsh 197,000' }, { n: 'Metformin 500mg', v: 'Tsh 143,000' }].map(({ n, v }, i) => (
           <div key={n} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 14px', borderBottom: i < 2 ? '1px solid #E2EDE8' : 'none', fontSize: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ fontSize: 10, color: '#516965', minWidth: 14 }}>{i + 1}.</span><span style={{ color: '#0D4035' }}>{n}</span></div>
             <span style={{ color: '#1A6B5C', fontWeight: 600, fontSize: 11 }}>{v}</span>
@@ -509,7 +509,7 @@ function DashboardScreens() {
               {/* 4 stat cards */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 16 }}>
                 {[
-                  { l: 'SALES TODAY', v: 'TZS 412,500', b: '+18%', bc: '#1A6B5C' },
+                  { l: 'SALES TODAY', v: 'Tsh 412,500', b: '+18%', bc: '#1A6B5C' },
                   { l: 'ITEMS DISPENSED', v: '142', b: '+9', bc: '#1A6B5C' },
                   { l: 'COMPLIANCE', v: 'All clear', b: '3/3 branches', bc: '#1A6B5C' },
                   { l: 'EXPIRING ≤30D', v: '4 batches', b: 'Review', bc: '#D97706' },
@@ -526,7 +526,7 @@ function DashboardScreens() {
                 <div style={{ border: '1px solid #E2EDE8', borderRadius: 12, overflow: 'hidden' }}>
                   <div style={{ padding: '10px 14px', borderBottom: '1px solid #E2EDE8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#516965', margin: 0 }}>Dispensing trend · last 14 days</p>
-                    <p style={{ fontSize: 10, color: '#516965', margin: 0 }}>TZS · thousands</p>
+                    <p style={{ fontSize: 10, color: '#516965', margin: 0 }}>Tsh · thousands</p>
                   </div>
                   <div style={{ padding: '14px 14px 8px' }}>
                     <svg viewBox="0 0 380 90" style={{ width: '100%', height: 90, display: 'block' }}>
@@ -553,7 +553,7 @@ function DashboardScreens() {
                   {[
                     { t: '14:02', who: 'Asha M.', act: 'Dispensed Amoxicillin 500mg × 21', tag: 'NHIF', tBg: 'rgba(26,107,92,0.1)', tC: '#1A6B5C' },
                     { t: '14:01', who: 'System', act: 'Re-order: Paracetamol 500mg below par', tag: 'Stock', tBg: 'rgba(217,119,6,0.1)', tC: '#D97706' },
-                    { t: '14:01', who: 'Juma K.', act: 'Closed cash drawer · TZS 412,500', tag: 'Daily', tBg: 'rgba(81,105,101,0.1)', tC: '#516965' },
+                    { t: '14:01', who: 'Juma K.', act: 'Closed cash drawer · Tsh 412,500', tag: 'Daily', tBg: 'rgba(81,105,101,0.1)', tC: '#516965' },
                     { t: '13:58', who: 'Asha M.', act: 'Logged ADR for Diclofenac suspension', tag: 'PV', tBg: 'rgba(124,58,237,0.1)', tC: '#7C3AED' },
                   ].map(({ t, who, act, tag, tBg, tC }, i) => (
                     <div key={i} style={{ display: 'flex', gap: 8, padding: '9px 14px', borderBottom: i < 3 ? '1px solid #E2EDE8' : 'none', alignItems: 'flex-start' }}>
@@ -616,7 +616,7 @@ function CallatTheTill() {
                 </div>
               ))}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '11px 14px', borderRadius: 8, background: '#0D4035', marginTop: 12 }}>
-                <span style={{ fontSize: 10, fontWeight: 700, color: 'white', letterSpacing: '0.1em' }}>TOTAL · TZS</span>
+                <span style={{ fontSize: 10, fontWeight: 700, color: 'white', letterSpacing: '0.1em' }}>TOTAL · Tsh</span>
                 <span style={{ fontSize: 22, fontWeight: 800, color: 'white' }}>4,958</span>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginTop: 10 }}>
@@ -919,7 +919,7 @@ function TierCard({ tier, bill, wide }: { tier: AnyTier; bill: string; wide?: bo
         <p className="serif" style={{ fontSize: 28, color: '#0D4035', lineHeight: 1 }}>{fmt(price)}</p>
         <span style={{ fontSize: 12, color: '#516965' }}>/mo</span>
       </div>
-      {bill === 'annual' && <p style={{ fontSize: 11, color: '#2A9478', marginBottom: 6 }}>Billed TZS {(tier.price * 10).toLocaleString()} /year</p>}
+      {bill === 'annual' && <p style={{ fontSize: 11, color: '#2A9478', marginBottom: 6 }}>Billed Tsh {(tier.price * 10).toLocaleString()} /year</p>}
       {'outlets' in tier && tier.outlets && <p style={{ fontSize: 12, color: '#516965', marginBottom: 6 }}>{tier.outlets} outlet{tier.outlets > 1 ? 's' : ''} · {tier.users} users</p>}
       <p style={{ fontSize: 12, color: '#516965', lineHeight: 1.65, marginBottom: 18, minHeight: 44 }}>{tier.desc}</p>
       <a href="/contact#waitlist" style={{
@@ -1037,7 +1037,7 @@ function FAQ() {
 // ── FINAL CTA ─────────────────────────────────────────────────────────────────
 
 function FinalCTA() {
-  const [form, setForm] = useState({ name: '', email: '', pharmacy: '', tier: 'STANDARD — TZS 55,000/month' });
+  const [form, setForm] = useState({ name: '', email: '', pharmacy: '', tier: 'STANDARD — Tsh 55,000/month' });
   const [sent, setSent] = useState(false);
   const field: React.CSSProperties = { width: '100%', padding: '10px 14px', borderRadius: 8, border: '1.5px solid #E2EDE8', fontSize: 13, color: '#0D4035', fontFamily: 'inherit', background: 'white' };
   return (
@@ -1078,10 +1078,10 @@ function FinalCTA() {
               <div>
                 <label style={{ fontSize: 12, fontWeight: 600, color: '#0D4035', display: 'block', marginBottom: 6 }}>Plan you&apos;re interested in</label>
                 <select value={form.tier} onChange={e => setForm({ ...form, tier: e.target.value })} style={field}>
-                  <option>ADDO — TZS 20,000/month</option>
-                  <option>BASIC — TZS 39,000/month</option>
-                  <option>STANDARD — TZS 55,000/month</option>
-                  <option>PREMIUM — TZS 75,000/month</option>
+                  <option>ADDO — Tsh 20,000/month</option>
+                  <option>BASIC — Tsh 39,000/month</option>
+                  <option>STANDARD — Tsh 55,000/month</option>
+                  <option>PREMIUM — Tsh 75,000/month</option>
                   <option>Wholesale / Enterprise — let&apos;s talk</option>
                 </select>
               </div>

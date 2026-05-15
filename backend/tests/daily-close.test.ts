@@ -13,7 +13,7 @@ describe('daily close reconciliation', () => {
     await disconnectTestDb();
   });
 
-  it('requires a note when variance exceeds TZS 5000', async () => {
+  it('requires a note when variance exceeds Tsh 5000', async () => {
     const pharmacy = await createPharmacy({ subscriptionTier: 'STANDARD', pharmacyType: 'RETAIL' });
     const owner = await createUser({ pharmacyId: pharmacy.id, role: 'OWNER' });
     const auth = await login(owner.user.email, owner.password);

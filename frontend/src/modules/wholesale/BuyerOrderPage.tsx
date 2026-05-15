@@ -151,13 +151,13 @@ export const BuyerOrderPage: React.FC = () => {
                     {r.order!.items.map((line) => (
                       <div key={line.productId} className="flex justify-between text-sm">
                         <span className="text-[#0D4035]">{line.productName} × {line.quantity}</span>
-                        <span className="font-medium text-[#0D4035]">TZS {line.lineTotal.toLocaleString()}</span>
+                        <span className="font-medium text-[#0D4035]">Tsh {line.lineTotal.toLocaleString()}</span>
                       </div>
                     ))}
                   </div>
                   <div className="mt-3 border-t border-[#D6F0E8] pt-3 flex justify-between text-sm font-semibold">
                     <span>Total</span>
-                    <span>TZS {r.order!.totalAmount.toLocaleString()}</span>
+                    <span>Tsh {r.order!.totalAmount.toLocaleString()}</span>
                   </div>
                 </div>
               ))}
@@ -238,7 +238,7 @@ export const BuyerOrderPage: React.FC = () => {
                         <p className="font-medium text-[#0D4035]">{item.productName}</p>
                         {item.genericName && <p className="text-xs text-[#64748B]">{item.genericName}</p>}
                         <div className="mt-1 flex items-center gap-2">
-                          <p className="text-sm font-semibold text-[#1A6B5C]">TZS {effectivePrice.toLocaleString()}</p>
+                          <p className="text-sm font-semibold text-[#1A6B5C]">Tsh {effectivePrice.toLocaleString()}</p>
                           <span className="text-xs text-[#94A3B8]">·</span>
                           <p className="text-xs text-[#94A3B8]">{item.sellerPharmacyName}</p>
                         </div>
@@ -298,10 +298,10 @@ export const BuyerOrderPage: React.FC = () => {
                         <div key={line.productId} className="flex items-center justify-between gap-3 rounded-xl border border-[#D6F0E8] p-3">
                           <div className="min-w-0 flex-1">
                             <p className="truncate text-sm font-medium text-[#0D4035]">{line.productName}</p>
-                            <p className="text-xs text-[#64748B]">{line.qty} × TZS {(line.effectivePrice ?? line.price).toLocaleString()}</p>
+                            <p className="text-xs text-[#64748B]">{line.qty} × Tsh {(line.effectivePrice ?? line.price).toLocaleString()}</p>
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
-                            <p className="text-sm font-semibold text-[#0D4035]">TZS {((line.effectivePrice ?? line.price) * line.qty).toLocaleString()}</p>
+                            <p className="text-sm font-semibold text-[#0D4035]">Tsh {((line.effectivePrice ?? line.price) * line.qty).toLocaleString()}</p>
                             <button onClick={() => setQty(line, 0)} className="text-[#94A3B8] hover:text-[#B91C1C]">
                               <Trash2 size={14} />
                             </button>
@@ -311,14 +311,14 @@ export const BuyerOrderPage: React.FC = () => {
                     </div>
                     <div className="mt-2 flex justify-between text-xs font-semibold text-[#64748B]">
                       <span>Subtotal ({name})</span>
-                      <span>TZS {total.toLocaleString()}</span>
+                      <span>Tsh {total.toLocaleString()}</span>
                     </div>
                   </div>
                 ))}
 
                 <div className="border-t-2 border-[#0D4035]/10 pt-3 flex justify-between text-sm font-semibold text-[#0D4035]">
                   <span>Grand total · {bySeller.size} supplier{bySeller.size > 1 ? 's' : ''}</span>
-                  <span>TZS {cartTotal.toLocaleString()}</span>
+                  <span>Tsh {cartTotal.toLocaleString()}</span>
                 </div>
 
                 <Input

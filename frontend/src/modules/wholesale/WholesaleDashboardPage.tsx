@@ -56,7 +56,7 @@ export const WholesaleDashboardPage: React.FC = () => {
           </Card>
           <Card>
             <p className="text-sm text-[#64748B]">Open receivables</p>
-            <p className="mt-2 text-3xl font-semibold text-[#0D4035]">TZS {(receivablesQuery.data?.totalOpenAmount ?? 0).toLocaleString()}</p>
+            <p className="mt-2 text-3xl font-semibold text-[#0D4035]">Tsh {(receivablesQuery.data?.totalOpenAmount ?? 0).toLocaleString()}</p>
           </Card>
         </div>
 
@@ -67,12 +67,12 @@ export const WholesaleDashboardPage: React.FC = () => {
                 <div className="rounded-2xl border border-[#D6F0E8] bg-[#F7FCFA] p-4">
                   <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#64748B]">Current 30 days</p>
                   <p className="mt-2 text-2xl font-semibold text-[#0D4035]">{demandInsightsQuery.data?.windows.current30d.units ?? 0} units</p>
-                  <p className="mt-1 text-sm text-[#64748B]">TZS {(demandInsightsQuery.data?.windows.current30d.revenueTzs ?? 0).toLocaleString()}</p>
+                  <p className="mt-1 text-sm text-[#64748B]">Tsh {(demandInsightsQuery.data?.windows.current30d.revenueTzs ?? 0).toLocaleString()}</p>
                 </div>
                 <div className="rounded-2xl border border-[#D6F0E8] bg-[#F7FCFA] p-4">
                   <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#64748B]">Previous 30 days</p>
                   <p className="mt-2 text-2xl font-semibold text-[#0D4035]">{demandInsightsQuery.data?.windows.previous30d.units ?? 0} units</p>
-                  <p className="mt-1 text-sm text-[#64748B]">TZS {(demandInsightsQuery.data?.windows.previous30d.revenueTzs ?? 0).toLocaleString()}</p>
+                  <p className="mt-1 text-sm text-[#64748B]">Tsh {(demandInsightsQuery.data?.windows.previous30d.revenueTzs ?? 0).toLocaleString()}</p>
                 </div>
               </div>
               <div className="space-y-3">
@@ -83,7 +83,7 @@ export const WholesaleDashboardPage: React.FC = () => {
                         <p className="font-medium text-[#0D4035]">{product.productName}</p>
                         <p className="text-sm text-[#64748B]">{product.units.toLocaleString()} units across {product.activeBuyers} buyers</p>
                       </div>
-                      <p className="text-sm font-semibold text-[#0D4035]">TZS {product.revenueTzs.toLocaleString()}</p>
+                      <p className="text-sm font-semibold text-[#0D4035]">Tsh {product.revenueTzs.toLocaleString()}</p>
                     </div>
                   </div>
                 ))}
@@ -103,7 +103,7 @@ export const WholesaleDashboardPage: React.FC = () => {
                 ].map((bucket) => (
                   <div key={bucket.label} className="rounded-2xl border border-[#D6F0E8] bg-[#F7FCFA] p-4">
                     <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#64748B]">{bucket.label}</p>
-                    <p className="mt-2 text-2xl font-semibold text-[#0D4035]">TZS {bucket.value.toLocaleString()}</p>
+                    <p className="mt-2 text-2xl font-semibold text-[#0D4035]">Tsh {bucket.value.toLocaleString()}</p>
                   </div>
                 ))}
               </div>
@@ -116,7 +116,7 @@ export const WholesaleDashboardPage: React.FC = () => {
                         <p className="text-sm text-[#64748B]">{invoice.buyerName}</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-sm font-semibold text-[#0D4035]">TZS {invoice.openAmount.toLocaleString()}</p>
+                        <p className="text-sm font-semibold text-[#0D4035]">Tsh {invoice.openAmount.toLocaleString()}</p>
                         <p className="text-xs text-[#64748B]">{invoice.daysOutstanding} days outstanding</p>
                       </div>
                     </div>
@@ -160,7 +160,7 @@ export const WholesaleDashboardPage: React.FC = () => {
                     <div className="flex items-center justify-between gap-4">
                       <div>
                         <p className="font-medium text-[#0D4035]">{invoice.invoiceNumber}</p>
-                        <p className="text-sm text-[#64748B]">TZS {invoice.totalAmount.toLocaleString()}</p>
+                        <p className="text-sm text-[#64748B]">Tsh {invoice.totalAmount.toLocaleString()}</p>
                       </div>
                       <span className="rounded-full bg-[#FFF7ED] px-3 py-1 text-xs font-semibold text-[#B45309]">{invoice.efdmsStatus ?? 'STUBBED'}</span>
                     </div>
@@ -177,7 +177,7 @@ export const WholesaleDashboardPage: React.FC = () => {
                     <div className="flex items-center justify-between gap-4">
                       <div>
                         <p className="font-medium text-[#0D4035]">{limit.clientName ?? limit.clientPharmacyId}</p>
-                        <p className="text-sm text-[#64748B]">Limit TZS {limit.creditLimit.toLocaleString()} · Outstanding TZS {limit.outstandingBalance.toLocaleString()}</p>
+                        <p className="text-sm text-[#64748B]">Limit Tsh {limit.creditLimit.toLocaleString()} · Outstanding Tsh {limit.outstandingBalance.toLocaleString()}</p>
                       </div>
                       <span className={`rounded-full px-3 py-1 text-xs font-semibold ${limit.blockNewOrders ? 'bg-[#FEF2F2] text-[#B91C1C]' : 'bg-[#EDF7F3] text-[#0D4035]'}`}>
                         {limit.blockNewOrders ? 'Blocked' : 'Open'}

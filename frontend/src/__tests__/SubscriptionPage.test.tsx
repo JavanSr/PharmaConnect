@@ -68,7 +68,7 @@ function renderPage() {
 }
 
 describe('SubscriptionPage', () => {
-  it('renders all six tiers with the expected TZS pricing', async () => {
+  it('renders all six tiers with the expected Tsh pricing', async () => {
     useAuthStore.setState({
       user: {
         id: 'owner-1',
@@ -92,11 +92,11 @@ describe('SubscriptionPage', () => {
       expect(screen.getByText('ADDO')).toBeInTheDocument();
     });
 
-    expect(screen.getByText('TZS 20,000')).toBeInTheDocument();
-    expect(screen.getByText('TZS 35,000')).toBeInTheDocument();
-    expect(screen.getByText('TZS 55,000')).toBeInTheDocument();
-    expect(screen.getByText('TZS 75,000')).toBeInTheDocument();
-    expect(screen.getByText('TZS 100,000')).toBeInTheDocument();
+    expect(screen.getByText('Tsh 20,000')).toBeInTheDocument();
+    expect(screen.getByText('Tsh 35,000')).toBeInTheDocument();
+    expect(screen.getByText('Tsh 55,000')).toBeInTheDocument();
+    expect(screen.getByText('Tsh 75,000')).toBeInTheDocument();
+    expect(screen.getByText('Tsh 100,000')).toBeInTheDocument();
     expect(screen.getByText('Negotiated')).toBeInTheDocument();
   });
 });

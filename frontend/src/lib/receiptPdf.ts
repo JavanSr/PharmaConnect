@@ -110,7 +110,7 @@ export function downloadReceiptPdf(receipt: ReceiptData): void {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
   doc.text('TOTAL', margin, y);
-  doc.text(`TZS ${receipt.totalAmount.toLocaleString()}`, pageW - margin, y, { align: 'right' });
+  doc.text(`Tsh ${receipt.totalAmount.toLocaleString()}`, pageW - margin, y, { align: 'right' });
   y += 10;
 
   // Footer

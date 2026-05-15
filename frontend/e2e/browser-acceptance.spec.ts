@@ -636,7 +636,7 @@ test('dispensing defaults to walk-in and can search/register patients while offl
   await expect(page.getByLabel('Patient name / label')).toHaveValue('Amina Juma');
 });
 
-test('daily close requires a note when variance is above TZS 5000', async ({ page }) => {
+test('daily close requires a note when variance is above Tsh 5000', async ({ page }) => {
   await bootstrapSession(page, {
     user: browserUsers.activeOwner,
     pharmacy: pharmacies.active,
@@ -673,7 +673,7 @@ test('daily close requires a note when variance is above TZS 5000', async ({ pag
 
   await page.getByLabel('Actual cash counted').fill('2000');
   await page.getByRole('button', { name: 'Record daily close' }).click();
-  await expect(page.getByText('Add a note when the cash variance is above TZS 5,000.')).toBeVisible();
+  await expect(page.getByText('Add a note when the cash variance is above Tsh 5,000.')).toBeVisible();
 
   await page.getByLabel('Notes').fill('Till was short after recount.');
   await page.getByRole('button', { name: 'Record daily close' }).click();
@@ -1451,7 +1451,7 @@ test('offline stock intake queues locally and flushes to live batches when back 
   await page.getByLabel('Batch Number').fill(batchNumber);
   await page.getByLabel('Expiry Date').fill('2027-12-31');
   await page.getByLabel('Quantity Received').fill('12');
-  await page.getByLabel('Purchase Price (TZS)').fill('900');
+  await page.getByLabel('Purchase Price (Tsh)').fill('900');
 
   await context.setOffline(true);
   await page.getByRole('button', { name: 'Receive Stock' }).click();

@@ -31,7 +31,7 @@ export const DailyClose: React.FC = () => {
     },
     onError: (error: any) => {
       const code = error.response?.data?.error;
-      toast.error(code === 'VARIANCE_NOTE_REQUIRED' ? 'Add a note when the cash variance is above TZS 5,000.' : (code || 'Daily close failed'));
+      toast.error(code === 'VARIANCE_NOTE_REQUIRED' ? 'Add a note when the cash variance is above Tsh 5,000.' : (code || 'Daily close failed'));
     },
   });
 
@@ -65,8 +65,8 @@ export const DailyClose: React.FC = () => {
             label="Notes"
             value={notes}
             onChange={(event) => setNotes(event.target.value)}
-            placeholder="Required above TZS 5,000 variance"
-            hint="Notes become mandatory if the reconciliation variance is above TZS 5,000."
+            placeholder="Required above Tsh 5,000 variance"
+            hint="Notes become mandatory if the reconciliation variance is above Tsh 5,000."
           />
         </div>
 
@@ -85,19 +85,19 @@ export const DailyClose: React.FC = () => {
             <div className="rounded-2xl bg-[#EDF7F3] px-4 py-3">
               <p className="text-xs uppercase tracking-wide text-[#64748B]">Expected cash</p>
               <p className="mt-1 text-lg font-semibold text-[#0D4035]">
-                TZS {result.expectedCash.toLocaleString()}
+                Tsh {result.expectedCash.toLocaleString()}
               </p>
             </div>
             <div className="rounded-2xl bg-white px-4 py-3 border border-[#D6F0E8]">
               <p className="text-xs uppercase tracking-wide text-[#64748B]">Counted cash</p>
               <p className="mt-1 text-lg font-semibold text-[#0D4035]">
-                TZS {result.actualCashCounted.toLocaleString()}
+                Tsh {result.actualCashCounted.toLocaleString()}
               </p>
             </div>
             <div className="rounded-2xl bg-[#FFFBEB] px-4 py-3">
               <p className="text-xs uppercase tracking-wide text-[#64748B]">Discrepancy</p>
               <p className="mt-1 text-lg font-semibold text-[#92400E]">
-                TZS {result.discrepancy.toLocaleString()}
+                Tsh {result.discrepancy.toLocaleString()}
               </p>
             </div>
           </div>
