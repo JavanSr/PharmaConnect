@@ -8,9 +8,11 @@ import compression from 'compression';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 import path from 'node:path';
+import { Prisma } from '@prisma/client';
 
 import { errorHandler, notFound } from './middleware/errorHandler';
-import { authenticate } from './middleware/auth';
+import { authenticate, type AuthRequest } from './middleware/auth';
+import { prisma } from './lib/prisma';
 import { authRouter } from './modules/auth/auth.router';
 import { meRouter } from './modules/me/me.router';
 import { inventoryRouter } from './modules/inventory/inventory.router';
@@ -29,7 +31,7 @@ import { dispensingRouter } from './modules/dispensing/dispensing.router';
 import { waitlistRouter } from './modules/waitlist/waitlist.router';
 import { b2bRouter } from './modules/b2b/b2b.router';
 import { reportsRouter } from './modules/reports/reports.router';
-import { attendanceRouter } from './modules/reports/attendance.router';
+import { staffActivityRouter } from './modules/reports/staffActivity.router';
 import { reviewRouter } from './modules/review/review.router';
 import { founderRouter } from './modules/founder/founder.router';
 import { catalogueImportRouter } from './modules/catalogue-import/catalogue-import.router';
@@ -60,14 +62,16 @@ const app = express();
 const PORT = parseInt(process.env.PORT || '3000', 10);
 
 function configuredCorsOrigins(): string[] {
+  const defaultOrigins = process.env.NODE_ENV === 'production'
+    ? ['https://pharma-connect-rouge.vercel.app']
+    : [
+        'https://pharma-connect-rouge.vercel.app',
+        'http://localhost:3000',
+        'http://localhost:5173',
+        'http://localhost:5174',
+      ];
   const origins = new Set(
-    [
-      'https://pharma-connect-rouge.vercel.app',
-      'http://localhost:3000',
-      'http://localhost:5173',
-      'http://localhost:5174',
-      process.env.ALLOWED_ORIGINS || '',
-    ]
+    [...defaultOrigins, process.env.ALLOWED_ORIGINS || '']
       .join(',')
       .split(',')
       .map((origin) => origin.trim().replace(/\/$/, ''))
@@ -107,7 +111,85 @@ app.options('*', cors(corsOptions));
 app.use(compression());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
-app.get('/uploads/*', authenticate, (req: Request, res: Response) => {
+async function canAccessUpload(req: AuthRequest, storagePath: string): Promise<boolean> {
+  const user = req.user;
+  if (!user) {
+    return false;
+  }
+
+  if (user.normalizedRole === 'SUPER_ADMIN') {
+    return true;
+  }
+
+  const pharmacyId = user.pharmacyId;
+  if (!pharmacyId) {
+    return false;
+  }
+
+  const normalized = storagePath.replace(/\\/g, '/').replace(/^\/+/, '');
+  const storedPaths = [...new Set([normalized, `uploads/${normalized}`, `/uploads/${normalized}`])];
+  const certificateMatch = normalized.match(/^certificates\/(.+)\.pdf$/);
+
+  const [
+    prescription,
+    complianceDocument,
+    stockAdjustment,
+    inspectionChecklist,
+    cpdActivity,
+    vatInvoiceRows,
+    certificateRows,
+  ] = await Promise.all([
+    prisma.prescription.findFirst({ where: { pharmacyId, photoPath: { in: storedPaths } }, select: { id: true } }),
+    prisma.complianceDocument.findFirst({
+      where: { filePath: { in: storedPaths }, complianceItem: { pharmacyId } },
+      select: { id: true },
+    }),
+    prisma.stockAdjustmentSuggestion.findFirst({
+      where: { pharmacyId, photoPath: { in: storedPaths } },
+      select: { id: true },
+    }),
+    prisma.inspectionChecklist.findFirst({
+      where: { pharmacyId, pdfPath: { in: storedPaths } },
+      select: { id: true },
+    }),
+    prisma.cpdActivity.findFirst({
+      where: {
+        certificate: { in: storedPaths },
+        OR: [{ userId: user.userId }, { user: { pharmacyId } }],
+      },
+      select: { id: true },
+    }),
+    prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT vi."id"
+      FROM "vat_invoices" vi
+      JOIN "orders" o ON o."id" = vi."order_id"
+      WHERE vi."pdf_path" IN (${Prisma.join(storedPaths)})
+        AND (o."seller_pharmacy_id" = ${pharmacyId} OR o."buyer_pharmacy_id" = ${pharmacyId})
+      LIMIT 1
+    `).catch(() => []),
+    certificateMatch
+      ? prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+          SELECT ce."id"
+          FROM "course_enrolments" ce
+          WHERE ce."certificate_id" = ${certificateMatch[1]}
+            AND (ce."pharmacy_id" = ${pharmacyId} OR ce."user_id" = ${user.userId})
+          LIMIT 1
+        `).catch(() => [])
+      : Promise.resolve([]),
+  ]);
+
+  return Boolean(
+    prescription ||
+    complianceDocument ||
+    stockAdjustment ||
+    inspectionChecklist ||
+    cpdActivity ||
+    vatInvoiceRows.length > 0 ||
+    certificateRows.length > 0
+  );
+}
+
+app.get('/uploads/*', authenticate, async (req: Request, res: Response, next) => {
   const uploadsRoot = path.resolve(process.cwd(), process.env.UPLOAD_DIR ?? './uploads');
   const requestedPath = path.normalize(req.params[0] ?? '').replace(/^(\.\.(\/|\\|$))+/, '');
   const filePath = path.resolve(uploadsRoot, requestedPath);
@@ -120,7 +202,16 @@ app.get('/uploads/*', authenticate, (req: Request, res: Response) => {
     res.status(404).json({ error: 'Not found' });
     return;
   }
-  res.sendFile(filePath);
+
+  try {
+    if (!(await canAccessUpload(req as AuthRequest, requestedPath))) {
+      res.status(404).json({ error: 'Not found' });
+      return;
+    }
+    res.sendFile(filePath);
+  } catch (error) {
+    next(error);
+  }
 });
 
 if (process.env.NODE_ENV !== 'test') {
@@ -170,6 +261,27 @@ app.get('/api/v1/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+async function readiness(req: Request, res: Response): Promise<void> {
+  try {
+    await prisma.$queryRaw(Prisma.sql`SELECT 1`);
+    res.json({
+      status: 'ready',
+      checks: { database: 'ok' },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('[readiness.failed]', error);
+    res.status(503).json({
+      status: 'not_ready',
+      checks: { database: 'failed' },
+      timestamp: new Date().toISOString(),
+    });
+  }
+}
+
+app.get('/ready', readiness);
+app.get('/api/v1/ready', readiness);
+
 app.get('/', (_req, res) => {
   res.json({ service: 'APOTEKH API', status: 'ok' });
 });
@@ -194,7 +306,7 @@ app.use(`${v1}/patient-safety`, patientSafetyRouter);
 app.use(`${v1}/dispensing`, dispensingRouter);
 app.use(`${v1}/b2b`, b2bRouter);
 app.use(`${v1}/reports`, reportsRouter);
-app.use(`${v1}/attendance`, attendanceRouter);
+app.use(`${v1}/staff-activity`, staffActivityRouter);
 app.use(`${v1}/review-queue`, reviewRouter);
 app.use(`${v1}/founder`,           founderRouter);
 app.use(`${v1}/catalogue-import`,  catalogueImportRouter);

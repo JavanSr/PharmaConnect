@@ -2424,8 +2424,23 @@ export async function dashboardSummary(
     currentStock: number | bigint;
   };
   type CountRow = { count: number | bigint };
+  type RevenueRow = { totalRevenue: string | number | null };
+  type DailyRevenueRow = { day: string | Date; revenue: string | number | null };
 
-  const [totalProducts, lowStockProductsRaw, lowStockCountRows, expiryBatches, expiryCount, recentMovements, todayGroups] = await Promise.all([
+  const sevenDayStart = new Date(todayStart);
+  sevenDayStart.setDate(sevenDayStart.getDate() - 6);
+
+  const [
+    totalProducts,
+    lowStockProductsRaw,
+    lowStockCountRows,
+    expiryBatches,
+    expiryCount,
+    recentMovements,
+    todayGroups,
+    todayRevenueRows,
+    dailyRevenueRows,
+  ] = await Promise.all([
     prisma.product.count({ where: { pharmacyId, isActive: true } }),
     prisma.$queryRaw<LowStockRow[]>`
       SELECT
@@ -2445,6 +2460,11 @@ export async function dashboardSummary(
         AND b."quantityRemaining" > 0
       WHERE p."pharmacyId" = ${pharmacyId}
         AND p."isActive" = true
+        AND (
+          NULLIF(TRIM(p."genericName"), '') IS NOT NULL
+          OR NULLIF(TRIM(p."brandName"), '') IS NOT NULL
+          OR p."drug_product_id" IS NOT NULL
+        )
       GROUP BY
         p."id",
         p."name",
@@ -2471,6 +2491,11 @@ export async function dashboardSummary(
           AND b."quantityRemaining" > 0
         WHERE p."pharmacyId" = ${pharmacyId}
           AND p."isActive" = true
+          AND (
+            NULLIF(TRIM(p."genericName"), '') IS NOT NULL
+            OR NULLIF(TRIM(p."brandName"), '') IS NOT NULL
+            OR p."drug_product_id" IS NOT NULL
+          )
         GROUP BY p."id", p."reorderLevel"
         HAVING COALESCE(SUM(b."quantityRemaining"), 0) < p."reorderLevel"
       ) low_stock
@@ -2527,6 +2552,26 @@ export async function dashboardSummary(
         _all: true,
       },
     }),
+    prisma.$queryRaw<RevenueRow[]>`
+      SELECT COALESCE(SUM("total_amount"), 0)::text AS "totalRevenue"
+      FROM "dispensing_events"
+      WHERE "pharmacy_id" = ${pharmacyId}
+        AND "status" = 'COMPLETED'
+        AND "created_at" >= ${todayStart}
+        AND "created_at" <= ${todayEnd}
+    `,
+    prisma.$queryRaw<DailyRevenueRow[]>`
+      SELECT
+        DATE_TRUNC('day', "created_at")::date AS "day",
+        COALESCE(SUM("total_amount"), 0)::text AS "revenue"
+      FROM "dispensing_events"
+      WHERE "pharmacy_id" = ${pharmacyId}
+        AND "status" = 'COMPLETED'
+        AND "created_at" >= ${sevenDayStart}
+        AND "created_at" <= ${todayEnd}
+      GROUP BY DATE_TRUNC('day', "created_at")::date
+      ORDER BY "day" ASC
+    `,
   ]);
 
   const lowStockProducts = lowStockProductsRaw.map((product) => ({
@@ -2546,6 +2591,22 @@ export async function dashboardSummary(
   );
   const todayAdjustments = (['ADJUSTED', 'DAMAGED', 'EXPIRED_REMOVED'] as MovementType[])
     .reduce((sum, type) => sum + (todayByType.get(type)?.count ?? 0), 0);
+  const dailyRevenueByDate = new Map(
+    dailyRevenueRows.map((row) => [
+      row.day instanceof Date ? row.day.toISOString().slice(0, 10) : String(row.day).slice(0, 10),
+      Number(row.revenue ?? 0),
+    ]),
+  );
+  const revenueLast7Days = Array.from({ length: 7 }, (_, index) => {
+    const day = new Date(sevenDayStart);
+    day.setDate(sevenDayStart.getDate() + index);
+    const key = day.toISOString().slice(0, 10);
+
+    return {
+      date: key,
+      revenue: dailyRevenueByDate.get(key) ?? 0,
+    };
+  });
 
   return {
     totalProducts,
@@ -2559,6 +2620,8 @@ export async function dashboardSummary(
       received: todayByType.get('RECEIVED')?.quantity ?? 0,
       adjustments: todayAdjustments,
       events: todayGroups.reduce((sum, group) => sum + group._count._all, 0),
+      revenue: Number(todayRevenueRows[0]?.totalRevenue ?? 0),
+      revenueLast7Days,
     },
   };
 }

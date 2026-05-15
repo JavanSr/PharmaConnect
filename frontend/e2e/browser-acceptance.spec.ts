@@ -1574,7 +1574,7 @@ test('receiving falls back from GS1 barcode detection to a saved product mapping
   await expect(page.getByText('Loaded saved mapping for Amoxicillin')).toBeVisible();
 });
 
-test('warm-cache five-drug safety review renders in under 500 ms', async ({ page }) => {
+test('five-drug safety review renders promptly after API response', async ({ page }) => {
   const drugs = [
     { id: 'perf-1', name: 'Amoxicillin 500', genericName: 'amoxicillin', strength: '500mg', dosageForm: 'TABLET' as const, currentStock: 30, sellingPrice: 1000 },
     { id: 'perf-2', name: 'Metformin 500', genericName: 'metformin', strength: '500mg', dosageForm: 'TABLET' as const, currentStock: 30, sellingPrice: 500 },

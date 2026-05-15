@@ -1,12 +1,12 @@
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
-import type { BillingCycle, PharmacyAccountStatus, PharmacyMembershipRole, PharmacyType, SubscriptionTier } from '@prisma/client';
+import { Prisma, type BillingCycle, type PharmacyAccountStatus, type PharmacyMembershipRole, type PharmacyType, type SubscriptionTier } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 import { withPrismaRetry } from '../../lib/prisma-retry';
 import { verifyRefresh } from '../../lib/jwt';
 import { normalizeRole, type KnownRole } from '../../types/roles';
 import { issueAuthTokens, resolveActiveMembership } from './pharmacy-membership.service';
-import { sendVerificationEmail, sendWelcomeEmail, sendFounderNotification } from '../../lib/email';
+import { sendPasswordResetEmail, sendVerificationEmail, sendWelcomeEmail, sendFounderNotification } from '../../lib/email';
 
 function hashToken(token: string): string {
   return crypto.createHash('sha256').update(token).digest('hex');
@@ -77,6 +77,7 @@ type LoginMembership = {
 type LoginTimings = Record<string, number>;
 
 const loginSlowLogMs = Number(process.env.LOGIN_SLOW_LOG_MS ?? 1000);
+const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000;
 
 async function measureLoginStep<T>(
   timings: LoginTimings,
@@ -107,6 +108,28 @@ function chooseLoginMembership(
   }
 
   return memberships[0];
+}
+
+async function recordLoginAuditEvent(input: {
+  userId: string;
+  pharmacyId?: string | null;
+  selectedRole: string;
+  membershipCount: number;
+}) {
+  await withPrismaRetry(() => prisma.$executeRaw(Prisma.sql`
+    INSERT INTO "audit_log" ("pharmacy_id", "table_name", "record_id", "action", "acted_by", "new_data")
+    VALUES (
+      ${input.pharmacyId ?? null},
+      'auth_sessions',
+      ${input.userId},
+      'LOGIN',
+      ${input.userId},
+      ${JSON.stringify({
+        selectedRole: input.selectedRole,
+        membershipCount: input.membershipCount,
+      })}::jsonb
+    )
+  `));
 }
 
 export async function loginService(email: string, password: string, preferredPharmacyId?: string) {
@@ -205,6 +228,13 @@ export async function loginService(email: string, password: string, preferredPha
     },
   })).catch((error) => {
     console.error('[auth.login.lastLoginUpdateFailed]', error);
+  });
+
+  await recordLoginAuditEvent({
+    userId: user.id,
+    pharmacyId: selectedPharmacyId,
+    selectedRole: membership?.role ?? user.role,
+    membershipCount: rawMemberships.length,
   });
 
   const memberships = rawMemberships.map((entry) => ({
@@ -412,6 +442,53 @@ export async function resendVerificationService(email: string) {
     pharmacyName: pharmacy?.name ?? 'your pharmacy',
     token: newToken,
   }).catch(err => console.error('[resend-verification] email failed:', err));
+}
+
+export async function requestPasswordResetService(email: string) {
+  const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+  if (!user || !user.isActive) {
+    return;
+  }
+
+  const token = crypto.randomBytes(32).toString('hex');
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      passwordResetToken: hashToken(token),
+      passwordResetExpiry: new Date(Date.now() + PASSWORD_RESET_TTL_MS),
+    },
+  });
+
+  sendPasswordResetEmail({
+    to: user.email,
+    firstName: user.firstName,
+    token,
+  }).catch(err => console.error('[password-reset] email failed:', err));
+}
+
+export async function resetPasswordService(token: string, password: string) {
+  const tokenHash = hashToken(token);
+  const user = await prisma.user.findUnique({
+    where: { passwordResetToken: tokenHash },
+  });
+
+  if (!user || !user.passwordResetExpiry || user.passwordResetExpiry < new Date()) {
+    throw Object.assign(new Error('Password reset link is invalid or expired'), { status: 400, code: 'PASSWORD_RESET_INVALID' });
+  }
+
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: await bcrypt.hash(password, 12),
+        passwordResetToken: null,
+        passwordResetExpiry: null,
+        lastPasswordChangeAt: new Date(),
+        mustChangePassword: false,
+      },
+    }),
+    prisma.refreshToken.deleteMany({ where: { userId: user.id } }),
+  ]);
 }
 
 export async function refreshTokenService(token: string) {

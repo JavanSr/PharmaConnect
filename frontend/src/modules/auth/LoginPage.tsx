@@ -18,8 +18,8 @@ const schema = z.object({
 });
 type FormData = z.infer<typeof schema>;
 
-const isDev = import.meta.env.DEV;
-const DEMO_ACCOUNTS = isDev ? [
+const showDemoAccounts = import.meta.env.VITE_SHOW_DEMO_ACCOUNTS === 'true';
+const DEMO_ACCOUNTS = showDemoAccounts ? [
   { label: 'Super Admin', email: 'founder@pharmaconnect.tz', displayEmail: 'founder@apotekh.co.tz' },
   { label: 'Pharmacy Admin', email: 'admin@pharmaconnect.tz', displayEmail: 'admin@apotekh.co.tz' },
   { label: 'Staff', email: 'staff@pharmaconnect.tz', displayEmail: 'staff@apotekh.co.tz' },
@@ -28,7 +28,7 @@ const DEMO_ACCOUNTS = isDev ? [
   { label: 'Clerk Demo', email: 'clerk@amani.co.tz' },
   { label: 'Wholesale Seller', email: 'seller@amani.co.tz' },
 ] : [];
-const DEMO_PASSWORD = isDev ? 'Demo123!' : '';
+const DEMO_PASSWORD = showDemoAccounts ? 'Demo123!' : '';
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -155,13 +155,18 @@ export const LoginPage: React.FC = () => {
                 </button>
               }
             />
+            <div className="-mt-2 text-right">
+              <Link to="/auth/forgot-password" className="text-sm font-medium text-[#1A6B5C] hover:underline">
+                Forgot password?
+              </Link>
+            </div>
 
             <Button type="submit" className="w-full" loading={isSubmitting} size="lg">
               Sign in
             </Button>
           </form>
 
-          {isDev && (
+          {showDemoAccounts && (
           <div className="mt-5 space-y-1 text-xs text-[#64748B]">
             <p className="font-semibold text-[#0D4035] mb-2">Demo accounts — click to fill</p>
             {DEMO_ACCOUNTS.map(account => (

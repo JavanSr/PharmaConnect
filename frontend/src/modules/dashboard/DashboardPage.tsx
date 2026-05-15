@@ -10,6 +10,7 @@ import {
   TrendingDown,
   ArrowDownUp,
   Activity,
+  Wallet,
 } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 import { Card } from '@/components/ui/Card';
@@ -24,15 +25,46 @@ interface StatCard {
   icon: React.ReactNode;
   color: string;
   link: string;
+  children?: React.ReactNode;
 }
 
-const StatCardEl: React.FC<StatCard> = ({ label, value, icon, color, link }) => (
+const formatTzs = (value: number | string | null | undefined) =>
+  `TZS ${Number(value ?? 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+
+const RevenueSparkline: React.FC<{ data?: Array<{ date: string; revenue: number }> }> = ({ data }) => {
+  const values = data?.map((point) => Number(point.revenue || 0)) ?? [];
+  const hasTrend = values.filter((value) => value > 0).length >= 2;
+  if (!hasTrend) return null;
+
+  const width = 150;
+  const height = 32;
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  if (max === min) return null;
+
+  const points = values
+    .map((value, index) => {
+      const x = (index / Math.max(values.length - 1, 1)) * width;
+      const y = height - ((value - min) / (max - min)) * (height - 4) - 2;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(' ');
+
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} className="mt-3 h-8 w-full max-w-[150px]" aria-hidden="true" focusable="false">
+      <polyline points={points} fill="none" stroke="#1A6B5C" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+};
+
+const StatCardEl: React.FC<StatCard> = ({ label, value, icon, color, link, children }) => (
   <Link to={link}>
     <div className="bg-white rounded-2xl border border-[#D6F0E8] p-5 hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between">
         <div>
           <p className="text-sm text-[#64748B] mb-1">{label}</p>
           <p className="text-2xl font-bold text-[#0D4035]">{value}</p>
+          {children}
         </div>
         <div className={`w-10 h-10 rounded-xl ${color} flex items-center justify-center`}>
           {icon}
@@ -65,6 +97,11 @@ export const DashboardPage: React.FC = () => {
   const lowStockProducts = summary?.lowStockProducts || [];
   const recentMovements = summary?.recentMovements || [];
   const todayStats = summary?.today || {};
+  const todayActivityTotal =
+    Number(todayStats.dispensed ?? 0) +
+    Number(todayStats.received ?? 0) +
+    Number(todayStats.adjustments ?? 0) +
+    Number(todayStats.events ?? 0);
 
   return (
     <div className="space-y-6">
@@ -85,12 +122,14 @@ export const DashboardPage: React.FC = () => {
 
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         <StatCardEl
-          label="Total Products"
-          value={summary?.totalProducts ?? '--'}
-          icon={<Package size={20} className="text-[#1A6B5C]" />}
+          label="Today's Revenue"
+          value={formatTzs(todayStats.revenue)}
+          icon={<Wallet size={20} className="text-[#1A6B5C]" />}
           color="bg-[#D6F0E8]"
-          link="/inventory/products"
-        />
+          link="/reports"
+        >
+          <RevenueSparkline data={todayStats.revenueLast7Days} />
+        </StatCardEl>
         <StatCardEl
           label="Low Stock Items"
           value={summary?.lowStockCount ?? '--'}
@@ -120,7 +159,7 @@ export const DashboardPage: React.FC = () => {
           padding={false}
         >
           {lowStockProducts.length === 0 ? (
-            <div className="p-6 text-center text-sm text-[#64748B]">All stock levels are healthy</div>
+            <div className="p-8 text-center text-sm text-[#64748B]">No low-stock products right now</div>
           ) : (
             <div className="divide-y divide-[#D6F0E8]">
               {lowStockProducts.map((product: any) => {
@@ -200,47 +239,51 @@ export const DashboardPage: React.FC = () => {
         </Card>
 
         <Card header={<span className="text-sm font-semibold text-[#0D4035]">Today's Activity</span>}>
-          <div className="space-y-4 pt-1">
-            <div className="flex items-center justify-between p-3 bg-[#D6F0E8] rounded-2xl">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-[#1A6B5C] rounded-xl flex items-center justify-center">
-                  <TrendingDown size={15} className="text-white" />
+          {todayActivityTotal === 0 ? (
+            <div className="p-8 text-center text-sm text-[#64748B]">No activity recorded today yet.</div>
+          ) : (
+            <div className="space-y-4 pt-1">
+              <div className="flex items-center justify-between p-3 bg-[#D6F0E8] rounded-2xl">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-[#1A6B5C] rounded-xl flex items-center justify-center">
+                    <TrendingDown size={15} className="text-white" />
+                  </div>
+                  <span className="text-sm text-[#0D4035]">Dispensed</span>
                 </div>
-                <span className="text-sm text-[#0D4035]">Dispensed</span>
+                <span className="text-lg font-bold text-[#1A6B5C]">{todayStats.dispensed ?? 0}</span>
               </div>
-              <span className="text-lg font-bold text-[#1A6B5C]">{todayStats.dispensed ?? 0}</span>
-            </div>
 
-            <div className="flex items-center justify-between p-3 bg-[#EDF7F3] rounded-2xl">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-[#1D9E75] rounded-xl flex items-center justify-center">
-                  <Package size={15} className="text-white" />
+              <div className="flex items-center justify-between p-3 bg-[#EDF7F3] rounded-2xl">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-[#1D9E75] rounded-xl flex items-center justify-center">
+                    <Package size={15} className="text-white" />
+                  </div>
+                  <span className="text-sm text-[#0D4035]">Received</span>
                 </div>
-                <span className="text-sm text-[#0D4035]">Received</span>
+                <span className="text-lg font-bold text-[#1D9E75]">{todayStats.received ?? 0}</span>
               </div>
-              <span className="text-lg font-bold text-[#1D9E75]">{todayStats.received ?? 0}</span>
-            </div>
 
-            <div className="flex items-center justify-between p-3 bg-amber-50 rounded-2xl">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-[#D97706] rounded-xl flex items-center justify-center">
-                  <ArrowDownUp size={15} className="text-white" />
+              <div className="flex items-center justify-between p-3 bg-amber-50 rounded-2xl">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-[#D97706] rounded-xl flex items-center justify-center">
+                    <ArrowDownUp size={15} className="text-white" />
+                  </div>
+                  <span className="text-sm text-[#0D4035]">Adjustments</span>
                 </div>
-                <span className="text-sm text-[#0D4035]">Adjustments</span>
+                <span className="text-lg font-bold text-[#D97706]">{todayStats.adjustments ?? 0}</span>
               </div>
-              <span className="text-lg font-bold text-[#D97706]">{todayStats.adjustments ?? 0}</span>
-            </div>
 
-            <div className="flex items-center justify-between p-3 bg-[#EDF7F3] rounded-2xl">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-[#64748B] rounded-xl flex items-center justify-center">
-                  <Activity size={15} className="text-white" />
+              <div className="flex items-center justify-between p-3 bg-[#EDF7F3] rounded-2xl">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-[#64748B] rounded-xl flex items-center justify-center">
+                    <Activity size={15} className="text-white" />
+                  </div>
+                  <span className="text-sm text-[#0D4035]">Total Events</span>
                 </div>
-                <span className="text-sm text-[#0D4035]">Total Events</span>
+                <span className="text-lg font-bold text-[#0D4035]">{todayStats.events ?? 0}</span>
               </div>
-              <span className="text-lg font-bold text-[#0D4035]">{todayStats.events ?? 0}</span>
             </div>
-          </div>
+          )}
         </Card>
       </div>
 

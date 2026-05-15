@@ -1,5 +1,5 @@
 import React, { useRef, useCallback } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, BookOpen, Package, Shield, Pill,
   Lock, ChevronLeft, ChevronRight, Settings, LogOut, BarChart3,
@@ -32,7 +32,7 @@ const phase1Nav: NavItem[] = [
   { label: 'Wholesale', path: '/wholesale', icon: <Building2 size={18} />, roles: ['OWNER','WHOLESALE_MANAGER','WHOLESALE_COUNTER_STAFF','DELIVERY_STAFF','SUPER_ADMIN'] },
   { label: 'Orders', path: '/wholesale/orders', icon: <ClipboardList size={18} />, roles: ['OWNER','WHOLESALE_MANAGER','WHOLESALE_COUNTER_STAFF','DELIVERY_STAFF','SUPER_ADMIN'] },
   { label: 'Reports', path: '/reports', icon: <BarChart3 size={18} />, roles: ['OWNER','PHARMACIST_IN_CHARGE','CASHIER','WHOLESALE_MANAGER','SUPER_ADMIN'] },
-  { label: 'Attendance', path: '/attendance', icon: <Users size={18} /> },
+  { label: 'Staff Activity', path: '/staff-activity', icon: <Users size={18} />, roles: ['OWNER','PHARMACIST_IN_CHARGE'] },
   { label: 'Sync Conflicts', path: '/inventory/conflicts', icon: <AlertTriangle size={18} />, roles: ['OWNER','PHARMACIST_IN_CHARGE','SUPER_ADMIN'] },
   { label: 'Founder', path: '/founder', icon: <Telescope size={18} />, roles: ['SUPER_ADMIN'] },
 ];
@@ -52,6 +52,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, collapsed, on
   const { user, logout } = useAuthStore();
   const { pharmacy } = usePharmacyStore();
   const navigate = useNavigate();
+  const location = useLocation();
   const navRef = useRef<HTMLElement>(null);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -74,21 +75,24 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, collapsed, on
   };
 
   const NavItemEl: React.FC<{ item: NavItem }> = ({ item }) => {
+    const isActive =
+      item.path === '/dashboard'
+        ? location.pathname === '/dashboard'
+        : location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
+
     return (
-      <NavLink
+      <Link
         to={item.path}
-        className={({ isActive }) =>
-          `flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors ${
-            isActive
-              ? 'bg-[#1A6B5C] text-white'
-              : 'text-[#0D4035] hover:bg-[#D6F0E8]'
-          }`
-        }
+        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors ${
+          isActive
+            ? 'bg-[#1A6B5C] text-white'
+            : 'text-[#0D4035] hover:bg-[#D6F0E8]'
+        }`}
         onClick={() => onClose()}
       >
         {item.icon}
         {!collapsed && <span className="flex-1 text-sm font-medium truncate">{item.label}</span>}
-      </NavLink>
+      </Link>
     );
   };
 
@@ -136,10 +140,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, collapsed, on
 
       {/* User Footer */}
       <div className="border-t border-[#D6F0E8] p-3 space-y-1">
-        <NavLink to="/settings/profile" className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-[#D6F0E8] transition-colors" onClick={onClose}>
+        <Link to="/settings/profile" className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-[#D6F0E8] transition-colors" onClick={onClose}>
           <Settings size={18} className="text-[#64748B] shrink-0" />
           {!collapsed && <span className="text-sm text-[#0D4035]">Settings</span>}
-        </NavLink>
+        </Link>
 
         <div className={`flex items-center gap-3 px-3 py-2 ${collapsed ? 'justify-center' : ''}`}>
           <div className="w-8 h-8 rounded-full bg-[#1A6B5C] text-white flex items-center justify-center text-xs font-bold shrink-0">

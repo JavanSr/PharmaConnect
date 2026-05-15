@@ -1,4 +1,4 @@
-# PharmaConnect User Manual
+# APOTEKH User Manual
 
 Cloud-based, offline-first Pharmacy Management System and digital health ecosystem for Tanzanian retail pharmacies, ADDOs, wholesale distributors, pharmacy owners, and healthcare partners.
 
@@ -16,11 +16,11 @@ Availability note:
 
 ---
 
-## 1. Welcome to PharmaConnect
+## 1. Welcome to APOTEKH
 
-### What is PharmaConnect?
+### What is APOTEKH?
 
-PharmaConnect is an offline-first pharmacy operating system for Tanzania that connects dispensing, inventory, compliance, safety alerts, analytics, wholesale workflows, and professional learning in one platform.
+APOTEKH is an offline-first pharmacy operating system for Tanzania that connects dispensing, inventory, compliance, safety alerts, analytics, wholesale workflows, and professional learning in one platform.
 
 ### Key benefits
 
@@ -31,9 +31,9 @@ PharmaConnect is an offline-first pharmacy operating system for Tanzania that co
 - Tanzania context: TMDA registration fields, NEMLIT and MSD catalogue references, AWaRe antibiotic flags, NHIF and ADR workflows on the roadmap.
 - Growth platform: analytics, forecasting preview, B2B wholesale workflows, Knowledge Hub, CPD tracking, and founder controls.
 
-[Screenshot: PharmaConnect dashboard showing low stock, expiry alerts, and today's activity]
+![APOTEKH Dashboard](screenshots/03-dashboard.png)
 
-### Who uses PharmaConnect?
+### Who uses APOTEKH?
 
 - `OWNER`: manages pharmacy operations, subscription, team, analytics, reports, stock decisions, and business oversight.
 - `PHARMACIST_IN_CHARGE`: oversees clinical safety, compliance, staff work, stock corrections, PIC PIN overrides, and dispensing quality.
@@ -74,9 +74,9 @@ Typical scenario:
 2. Enter the pharmacy name, region, address, and pharmacy type.
 3. Enter owner/admin account details.
 4. Submit the form.
-5. PharmaConnect sends an email verification flow when configured by the backend.
+5. APOTEKH sends an email verification flow when configured by the backend.
 
-[Screenshot: Create pharmacy account registration form]
+![Registration form](screenshots/01-login.png)
 
 ### Email verification
 
@@ -92,8 +92,6 @@ What it does:
 After registration, the user checks their email and opens the verification link. The verification page validates the token, signs the user in, stores authentication, selects the pharmacy, and moves the user to the 14-day trial confirmation page.
 
 If the link is invalid or expired, the page shows an error and directs the user to register again.
-
-[Screenshot: Email verified confirmation screen]
 
 ### 14-day trial overview
 
@@ -118,8 +116,6 @@ Trial behavior:
 - If a trial ends, access is paused except for allowed subscription and read-only exceptions.
 - Owners and super admins can open subscription options and contact the founder for renewal or upgrade.
 
-[Screenshot: 14-day trial confirmation page]
-
 ### Choosing a subscription tier
 
 Where to find it: `Settings > Subscription`
@@ -133,7 +129,7 @@ The Subscription page shows current tier, billing cycle, trial status, trial cou
 Known tier names in the platform:
 
 - `ADDO`
-- `ESSENTIAL`
+- `BASIC`
 - `STANDARD`
 - `PREMIUM`
 - `WHOLESALE`
@@ -141,14 +137,21 @@ Known tier names in the platform:
 
 Current pricing:
 
+**Retail tiers:**
+
 | Plan | Monthly price | Annual price | Included scale |
 |---|---:|---:|---|
 | ADDO | TZS 20,000 | TZS 200,000 | 1 outlet, 3 users |
-| Essential | TZS 35,000 | TZS 350,000 | 1 outlet, 4 users |
-| Standard | TZS 55,000 | TZS 550,000 | Up to 3 outlets, 7 users |
-| Premium | TZS 75,000 | TZS 750,000 | Up to 5 outlets, 12 users |
-| Wholesale | TZS 100,000 | TZS 1,000,000 | 1 wholesale outlet, 10+ users |
-| Enterprise | Custom | Custom | Unlimited outlets and users |
+| BASIC | TZS 39,000 | TZS 390,000 | 2 outlets, 5 users |
+| STANDARD | TZS 55,000 | TZS 550,000 | 3 outlets, 10 users |
+| PREMIUM | TZS 75,000 | TZS 750,000 | 5 outlets, 20 users |
+
+**Wholesale / distributor tiers:**
+
+| Plan | Monthly price | Annual price | Included scale |
+|---|---:|---:|---|
+| WHOLESALE | TZS 100,000 | TZS 1,000,000 | 1 wholesale outlet, 10 users + delivery staff |
+| ENTERPRISE | Custom | Custom | 6+ outlets, unlimited users |
 
 Annual billing is 10x the monthly price. Enterprise pricing is negotiated for custom rollout, reporting, and governance needs.
 
@@ -186,8 +189,6 @@ Important pharmacy data in the backend includes:
 - `vfdEnabled`
 - `userLimit`
 
-[Screenshot: Outlet Selection page showing multiple pharmacy memberships]
-
 ---
 
 ## 3. Dashboard & Navigation
@@ -219,7 +220,7 @@ Typical scenario:
 3. They open Inventory or Receive Stock directly from the dashboard.
 4. They review recent stock movements and today's dispensing activity.
 
-[Screenshot: Dashboard with Total Products, Low Stock Items, and Expiry Countdown]
+![Dashboard](screenshots/03-dashboard.png)
 
 ### Sidebar navigation
 
@@ -268,7 +269,7 @@ The top bar includes:
 - Quick actions: `Dispense` and `Receive`
 - Notification bell
 
-[Screenshot: Top bar showing Synced status and active outlet selector]
+![Top bar — Synced status](screenshots/03-dashboard.png)
 
 ### Role-based views
 
@@ -316,7 +317,7 @@ Dashboard cards show:
 - Low Stock Items
 - Expiring Soon
 
-[Screenshot: Inventory dashboard with Total SKUs and Expiring Soon]
+![Inventory dashboard](screenshots/04-inventory-dashboard.png)
 
 ### Product catalogue
 
@@ -362,7 +363,7 @@ Typical scenario:
 4. Fill required product details.
 5. Save, then receive stock batches for that product.
 
-[Screenshot: Add Product form with TMDA registration and storage fields]
+![Add Product form](screenshots/06-add-product.png)
 
 ### Drug Catalogue
 
@@ -389,7 +390,7 @@ Typical scenario:
 2. Confirm form, strength, pack, storage, registration, and flags.
 3. Use the match when creating or receiving a local product.
 
-[Screenshot: Drug Catalogue table with NEML and Cold chain badges]
+![Drug Catalogue](screenshots/07-drug-catalogue.png)
 
 ### Catalogue import from supplier PDFs
 
@@ -413,8 +414,6 @@ Availability note:
 
 The backend warns if `ANTHROPIC_API_KEY` is not configured. In that case, AI catalogue import may be unavailable.
 
-[Screenshot: Import Supplier Catalogue page with extracted product rows]
-
 ### Batch management and FEFO
 
 Where to find it:
@@ -428,7 +427,7 @@ Who uses it: PICs, dispensers, inventory managers, owners.
 
 What it does:
 
-PharmaConnect tracks stock at batch level. Each batch stores:
+APOTEKH tracks stock at batch level. Each batch stores:
 
 - Product
 - Batch number
@@ -438,7 +437,7 @@ PharmaConnect tracks stock at batch level. Each batch stores:
 - Supplier
 - Received date
 
-FEFO means First Expiry, First Out. PharmaConnect supports FEFO by making expiry and batch-level quantities visible and by using batch-aware stock movements during dispensing and receiving.
+FEFO means First Expiry, First Out. APOTEKH supports FEFO by making expiry and batch-level quantities visible and by using batch-aware stock movements during dispensing and receiving.
 
 Typical scenario:
 
@@ -447,7 +446,7 @@ Typical scenario:
 3. Review quantity remaining and expiry status.
 4. Use `Expiry Dashboard` to prioritize batches expiring soon.
 
-[Screenshot: Batch Manager table with batch number, expiry date, quantity remaining, and status]
+![Batch Manager](screenshots/09-batch-manager.png)
 
 ### Stock intake
 
@@ -485,7 +484,7 @@ Typical scenario:
 7. Repeat for other products.
 8. Click `Receive all`.
 
-[Screenshot: Receive Stock page with barcode scanner open]
+![Receive Stock](screenshots/08-receive-stock.png)
 
 Offline behavior:
 
@@ -525,7 +524,7 @@ Typical scenario:
 5. The PIC approves, partially approves, or rejects the request.
 6. Approved changes apply stock movement and preserve audit context.
 
-[Screenshot: Stock Adjustment Approval page with pending owner review]
+![Stock Adjustment](screenshots/10-stock-adjustment.png)
 
 ### Expiry dashboard and automatic alerts
 
@@ -543,7 +542,7 @@ Expiry views help staff identify batches expiring soon. Dashboard and analytics 
 
 Backend jobs include expiry alert generation, low-stock alerts, compliance alerts, and weekly digest jobs.
 
-[Screenshot: Expiry Dashboard with warning and danger badges]
+![Expiry Dashboard](screenshots/04-inventory-dashboard.png)
 
 ### Order Preparation
 
@@ -564,7 +563,7 @@ Typical scenario:
 5. Save draft or submit order.
 6. When stock arrives, open the order and receive items with batch number, expiry date, quantity received, unit cost, and selling price.
 
-[Screenshot: Prepare Stock Order page with low-stock suggestions]
+![Order Preparation](screenshots/11-order-preparation.png)
 
 ### Sync Conflicts
 
@@ -575,8 +574,6 @@ Who uses it: `OWNER`, `PHARMACIST_IN_CHARGE`, `SUPER_ADMIN`
 What it does:
 
 Sync Conflicts shows queued local writes and server conflicts created after offline sync rejection. Staff can review local payloads, server responses, and resolve open conflicts.
-
-[Screenshot: Inventory Conflicts page with queued and open conflict cards]
 
 ---
 
@@ -592,7 +589,7 @@ What it does:
 
 The Dispensing screen is the main point-of-sale workflow. It combines patient context, medicine search, safety checks, basket management, payment method selection, optional prescription photo, discount controls, and receipt output.
 
-[Screenshot: Dispensing screen with patient safety panel and basket]
+![Dispensing screen](screenshots/12-dispensing.png)
 
 ### Step-by-step dispensing flow
 
@@ -663,7 +660,7 @@ What happens when the device reconnects:
 3. If a conflict is detected, the transaction is marked for review and visible through conflict workflows where applicable.
 4. The pending sync count decreases.
 
-[Screenshot: Top bar showing pending sync count after offline dispensing]
+![Top bar — sync status](screenshots/03-dashboard.png)
 
 ### Payment methods
 
@@ -698,8 +695,6 @@ What it does:
 
 Daily Close summarizes dispensing activity for the day or shift so teams can reconcile sales, payment methods, and records.
 
-[Screenshot: Daily Close page with shift totals]
-
 ### Returns, refunds, and voids
 
 Where to find it: `Dispensing > Returns`
@@ -717,8 +712,6 @@ Typical scenario:
 3. Review event details.
 4. Record return or void reason.
 5. Confirm the action.
-
-[Screenshot: Dispensing Returns page with transaction history]
 
 ---
 
@@ -744,11 +737,10 @@ Patient Safety reviews the current basket and patient context before checkout. I
 
 Availability:
 
-- Available on `STANDARD`, `PREMIUM`, and `ENTERPRISE` retail pharmacies.
-- Hidden or simplified for `ADDO`.
-- Not shown for wholesale-only roles.
+- Available to all retail pharmacy tiers: `ADDO`, `BASIC`, `STANDARD`, `PREMIUM`, and `ENTERPRISE`. Clinical Decision Support is never tier-gated.
+- Not shown for wholesale-only roles (`WHOLESALE`), as wholesale does not include retail dispensing.
 
-[Screenshot: Patient safety panel with high, moderate, and informational alert counts]
+![Safety Alerts](screenshots/13-safety-alerts.png)
 
 ### Severity levels
 
@@ -783,7 +775,7 @@ The override is stored in an immutable override log with:
 
 Where to review: `Safety Alerts`
 
-[Screenshot: Safety Alert History page showing PIC override events]
+![Safety Alert History](screenshots/13-safety-alerts.png)
 
 ### Contraindication checks
 
@@ -830,7 +822,7 @@ The dose calculator is off by default and can be enabled when needed. It support
 
 If a pediatric patient is detected without weight, the calculator prompts staff to add weight before using dose support.
 
-[Screenshot: Dose calculator showing Clark's, Young's, and weight-based results]
+![Dispensing — Dose calculator](screenshots/12-dispensing.png)
 
 ### AWaRe antibiotic flags
 
@@ -865,7 +857,7 @@ The Controlled Register is generated from completed dispensing events. It highli
 - Timestamp
 - Payment method
 
-[Screenshot: Controlled drugs register table]
+![Controlled Register](screenshots/14-controlled-register.png)
 
 ---
 
@@ -901,8 +893,6 @@ Current product note:
 
 The main sidebar routes `/patients/new` and `/patients/:id` redirect to `Patient Records`, which is currently a deferred page. For demos, present patient management as partly implemented in dispensing context and planned as a fuller patient records module.
 
-[Screenshot: Deferred Patient Records page]
-
 ### Prescription photos and history
 
 Where to find it: `Dispensing`
@@ -913,7 +903,7 @@ During checkout, staff can attach a prescription photo using the device camera o
 
 Backend support stores prescription metadata linked to pharmacy, optional patient, dispensing event, reference number, photo path, and creator.
 
-[Screenshot: Dispensing basket with Prescription photo upload]
+![Dispensing basket](screenshots/12-dispensing.png)
 
 ### NHIF claims
 
@@ -933,8 +923,6 @@ Planned workflow:
 4. Scrub missing or invalid fields.
 5. Submit claim.
 6. Track status: draft, submitted, approved, rejected, paid, or resubmitted.
-
-[Screenshot: NHIF Claims Coming Soon page]
 
 ---
 
@@ -961,7 +949,7 @@ Offline behavior:
 
 The compliance dashboard caches a local IndexedDB snapshot. If live data is unavailable, it can show an offline snapshot with the last synced time.
 
-[Screenshot: Compliance Tracker health score and urgent items]
+![Compliance Tracker](screenshots/15-compliance.png)
 
 ### Compliance items
 
@@ -1015,7 +1003,7 @@ Typical scenario:
 5. Add notes for non-compliant findings.
 6. Print or download the checklist for inspection preparation.
 
-[Screenshot: TMDA Inspection Checklist with readiness score]
+![TMDA Inspection Checklist](screenshots/16-inspection-checklist.png)
 
 ### Staff credentials
 
@@ -1036,7 +1024,7 @@ Fields include:
 - Expires At
 - Notes
 
-[Screenshot: Staff Credentials form and credential list]
+![Staff Credentials](screenshots/17-staff-credentials.png)
 
 ### Pharmacovigilance
 
@@ -1055,8 +1043,6 @@ Planned use:
 3. Saves draft.
 4. Submits to TMDA when electronic integration is ready.
 5. Tracks TMDA reference and submission status.
-
-[Screenshot: ADR Reporting Coming Soon page]
 
 ### Cold chain monitoring
 
@@ -1095,7 +1081,7 @@ Widgets include:
 - Storage Conditions
 - Multi-outlet Compare for Enterprise where available
 
-[Screenshot: Analytics page with stock movement and compliance charts]
+![Analytics](screenshots/18-analytics.png)
 
 ### Reports
 
@@ -1117,7 +1103,7 @@ Current report cards include:
 
 Peer benchmarking may show a message when data is not available yet.
 
-[Screenshot: Reports page with revenue and peer benchmark]
+![Reports](screenshots/26-reports.png)
 
 ### Forecasting
 
@@ -1147,7 +1133,7 @@ Typical scenario:
 3. Review stockout forecast by current stock, average daily demand, lead time, estimated stockout date, and at-risk value.
 4. For Premium/Enterprise, review seasonality and dead-stock ranking.
 
-[Screenshot: Forecasting page with stockout forecast and early preview banner]
+![Forecasting](screenshots/19-forecasting.png)
 
 ### Feature telemetry
 
@@ -1155,7 +1141,7 @@ What it does:
 
 The backend includes feature telemetry support to understand product usage patterns and improve rollout decisions. This is primarily a platform improvement feature rather than an end-user workflow.
 
-For investor demos, position telemetry as a product learning loop that helps PharmaConnect see which workflows create adoption and where training may be needed.
+For investor demos, position telemetry as a product learning loop that helps APOTEKH see which workflows create adoption and where training may be needed.
 
 ---
 
@@ -1183,7 +1169,7 @@ Dashboard cards include:
 - EFDMS invoice queue
 - Credit controls
 
-[Screenshot: Wholesale dashboard with receivables aging and open orders]
+![Wholesale Dashboard](screenshots/20-wholesale-dashboard.png)
 
 ### Wholesale orders
 
@@ -1214,8 +1200,6 @@ Typical scenario:
 5. Delivery staff confirm delivery.
 6. Invoice and receivables data update.
 
-[Screenshot: Wholesale orders page with delivery schedule fields]
-
 ### Supplier management and purchase orders
 
 Where to find it:
@@ -1244,7 +1228,7 @@ Wholesale operations include:
 - EFDMS status fields
 - Receivables aging buckets
 
-For investor demos, this shows PharmaConnect is not only retail POS. It supports distributor-grade B2B controls.
+For investor demos, this shows APOTEKH is not only retail POS. It supports distributor-grade B2B controls.
 
 ---
 
@@ -1284,7 +1268,7 @@ Typical scenario:
 5. Review bulletins or publications.
 6. Subscribe to weekly digest.
 
-[Screenshot: Knowledge Hub with article cards, bulletins, and weekly digest form]
+![Knowledge Hub](screenshots/21-knowledge-hub.png)
 
 ### TMDA Updates
 
@@ -1294,51 +1278,19 @@ Who uses it: PICs, owners, compliance-focused staff.
 
 What it does:
 
-TMDA Updates is a dedicated regulatory update area. Use it in demos to show that PharmaConnect treats regulatory information as a daily pharmacy workflow, not a separate spreadsheet or WhatsApp thread.
-
-[Screenshot: TMDA Updates page]
+TMDA Updates is a dedicated regulatory update area. Use it in demos to show that APOTEKH treats regulatory information as a daily pharmacy workflow, not a separate spreadsheet or WhatsApp thread.
 
 ### CPD Tracker
 
 Where to find it: `CPD Tracker` or `/cpd`
 
-Who uses it: pharmacists, PICs, owners, team managers.
+Status: Coming Soon / Phase 2
 
 What it does:
 
-CPD Tracker records professional learning activities and points. It is available for Standard, Premium, and Enterprise retail pharmacies. ADDO and wholesale contexts see an availability message.
+CPD Tracker is a planned Phase 2 feature for recording professional learning activities and CPD points. The current page is a placeholder. Full CPD tracking, premium courses, and certificate verification will be released in a future update.
 
-Activity fields include:
-
-- Activity type
-- Title
-- Provider
-- Activity date
-- Points claimed
-- Certificate
-- Notes
-
-Dashboard widgets include:
-
-- Total points
-- This year
-- Renewal countdown
-- Recent CPD activity
-- Premium courses, for Premium and Enterprise
-
-[Screenshot: CPD Tracker dashboard with total points and recent activity]
-
-### Premium courses and certificate verification
-
-Where to find it:
-
-- `CPD Tracker`
-- `CPD > Courses`
-- `/verify/:certificateId`
-
-What it does:
-
-Premium courses can include enrolment, assessment attempts, passing score, cooldown hours, points awarded, and certificate IDs. Certificates can be verified through a public verification page.
+![CPD Tracker — Coming Soon](screenshots/22-cpd-tracker.png)
 
 ### PC-Accredited CPD
 
@@ -1374,8 +1326,6 @@ Profile shows account and pharmacy information:
 - Memberships, if the user belongs to multiple pharmacies
 - Password change form
 
-[Screenshot: Profile page with account information and memberships]
-
 ### Team Management
 
 Where to find it: `Settings > Team`
@@ -1403,7 +1353,7 @@ Typical scenario:
 4. Share temporary password securely with the new staff member.
 5. Staff member is prompted to change password on first login.
 
-[Screenshot: Team Management invite member modal]
+![Team Management](screenshots/23-team-management.png)
 
 ### PIC PIN
 
@@ -1448,7 +1398,7 @@ What it does:
 
 Owners configure mobile money methods for dispensing. Cash always remains enabled.
 
-[Screenshot: Subscription page payment method configuration]
+![Subscription settings](screenshots/24-subscription.png)
 
 ---
 
@@ -1456,7 +1406,7 @@ Owners configure mobile money methods for dispensing. Cash always remains enable
 
 ### How offline mode works
 
-PharmaConnect uses a service worker, browser cache, and IndexedDB to keep key workflows usable during unstable connectivity.
+APOTEKH uses a service worker, browser cache, and IndexedDB to keep key workflows usable during unstable connectivity.
 
 Main pieces:
 
@@ -1465,8 +1415,6 @@ Main pieces:
 - Writes are handled by the app-level IndexedDB queue.
 - Connectivity status appears in the top bar.
 - Queued writes sync when the browser comes back online.
-
-[Screenshot: Top bar showing Offline status]
 
 ### IndexedDB storage
 
@@ -1488,7 +1436,7 @@ Offline writes and inventory deltas expire after 7 days. If they are not synced 
 
 Sales demo wording:
 
-"PharmaConnect is designed for real pharmacy connectivity conditions. It keeps work moving locally for up to 7 days and syncs automatically when internet returns."
+"APOTEKH is designed for real pharmacy connectivity conditions. It keeps work moving locally for up to 7 days and syncs automatically when internet returns."
 
 ### What can be queued offline?
 
@@ -1521,7 +1469,7 @@ Typical conflict scenario:
 
 1. A stock batch is queued offline.
 2. The server later rejects it because data is invalid or stale.
-3. PharmaConnect logs an offline sync conflict.
+3. APOTEKH logs an offline sync conflict.
 4. The manager opens `Sync Conflicts`.
 5. They review and resolve it.
 
@@ -1546,7 +1494,7 @@ Who uses it: `OWNER`, `SUPER_ADMIN`, sales team.
 Known plan/tier names:
 
 - `ADDO`
-- `ESSENTIAL`
+- `BASIC`
 - `STANDARD`
 - `PREMIUM`
 - `WHOLESALE`
@@ -1554,14 +1502,21 @@ Known plan/tier names:
 
 Current pricing:
 
+**Retail tiers:**
+
 | Plan | Monthly price | Annual price | Included scale |
 |---|---:|---:|---|
 | ADDO | TZS 20,000 | TZS 200,000 | 1 outlet, 3 users |
-| Essential | TZS 35,000 | TZS 350,000 | 1 outlet, 4 users |
-| Standard | TZS 55,000 | TZS 550,000 | Up to 3 outlets, 7 users |
-| Premium | TZS 75,000 | TZS 750,000 | Up to 5 outlets, 12 users |
-| Wholesale | TZS 100,000 | TZS 1,000,000 | 1 wholesale outlet, 10+ users |
-| Enterprise | Custom | Custom | Unlimited outlets and users |
+| BASIC | TZS 39,000 | TZS 390,000 | 2 outlets, 5 users |
+| STANDARD | TZS 55,000 | TZS 550,000 | 3 outlets, 10 users |
+| PREMIUM | TZS 75,000 | TZS 750,000 | 5 outlets, 20 users |
+
+**Wholesale / distributor tiers:**
+
+| Plan | Monthly price | Annual price | Included scale |
+|---|---:|---:|---|
+| WHOLESALE | TZS 100,000 | TZS 1,000,000 | 1 wholesale outlet, 10 users + delivery staff |
+| ENTERPRISE | Custom | Custom | 6+ outlets, unlimited users |
 
 Annual billing is 10x the monthly price. Enterprise pricing is negotiated for custom rollout, reporting, and governance needs.
 
@@ -1582,7 +1537,7 @@ Subscription records include:
 
 ### Manual payment flow
 
-The current Subscription page explains manual payment confirmation. Payment may be handled by mobile money or bank transfer, then access is confirmed by the PharmaConnect team.
+The current Subscription page explains manual payment confirmation. Payment may be handled by mobile money or bank transfer, then access is confirmed by the APOTEKH team.
 
 The app states access is restored within 24 hours after payment confirmation.
 
@@ -1595,8 +1550,8 @@ Who uses it: `OWNER`, `SUPER_ADMIN`
 Current flow:
 
 1. Owner reviews current tier and available plan names.
-2. Owner contacts the PharmaConnect team or founder through the listed contact flow.
-3. PharmaConnect confirms the selected current plan or enterprise quote.
+2. Owner contacts the APOTEKH team or founder through the listed contact flow.
+3. APOTEKH confirms the selected current plan or enterprise quote.
 4. Team updates subscription status/tier.
 
 ### Founder controls
@@ -1622,13 +1577,13 @@ Founder controls include:
 - Suspend/reactivate registration controls
 - Verify owner controls
 
-[Screenshot: Founder Dashboard with registration controls]
+![Founder Dashboard](screenshots/25-founder-dashboard.png)
 
 ---
 
 ## 15. Frequently Asked Questions
 
-### Is PharmaConnect only a point-of-sale system?
+### Is APOTEKH only a point-of-sale system?
 
 No. It includes POS-style dispensing, but it also covers inventory, batch tracking, expiry risk, compliance, safety checks, Knowledge Hub, CPD, analytics, wholesale operations, and offline sync.
 
@@ -1640,9 +1595,9 @@ Yes, for supported workflows. Stock intake and core dispensing can be queued loc
 
 No. Prescription photos require online checkout because the image file must upload to the backend.
 
-### Does PharmaConnect choose the clinical decision for the pharmacist?
+### Does APOTEKH choose the clinical decision for the pharmacist?
 
-No. PharmaConnect surfaces alerts, counselling prompts, and safety context. The pharmacist or PIC remains responsible for the professional decision. High-risk overrides require a reason and PIC PIN.
+No. APOTEKH surfaces alerts, counselling prompts, and safety context. The pharmacist or PIC remains responsible for the professional decision. High-risk overrides require a reason and PIC PIN.
 
 ### What is the difference between Products and Drug Catalogue?
 
@@ -1664,13 +1619,13 @@ NHIF Claims is visible in the roadmap and has backend schema support, but the cu
 
 No. ADR Reporting / Pharmacovigilance currently shows a Coming Soon page. The schema is ready, but TMDA electronic reporting integration is required before submission is live.
 
-### Does PharmaConnect support wholesale distributors?
+### Does APOTEKH support wholesale distributors?
 
 Yes. Wholesale workflows include a wholesale dashboard, catalogue lines, B2B orders, invoices, receivables, credit controls, demand insights, picking, verification, and delivery confirmation.
 
-### Does PharmaConnect track CPD?
+### Does APOTEKH track CPD?
 
-Yes, internal CPD tracking is available for Standard, Premium, and Enterprise retail pharmacies. PC-accredited CPD is a separate deferred feature.
+CPD tracking is a planned Phase 2 feature. The current sidebar shows a Coming Soon placeholder. PC-Accredited CPD is a separate deferred feature requiring a Pharmacy Council MOU.
 
 ### Can owners manage multiple pharmacies?
 
@@ -1678,15 +1633,15 @@ Yes. Users can have multiple pharmacy memberships and switch the active outlet. 
 
 ### What should sales staff say about pricing?
 
-Use the current pricing matrix: ADDO TZS 20,000/month, Essential TZS 35,000/month, Standard TZS 55,000/month, Premium TZS 75,000/month, Wholesale TZS 100,000/month, and Enterprise custom. Annual billing is 10x monthly pricing.
+Use the current pricing matrix: ADDO TZS 20,000/month, BASIC TZS 39,000/month, STANDARD TZS 55,000/month, PREMIUM TZS 75,000/month, WHOLESALE TZS 100,000/month, and ENTERPRISE custom. Annual billing is 10x monthly pricing.
 
-### What makes PharmaConnect Tanzania-specific?
+### What makes APOTEKH Tanzania-specific?
 
 It includes Tanzanian regions, pharmacy licence context, TMDA registration fields, NEMLIT and MSD catalogue orientation, AWaRe antibiotic flags, Africa/Nairobi timezone defaults, NHIF roadmap, TMDA updates, ADR roadmap, and compliance workflows designed around pharmacy inspection readiness.
 
 ### What should investors notice?
 
-PharmaConnect is deeper than a generic POS. It combines regulated pharmacy operations, offline-first resilience, clinical safety, Tanzania-specific master data, B2B wholesale workflows, professional learning, compliance evidence, and founder-level platform controls.
+APOTEKH is deeper than a generic POS. It combines regulated pharmacy operations, offline-first resilience, clinical safety, Tanzania-specific master data, B2B wholesale workflows, professional learning, compliance evidence, and founder-level platform controls.
 
 ---
 

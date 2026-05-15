@@ -195,16 +195,6 @@ export interface WholesaleDemandInsights {
   topProducts: WholesaleDemandInsightProduct[];
 }
 
-export interface AttendanceRecord {
-  id: string;
-  attendanceDate: string;
-  clockInAt: string | null;
-  clockOutAt: string | null;
-  status: string;
-  notes: string | null;
-  user?: Pick<User, 'id' | 'firstName' | 'lastName'>;
-}
-
 // ─── Inventory ────────────────────────────────────────────────────────────────
 
 export type DrugClass = 'OTC' | 'PRESCRIPTION' | 'CONTROLLED' | 'NARCOTIC';

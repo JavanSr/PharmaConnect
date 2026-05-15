@@ -9,6 +9,8 @@ import {
   logoutService,
   verifyEmailService,
   resendVerificationService,
+  requestPasswordResetService,
+  resetPasswordService,
 } from './auth.service';
 import type { AuthRequest } from '../../middleware/auth';
 
@@ -30,6 +32,15 @@ const registerSchema = z.object({
   lastName:      z.string().min(1),
   email:         z.string().email(),
   password:      z.string().min(8),
+});
+
+const passwordResetRequestSchema = z.object({
+  email: z.string().email(),
+});
+
+const passwordResetSchema = z.object({
+  token: z.string().min(32).max(256),
+  password: z.string().min(8).max(128),
 });
 
 authRouter.post('/login', async (req, res, next) => {
@@ -67,6 +78,26 @@ authRouter.post('/resend-verification', async (req, res, next) => {
     const { email } = z.object({ email: z.string().email() }).parse(req.body);
     await resendVerificationService(email);
     res.json({ data: { message: 'If that email is registered and unverified, a new link has been sent.' } });
+  } catch (err) {
+    next(err);
+  }
+});
+
+authRouter.post('/forgot-password', async (req, res, next) => {
+  try {
+    const { email } = passwordResetRequestSchema.parse(req.body);
+    await requestPasswordResetService(email);
+    res.json({ data: { message: 'If that email is registered, a reset link has been sent.' } });
+  } catch (err) {
+    next(err);
+  }
+});
+
+authRouter.post('/reset-password', async (req, res, next) => {
+  try {
+    const { token, password } = passwordResetSchema.parse(req.body);
+    await resetPasswordService(token, password);
+    res.json({ data: { message: 'Password reset complete. Sign in with your new password.' } });
   } catch (err) {
     next(err);
   }

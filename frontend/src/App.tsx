@@ -42,6 +42,8 @@ const queryClient = new QueryClient({
 const DashboardPage = lazy(() => import('@/modules/dashboard/DashboardPage').then(m => ({ default: m.DashboardPage })));
 const Layout = lazy(() => import('@/components/layout/Layout').then(m => ({ default: m.Layout })));
 const LoginPage = lazy(() => import('@/modules/auth/LoginPage').then(m => ({ default: m.LoginPage })));
+const ForgotPasswordPage = lazy(() => import('@/modules/auth/ForgotPasswordPage').then(m => ({ default: m.ForgotPasswordPage })));
+const ResetPasswordPage = lazy(() => import('@/modules/auth/ResetPasswordPage').then(m => ({ default: m.ResetPasswordPage })));
 const PharmacySelectorPage = lazy(() => import('@/modules/auth/PharmacySelectorPage').then(m => ({ default: m.PharmacySelectorPage })));
 const RegisterPage = lazy(() => import('@/modules/auth/RegisterPage').then(m => ({ default: m.RegisterPage })));
 const CheckEmailPage = lazy(() => import('@/modules/auth/CheckEmailPage').then(m => ({ default: m.CheckEmailPage })));
@@ -93,7 +95,7 @@ const WholesaleSettingsPage = lazy(() => import('@/modules/wholesale/WholesaleSe
 const BuyerOrderPage = lazy(() => import('@/modules/wholesale/BuyerOrderPage').then(m => ({ default: m.BuyerOrderPage })));
 const OrdersPage = lazy(() => import('@/modules/orders/OrdersPage').then(m => ({ default: m.OrdersPage })));
 const ReportsPage = lazy(() => import('@/modules/reports/ReportsPage').then(m => ({ default: m.ReportsPage })));
-const AttendancePage = lazy(() => import('@/modules/reports/AttendancePage').then(m => ({ default: m.AttendancePage })));
+const StaffActivityPage = lazy(() => import('@/modules/reports/StaffActivityPage').then(m => ({ default: m.StaffActivityPage })));
 const ProfilePage = lazy(() => import('@/modules/settings/ProfilePage').then(m => ({ default: m.ProfilePage })));
 const TeamManagementPage = lazy(() => import('@/modules/settings/TeamManagementPage').then(m => ({ default: m.TeamManagementPage })));
 const SubscriptionPage = lazy(() => import('@/modules/settings/SubscriptionPage').then(m => ({ default: m.SubscriptionPage })));
@@ -214,6 +216,8 @@ export const App: React.FC = () => (
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Suspense fallback={<PageLoader />}><LoginPage /></Suspense>} />
+        <Route path="/auth/forgot-password" element={<Suspense fallback={<PageLoader />}><ForgotPasswordPage /></Suspense>} />
+        <Route path="/auth/reset-password" element={<Suspense fallback={<PageLoader />}><ResetPasswordPage /></Suspense>} />
         <Route path="/register" element={<Suspense fallback={<PageLoader />}><RegisterPage /></Suspense>} />
         <Route path="/auth/check-email" element={<Suspense fallback={<PageLoader />}><CheckEmailPage /></Suspense>} />
         <Route path="/auth/verify-email" element={<Suspense fallback={<PageLoader />}><VerifyEmailPage /></Suspense>} />
@@ -272,7 +276,8 @@ export const App: React.FC = () => (
           <Route path="/b2b" element={<Navigate to="/wholesale/orders" replace />} />
           <Route path="/orders" element={<Navigate to="/wholesale/orders" replace />} />
           <Route path="/reports" element={page(<ReportsPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'CASHIER', 'WHOLESALE_MANAGER', 'SUPER_ADMIN'])} />
-          <Route path="/attendance" element={<Suspense fallback={<PageLoader />}><AttendancePage /></Suspense>} />
+          <Route path="/staff-activity" element={page(<StaffActivityPage />, ['OWNER', 'PHARMACIST_IN_CHARGE'])} />
+          <Route path="/attendance" element={<Navigate to="/staff-activity" replace />} />
           <Route path="/patients/new" element={<Navigate to="/patient-records" replace />} />
           <Route path="/patients/:id" element={<Navigate to="/patient-records" replace />} />
           <Route path="/nhif" element={<Navigate to="/nhif-claims" replace />} />

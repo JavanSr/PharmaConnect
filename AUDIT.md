@@ -298,3 +298,25 @@ Verification commands run:
 - `frontend`: `npx playwright test --grep "offline stock intake|dispenser is denied on wholesale dashboard"` passed.
 - `backend`: `npm run build` passed.
 - `frontend`: `npm run typecheck` passed.
+
+## Pre-Deployment Hardening Update (2026-05-14)
+
+Completed in this pass:
+- Password reset now uses one-hour, single-use hashed tokens and clears old refresh sessions after reset.
+- `/uploads/*` now requires authentication and checks pharmacy ownership before serving local uploaded files.
+- Production CORS defaults exclude localhost unless explicitly supplied through environment configuration.
+- `/ready` and `/api/v1/ready` now verify database connectivity for green deployment promotion.
+- `docs/deployment-runbook.md` documents release gates, blue-green/equivalent promotion, rollback order, and emergency migration backout notes.
+- `scripts/pre-deploy-check.ps1` runs the repeatable pre-deployment build/test gates and can optionally verify a live readiness URL.
+
+Verification commands run:
+- `backend`: `npm run build` passed.
+- `backend`: `npx vitest run tests/predeployment-hardening.test.ts tests/cors.test.ts --coverage=false` passed.
+- `frontend`: `npm run typecheck` passed.
+- `frontend`: `$env:VITE_API_URL='https://pharmaconnect-production-e082.up.railway.app/api/v1'; npm run build` passed.
+- `website`: `npm run build` passed.
+- root: `.\scripts\pre-deploy-check.ps1 -FrontendApiUrl "https://pharmaconnect-production-e082.up.railway.app/api/v1" -SkipPrismaGenerate -SkipWebsite` passed.
+
+Remaining operational items:
+- Configure provider-side alerting in Railway/Vercel/Supabase.
+- Use the runbook to promote a real preview/staging deployment and test the provider rollback path once before relying on it in production.

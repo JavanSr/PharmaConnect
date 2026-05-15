@@ -306,6 +306,8 @@ model User {
   emailVerifiedAt          DateTime? @map("email_verified_at")
   emailVerificationToken   String?   @unique @map("email_verification_token") @db.VarChar(64)
   emailVerificationExpiry  DateTime? @map("email_verification_expiry")
+  passwordResetToken       String?   @unique @map("password_reset_token") @db.VarChar(64)
+  passwordResetExpiry      DateTime? @map("password_reset_expiry")
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 

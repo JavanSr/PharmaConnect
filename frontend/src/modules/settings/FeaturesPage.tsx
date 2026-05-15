@@ -74,10 +74,9 @@ const MODULES: ModuleDefinition[] = [
   {
     key: 'reports',
     label: 'Reports',
-    description: 'Financial reports, sales summaries, and staff attendance.',
+    description: 'Financial reports, sales summaries, and staff activity.',
     subs: [
       { key: 'reports.financial', label: 'Financial reports', description: 'Allow cashiers to access revenue and financial summaries.', grantableRoles: ['CASHIER'] },
-      { key: 'reports.attendance', label: 'Attendance', description: 'Allow all staff to view the attendance module.', grantableRoles: ['DISPENSER', 'CASHIER'] },
     ],
   },
   {

@@ -46,14 +46,15 @@ pharmaconnect/
 │   │   └── modules/                 # auth, dashboard, inventory, compliance,
 │   │                                #   patient-safety, nhif, cpd, knowledge,
 │   │                                #   analytics, settings
-│   ├── public/brand/                # SVG logos + PWA manifest
+│   ├── public/assets/logo/          # Production SVG logos
 │   ├── package.json
 │   ├── vite.config.ts
 │   ├── tsconfig.json
 │   └── tailwind.config.js
 │
-├── website/          # Public marketing website (Next.js)
-├── src/              # Old Next.js prototype — do not touch
+├── website/          # Public marketing website (Next.js) — only deployed website source
+├── tasks/            # Implementation task files for large feature initiatives
+├── src/              # Legacy prototype only if still present — do not maintain as website source
 └── CLAUDE.md         # This file
 ```
 
@@ -90,22 +91,35 @@ A cross with 4 solid circular tip nodes and a filled centre swelling. The right
 node is amber — signalling an active pharmacy. Symbolises: connection, pharmacy
 cross, network nodes.
 
+Use the production SVG assets from `frontend/public/assets/logo/` and
+`website/public/assets/logo/`. Never regenerate or redraw the Living Cross in
+React, HTML, CSS, canvas, or inline SVG code. Import or reference the asset files.
+
+Required variants:
+- `apotekh-mark-light.svg` — white/light backgrounds
+- `apotekh-mark-dark.svg` — dark/teal backgrounds and app icon contexts
+- `apotekh-mark-mono.svg` — single-colour, greyscale, print
+- `apotekh-icon.svg` — favicon/PWA/app icon
+- `apotekh-logo.svg` — horizontal logo for light backgrounds
+- `apotekh-logo-white.svg` — horizontal logo for dark backgrounds.
+
 Canvas: 100×100. Geometry (icon variant, primary teal #1A6B5C background):
 - Vertical bar: x=45, y=21, w=10, h=58, rx=2, fill=#0D4035
 - Horizontal bar: x=21, y=45, w=58, h=10, rx=2, fill=#0D4035
 - Centre swelling: cx=50, cy=50, r=8, fill=#0D4035
 - Top/bottom/left nodes: r=9, fill=#0D4035, at (50,9), (50,91), (9,50)
-- Right node (active signal): r=9, fill=#F5A623, + inner circle r=4 fill=white opacity=0.30
+- Right node (active signal): r=9, fill=#E8A020, + inner circle r=4 fill=white opacity=0.30.
+  Amber active node must never be omitted in colour contexts.
 
 Logo wordmark (`apotekh-logo.svg`, light backgrounds):
 - Bars + centre: #1A3328 (dark forest)
 - Top/bottom/left nodes: #1A6B5C (primary teal)
-- Right node: #F5A623 (amber)
+- Right node: #E8A020 (amber active node)
 - Text: `APOTEK` in #1A3328, `H` in #7ECFB4
 
 Logo wordmark (`apotekh-logo-white.svg`, dark backgrounds):
 - Bars + nodes: white
-- Right node: #F5A623 (amber)
+- Right node: #E8A020 (amber active node)
 - Text: `APOTEK` in white, `H` in #7ECFB4
 
 ### Colour system — Slate Teal
@@ -234,6 +248,7 @@ Annual billing: 10× monthly (2 months free).
 | 1     | Compliance Tracker | Live        |
 | 1     | Analytics          | Live        |
 | 1     | Dispensing         | Live        |
+| 1     | Staff Activity     | Live — owner/PIC only, derived from operational logs |
 | 2     | CPD Tracker        | Coming soon |
 | 2     | NHIF Claims        | Coming soon |
 | 2     | Stock Exchange     | Coming soon |
@@ -263,6 +278,39 @@ These are the target standards for new code:
   injection and 401→refresh interceptors.
 - **Component pattern**: named exports (not default). No class components.
 
+### Offline and cache rules
+
+- Online reads should feel as fast as offline wherever stale data is acceptable.
+- Service worker API GET caching defaults to stale-while-revalidate for
+  dashboard, analytics, knowledge, compliance, notifications, and similar reads.
+- Inventory stock levels and FEFO-sensitive batch data must stay fresh for
+  dispensing decisions. Keep inventory products, inventory batches, and checkout
+  flows network-first or otherwise freshness-protected.
+- React Query default `staleTime` is 60 seconds unless a feature has a stronger
+  freshness requirement.
+
+### Staff Activity rules
+
+- Use **Staff Activity** as the visible UI name. Do not use "Attendance" in nav,
+  page titles, breadcrumbs, or new user-facing copy.
+- Do not build clock-in/clock-out or attendance workflows. Presence is derived
+  from login audit rows and operational activity.
+- Staff Activity is visible only to `OWNER` and `PHARMACIST_IN_CHARGE`.
+  Do not grant it to staff roles below pharmacist-in-charge.
+- The primary frontend route is `/staff-activity`; legacy `/attendance` may only
+  exist as a redirect for old bookmarks.
+- The primary API route is `/api/v1/staff-activity`.
+
+### Dashboard rules
+
+- Owner dashboard summary cards should prioritise operational decisions. The
+  first summary card is **Today's Revenue** in TZS, derived from completed
+  dispense transactions, with a 7-day sparkline when enough data exists.
+- Do not show seeded/test product names in operational alert panels. Empty low
+  stock or expiry panels should render neutral empty states.
+- If today's activity values are all zero, keep the panel header and show:
+  "No activity recorded today yet."
+
 ---
 
 ## Regulatory requirements
@@ -281,20 +329,38 @@ These are the target standards for new code:
   file loss during commits.
 - Phase colouring was explicitly removed. Do not reintroduce amber/purple/red
   per-phase colour coding in nav or UI.
-- `website/` is a separate Next.js marketing site. Do not mix its code with
-  `frontend/` (the pharmacy app).
-- `src/` at repo root is the old Next.js prototype. Do not modify it.
-- Demo accounts in `LoginPage.tsx` are intentional for development/demo use.
-  Remove before final production launch.
+- `website/` is the only deployed marketing website source. Do not create or
+  maintain root-level landing pages or alternate website source trees.
+- Do not redesign or replace the landing page without explicit approval.
+- Do not mix `website/` code with `frontend/` (the pharmacy app).
+- `src/` at repo root is legacy/prototype code if still present. Do not modify
+  it or use it as website source.
+- Demo accounts in `LoginPage.tsx` are opt-in only with
+  `VITE_SHOW_DEMO_ACCOUNTS=true`. Local dev on port 5173 should default to
+  production-like login UI unless that flag is explicitly enabled.
 - Payment gateway (M-Pesa, Flutterwave) is Phase 2. Phase 1 uses manual
   payment confirmation by the founder after receiving M-Pesa or bank transfer.
   Do not build payment gateway integration until explicitly instructed.
 - Patient safety module is session-based only. No patient table. No patient UUID.
   No persistent patient data of any kind.
+- Long-term safety impact data may be retained only as anonymous operational
+  signals: interaction alerts, allergy/contraindication warnings, precautions,
+  NCD hints, counselling/dose guidance signals, and PIC overrides. Individual
+  pharmacies can see their own safety impact reports; APOTEKH Office accounts
+  may see aggregate, anonymous network-level reports. Do not store patient-
+  identifying safety data for these analytics.
 - The override_log table must have a database-level trigger preventing DELETE
   from any role including superadmin. This is a permanent medical record.
 - The B2B ordering network is closed. Retail pharmacies can only order from
   wholesale pharmacies registered on APOTEKH. Enforce at API level.
+- Uploaded files under `/uploads/*` must require authentication and pharmacy
+  ownership checks before serving, with APOTEKH Office override only for
+  `SUPER_ADMIN`.
+- Password reset tokens are one-hour, single-use tokens. After password reset,
+  clear the reset token and invalidate old refresh sessions.
+- Production releases should pass the pre-deploy check script and readiness
+  probes (`/ready` and `/api/v1/ready`) before promotion. Prefer non-destructive
+  rollback as documented in `docs/deployment-runbook.md`.
 
 ## Deferred features — placeholder pages only
 
