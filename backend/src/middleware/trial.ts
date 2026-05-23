@@ -3,10 +3,6 @@ import type { AuthRequest } from './auth';
 
 const SUBSCRIPTION_URL = '/settings/subscription';
 
-function isInventoryReadOnlyException(req: AuthRequest): boolean {
-  return req.method === 'GET' && req.baseUrl === '/api/v1/inventory' && req.path.startsWith('/products');
-}
-
 function isSubscriptionException(req: AuthRequest): boolean {
   return req.baseUrl === '/api/v1/settings' && req.path === '/subscription';
 }
@@ -48,7 +44,7 @@ export function enforceTrialRestrictions(req: AuthRequest, res: Response, next: 
     return;
   }
 
-  if (isSubscriptionException(req) || isInventoryReadOnlyException(req)) {
+  if (isSubscriptionException(req)) {
     next();
     return;
   }

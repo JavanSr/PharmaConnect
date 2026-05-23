@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { AuthRequest } from '../../middleware/auth';
 import { requirePermission } from '../../middleware/permissions';
 import * as svc from './stock-order.service';
+import * as exportSvc from './stock-order-export.service';
 
 const editableRoles = new Set(['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'WHOLESALE_MANAGER', 'SUPER_ADMIN']);
 const receiverRoles = new Set(['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'SUPER_ADMIN']);
@@ -174,6 +175,41 @@ stockOrderRouter.post('/:id/cancel', async (req: AuthRequest, res, next) => {
       return;
     }
     res.json({ data: await svc.cancelStockOrder(pid(req), req.params.id) });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// GET /stock-orders/:id/export/text
+// Export order as plain text file
+stockOrderRouter.get('/:id/export/text', async (req: AuthRequest, res, next) => {
+  try {
+    const data = await exportSvc.getOrderExportData(pid(req), req.params.id);
+    const text = exportSvc.generatePlainTextOrder(data);
+
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${data.orderNumber}.txt"`);
+    res.send(text);
+  } catch (e) {
+    next(e);
+  }
+});
+
+// GET /stock-orders/:id/export/whatsapp
+// Get WhatsApp share link and text
+stockOrderRouter.get('/:id/export/whatsapp', async (req: AuthRequest, res, next) => {
+  try {
+    const data = await exportSvc.getOrderExportData(pid(req), req.params.id);
+    const shareText = exportSvc.generateWhatsAppShareText(data);
+    const shareLink = exportSvc.generateWhatsAppShareLink(data);
+
+    res.json({
+      data: {
+        orderNumber: data.orderNumber,
+        shareText,
+        shareLink,
+      },
+    });
   } catch (e) {
     next(e);
   }

@@ -57,6 +57,12 @@ enum PharmacyAccountStatus {
   CANCELLED
 }
 
+enum SubscriptionPaymentRequestStatus {
+  PENDING
+  CONFIRMED
+  REJECTED
+}
+
 enum PharmacyType {
   RETAIL
   ADDO
@@ -285,6 +291,9 @@ model Pharmacy {
   prescriptions              Prescription[]
   dispensingTransactions     DispensingTransaction[]
   safetyEvents               SafetyEvent[]
+  subscriptionPaymentRequests SubscriptionPaymentRequest[]
+  wholesalerSuppliers        Supplier[]                   @relation("WholesalerSuppliers")
+  cachedCatalogues           SupplierCatalogue[]          @relation("RetailPharmacyCachedCatalogues")
 
   @@map("pharmacies")
 }
@@ -339,8 +348,42 @@ model User {
   prescriptions                      Prescription[]              @relation("PrescriptionCreatedBy")
   dispensingTransactions             DispensingTransaction[]      @relation("DispensingTransactionCreatedBy")
   safetyEvents                       SafetyEvent[]               @relation("SafetyEventUser")
+  createdSubscriptionPaymentRequests SubscriptionPaymentRequest[] @relation("SubscriptionPaymentRequestCreatedBy")
+  reviewedSubscriptionPaymentRequests SubscriptionPaymentRequest[] @relation("SubscriptionPaymentRequestReviewedBy")
 
   @@map("users")
+}
+
+model SubscriptionPaymentRequest {
+  id                 String                           @id @default(uuid())
+  pharmacyId         String                           @map("pharmacy_id")
+  requestedBy        String                           @map("requested_by")
+  requestedTier      SubscriptionTier                 @map("requested_tier")
+  billingCycle       BillingCycle                     @map("billing_cycle")
+  amount             Decimal                          @db.Decimal(12, 2)
+  paymentMethod      String                           @map("payment_method")
+  transactionRef     String                           @map("transaction_ref")
+  provider           String?
+  providerReference  String?                          @map("provider_reference")
+  checkoutUrl        String?                          @map("checkout_url")
+  payerPhone         String?                          @map("payer_phone")
+  note               String?
+  status             SubscriptionPaymentRequestStatus @default(PENDING)
+  reviewedBy         String?                          @map("reviewed_by")
+  reviewedAt         DateTime?                        @map("reviewed_at")
+  reviewNote         String?                          @map("review_note")
+  paidUntil          DateTime?                        @map("paid_until")
+  createdAt          DateTime                         @default(now()) @map("created_at")
+  updatedAt          DateTime                         @updatedAt @map("updated_at")
+
+  pharmacy           Pharmacy                         @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  requester          User                             @relation("SubscriptionPaymentRequestCreatedBy", fields: [requestedBy], references: [id], onDelete: Restrict)
+  reviewer           User?                            @relation("SubscriptionPaymentRequestReviewedBy", fields: [reviewedBy], references: [id], onDelete: SetNull)
+
+  @@index([pharmacyId, status, createdAt], map: "subscription_payment_requests_pharmacy_status_created_idx")
+  @@index([status, createdAt], map: "subscription_payment_requests_status_created_idx")
+  @@unique([pharmacyId, transactionRef], map: "subscription_payment_requests_pharmacy_transaction_ref_key")
+  @@map("subscription_payment_requests")
 }
 
 model PharmacyMembership {
@@ -436,6 +479,7 @@ model Product {
   barcodeScanTelemetry       BarcodeScanTelemetry[]
   coldChainLogs              ColdChainLog[]
   stockOrderItems            StockOrderItem[]
+  supplierCatalogueItems     SupplierCatalogueItem[]     @relation("SupplierCatalogueItemProduct")
 
   @@index([pharmacyId, barcode], map: "products_pharmacy_barcode_idx")
   @@index([pharmacyId, isActive, name], map: "products_pharmacy_active_name_idx")
@@ -607,22 +651,27 @@ model StockAdjustmentSuggestion {
 }
 
 model Supplier {
-  id          String   @id @default(uuid())
-  pharmacyId  String
-  name        String
-  contactName String?
-  phone       String?
-  email       String?
-  address     String?
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                             String   @id @default(uuid())
+  pharmacyId                     String
+  name                           String
+  contactName                    String?
+  phone                          String?
+  email                          String?
+  address                        String?
+  isActive                       Boolean  @default(true)
+  isApotekNetworkWholesaler      Boolean  @default(false) @map("is_apotek_network_wholesaler")
+  wholesalerPharmacyId           String?  @map("wholesaler_pharmacy_id")
+  createdAt                      DateTime @default(now())
+  updatedAt                      DateTime @updatedAt
 
-  pharmacy            Pharmacy         @relation(fields: [pharmacyId], references: [id])
-  batches             Batch[]
-  productsLastOrdered Product[]        @relation("ProductLastSupplier")
-  stockOrderItems     StockOrderItem[]
+  pharmacy                Pharmacy                  @relation(fields: [pharmacyId], references: [id])
+  wholesalerPharmacy    Pharmacy?                  @relation("WholesalerSuppliers", fields: [wholesalerPharmacyId], references: [id], onDelete: SetNull)
+  batches               Batch[]
+  productsLastOrdered   Product[]                  @relation("ProductLastSupplier")
+  stockOrderItems       StockOrderItem[]
+  supplierCatalogues    SupplierCatalogue[]        @relation("SupplierCatalogues")
 
+  @@index([isApotekNetworkWholesaler], map: "suppliers_is_apotek_network_wholesaler_idx")
   @@map("suppliers")
 }
 
@@ -673,6 +722,50 @@ model StockOrderItem {
   @@index([productId], map: "stock_order_items_product_idx")
   @@index([supplierId], map: "stock_order_items_supplier_idx")
   @@map("stock_order_items")
+}
+
+model SupplierCatalogue {
+  id                   String    @id @default(uuid())
+  wholesalerId         String    @map("wholesaler_id")
+  retailPharmacyId     String?   @map("retail_pharmacy_id")
+  lastSyncedAt         DateTime? @map("last_synced_at")
+  syncStatus           String    @default("ACTIVE")
+  lastSyncError        String?   @map("last_sync_error")
+  totalItemsAvailable  Int       @default(0) @map("total_items_available")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  wholesaler       Supplier                  @relation("SupplierCatalogues", fields: [wholesalerId], references: [id], onDelete: Cascade)
+  retailPharmacy   Pharmacy?                 @relation("RetailPharmacyCachedCatalogues", fields: [retailPharmacyId], references: [id], onDelete: Cascade)
+  items            SupplierCatalogueItem[]
+
+  @@unique([wholesalerId, retailPharmacyId], map: "supplier_catalogues_wholesaler_retail_key")
+  @@index([retailPharmacyId, syncStatus], map: "supplier_catalogues_retail_sync_idx")
+  @@map("supplier_catalogues")
+}
+
+model SupplierCatalogueItem {
+  id                    String    @id @default(uuid())
+  catalogueId           String    @map("catalogue_id")
+  productId             String?   @map("product_id")
+  productName           String    @map("product_name")
+  genericName           String?   @map("generic_name")
+  strength              String?
+  dosageForm            String?   @map("dosage_form")
+  quantityAvailable     Int       @map("quantity_available")
+  unitPrice             Decimal   @db.Decimal(12, 2)
+  minimumOrderQuantity  Int       @default(1) @map("minimum_order_quantity")
+  batchNumber           String?   @map("batch_number")
+  expiryDate            DateTime? @map("expiry_date")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  catalogue SupplierCatalogue @relation(fields: [catalogueId], references: [id], onDelete: Cascade)
+  product   Product?          @relation("SupplierCatalogueItemProduct", fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([catalogueId], map: "supplier_catalogue_items_catalogue_idx")
+  @@index([productName], map: "supplier_catalogue_items_product_name_idx")
+  @@map("supplier_catalogue_items")
 }
 
 model SyncConflict {

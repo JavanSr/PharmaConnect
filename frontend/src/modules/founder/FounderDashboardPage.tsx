@@ -1,6 +1,6 @@
 import React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Building2, Users, Pill, Package, ShieldAlert, CheckCircle, Clock, LayoutDashboard, ClipboardList, ShieldCheck } from 'lucide-react';
+import { Building2, Users, Pill, Package, ShieldAlert, CheckCircle, Clock, LayoutDashboard, ClipboardList, ShieldCheck, Wallet, XCircle } from 'lucide-react';
 import { differenceInCalendarDays } from 'date-fns';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -52,7 +52,38 @@ type Registration = {
   owner: { name: string; email: string; emailVerified: boolean } | null;
 };
 
-type Tab = 'overview' | 'registrations';
+type SubscriptionPaymentRequest = {
+  id: string;
+  pharmacyId: string;
+  requestedTier: string;
+  billingCycle: string;
+  amount: string | number;
+  paymentMethod: string;
+  transactionRef: string;
+  payerPhone?: string | null;
+  note?: string | null;
+  status: 'PENDING' | 'CONFIRMED' | 'REJECTED';
+  reviewedAt?: string | null;
+  reviewNote?: string | null;
+  paidUntil?: string | null;
+  createdAt: string;
+  pharmacy: {
+    name: string;
+    region: string;
+    subscriptionTier: string;
+    status: string;
+    trialActive: boolean;
+    trialEndsAt: string;
+  };
+  requester: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone?: string | null;
+  };
+};
+
+type Tab = 'overview' | 'registrations' | 'payments';
 
 const TIERS = ['ADDO', 'ESSENTIAL', 'STANDARD', 'PREMIUM', 'WHOLESALE', 'ENTERPRISE'] as const;
 
@@ -78,9 +109,16 @@ export const FounderDashboardPage: React.FC = () => {
     staleTime: 30_000,
     enabled: tab === 'registrations',
   });
+  const paymentsQuery = useQuery<{ data: SubscriptionPaymentRequest[] }>({
+    queryKey: ['founder-subscription-payments', 'PENDING'],
+    queryFn: () => api.get('/founder/subscription-payments', { params: { status: 'PENDING' } }).then(r => r.data),
+    staleTime: 30_000,
+    enabled: tab === 'payments',
+  });
 
   const stats = statsQuery.data?.data;
   const registrations = regsQuery.data?.data ?? [];
+  const paymentRequests = paymentsQuery.data?.data ?? [];
 
   const pendingVerification = registrations.filter(r => r.owner && !r.owner.emailVerified).length;
 
@@ -146,6 +184,22 @@ export const FounderDashboardPage: React.FC = () => {
     },
   });
 
+  const reviewPaymentMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: 'CONFIRMED' | 'REJECTED' }) =>
+      api.patch(`/founder/subscription-payments/${id}/review`, { status }),
+    onSuccess: async (_, { status }) => {
+      toast.success(status === 'CONFIRMED' ? 'Payment confirmed and access activated' : 'Payment request rejected');
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['founder-subscription-payments'] }),
+        queryClient.invalidateQueries({ queryKey: ['founder-registrations'] }),
+        queryClient.invalidateQueries({ queryKey: ['founder-stats'] }),
+      ]);
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Could not review payment request');
+    },
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between flex-wrap gap-3">
@@ -163,7 +217,11 @@ export const FounderDashboardPage: React.FC = () => {
 
       {/* Tabs */}
       <div className="flex gap-1 bg-[#EDF7F3] rounded-xl p-1 w-fit">
-        {([['overview', <LayoutDashboard size={14} />, 'Overview'], ['registrations', <ClipboardList size={14} />, 'Registrations']] as const).map(([id, icon, label]) => (
+        {([
+          ['overview', <LayoutDashboard size={14} />, 'Overview'],
+          ['registrations', <ClipboardList size={14} />, 'Registrations'],
+          ['payments', <Wallet size={14} />, 'Payments'],
+        ] as const).map(([id, icon, label]) => (
           <button
             key={id}
             onClick={() => setTab(id)}
@@ -400,6 +458,84 @@ export const FounderDashboardPage: React.FC = () => {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+        </Card>
+      )}
+
+      {tab === 'payments' && (
+        <Card padding={false} header={
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <span className="text-sm font-semibold text-[#0D4035]">Pending subscription payments</span>
+              <p className="mt-1 text-xs text-[#64748B]">Confirm requests after checking M-Pesa or bank transfer records.</p>
+            </div>
+            <Badge variant="warning" size="sm">{paymentRequests.length} pending</Badge>
+          </div>
+        }>
+          {paymentsQuery.isLoading ? (
+            <div className="flex items-center justify-center py-10">
+              <div className="w-6 h-6 border-4 border-[#1A6B5C] border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : paymentRequests.length === 0 ? (
+            <div className="px-5 py-8 text-center text-sm text-[#64748B]">No pending payment requests.</div>
+          ) : (
+            <div className="divide-y divide-[#D6F0E8]">
+              {paymentRequests.map((request) => {
+                const isCurrent = reviewPaymentMutation.isPending && reviewPaymentMutation.variables?.id === request.id;
+                return (
+                  <div key={request.id} className="px-5 py-4">
+                    <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm font-semibold text-[#0D4035]">{request.pharmacy.name}</p>
+                          <Badge variant="info" size="sm">{request.requestedTier}</Badge>
+                          <Badge variant="muted" size="sm">{request.billingCycle}</Badge>
+                        </div>
+                        <p className="mt-1 text-xs text-[#64748B]">
+                          {request.pharmacy.region} · current {request.pharmacy.subscriptionTier} · {request.pharmacy.status}
+                        </p>
+                        <p className="mt-2 text-sm text-[#0D4035]">
+                          Tsh {Number(request.amount).toLocaleString()} via {request.paymentMethod}
+                        </p>
+                        <p className="mt-1 text-xs text-[#64748B]">
+                          Ref {request.transactionRef} · submitted {new Date(request.createdAt).toLocaleString()}
+                        </p>
+                        <p className="mt-1 text-xs text-[#64748B]">
+                          Requested by {request.requester.firstName} {request.requester.lastName} · {request.requester.email}
+                          {request.payerPhone ? ` · payer ${request.payerPhone}` : ''}
+                        </p>
+                        {request.note && <p className="mt-2 text-xs text-[#475569]">{request.note}</p>}
+                      </div>
+                      <div className="flex shrink-0 flex-wrap gap-2">
+                        <Button
+                          size="sm"
+                          leftIcon={<CheckCircle size={14} />}
+                          loading={isCurrent && reviewPaymentMutation.variables?.status === 'CONFIRMED'}
+                          disabled={reviewPaymentMutation.isPending}
+                          onClick={() => reviewPaymentMutation.mutate({ id: request.id, status: 'CONFIRMED' })}
+                        >
+                          Confirm
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="danger"
+                          leftIcon={<XCircle size={14} />}
+                          loading={isCurrent && reviewPaymentMutation.variables?.status === 'REJECTED'}
+                          disabled={reviewPaymentMutation.isPending}
+                          onClick={() => {
+                            if (window.confirm('Reject this payment request?')) {
+                              reviewPaymentMutation.mutate({ id: request.id, status: 'REJECTED' });
+                            }
+                          }}
+                        >
+                          Reject
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </Card>

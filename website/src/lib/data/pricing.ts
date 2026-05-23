@@ -131,19 +131,6 @@ export const WHOLESALE_TIERS: WholesaleTier[] = [
     cta: "Discuss wholesale",
   },
   {
-    id: "hybrid",
-    name: "Hybrid",
-    price: 100_000,
-    tagline: "Retail + wholesale under one owner",
-    features: [
-      "Same owner, one subscription — retail and wholesale combined",
-      "Unified Owner Dashboard for both operations",
-      "All Standard retail features included",
-      "Full wholesale operations included",
-    ],
-    cta: "Discuss hybrid",
-  },
-  {
     id: "enterprise",
     name: "Enterprise",
     price: null,

@@ -140,7 +140,7 @@ export const PatientSafetyPanel: React.FC<{
     >
       {reviewQuery.isError && (
         <div className="rounded-2xl border border-[#FECACA] bg-[#FEF2F2] px-4 py-5 text-sm text-[#991B1B]">
-          Patient safety review could not be loaded right now.
+          Patient safety review could not be loaded right now. Check the connection and try again before high-risk dispensing.
         </div>
       )}
 

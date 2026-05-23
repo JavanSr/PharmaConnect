@@ -6,11 +6,13 @@ import {
   CheckCircle,
   ChevronDown,
   ChevronUp,
+  MessageCircle,
   Pill,
   Plus,
   ScanLine,
   Search,
   ShoppingCart,
+  Smartphone,
   Trash2,
   UserRound,
   X,
@@ -55,6 +57,31 @@ const receiptDate = (value: string) =>
     hour: '2-digit',
     minute: '2-digit',
   }).format(new Date(value));
+
+const receiptShareText = (
+  receipt: DispensingReceipt,
+  pharmacyName: string,
+) => [
+  `${pharmacyName} receipt`,
+  `Ref: ${receipt.referenceNumber}`,
+  `Date: ${receiptDate(receipt.createdAt)}`,
+  ...receipt.lines.map((line) => `${line.quantity} x ${line.productName} - ${money(line.totalAmount)}`),
+  `Total: ${money(receipt.totalAmount)}`,
+  `Payment: ${receipt.paymentMethod.replace(/_/g, ' ')}`,
+  'Thank you.',
+].join('\n');
+
+const phoneHrefValue = (phone: string) => {
+  const compact = phone.replace(/[^\d+]/g, '');
+  if (compact.startsWith('+')) return compact;
+  if (compact.startsWith('0')) return `255${compact.slice(1)}`;
+  return compact;
+};
+
+const isWeakConnectionCheckoutFailure = (error: any) => {
+  if (!error.response) return true;
+  return [408, 500, 502, 503, 504].includes(error.response.status);
+};
 
 type SessionShortcut = {
   label: string;
@@ -163,6 +190,7 @@ export const DispensingScreen: React.FC = () => {
   const [discountAmount, setDiscountAmount] = useState('');
   const [discountReason, setDiscountReason] = useState('');
   const [receipt, setReceipt] = useState<DispensingReceipt | null>(null);
+  const [receiptContact, setReceiptContact] = useState<{ name: string; phone: string }>({ name: WALK_IN_LABEL, phone: '' });
   const [expandedHints, setExpandedHints] = useState<Set<string>>(new Set());
 
   const [showPatientPanel, setShowPatientPanel] = useState(false);
@@ -188,6 +216,14 @@ export const DispensingScreen: React.FC = () => {
   const cartTotal = useMemo(
     () => cartItems.reduce((sum, item) => sum + (item.unitPrice ?? 0) * item.quantity, 0),
     [cartItems],
+  );
+  const receiptMessage = useMemo(
+    () => (receipt ? receiptShareText(receipt, pharmacy?.name ?? 'APOTEKH') : ''),
+    [pharmacy?.name, receipt],
+  );
+  const receiptPhoneHref = useMemo(
+    () => phoneHrefValue(receiptContact.phone),
+    [receiptContact.phone],
   );
   const productAlertMap = useMemo(() => {
     const map = new Map<string, Array<{ severity: string; text: string }>>();
@@ -478,23 +514,27 @@ export const DispensingScreen: React.FC = () => {
         return queueOfflineDispensing(checkoutPayload);
       }
 
-      if (prescriptionPhoto) {
-        const formData = new FormData();
-        formData.append('checkout', JSON.stringify(checkoutPayload));
-        formData.append('prescriptionPhoto', prescriptionPhoto);
-        return api.post('/dispensing/checkout', formData).then((response) => response.data);
-      }
-
       try {
+        if (prescriptionPhoto) {
+          const formData = new FormData();
+          formData.append('checkout', JSON.stringify(checkoutPayload));
+          formData.append('prescriptionPhoto', prescriptionPhoto);
+          return await api.post('/dispensing/checkout', formData).then((response) => response.data);
+        }
+
         return await api.post('/dispensing/checkout', checkoutPayload).then((response) => response.data);
       } catch (error: any) {
-        if (!error.response) {
+        if (isWeakConnectionCheckoutFailure(error)) {
           return queueOfflineDispensing(checkoutPayload);
         }
         throw error;
       }
     },
     onSuccess: (response) => {
+      setReceiptContact({
+        name: patientLabel,
+        phone: patientPhone.trim(),
+      });
       setReceipt(response.data);
       setCartItems([]);
       setPaymentRef('');
@@ -743,6 +783,26 @@ export const DispensingScreen: React.FC = () => {
                 )}
               </div>
             <div className="flex flex-wrap gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                leftIcon={<MessageCircle size={14} />}
+                onClick={() => {
+                  window.open(`https://wa.me/${receiptPhoneHref ? receiptPhoneHref : ''}?text=${encodeURIComponent(receiptMessage)}`, '_blank', 'noopener,noreferrer');
+                }}
+              >
+                WhatsApp receipt
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                leftIcon={<Smartphone size={14} />}
+                onClick={() => {
+                  window.location.href = `sms:${receiptPhoneHref}?&body=${encodeURIComponent(receiptMessage)}`;
+                }}
+              >
+                SMS receipt
+              </Button>
               <Button
                 variant="secondary"
                 size="sm"

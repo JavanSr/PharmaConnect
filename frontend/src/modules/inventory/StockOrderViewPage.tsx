@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
-import { ArrowLeft, Printer, XCircle } from 'lucide-react';
+import { ArrowLeft, Download, MessageCircle, Printer, XCircle } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useNotificationStore } from '@/stores/notificationStore';
 import { Badge } from '@/components/ui/Badge';
@@ -90,6 +90,34 @@ export const StockOrderViewPage: React.FC = () => {
       toast.success('Order cancelled');
     },
     onError: (e: any) => toast.error(e.response?.data?.error || e.response?.data?.message || 'Failed to cancel order'),
+  });
+
+  const downloadMutation = useMutation({
+    mutationFn: () => api.get(`/stock-orders/${id}/export/text`),
+    onSuccess: (response) => {
+      const text = response.data;
+      const blob = new Blob([text], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${order?.orderNumber || 'order'}.txt`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast.success('Order downloaded');
+    },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to download order'),
+  });
+
+  const whatsappMutation = useMutation({
+    mutationFn: () => api.get(`/stock-orders/${id}/export/whatsapp`),
+    onSuccess: (response) => {
+      const { shareLink } = response.data.data;
+      window.open(shareLink, '_blank');
+      toast.success('WhatsApp opened');
+    },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to open WhatsApp'),
   });
 
   const updateReceipt = (itemId: string, patch: Partial<ReceiptDraft>) => {
@@ -188,6 +216,12 @@ export const StockOrderViewPage: React.FC = () => {
         </div>
         <div className="flex flex-wrap gap-2">
           {order.status === 'DRAFT' && <Button variant="secondary" onClick={() => navigate(`/inventory/stock-orders/${order.id}/edit`)}>Continue Draft</Button>}
+          <Button variant="secondary" leftIcon={<Download size={16} />} loading={downloadMutation.isPending} onClick={() => downloadMutation.mutate()}>
+            Download
+          </Button>
+          <Button variant="secondary" leftIcon={<MessageCircle size={16} />} loading={whatsappMutation.isPending} onClick={() => whatsappMutation.mutate()}>
+            WhatsApp
+          </Button>
           {['DRAFT', 'SUBMITTED'].includes(order.status) && (
             <Button variant="danger" leftIcon={<XCircle size={16} />} loading={cancelMutation.isPending} onClick={() => cancelMutation.mutate()}>
               Cancel Order

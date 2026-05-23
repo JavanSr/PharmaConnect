@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthGuard, RoleGuard } from '@/components/layout/AuthGuard';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { SystemStatusWindow } from '@/components/SystemStatusWindow';
 import { useOfflineSync } from '@/hooks/useOfflineSync';
 import { useHeartbeat } from '@/hooks/useHeartbeat';
 import { useNotificationStore } from '@/stores/notificationStore';
@@ -105,9 +106,11 @@ const FeaturesPage = lazy(() => import('@/modules/settings/FeaturesPage').then(m
 const FounderDashboardPage = lazy(() => import('@/modules/founder/FounderDashboardPage').then(m => ({ default: m.FounderDashboardPage })));
 
 const PageLoader = () => (
-  <div className="flex h-64 items-center justify-center">
-    <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#1A6B5C] border-t-transparent" />
-  </div>
+  <SystemStatusWindow
+    type="loading"
+    title="Loading"
+    message="Preparing this screen."
+  />
 );
 
 const page = (node: React.ReactNode, roles?: UserRole[]) => (

@@ -1,0 +1,4 @@
+interface:
+  display_name: "APOTEKH Investor"
+  short_description: "Investor narrative and deck guidance for APOTEKH"
+  default_prompt: "Use $apotech-investor-skill to prepare an investor pitch, narrative, or deck for APOTEKH."

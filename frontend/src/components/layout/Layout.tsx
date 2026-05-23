@@ -2,12 +2,13 @@ import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { differenceInCalendarDays } from 'date-fns';
 import { Outlet, useLocation } from 'react-router-dom';
-import { api } from '@/lib/api';
+import { api, TRIAL_EXPIRED_EVENT } from '@/lib/api';
 import { useAuthStore } from '@/stores/authStore';
 import { usePharmacyStore } from '@/stores/pharmacyStore';
 import { loadMemberships } from '@/lib/pharmacySelection';
 import { TrialBanner } from '@/components/TrialBanner';
 import { TrialPaywall } from '@/components/TrialPaywall';
+import { SystemStatusWindow } from '@/components/SystemStatusWindow';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { ToastContainer } from '@/components/ui/Toast';
@@ -57,6 +58,7 @@ export const Layout: React.FC = () => {
   const memberships = usePharmacyStore((state) => state.memberships);
   const setPharmacy = usePharmacyStore((state) => state.setPharmacy);
   const setMemberships = usePharmacyStore((state) => state.setMemberships);
+  const [forceTrialExpired, setForceTrialExpired] = React.useState(false);
 
   const title = routeTitles[location.pathname] || '';
   const user = useAuthStore((state) => state.user);
@@ -73,6 +75,7 @@ export const Layout: React.FC = () => {
   });
 
   const subscription = subscriptionQuery.data?.data;
+  const effectiveSubscription = subscription ?? pharmacy;
   React.useEffect(() => {
     if (!membershipsQuery.data?.length) {
       return;
@@ -100,12 +103,49 @@ export const Layout: React.FC = () => {
     }
   }, [pharmacy, setPharmacy, subscription]);
 
+  React.useEffect(() => {
+    const handleTrialExpired = () => setForceTrialExpired(true);
+    window.addEventListener(TRIAL_EXPIRED_EVENT, handleTrialExpired);
+    return () => window.removeEventListener(TRIAL_EXPIRED_EVENT, handleTrialExpired);
+  }, []);
+
   const daysRemaining =
-    subscription?.trialEndsAt
-      ? Math.max(0, differenceInCalendarDays(new Date(subscription.trialEndsAt), new Date()))
+    effectiveSubscription?.trialEndsAt
+      ? Math.max(0, differenceInCalendarDays(new Date(effectiveSubscription.trialEndsAt), new Date()))
       : null;
-  const trialEndedByDate = subscription?.trialEndsAt ? new Date(subscription.trialEndsAt) < new Date() : false;
-  const isTrialExpired = subscription?.status === 'TRIAL' && (subscription?.trialActive === false || trialEndedByDate);
+  const trialEndedByDate = effectiveSubscription?.trialEndsAt ? new Date(effectiveSubscription.trialEndsAt) < new Date() : false;
+  const isTrialExpired = forceTrialExpired || (effectiveSubscription?.status === 'TRIAL' && (effectiveSubscription?.trialActive === false || trialEndedByDate));
+
+  if (!isFounderAccount && subscriptionQuery.isLoading && !effectiveSubscription) {
+    return (
+      <SystemStatusWindow
+        type="loading"
+        title="Loading workspace"
+        message="Checking subscription, pharmacy access, and workspace data."
+      />
+    );
+  }
+
+  if (!isFounderAccount && subscriptionQuery.isError && !effectiveSubscription) {
+    return (
+      <SystemStatusWindow
+        type="error"
+        title="Workspace could not be loaded"
+        message="The system could not confirm this pharmacy workspace. Check the connection and reload."
+        actionLabel="Reload app"
+        onAction={() => window.location.reload()}
+      />
+    );
+  }
+
+  if (!isFounderAccount && isTrialExpired) {
+    return (
+      <>
+        <TrialPaywall currentTier={effectiveSubscription?.subscriptionTier} />
+        <ToastContainer />
+      </>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-[#EDF7F3] overflow-hidden print:block print:h-auto print:overflow-visible print:bg-white">
@@ -120,7 +160,7 @@ export const Layout: React.FC = () => {
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden print:block print:overflow-visible">
         <TopBar onMenuClick={() => setSidebarOpen(true)} title={title} />
-        {!isFounderAccount && daysRemaining != null && daysRemaining >= 0 && subscription?.status === 'TRIAL' && subscription?.trialActive && daysRemaining < 7 && (
+        {!isFounderAccount && daysRemaining != null && daysRemaining >= 0 && effectiveSubscription?.status === 'TRIAL' && effectiveSubscription?.trialActive && daysRemaining < 7 && (
           <TrialBanner daysRemaining={daysRemaining} />
         )}
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 print:block print:overflow-visible print:p-0">
@@ -129,9 +169,6 @@ export const Layout: React.FC = () => {
       </div>
 
       <ToastContainer />
-      {!isFounderAccount && isTrialExpired && location.pathname !== '/settings/subscription' && (
-        <TrialPaywall currentTier={subscription?.subscriptionTier} />
-      )}
     </div>
   );
 };

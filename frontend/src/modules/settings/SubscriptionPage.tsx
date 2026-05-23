@@ -1,7 +1,7 @@
 import React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { differenceInCalendarDays } from 'date-fns';
-import { CheckCircle2, MessageCircle, Plus, Save, Smartphone, Wallet } from 'lucide-react';
+import { CheckCircle2, ExternalLink, MessageCircle, Plus, RefreshCw, Save, Smartphone, Wallet } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -11,6 +11,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useNotificationStore } from '@/stores/notificationStore';
 import { usePaymentMethodStore } from '@/stores/paymentMethodStore';
 import { usePharmacyStore } from '@/stores/pharmacyStore';
+import type { BillingCycle, SubscriptionTier } from '@/types';
 import {
   createMobileMoneyDraft,
   normalizePaymentMethodConfig,
@@ -24,13 +25,62 @@ import { SettingsNav } from './SettingsNav';
 const FOUNDER_WHATSAPP = '255764591374';
 
 const plans = [
-  { tier: 'ADDO', monthly: 'Tsh 20,000', annual: 'Tsh 200,000', users: '3 users', bestFor: 'DLDM / ADDO shops', description: 'Full POS, safety, dashboard, barcode scanning, and ADDO formulary enforcement.', features: ['Owner dashboard included', 'Clinical safety included', 'Barcode scanning and offline POS'] },
-  { tier: 'ESSENTIAL', monthly: 'Tsh 35,000', annual: 'Tsh 350,000', users: '4 users', bestFor: 'Single retail pharmacies', description: 'Full retail formulary plus prescription photos, controlled register, CPD access, and expiring-stock actions.', features: ['Full retail catalogue', 'Prescription photo capture', 'Controlled drugs register'] },
-  { tier: 'STANDARD', monthly: 'Tsh 55,000', annual: 'Tsh 550,000', users: '7 users', bestFor: 'Small multi-outlet teams', description: 'Up to 3 outlets with deeper dashboard metrics, margin tracking, and multi-outlet comparison.', features: ['3 outlets', 'Margin and weekly revenue trends', 'CPD points tracker'] },
-  { tier: 'PREMIUM', monthly: 'Tsh 75,000', annual: 'Tsh 750,000', users: '12 users', bestFor: 'Growing retail groups', description: 'Up to 5 outlets with stockout prediction, demand forecasting, dead-stock scoring, and benchmarking.', features: ['5 outlets', 'Demand forecasting', 'Peer benchmarking'] },
-  { tier: 'WHOLESALE', monthly: 'Tsh 100,000', annual: 'Tsh 1,000,000', users: '10+ users', bestFor: 'Wholesale distributors', description: 'Supplier-side B2B network, catalogue pricing, credit limits, delivery workflow, invoices, and receivables.', features: ['Wholesale catalogue', 'Credit limits and delivery', 'Receivables aging'] },
-  { tier: 'ENTERPRISE', monthly: 'Negotiated', annual: 'Negotiated', users: 'Unlimited', bestFor: 'Large operators', description: 'Unlimited outlets and users with negotiated rollout, support, and data agreements.', features: ['Unlimited outlets', 'Unlimited users', 'Negotiated support'] },
+  { tier: 'ADDO', monthly: 'Tsh 20,000', annual: 'Tsh 200,000', users: '3 users', bestFor: '1 outlet · DLDM / ADDO shops', description: 'Full POS, safety, dashboard, barcode scanning, DLDM compliance, and TMDA bulletins.', features: ['1 outlet · 3 users · 14-day trial', 'Owner Dashboard + Clinical Decision Support included', 'Barcode scanning and offline-first POS'] },
+  { tier: 'ESSENTIAL', monthly: 'Tsh 39,000', annual: 'Tsh 390,000', users: '5 users', bestFor: '2 outlets · Single retail pharmacies', description: 'Multi-outlet Owner Dashboard, roles & permissions, void/reissue workflow, and full pharmacy compliance tracker.', features: ['Up to 2 outlets · 5 users · 14-day trial', 'Roles & permissions · void/reissue workflow with audit trail', 'Full compliance tracker (TMDA + PC licence types)'] },
+  { tier: 'ADDO_PLUS', monthly: 'Tsh 45,000', annual: 'Tsh 450,000', users: '7 users', bestFor: 'ADDO shops preparing to expand', description: 'A step above ADDO with stronger stock, reports, and team controls.', features: ['Expanded ADDO operations', 'More users and reporting controls', 'Ready for retail pharmacy upgrade'] },
+  { tier: 'STANDARD', monthly: 'Tsh 55,000', annual: 'Tsh 550,000', users: '10 users', bestFor: '3 outlets · Small multi-outlet teams', description: 'Up to 3 outlets with accounting, customer history, Patient Ordering Portal, and full Knowledge Hub.', features: ['Up to 3 outlets · 10 users · 14-day trial', 'Accounting module · customer purchase history & loyalty', 'Patient Ordering Portal + Knowledge Hub full access'] },
+  { tier: 'PREMIUM', monthly: 'Tsh 75,000', annual: 'Tsh 750,000', users: '20 users', bestFor: '5 outlets · Growing retail groups', description: 'Up to 5 outlets with demand forecasting, dead-stock scoring, peer benchmarking, and revenue projections.', features: ['Up to 5 outlets · 20 users · 14-day trial', 'Demand forecasting · dead stock risk scoring', 'Peer benchmarking · revenue trend projection'] },
+  { tier: 'WHOLESALE', monthly: 'Tsh 100,000', annual: 'Tsh 1,000,000', users: '10+ users', bestFor: 'Wholesale distributors', description: 'Structured wholesale workflow — order inbox, catalogue pricing, credit limits, delivery scheduling, and VAT invoices.', features: ['Order inbox from APOTEKH retail network', 'Credit limits per buyer · receivables dashboard', 'VAT-compliant invoice generation on order confirmation'] },
+{ tier: 'ENTERPRISE', monthly: 'Negotiated', annual: 'Negotiated', users: 'Unlimited', bestFor: '6+ outlets · Large operators', description: '6+ outlets, unlimited users, all Premium features, custom reporting, and dedicated implementation support.', features: ['6+ outlets · unlimited users', 'All Premium retail features', 'Negotiated support and contract'] },
 ];
+
+type SubscriptionPaymentRequest = {
+  id: string;
+  requestedTier: string;
+  billingCycle: string;
+  amount: string | number;
+  paymentMethod: string;
+  transactionRef: string;
+  provider?: string | null;
+  providerReference?: string | null;
+  checkoutUrl?: string | null;
+  payerPhone?: string | null;
+  note?: string | null;
+  status: 'PENDING' | 'CONFIRMED' | 'REJECTED';
+  reviewedAt?: string | null;
+  reviewNote?: string | null;
+  paidUntil?: string | null;
+  createdAt: string;
+};
+
+const tierOptions = ['ADDO', 'ESSENTIAL', 'ADDO_PLUS', 'STANDARD', 'PREMIUM', 'WHOLESALE'] as const satisfies readonly SubscriptionTier[];
+type PaymentRequestTier = (typeof tierOptions)[number];
+
+const isPaymentRequestTier = (tier?: string | null): tier is PaymentRequestTier =>
+  Boolean(tier && tierOptions.some((option) => option === tier));
+
+const planPriceTable: Record<PaymentRequestTier, Record<BillingCycle, number>> = {
+  ADDO: { MONTHLY: 20_000, ANNUAL: 200_000 },
+  ESSENTIAL: { MONTHLY: 39_000, ANNUAL: 390_000 },
+  ADDO_PLUS: { MONTHLY: 45_000, ANNUAL: 450_000 },
+  STANDARD: { MONTHLY: 55_000, ANNUAL: 550_000 },
+  PREMIUM: { MONTHLY: 75_000, ANNUAL: 750_000 },
+  WHOLESALE: { MONTHLY: 100_000, ANNUAL: 1_000_000 },
+};
+
+const formatTsh = (amount: number | string) => `Tsh ${Number(amount).toLocaleString()}`;
+
+const paymentStatusMessage = (request: SubscriptionPaymentRequest) => {
+  if (request.status === 'REJECTED') {
+    return request.reviewNote || 'Payment failed. Check balance, payment approval, or transaction details and try again.';
+  }
+  if (request.status === 'CONFIRMED') {
+    return request.paidUntil
+      ? `Confirmed. Access is paid through ${new Date(request.paidUntil).toLocaleDateString()}.`
+      : 'Confirmed. Access is active.';
+  }
+  return 'Waiting for payment provider confirmation.';
+};
 
 export const SubscriptionPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -47,6 +97,32 @@ export const SubscriptionPage: React.FC = () => {
     () => normalizePaymentMethodConfig(null).methods,
   );
   const [paymentMethodsDirty, setPaymentMethodsDirty] = React.useState(false);
+  const [paymentRequestDraft, setPaymentRequestDraft] = React.useState<{
+    requestedTier: PaymentRequestTier;
+    billingCycle: BillingCycle;
+    amount: string;
+    paymentMethod: string;
+    transactionRef: string;
+    payerPhone: string;
+    note: string;
+  }>({
+    requestedTier: isPaymentRequestTier(pharmacy?.subscriptionTier) ? pharmacy.subscriptionTier : 'STANDARD',
+    billingCycle: 'MONTHLY',
+    amount: '',
+    paymentMethod: 'M-Pesa',
+    transactionRef: '',
+    payerPhone: '',
+    note: '',
+  });
+  const [checkoutDraft, setCheckoutDraft] = React.useState<{
+    requestedTier: PaymentRequestTier;
+    billingCycle: BillingCycle;
+    payerPhone: string;
+  }>({
+    requestedTier: isPaymentRequestTier(pharmacy?.subscriptionTier) ? pharmacy.subscriptionTier : 'STANDARD',
+    billingCycle: 'MONTHLY',
+    payerPhone: '',
+  });
 
   const subscriptionQuery = useQuery({
     queryKey: ['subscription-settings'],
@@ -56,6 +132,11 @@ export const SubscriptionPage: React.FC = () => {
     queryKey: ['settings-config', PAYMENT_METHOD_CONFIG_KEY],
     queryFn: () => api.get(`/settings/config/${PAYMENT_METHOD_CONFIG_KEY}`).then((response) => response.data),
     enabled: canManagePaymentSettings,
+  });
+  const paymentRequestsQuery = useQuery<{ data: SubscriptionPaymentRequest[] }>({
+    queryKey: ['subscription-payment-requests'],
+    queryFn: () => api.get('/settings/subscription/payment-requests').then((response) => response.data),
+    enabled: canManageSubscription,
   });
 
   const subscription = subscriptionQuery.data?.data;
@@ -89,6 +170,12 @@ export const SubscriptionPage: React.FC = () => {
     subscription?.trialEndsAt
       ? Math.max(0, differenceInCalendarDays(new Date(subscription.trialEndsAt), new Date()))
       : null;
+  const latestCheckout = React.useMemo(
+    () => (paymentRequestsQuery.data?.data ?? []).find((request) => request.paymentMethod === 'SELF_SERVICE_CHECKOUT') ?? null,
+    [paymentRequestsQuery.data?.data],
+  );
+  const checkoutAmount = planPriceTable[checkoutDraft.requestedTier][checkoutDraft.billingCycle];
+
   const savePaymentSettingsMutation = useMutation({
     mutationFn: async () => {
       const mobileMoneyMethods = paymentMethodsDraft.filter((method) => method.type === 'MOBILE_MONEY');
@@ -115,6 +202,53 @@ export const SubscriptionPage: React.FC = () => {
       toast.error(error?.message || error?.response?.data?.error || 'Could not save payment methods');
     },
   });
+
+  const submitPaymentRequestMutation = useMutation({
+    mutationFn: () => api.post('/settings/subscription/payment-requests', {
+      ...paymentRequestDraft,
+      amount: Number(paymentRequestDraft.amount),
+    }),
+    onSuccess: async () => {
+      toast.success('Payment request submitted for founder review');
+      setPaymentRequestDraft((current) => ({
+        ...current,
+        transactionRef: '',
+        payerPhone: '',
+        note: '',
+      }));
+      await paymentRequestsQuery.refetch();
+    },
+    onError: (error: any) => {
+      const code = error.response?.data?.error;
+      toast.error(code === 'PAYMENT_REFERENCE_ALREADY_SUBMITTED'
+        ? 'This transaction reference was already submitted.'
+        : code || 'Could not submit payment request');
+    },
+  });
+
+  const createCheckoutMutation = useMutation({
+    mutationFn: () => api.post('/settings/subscription/checkout', checkoutDraft).then((response) => response.data),
+    onSuccess: async (response) => {
+      const checkoutUrl = response.data?.checkoutUrl || response.data?.request?.checkoutUrl;
+      toast.success(checkoutUrl
+        ? 'Checkout created. Open the payment link to complete payment.'
+        : 'Checkout reference created. Complete payment with this reference.');
+      await paymentRequestsQuery.refetch();
+      await subscriptionQuery.refetch();
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || error.response?.data?.error || 'Could not create checkout');
+    },
+  });
+
+  const retryCheckout = (request: SubscriptionPaymentRequest) => {
+    setCheckoutDraft((current) => ({
+      requestedTier: isPaymentRequestTier(request.requestedTier) ? request.requestedTier : current.requestedTier,
+      billingCycle: request.billingCycle === 'ANNUAL' ? 'ANNUAL' : 'MONTHLY',
+      payerPhone: request.payerPhone || current.payerPhone,
+    }));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   const updateMobileMoneyMethod = (code: string, patch: Partial<PaymentMethodSetting>) => {
     setPaymentMethodsDirty(true);
@@ -198,6 +332,248 @@ export const SubscriptionPage: React.FC = () => {
           <p className="mt-2 text-sm font-medium text-[#0D4035]">M-Pesa contact: +255 764 591 374</p>
         </div>
       </Card>
+
+      {canManageSubscription && (
+        <Card
+          header={(
+            <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <h2 className="text-base font-semibold text-[#0D4035]">Self-service checkout</h2>
+                <p className="mt-1 text-sm text-[#64748B]">
+                  Create a payment reference, pay online or by mobile money, and access activates automatically after provider confirmation.
+                </p>
+              </div>
+              <Badge variant="success" size="sm">Automatic activation</Badge>
+            </div>
+          )}
+        >
+          <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
+            <div className="grid gap-4 md:grid-cols-3">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-[#0D4035]">Tier</label>
+                <select
+                  value={checkoutDraft.requestedTier}
+                  onChange={(event) => {
+                    const nextTier = event.target.value;
+                    if (isPaymentRequestTier(nextTier)) {
+                      setCheckoutDraft((current) => ({ ...current, requestedTier: nextTier }));
+                    }
+                  }}
+                  className="h-10 w-full rounded-xl border border-[#D6F0E8] bg-white px-3 text-sm text-[#0D4035] outline-none focus:border-[#1A6B5C] focus:ring-2 focus:ring-[#1A6B5C]/20"
+                >
+                  {tierOptions.map((tier) => <option key={tier} value={tier}>{tier}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-[#0D4035]">Billing cycle</label>
+                <select
+                  value={checkoutDraft.billingCycle}
+                  onChange={(event) => setCheckoutDraft((current) => ({
+                    ...current,
+                    billingCycle: event.target.value === 'ANNUAL' ? 'ANNUAL' : 'MONTHLY',
+                  }))}
+                  className="h-10 w-full rounded-xl border border-[#D6F0E8] bg-white px-3 text-sm text-[#0D4035] outline-none focus:border-[#1A6B5C] focus:ring-2 focus:ring-[#1A6B5C]/20"
+                >
+                  <option value="MONTHLY">Monthly</option>
+                  <option value="ANNUAL">Annual</option>
+                </select>
+              </div>
+              <Input
+                label="Payment phone"
+                value={checkoutDraft.payerPhone}
+                onChange={(event) => setCheckoutDraft((current) => ({ ...current, payerPhone: event.target.value }))}
+                placeholder="+255..."
+              />
+            </div>
+
+            <div className="rounded-2xl border border-[#D6F0E8] bg-[#F8FAFC] p-4">
+              <p className="text-xs uppercase tracking-wide text-[#64748B]">Amount due</p>
+              <p className="mt-1 text-2xl font-bold text-[#0D4035]">{formatTsh(checkoutAmount)}</p>
+              <Button
+                className="mt-4 w-full"
+                onClick={() => createCheckoutMutation.mutate()}
+                loading={createCheckoutMutation.isPending}
+                disabled={checkoutDraft.payerPhone.trim().length < 7}
+              >
+                Create checkout
+              </Button>
+            </div>
+          </div>
+
+          {latestCheckout && (
+            <div className={`mt-5 rounded-2xl border p-4 ${latestCheckout.status === 'REJECTED' ? 'border-red-200 bg-red-50' : 'border-[#D6F0E8] bg-white'}`}>
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-[#0D4035]">Latest checkout</p>
+                  <p className="mt-1 text-sm text-[#475569]">
+                    Ref {latestCheckout.transactionRef} · {formatTsh(latestCheckout.amount)} · {latestCheckout.status}
+                  </p>
+                  <p className={`mt-2 text-sm ${latestCheckout.status === 'REJECTED' ? 'text-red-700' : 'text-[#64748B]'}`}>
+                    {paymentStatusMessage(latestCheckout)}
+                  </p>
+                  {latestCheckout.provider && (
+                    <p className="mt-1 text-xs text-[#64748B]">Provider: {latestCheckout.provider}</p>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {latestCheckout.checkoutUrl && (
+                    <a href={latestCheckout.checkoutUrl} target="_blank" rel="noreferrer">
+                      <Button variant="secondary" size="sm">
+                        <ExternalLink size={14} />
+                        Open payment
+                      </Button>
+                    </a>
+                  )}
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={async () => {
+                      await paymentRequestsQuery.refetch();
+                      await subscriptionQuery.refetch();
+                    }}
+                  >
+                    <RefreshCw size={14} />
+                    Refresh status
+                  </Button>
+                  {latestCheckout.status === 'REJECTED' && (
+                    <Button size="sm" onClick={() => retryCheckout(latestCheckout)}>
+                      Try again
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </Card>
+      )}
+
+      {canManageSubscription && (
+        <Card
+          header={(
+            <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <h2 className="text-base font-semibold text-[#0D4035]">Submit subscription payment</h2>
+                <p className="mt-1 text-sm text-[#64748B]">
+                  After paying by M-Pesa or bank transfer, submit the reference here for founder confirmation.
+                </p>
+              </div>
+              <Badge variant="warning" size="sm">Manual review</Badge>
+            </div>
+          )}
+        >
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-[#0D4035]">Requested tier</label>
+                <select
+                  value={paymentRequestDraft.requestedTier}
+                onChange={(event) => {
+                  const nextTier = event.target.value;
+                  if (isPaymentRequestTier(nextTier)) {
+                    setPaymentRequestDraft((current) => ({ ...current, requestedTier: nextTier }));
+                  }
+                }}
+                  className="h-10 w-full rounded-xl border border-[#D6F0E8] bg-white px-3 text-sm text-[#0D4035] outline-none focus:border-[#1A6B5C] focus:ring-2 focus:ring-[#1A6B5C]/20"
+                >
+                {tierOptions.map((tier) => <option key={tier} value={tier}>{tier}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-[#0D4035]">Billing cycle</label>
+                <select
+                  value={paymentRequestDraft.billingCycle}
+                onChange={(event) => setPaymentRequestDraft((current) => ({
+                  ...current,
+                  billingCycle: event.target.value === 'ANNUAL' ? 'ANNUAL' : 'MONTHLY',
+                }))}
+                className="h-10 w-full rounded-xl border border-[#D6F0E8] bg-white px-3 text-sm text-[#0D4035] outline-none focus:border-[#1A6B5C] focus:ring-2 focus:ring-[#1A6B5C]/20"
+              >
+                <option value="MONTHLY">Monthly</option>
+                <option value="ANNUAL">Annual</option>
+              </select>
+            </div>
+            <Input
+              label="Amount paid (Tsh)"
+              type="number"
+              min="1"
+              value={paymentRequestDraft.amount}
+              onChange={(event) => setPaymentRequestDraft((current) => ({ ...current, amount: event.target.value }))}
+              placeholder="55000"
+            />
+            <Input
+              label="Payment method"
+              value={paymentRequestDraft.paymentMethod}
+              onChange={(event) => setPaymentRequestDraft((current) => ({ ...current, paymentMethod: event.target.value }))}
+              placeholder="M-Pesa, bank transfer"
+            />
+            <Input
+              label="Transaction reference"
+              value={paymentRequestDraft.transactionRef}
+              onChange={(event) => setPaymentRequestDraft((current) => ({ ...current, transactionRef: event.target.value }))}
+              placeholder="Receipt/reference number"
+            />
+            <Input
+              label="Payer phone"
+              value={paymentRequestDraft.payerPhone}
+              onChange={(event) => setPaymentRequestDraft((current) => ({ ...current, payerPhone: event.target.value }))}
+              placeholder="+255..."
+            />
+          </div>
+          <div className="mt-4">
+            <label className="mb-1 block text-sm font-medium text-[#0D4035]">Note</label>
+            <textarea
+              value={paymentRequestDraft.note}
+              onChange={(event) => setPaymentRequestDraft((current) => ({ ...current, note: event.target.value }))}
+              rows={3}
+              className="w-full rounded-2xl border border-[#D6F0E8] px-3 py-2.5 text-sm text-[#0D4035] outline-none transition-colors focus:border-[#1A6B5C] focus:ring-2 focus:ring-[#1A6B5C]/20"
+              placeholder="Optional note for the APOTEKH team"
+            />
+          </div>
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs text-[#64748B]">Access is restored after founder confirmation.</p>
+            <Button
+              onClick={() => submitPaymentRequestMutation.mutate()}
+              loading={submitPaymentRequestMutation.isPending}
+              disabled={!paymentRequestDraft.amount || !paymentRequestDraft.transactionRef.trim()}
+            >
+              Submit payment request
+            </Button>
+          </div>
+
+          <div className="mt-6 space-y-3">
+            <p className="text-sm font-semibold text-[#0D4035]">Recent payment requests</p>
+            {paymentRequestsQuery.isLoading ? (
+              <p className="text-sm text-[#64748B]">Loading requests...</p>
+            ) : (paymentRequestsQuery.data?.data ?? []).length === 0 ? (
+              <p className="text-sm text-[#64748B]">No payment requests submitted yet.</p>
+            ) : (
+              <div className="divide-y divide-[#D6F0E8] rounded-2xl border border-[#D6F0E8]">
+                {(paymentRequestsQuery.data?.data ?? []).map((request) => (
+                  <div key={request.id} className="px-4 py-3">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-[#0D4035]">{request.requestedTier} · {request.billingCycle}</p>
+                        <p className="text-xs text-[#64748B]">{request.paymentMethod} · Ref {request.transactionRef} · Tsh {Number(request.amount).toLocaleString()}</p>
+                      </div>
+                      <Badge variant={request.status === 'CONFIRMED' ? 'success' : request.status === 'REJECTED' ? 'danger' : 'warning'} size="sm">
+                        {request.status}
+                      </Badge>
+                    </div>
+                    {request.reviewNote && <p className="mt-2 text-xs text-[#64748B]">{request.reviewNote}</p>}
+                    {request.status === 'REJECTED' && (
+                      <div className="mt-3 flex flex-col gap-2 rounded-xl border border-red-200 bg-red-50 p-3 sm:flex-row sm:items-center sm:justify-between">
+                        <p className="text-xs font-medium text-red-700">
+                          Payment failed. Check balance or approval prompt, then try again.
+                        </p>
+                        <Button size="sm" onClick={() => retryCheckout(request)}>Try again</Button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
 
       <Card>
         <div className="grid gap-4 md:grid-cols-3">

@@ -3,10 +3,49 @@ import { z } from 'zod';
 import { authenticate, requireRole, type AuthRequest } from '../../middleware/auth';
 import { prisma } from '../../lib/prisma';
 import { sendWelcomeEmail } from '../../lib/email';
+import { activateSubscriptionFromPayment, defaultPaidUntil } from '../subscription/subscription-payments.service';
 
 export const founderRouter = Router();
 founderRouter.use(authenticate);
 founderRouter.use(requireRole('SUPER_ADMIN'));
+
+const subscriptionPaymentSelect = {
+  id: true,
+  pharmacyId: true,
+  requestedTier: true,
+  billingCycle: true,
+  amount: true,
+  paymentMethod: true,
+  transactionRef: true,
+  provider: true,
+  providerReference: true,
+  checkoutUrl: true,
+  payerPhone: true,
+  note: true,
+  status: true,
+  reviewedAt: true,
+  reviewNote: true,
+  paidUntil: true,
+  createdAt: true,
+  pharmacy: {
+    select: {
+      name: true,
+      region: true,
+      subscriptionTier: true,
+      status: true,
+      trialActive: true,
+      trialEndsAt: true,
+    },
+  },
+  requester: {
+    select: {
+      firstName: true,
+      lastName: true,
+      email: true,
+      phone: true,
+    },
+  },
+} as const;
 
 founderRouter.get('/registrations', async (_req: AuthRequest, res, next) => {
   try {
@@ -66,6 +105,99 @@ founderRouter.get('/registrations', async (_req: AuthRequest, res, next) => {
     });
 
     res.json({ data: rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+founderRouter.get('/subscription-payments', async (req: AuthRequest, res, next) => {
+  try {
+    const { status } = z.object({
+      status: z.enum(['PENDING', 'CONFIRMED', 'REJECTED']).optional(),
+    }).parse(req.query);
+
+    const requests = await prisma.subscriptionPaymentRequest.findMany({
+      where: status ? { status } : undefined,
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+      select: subscriptionPaymentSelect,
+    });
+
+    res.json({ data: requests });
+  } catch (error) {
+    next(error);
+  }
+});
+
+founderRouter.patch('/subscription-payments/:id/review', async (req: AuthRequest, res, next) => {
+  try {
+    const data = z.object({
+      status: z.enum(['CONFIRMED', 'REJECTED']),
+      paidUntil: z.coerce.date().optional(),
+      reviewNote: z.string().trim().max(500).optional().or(z.literal('')),
+    }).parse(req.body);
+
+    const existing = await prisma.subscriptionPaymentRequest.findUnique({
+      where: { id: req.params.id },
+      select: {
+        id: true,
+        pharmacyId: true,
+        status: true,
+        requestedTier: true,
+        billingCycle: true,
+      },
+    });
+
+    if (!existing) {
+      throw Object.assign(new Error('Payment request not found'), { status: 404 });
+    }
+    if (existing.status !== 'PENDING') {
+      throw Object.assign(new Error('Payment request already reviewed'), { status: 409 });
+    }
+
+    const paidUntil = data.status === 'CONFIRMED'
+      ? data.paidUntil ?? defaultPaidUntil(existing.billingCycle)
+      : null;
+
+    const updated = await prisma.$transaction(async (tx) => {
+      if (data.status === 'CONFIRMED') {
+        await activateSubscriptionFromPayment(tx, {
+          requestId: existing.id,
+          paidUntil: paidUntil ?? undefined,
+          reviewNote: data.reviewNote || 'Confirmed by founder.',
+        });
+        await tx.subscriptionPaymentRequest.update({
+          where: { id: existing.id },
+          data: { reviewedBy: req.user!.userId },
+        });
+      } else {
+        await tx.subscriptionPaymentRequest.update({
+          where: { id: existing.id },
+          data: {
+            status: data.status,
+            reviewedBy: req.user!.userId,
+            reviewedAt: new Date(),
+            reviewNote: data.reviewNote || null,
+            paidUntil,
+          },
+        });
+      }
+
+      return tx.subscriptionPaymentRequest.findUniqueOrThrow({
+        where: { id: existing.id },
+        select: subscriptionPaymentSelect,
+      });
+    });
+
+    console.info('[founder.subscription-payment-review]', {
+      requestId: existing.id,
+      pharmacyId: existing.pharmacyId,
+      status: data.status,
+      paidUntil,
+      by: req.user?.email,
+    });
+
+    res.json({ data: updated });
   } catch (error) {
     next(error);
   }

@@ -31,6 +31,7 @@ function resolveApiBaseUrl(): string {
 
 export const API_BASE_URL = resolveApiBaseUrl();
 export const API_ORIGIN = API_BASE_URL.replace(/\/api\/v1\/?$/, '');
+export const TRIAL_EXPIRED_EVENT = 'pc-trial-expired';
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
@@ -91,6 +92,10 @@ api.interceptors.response.use(
   (res) => res,
   async (error) => {
     const original = error.config;
+
+    if (error.response?.status === 402 && error.response?.data?.error === 'TRIAL_EXPIRED') {
+      window.dispatchEvent(new CustomEvent(TRIAL_EXPIRED_EVENT));
+    }
 
     // Auto-queue write operations that fail due to network unavailability
     if (

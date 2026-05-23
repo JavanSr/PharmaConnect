@@ -1,5 +1,6 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
+import { SystemStatusWindow } from '@/components/SystemStatusWindow';
 import { useAuthStore } from '@/stores/authStore';
 import type { UserRole } from '@/types';
 
@@ -9,12 +10,11 @@ export const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children })
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#EDF7F3]">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 border-4 border-[#1A6B5C] border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm text-[#64748B]">Loading APOTEKH...</p>
-        </div>
-      </div>
+      <SystemStatusWindow
+        type="loading"
+        title="Loading APOTEKH"
+        message="Checking your session and preparing the workspace."
+      />
     );
   }
 

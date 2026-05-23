@@ -1,15 +1,114 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 # APOTEKH — Claude Code Guidance
 
 ## What this project is
 
 APOTEKH is a pharmacy-side operating system for Tanzania. It handles
-inventory management, patient safety, regulatory compliance, dispensing, NHIF
-claims, CPD tracking (Phase 2), and analytics. The system is live in Phase 1 and designed
+inventory management, patient safety, regulatory compliance, dispensing,
+CPD tracking (Phase 2), and analytics. The system is live in Phase 1 and designed
 to grow through four phases.
 
-The company is targeting the Tanzania UHI (Universal Health Insurance) mandate
-as a growth catalyst and is registered in Tanzania. Primary market: independent
-retail pharmacies and ADDOs in Arusha expanding nationally. Wholesale is deferred — MVP targets retail only.
+Registered in Tanzania. Primary market: independent retail pharmacies and ADDOs
+in Arusha, expanding nationally. Wholesale module exists in the codebase and can
+serve wholesale customers who come to us — but it is not actively sold or marketed
+in Phase 1. Pilot focus is retail only.
+
+---
+
+## Development commands
+
+### Backend (`cd backend`)
+
+```bash
+npm run dev          # ts-node-dev watch server on port 3000
+npm run build        # tsc compile → dist/
+npm test             # vitest integration tests (requires DATABASE_URL in backend/.env)
+npm run db:migrate   # prisma migrate deploy
+npm run db:generate  # regenerate Prisma client after schema changes
+npm run db:studio    # open Prisma Studio GUI
+npm run db:seed      # seed dev pharmacy + users
+npm run db:seed:master-catalog  # seed Tanzania master drug catalogue
+```
+
+Running a single test file:
+```bash
+npx vitest run tests/patient-safety.test.ts
+```
+
+Backend tests require a live PostgreSQL database — they are integration tests, not unit tests with mocks. Set `DATABASE_URL` in `backend/.env` (copy from `backend/.env.example`). Tests run serially (`fileParallelism: false`).
+
+### Frontend (`cd frontend`)
+
+```bash
+npm run dev          # Vite dev server on port 5173
+npm run build        # tsc + vite build → dist/
+npm run typecheck    # tsc --noEmit (fast type-only check)
+npm test             # vitest unit tests (jsdom, @testing-library/react)
+npm run test:e2e     # Playwright end-to-end tests
+```
+
+In dev mode, Vite proxies `/api` → `http://localhost:3000` so no CORS setup is needed.
+The production build **requires** `VITE_API_URL` set to the HTTPS deployed backend URL ending in `/api/v1`; it hard-fails otherwise.
+
+### Website (`cd website`)
+
+```bash
+npm run dev          # Next.js dev server on port 3000
+npm run build        # production build
+npm run lint         # eslint-config-next
+```
+
+### Pre-deploy gate (repo root)
+
+```powershell
+.\scripts\pre-deploy-check.ps1 -FrontendApiUrl "https://<railway-url>/api/v1"
+# If Prisma DLL is locked (dev server running on Windows), add -SkipPrismaGenerate
+```
+
+All six release gates must pass before promoting to production (see `docs/deployment-runbook.md`).
+
+---
+
+## Architecture overview
+
+### Backend module pattern
+
+Each feature lives in `backend/src/modules/<name>/`. The standard files are:
+
+- `<name>.router.ts` — Express router. Validates with Zod schemas, calls service functions. All authenticated routes use the `authenticate` middleware and receive `AuthRequest`.
+- `<name>.service.ts` — Business logic and Prisma calls. Multi-table operations use `prisma.$transaction(async tx => { ... })`.
+- `<name>.storage.ts` — Present only when file storage (Supabase) is involved (e.g. compliance).
+
+Errors thrown from services must carry a `.status` property; `errorHandler` middleware reads it for the HTTP response code.
+
+### Background jobs
+
+`backend/src/jobs/*.ts` — each exports a `register*Job()` function that sets up a `node-cron` schedule. All jobs are registered at startup in `src/index.ts`. Jobs: expiry alerts, low-stock alerts, compliance alerts, trial expiry alerts, weekly digest, VFD retry, demand predictions.
+
+### AI Agents system
+
+`backend/src/modules/agents/` — multi-agent system using the Anthropic SDK (`claude-haiku-4-5-20251001`). The orchestrator classifies incoming queries and routes to specialist agents: `clinical_safety`, `inventory_demand`, `compliance`, `business_intel`, `data_curation`. Agents extend `BaseAgent` and return structured `AgentResult` objects. Requires `ANTHROPIC_API_KEY` in `.env`.
+
+### Frontend offline architecture
+
+The service worker (`frontend/src/sw.js`) uses Workbox with two strategies:
+
+- **Stale-while-revalidate** — dashboard, analytics, knowledge, compliance, notifications.
+- **Network-first** — inventory stock levels, batches, dispensing checkout (freshness required for FEFO decisions).
+
+Write mutations that fail while offline are queued in IndexedDB by `lib/api.ts` interceptors and replayed on reconnect. React Query's `networkMode: 'offlineFirst'` ensures queries still fire when `navigator.onLine` is false so the SW can serve from cache.
+
+The `@` alias maps to `frontend/src/`. All pages in `App.tsx` are `React.lazy()` loaded.
+
+### Stores (Zustand)
+
+- `authStore` — user, accessToken, refreshToken. Persisted to localStorage.
+- `pharmacyStore` — active pharmacy context. Persisted to localStorage.
+- `notificationStore` — ephemeral toasts, not persisted.
+- `connectivityStore` — online/offline state, drives offline UI indicators.
 
 ---
 
@@ -23,7 +122,9 @@ pharmaconnect/
 │   │   ├── lib/                     # prisma.ts, jwt.ts
 │   │   ├── middleware/              # auth.ts, errorHandler.ts
 │   │   └── modules/                 # auth, inventory, compliance, patients,
-│   │                                #   nhif, cpd, knowledge, analytics, settings
+│   │                                #   cpd, knowledge, analytics, settings
+│   │                                #   (patients = session-based safety only,
+│   │                                #    no patient table, no patient UUID)
 │   ├── prisma/
 │   │   ├── schema.prisma            # All models
 │   │   └── migrations/              # Applied migrations
@@ -44,7 +145,7 @@ pharmaconnect/
 │   │   │   └── ui/                  # Button, Card, Input, Select, Badge,
 │   │   │                            #   Modal, Toast, ProgressBar
 │   │   └── modules/                 # auth, dashboard, inventory, compliance,
-│   │                                #   patient-safety, nhif, cpd, knowledge,
+│   │                                #   patient-safety, cpd, knowledge,
 │   │                                #   analytics, settings
 │   ├── public/assets/logo/          # Production SVG logos
 │   ├── package.json
@@ -139,6 +240,14 @@ Logo wordmark (`apotekh-logo-white.svg`, dark backgrounds):
 for phase 4). This was explicitly removed. Phase-locked nav items use
 `text-[#64748B] opacity-70` only.
 
+### Motto
+
+**"Powering Pharmacies. Protecting Patients."**
+
+Use exactly this wording in marketing copy, the website, pitch materials, and any
+UI context where a brand tagline appears. Do not paraphrase, shorten, or invent
+alternatives.
+
 ### Typography
 
 - Body: DM Sans (all UI text, labels, nav)
@@ -154,7 +263,7 @@ All three are loaded via Google Fonts in `frontend/index.html`.
 | Role | Tier availability | Primary function |
 |------|------------------|-----------------|
 | OWNER | All tiers | Remote oversight, billing, user management |
-| PHARMACIST_IN_CHARGE | All tiers | Full clinical + operational control |
+| PHARMACIST_IN_CHARGE | All tiers | Full clinical + operational control (Superintendent Pharmacist — Tanzania Pharmacy Act title) |
 | DISPENSER | STANDARD, PREMIUM, ENTERPRISE | Retail dispensing + patient safety tools |
 | CASHIER | STANDARD, PREMIUM, ENTERPRISE | Complete payment on a prepared sale |
 | DATA_ENTRY_CLERK | All tiers | Stock intake and supplier management only |
@@ -189,7 +298,7 @@ CANNOT:
   checker (4 severity levels), dose calculator, contraindication alerts (8 flags),
   NCD hints, diagnosis-drug matching, alternative medicine suggestions, therapeutic
   equivalence matching, and override logging are identical across ADDO, BASIC,
-  STANDARD, and PREMIUM. Override permissions are role-based (PIC vs assistant).
+  STANDARD, and PREMIUM. Override permissions are role-based (Superintendent vs assistant dispenser).
 - ADDO: Basic POS. No discounts, no void/reissue, no multi-outlet. DLDM
   compliance tracker only. Knowledge Hub read-only.
 - BASIC: Adds Owner Dashboard, roles & permissions, void/reissue audit trail,
@@ -202,7 +311,6 @@ CANNOT:
   or any CPD-related feature to any tier without explicit founder approval.
 - WHOLESALE: Separate product. No retail dispensing. No Clinical Decision Support.
   Knowledge Hub read access only.
-- HYBRID: Retail (Standard features) + Wholesale in one account, same owner.
 - ENTERPRISE: Chains 6+ outlets, unlimited users, all Premium features.
 - Barcode scanning: available from ADDO upward and to WHOLESALE_COUNTER_STAFF.
 - EFDMS integration: active from BASIC tier upward. Runs silently in background.
@@ -223,7 +331,6 @@ CANNOT:
 | Tier | Price | Notes |
 |------|-------|-------|
 | WHOLESALE | Tsh 100,000/month | 1 wholesale outlet, 10 users + delivery staff |
-| HYBRID | Tsh 100,000/month | Retail + wholesale, same owner, unified dashboard |
 | ENTERPRISE | Negotiated | 6+ outlets, chains, hospital pharmacies |
 
 Annual billing: 10× monthly (2 months free).
@@ -248,11 +355,11 @@ Annual billing: 10× monthly (2 months free).
 | 1     | Compliance Tracker | Live        |
 | 1     | Analytics          | Live        |
 | 1     | Dispensing         | Live        |
-| 1     | Staff Activity     | Live — owner/PIC only, derived from operational logs |
+| 1     | Staff Activity     | Live — OWNER and PHARMACIST_IN_CHARGE only; derived from operational logs |
 | 2     | CPD Tracker        | Coming soon |
-| 2     | NHIF Claims        | Coming soon |
-| 2     | Stock Exchange     | Coming soon |
-| 2     | Wholesale / B2B    | Coming soon — code exists but not actively sold; MVP is retail only |
+| 2     | NHIF Claims        | Coming soon — blocked on NHIF reimbursement reform, not a tech problem |
+| 2     | Stock Exchange     | Coming soon — pharmacy-to-pharmacy stock trading within the APOTEKH network |
+| 2     | Wholesale / B2B    | Built — not actively marketed in Phase 1; serve wholesale customers who approach us but do not pitch or prioritise |
 | 3     | B2B Platform       | Coming soon |
 | 3     | Patient App        | Coming soon |
 | 4     | AI Safety          | Coming soon |
@@ -316,9 +423,15 @@ These are the target standards for new code:
 ## Regulatory requirements
 
 - **TMDA**: Tanzania Medicines and Medical Devices Authority — product registration
-- **UHI**: Universal Health Insurance mandate — dispensing records required
-- **NHIF**: National Health Insurance Fund — claim submission format
-- **FEFO**: First Expired First Out — dispensing order for batches
+  and approval. All medicine data must reference TMDA-registered products only.
+- **FEFO**: First Expired First Out — dispensing order for batches. Enforced in
+  inventory and dispensing workflow.
+- **EFDMS**: Electronic Fiscal Device Management System — runs silently in background
+  from BASIC tier upward. Never surface in onboarding or sales conversations.
+- **NHIF/UHI**: Not integrated. NHIF reimburses below market price in Tanzania —
+  private pharmacies lose money on every claim processed. Integration is blocked
+  until NHIF reforms its reimbursement model. Do not build or reference NHIF
+  claims features. Deferred table governs this.
 
 ---
 

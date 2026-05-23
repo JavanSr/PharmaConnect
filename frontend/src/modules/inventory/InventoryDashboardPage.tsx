@@ -81,29 +81,6 @@ export const InventoryDashboardPage: React.FC = () => {
         ))}
       </div>
 
-      <Card>
-        <div className="grid gap-4 md:grid-cols-3">
-          <div>
-            <p className="text-sm font-semibold text-[#0D4035]">Drug Catalogue</p>
-            <p className="mt-1 text-sm text-[#64748B]">
-              A platform master list of medicines and reference details. It helps match local products when useful, but it is separate from the pharmacy stock list.
-            </p>
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-[#0D4035]">Stock work</p>
-            <p className="mt-1 text-sm text-[#64748B]">
-              Receive Stock adds batches, Batches shows expiry-level stock, and Adjust Stock creates owner-reviewed corrections.
-            </p>
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-[#0D4035]">Product setup</p>
-            <p className="mt-1 text-sm text-[#64748B]">
-              Products is where a pharmacy adds items manually or uploads a CSV to start using the system with its own stock list.
-            </p>
-          </div>
-        </div>
-      </Card>
-
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card header={
           <div className="flex items-center justify-between gap-3">

@@ -2,7 +2,7 @@ import { Resend } from 'resend';
 
 let resend: Resend | null = null;
 
-const FROM = process.env.EMAIL_FROM ?? 'APOTEKH <onboarding@resend.dev>';
+const FROM = process.env.EMAIL_FROM ?? process.env.RESEND_FROM_EMAIL ?? 'APOTEKH <onboarding@resend.dev>';
 const FOUNDER_EMAIL = 'godright.turner@gmail.com';
 const APP_URL = process.env.FRONTEND_URL ?? 'https://pharma-connect-rouge.vercel.app';
 
@@ -191,6 +191,37 @@ export async function sendOrderStatusEmail(opts: {
     to: opts.to,
     replyTo: FOUNDER_EMAIL,
     subject: `${statusLabel[opts.status] ?? 'Order update'}: ${opts.orderNumber}`,
+    html,
+  });
+}
+
+export async function sendSubscriptionPaymentFailedEmail(opts: {
+  to: string;
+  firstName: string;
+  pharmacyName: string;
+  reference: string;
+  amount: string;
+  reason: string;
+}) {
+  const html = baseLayout(`
+    <p>Hi <strong>${opts.firstName}</strong>,</p>
+    <p>Your APOTEKH subscription payment for <strong>${opts.pharmacyName}</strong> could not be completed.</p>
+    <div class="info-box">
+      <p><strong>Reference:</strong> ${opts.reference}</p>
+      <p style="margin-top:6px;"><strong>Amount:</strong> Tsh ${opts.amount}</p>
+      <p style="margin-top:6px;"><strong>Reason:</strong> ${opts.reason}</p>
+    </div>
+    <p>Please check the account balance or payment approval prompt, then try again from the Subscription screen.</p>
+    <a href="${APP_URL}/settings/subscription" class="btn">Try payment again</a>
+    <hr class="divider" />
+    <p style="font-size:13px;color:#64748B;">If money was deducted, reply to this email with the transaction message so APOTEKH can review it.</p>
+  `);
+
+  await sendEmail({
+    from: FROM,
+    to: opts.to,
+    replyTo: FOUNDER_EMAIL,
+    subject: `APOTEKH payment failed: ${opts.reference}`,
     html,
   });
 }

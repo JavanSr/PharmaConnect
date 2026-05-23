@@ -154,7 +154,7 @@ No tests exist. Add foundational coverage:
 - Add `npm run test` script.
 
 **Frontend** (`frontend/src/__tests__/`):
-- `SubscriptionPage.test.tsx` — renders all five tiers with correct Tsh prices.
+- `SubscriptionPage.test.tsx` — renders all six tiers with correct Tsh prices.
 - `ForecastingPage.test.tsx` — preview banner is always visible.
 - `DeferredFeaturePage.test.tsx` — "Back to platform" links to `/dashboard`.
 
