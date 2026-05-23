@@ -302,3 +302,60 @@ export async function searchSupplierCatalogueItems(
     totalPages: total === 0 ? 0 : Math.ceil(total / limit),
   };
 }
+
+export async function getPriceComparison(
+  retailPharmacyId: string,
+  productName: string,
+  genericName?: string,
+) {
+  const results = await prisma.supplierCatalogueItem.findMany({
+    where: {
+      catalogue: {
+        retailPharmacyId,
+      },
+      OR: [
+        { productName: { contains: productName, mode: 'insensitive' } },
+        genericName ? { genericName: { contains: genericName, mode: 'insensitive' } } : undefined,
+      ].filter(Boolean) as Prisma.SupplierCatalogueItemWhereInput[],
+    },
+    select: {
+      id: true,
+      productName: true,
+      genericName: true,
+      strength: true,
+      dosageForm: true,
+      quantityAvailable: true,
+      unitPrice: true,
+      minimumOrderQuantity: true,
+      catalogue: {
+        select: {
+          wholesalerId: true,
+          wholesaler: {
+            select: {
+              id: true,
+              name: true,
+              phone: true,
+              email: true,
+            },
+          },
+        },
+      },
+    },
+    orderBy: { unitPrice: 'asc' },
+  });
+
+  return results.map((item) => ({
+    id: item.id,
+    productName: item.productName,
+    genericName: item.genericName,
+    strength: item.strength,
+    dosageForm: item.dosageForm,
+    quantityAvailable: item.quantityAvailable,
+    unitPrice: item.unitPrice.toNumber(),
+    minimumOrderQuantity: item.minimumOrderQuantity,
+    wholesalerId: item.catalogue?.wholesalerId,
+    wholesalerName: item.catalogue?.wholesaler?.name,
+    wholesalerPhone: item.catalogue?.wholesaler?.phone,
+    wholesalerEmail: item.catalogue?.wholesaler?.email,
+  }));
+}

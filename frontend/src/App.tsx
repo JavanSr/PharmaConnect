@@ -104,6 +104,10 @@ const DataReviewPage = lazy(() => import('@/modules/settings/DataReviewPage').th
 const SourceUpdatesPage = lazy(() => import('@/modules/settings/SourceUpdatesPage').then(m => ({ default: m.SourceUpdatesPage })));
 const FeaturesPage = lazy(() => import('@/modules/settings/FeaturesPage').then(m => ({ default: m.FeaturesPage })));
 const FounderDashboardPage = lazy(() => import('@/modules/founder/FounderDashboardPage').then(m => ({ default: m.FounderDashboardPage })));
+const WholesalerDiscoveryPage = lazy(() => import('@/modules/inventory/WholesalerDiscoveryPage').then(m => ({ default: m.WholesalerDiscoveryPage })));
+const WholesalerCataloguePage = lazy(() => import('@/modules/inventory/WholesalerCataloguePage').then(m => ({ default: m.WholesalerCataloguePage })));
+const MedicinePriceComparisonPage = lazy(() => import('@/modules/inventory/MedicinePriceComparisonPage').then(m => ({ default: m.MedicinePriceComparisonPage })));
+const WholesalerCSVUploadPage = lazy(() => import('@/modules/inventory/WholesalerCSVUploadPage').then(m => ({ default: m.WholesalerCSVUploadPage })));
 
 const PageLoader = () => (
   <SystemStatusWindow
@@ -255,6 +259,10 @@ export const App: React.FC = () => (
           <Route path="/inventory/stock-orders/new" element={<Suspense fallback={<PageLoader />}><StockOrderPreparePage /></Suspense>} />
           <Route path="/inventory/stock-orders/:id/edit" element={<Suspense fallback={<PageLoader />}><StockOrderPreparePage /></Suspense>} />
           <Route path="/inventory/stock-orders/:id" element={<Suspense fallback={<PageLoader />}><StockOrderViewPage /></Suspense>} />
+          <Route path="/inventory/wholesalers" element={<Suspense fallback={<PageLoader />}><WholesalerDiscoveryPage /></Suspense>} />
+          <Route path="/inventory/wholesaler/:wholesalerId" element={<Suspense fallback={<PageLoader />}><WholesalerCataloguePage /></Suspense>} />
+          <Route path="/inventory/price-comparison" element={<Suspense fallback={<PageLoader />}><MedicinePriceComparisonPage /></Suspense>} />
+          <Route path="/inventory/upload-wholesalers" element={page(<WholesalerCSVUploadPage />, ['SUPER_ADMIN'])} />
           <Route path="/inventory/adjust" element={page(<StockAdjustPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF'])} />
           <Route path="/inventory/batches" element={<Suspense fallback={<PageLoader />}><BatchManagerPage /></Suspense>} />
           <Route path="/inventory/expiry" element={<Suspense fallback={<PageLoader />}><ExpiryDashboardPage /></Suspense>} />
