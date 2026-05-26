@@ -59,8 +59,8 @@ export const WholesaleShell: React.FC<{ children: React.ReactNode }> = ({ childr
 
   return (
     <div className="space-y-stack-lg">
-      {/* Hero banner — raw div avoids Card's bg-surface-container-low override */}
-      <div className="overflow-hidden rounded-xl bg-active-fill text-active-text shadow-md">
+      {/* Hero banner */}
+      <div className="overflow-hidden rounded-xl bg-primary text-white shadow-md">
         <div className={`gap-5 px-5 py-5 ${(isHybrid || (canSell && canBuy)) ? 'grid lg:grid-cols-[1.6fr_1fr]' : 'flex flex-col'}`}>
           <div className="space-y-2">
             <p className="text-label-md uppercase tracking-[0.3em] text-white/70">
@@ -84,7 +84,7 @@ export const WholesaleShell: React.FC<{ children: React.ReactNode }> = ({ childr
                 <div className="flex gap-2">
                   <button
                     onClick={() => setMode('seller')}
-                    className={`min-h-touch-target-min flex-1 rounded-full px-3 py-2 text-sm font-medium transition-colors ${mode === 'seller' ? 'bg-white text-active-fill' : 'bg-white/20 text-white hover:bg-white/30'}`}
+                    className={`min-h-touch-target-min flex-1 rounded-full px-3 py-2 text-sm font-medium transition-colors ${mode === 'seller' ? 'bg-white text-primary' : 'bg-white/20 text-white hover:bg-white/30'}`}
                   >
                     Sell
                   </button>
@@ -113,8 +113,8 @@ export const WholesaleShell: React.FC<{ children: React.ReactNode }> = ({ childr
             className={({ isActive }) =>
               `inline-flex min-h-touch-target-min shrink-0 items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
                 isActive
-                  ? 'border-active-fill bg-active-fill text-active-text'
-                  : 'border-outline-variant bg-surface-container-low text-on-surface-variant hover:bg-hover-fill hover:text-hover-text'
+                  ? 'border-[#E8A020] bg-primary text-white'
+                  : 'border-outline-variant bg-surface-container-low text-on-surface-variant hover:bg-[#D6F0E8] hover:text-[#0D4035]'
               }`
             }
           >

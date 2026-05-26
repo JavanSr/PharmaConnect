@@ -103,22 +103,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
       : location.pathname === path || location.pathname.startsWith(`${path}/`);
 
   // ── Normal nav item ────────────────────────────────────────────────────────
-  const NavItemEl: React.FC<{ item: NavItem }> = ({ item }) => (
-    <Link
-      to={item.path}
-      className={`flex min-h-touch-target-min items-center gap-3 rounded-full px-3 py-2.5 transition-colors ${
-        checkActive(item.path)
-          ? 'bg-active-fill text-active-text font-semibold'
-          : 'text-on-surface-variant hover:bg-hover-fill hover:text-hover-text'
-      }`}
-      onClick={() => onClose()}
-    >
-      {item.icon}
-      {!collapsed && (
-        <span className="flex-1 text-sm font-medium truncate">{item.label}</span>
-      )}
-    </Link>
-  );
+  const NavItemEl: React.FC<{ item: NavItem }> = ({ item }) => {
+    const active = checkActive(item.path);
+    return (
+      <Link
+        to={item.path}
+        className={`flex min-h-touch-target-min items-center gap-3 rounded-full px-3 py-2.5 transition-colors ${
+          active
+            ? 'bg-primary text-white font-semibold'
+            : 'text-on-surface-variant hover:bg-[#D6F0E8] hover:text-[#0D4035]'
+        }`}
+        onClick={() => onClose()}
+      >
+        {item.icon}
+        {!collapsed && (
+          <>
+            <span className="flex-1 text-sm font-medium truncate">{item.label}</span>
+            {active && (
+              <span className="w-2 h-2 shrink-0 rounded-full bg-[#E8A020]" aria-hidden="true" />
+            )}
+          </>
+        )}
+      </Link>
+    );
+  };
 
   // ── Locked nav item — shown for non-grace features during grace mode ───────
   const LockedNavItemEl: React.FC<{ item: NavItem }> = ({ item }) => (
