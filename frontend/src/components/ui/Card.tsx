@@ -17,10 +17,10 @@ const shadowStyles = {
 
 export const Card: React.FC<CardProps> = ({ children, className = '', header, footer, shadow = 'sm', padding = true }) => {
   return (
-    <div className={`bg-white rounded-2xl border border-[#D6F0E8] ${shadowStyles[shadow]} ${className}`}>
-      {header && <div className="px-5 py-4 border-b border-[#D6F0E8]">{header}</div>}
+    <div className={`bg-surface-container-low rounded-xl border border-outline-variant/30 ${shadowStyles[shadow]} ${className}`}>
+      {header && <div className="px-5 py-4 border-b border-outline-variant/30">{header}</div>}
       <div className={padding ? 'p-5' : ''}>{children}</div>
-      {footer && <div className="px-5 py-4 border-t border-[#D6F0E8] bg-[#EDF7F3] rounded-b-2xl">{footer}</div>}
+      {footer && <div className="px-5 py-4 border-t border-outline-variant/30 bg-surface-container rounded-b-xl">{footer}</div>}
     </div>
   );
 };

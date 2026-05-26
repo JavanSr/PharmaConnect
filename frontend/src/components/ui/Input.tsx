@@ -13,40 +13,40 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
     const inputId = id || (label ? label.toLowerCase().replace(/\s+/g, '-') : undefined);
     return (
       <div className="flex flex-col gap-1">
-        {label && (
-          <label htmlFor={inputId} className="text-sm font-medium text-[#0D4035]">
-            {label}
-            {props.required && <span className="text-[#DC2626] ml-0.5">*</span>}
-          </label>
-        )}
         <div className="relative">
+          {label && (
+            <label htmlFor={inputId} className="absolute -top-2 left-3 z-10 bg-surface px-1 text-label-md text-primary">
+              {label}
+              {props.required && <span className="text-error ml-0.5">*</span>}
+            </label>
+          )}
           {leftIcon && (
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#64748B] pointer-events-none">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none">
               {leftIcon}
             </span>
           )}
           <input
             ref={ref}
             id={inputId}
-            className={`w-full h-10 px-3 text-sm text-[#0D4035] bg-white border rounded-xl outline-none transition-all
-              ${leftIcon ? 'pl-9' : ''}
-              ${rightIcon ? 'pr-9' : ''}
+            className={`w-full h-[56px] px-3 text-body-lg text-on-surface bg-transparent border rounded-lg outline-none transition-all placeholder:text-outline-variant
+              ${leftIcon ? 'pl-10' : ''}
+              ${rightIcon ? 'pr-10' : ''}
               ${error
-                ? 'border-[#DC2626] focus:ring-2 focus:ring-[#DC2626]/20'
-                : 'border-[#D6F0E8] focus:border-[#1A6B5C] focus:ring-2 focus:ring-[#1A6B5C]/20'
+                ? 'border-error focus:ring-2 focus:ring-error/20'
+                : 'border-outline focus:border-primary focus:ring-1 focus:ring-primary'
               }
-              disabled:bg-gray-50 disabled:text-[#64748B] disabled:cursor-not-allowed
+              disabled:bg-surface-container disabled:text-on-surface-variant disabled:cursor-not-allowed
               ${className}`}
             {...props}
           />
           {rightIcon && (
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[#64748B]">
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant">
               {rightIcon}
             </span>
           )}
         </div>
-        {error && <p className="text-xs text-[#DC2626] mt-0.5">{error}</p>}
-        {hint && !error && <p className="text-xs text-[#64748B] mt-0.5">{hint}</p>}
+        {error && <p className="text-xs text-error mt-0.5">{error}</p>}
+        {hint && !error && <p className="text-xs text-on-surface-variant mt-0.5">{hint}</p>}
       </div>
     );
   }

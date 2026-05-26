@@ -35,38 +35,38 @@ export const TopBar: React.FC<TopBarProps> = ({ onMenuClick, title }) => {
 
   const ConnectivityDot = () => {
     if (!isOnline) return (
-      <div className="flex items-center gap-1.5 px-2.5 py-1 bg-red-50 rounded-full border border-red-200">
-        <WifiOff size={13} className="text-[#DC2626]" />
-        <span className="text-xs text-[#DC2626] font-medium">Offline</span>
+      <div className="flex min-h-[32px] items-center gap-1.5 rounded-full border border-tertiary-container/30 bg-tertiary-container/10 px-3 py-1">
+        <WifiOff size={13} className="text-tertiary" />
+        <span className="text-label-md text-tertiary font-medium">Offline</span>
       </div>
     );
 
     if (!isReachable) return (
-      <div className="flex items-center gap-1.5 px-2.5 py-1 bg-orange-50 rounded-full border border-orange-200">
-        <Wifi size={13} className="text-orange-500 animate-pulse" />
-        <span className="text-xs text-orange-600 font-medium">Weak connection</span>
+      <div className="flex min-h-[32px] items-center gap-1.5 rounded-full border border-tertiary-container/30 bg-tertiary-container/10 px-3 py-1">
+        <Wifi size={13} className="text-tertiary animate-pulse" />
+        <span className="text-label-md text-tertiary font-medium">Weak connection</span>
       </div>
     );
 
     if (pendingSyncCount > 0) return (
-      <div className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 rounded-full border border-amber-200">
-        <Clock size={13} className="text-[#D97706] animate-pulse" />
-        <span className="text-xs text-[#D97706] font-medium">{pendingSyncCount} pending sync</span>
+      <div className="flex min-h-[32px] items-center gap-1.5 rounded-full border border-tertiary-container/30 bg-tertiary-container/10 px-3 py-1">
+        <Clock size={13} className="text-tertiary animate-pulse" />
+        <span className="text-label-md text-tertiary font-medium">{pendingSyncCount} pending sync</span>
       </div>
     );
 
     return (
-      <div className="flex items-center gap-1.5 px-2.5 py-1 bg-[#D6F0E8] rounded-full border border-[#1A6B5C]/20">
-        <div className="w-2 h-2 bg-[#1A6B5C] rounded-full" />
-        <span className="text-xs text-[#1A6B5C] font-medium">Synced</span>
+      <div className="flex min-h-[32px] items-center gap-1.5 rounded-full border border-primary/20 bg-secondary-container px-3 py-1">
+        <div className="w-2 h-2 bg-primary rounded-full" />
+        <span className="text-label-md text-on-secondary-container font-medium">Online - syncing</span>
       </div>
     );
   };
 
   return (
-    <header className="h-14 bg-white border-b border-[#D6F0E8] flex items-center justify-between px-4 gap-4 sticky top-0 z-30 print:hidden">
+    <header className="min-h-[56px] bg-surface-container-low border-b border-outline-variant/30 flex items-center justify-between px-margin-mobile gap-4 sticky top-0 z-30 print:hidden">
       <div className="flex items-center gap-3">
-        <button onClick={onMenuClick} className="lg:hidden p-2 rounded-lg hover:bg-[#EDF7F3] text-[#64748B]">
+        <button onClick={onMenuClick} className="lg:hidden p-2 rounded-full hover:bg-surface-container-high text-on-surface-variant">
           <Menu size={20} />
         </button>
         <button
@@ -78,25 +78,25 @@ export const TopBar: React.FC<TopBarProps> = ({ onMenuClick, title }) => {
               navigate('/dashboard');
             }
           }}
-          className="p-2 rounded-lg hover:bg-[#EDF7F3] text-[#64748B]"
+          className="p-2 rounded-full hover:bg-surface-container-high text-on-surface-variant"
           aria-label="Go back"
           title="Back"
         >
           <ArrowLeft size={18} />
         </button>
-        {title && <h1 className="text-base font-semibold text-[#0D4035] hidden sm:block">{title}</h1>}
+        {title && <h1 className="text-title-md text-on-surface hidden sm:block">{title}</h1>}
       </div>
 
       <div className="flex items-center gap-2">
         {memberships.length > 1 && (
-          <div className="hidden md:flex items-center gap-2 rounded-full border border-[#D6F0E8] bg-white px-3 py-1.5">
-            <label htmlFor="topbar-pharmacy-select" className="text-xs font-medium text-[#64748B]">
+          <div className="hidden md:flex min-h-[40px] items-center gap-2 rounded-full border border-outline-variant/30 bg-surface-container-lowest px-3 py-1.5">
+            <label htmlFor="topbar-pharmacy-select" className="text-label-md text-on-surface-variant">
               Outlet
             </label>
             <select
               id="topbar-pharmacy-select"
               aria-label="Active pharmacy"
-              className="bg-transparent text-sm font-medium text-[#0D4035] outline-none"
+              className="bg-transparent text-label-lg text-on-surface outline-none"
               disabled={switchMutation.isPending}
               value={pharmacy?.id ?? ''}
               onChange={(event) => {

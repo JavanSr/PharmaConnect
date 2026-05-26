@@ -15,40 +15,61 @@ interface NavItem {
   label: string;
   path: string;
   icon: React.ReactNode;
-  roles?: UserRole[]; // if set, only these roles see this item
+  roles?: UserRole[];
+  /** Whether this item is accessible during grace mode (subscription lapsed). */
+  graceAllowed?: boolean;
 }
 
 const phase1Nav: NavItem[] = [
-  { label: 'Dashboard', path: '/dashboard', icon: <LayoutDashboard size={18} /> },
-  { label: 'Knowledge Hub', path: '/knowledge', icon: <BookOpen size={18} /> },
-  { label: 'TMDA Updates', path: '/tmda-updates', icon: <BookOpen size={18} /> },
-  { label: 'Inventory', path: '/inventory', icon: <Package size={18} /> },
-  { label: 'Order Preparation', path: '/inventory/stock-orders', icon: <ClipboardList size={18} />, roles: ['OWNER','PHARMACIST_IN_CHARGE','DISPENSER','WHOLESALE_MANAGER','SUPER_ADMIN'] },
-  { label: 'Compliance', path: '/compliance', icon: <Shield size={18} />, roles: ['OWNER','PHARMACIST_IN_CHARGE','DISPENSER','SUPER_ADMIN'] },
-  { label: 'Analytics', path: '/analytics', icon: <BarChart3 size={18} /> },
-  { label: 'Dispensing', path: '/dispensing', icon: <Pill size={18} />, roles: ['PHARMACIST_IN_CHARGE','DISPENSER','CASHIER','SUPER_ADMIN'] },
-  { label: 'Safety Alerts', path: '/dispensing/alerts', icon: <ShieldAlert size={18} />, roles: ['OWNER','PHARMACIST_IN_CHARGE','SUPER_ADMIN'] },
-  { label: 'Controlled Register', path: '/dispensing/controlled-register', icon: <Lock size={18} />, roles: ['OWNER','PHARMACIST_IN_CHARGE','SUPER_ADMIN'] },
-  { label: 'Wholesale', path: '/wholesale', icon: <Building2 size={18} />, roles: ['OWNER','WHOLESALE_MANAGER','WHOLESALE_COUNTER_STAFF','DELIVERY_STAFF','SUPER_ADMIN'] },
-  { label: 'Orders', path: '/wholesale/orders', icon: <ClipboardList size={18} />, roles: ['OWNER','WHOLESALE_MANAGER','WHOLESALE_COUNTER_STAFF','DELIVERY_STAFF','SUPER_ADMIN'] },
-  { label: 'Reports', path: '/reports', icon: <BarChart3 size={18} />, roles: ['OWNER','PHARMACIST_IN_CHARGE','CASHIER','WHOLESALE_MANAGER','SUPER_ADMIN'] },
-  { label: 'Staff Activity', path: '/staff-activity', icon: <Users size={18} />, roles: ['OWNER','PHARMACIST_IN_CHARGE'] },
-  { label: 'Sync Conflicts', path: '/inventory/conflicts', icon: <AlertTriangle size={18} />, roles: ['OWNER','PHARMACIST_IN_CHARGE','SUPER_ADMIN'] },
-  { label: 'Founder', path: '/founder', icon: <Telescope size={18} />, roles: ['SUPER_ADMIN'] },
+  { label: 'Dashboard',           path: '/dashboard',                      icon: <LayoutDashboard size={18} /> },
+  { label: 'Knowledge Hub',       path: '/knowledge',                      icon: <BookOpen size={18} /> },
+  { label: 'TMDA Updates',        path: '/tmda-updates',                   icon: <BookOpen size={18} /> },
+  { label: 'Inventory',           path: '/inventory',                      icon: <Package size={18} />,        graceAllowed: true },
+  { label: 'Order Preparation',   path: '/inventory/stock-orders',         icon: <ClipboardList size={18} />,  roles: ['OWNER','PHARMACIST_IN_CHARGE','DISPENSER','WHOLESALE_MANAGER','SUPER_ADMIN'] },
+  { label: 'Compliance',          path: '/compliance',                     icon: <Shield size={18} />,         roles: ['OWNER','PHARMACIST_IN_CHARGE','DISPENSER','SUPER_ADMIN'] },
+  { label: 'Analytics',           path: '/analytics',                      icon: <BarChart3 size={18} />,      graceAllowed: true },
+  // OWNER added so grace-mode owners can dispense (they wear all hats during lapse)
+  { label: 'Dispensing',          path: '/dispensing',                     icon: <Pill size={18} />,           roles: ['OWNER','PHARMACIST_IN_CHARGE','DISPENSER','CASHIER','SUPER_ADMIN'], graceAllowed: true },
+  { label: 'Safety Alerts',       path: '/dispensing/alerts',              icon: <ShieldAlert size={18} />,    roles: ['OWNER','PHARMACIST_IN_CHARGE','SUPER_ADMIN'] },
+  { label: 'Controlled Register', path: '/dispensing/controlled-register', icon: <Lock size={18} />,           roles: ['OWNER','PHARMACIST_IN_CHARGE','SUPER_ADMIN'] },
+  { label: 'Wholesale',           path: '/wholesale',                      icon: <Building2 size={18} />,      roles: ['OWNER','WHOLESALE_MANAGER','WHOLESALE_COUNTER_STAFF','DELIVERY_STAFF','SUPER_ADMIN'] },
+  { label: 'Orders',              path: '/wholesale/orders',               icon: <ClipboardList size={18} />,  roles: ['OWNER','WHOLESALE_MANAGER','WHOLESALE_COUNTER_STAFF','DELIVERY_STAFF','SUPER_ADMIN'] },
+  { label: 'Reports',             path: '/reports',                        icon: <BarChart3 size={18} />,      roles: ['OWNER','PHARMACIST_IN_CHARGE','CASHIER','WHOLESALE_MANAGER','SUPER_ADMIN'] },
+  { label: 'Staff Activity',      path: '/staff-activity',                 icon: <Users size={18} />,          roles: ['OWNER','PHARMACIST_IN_CHARGE'] },
+  { label: 'Sync Conflicts',      path: '/inventory/conflicts',            icon: <AlertTriangle size={18} />,  roles: ['OWNER','PHARMACIST_IN_CHARGE','SUPER_ADMIN'] },
+  { label: 'Founder',             path: '/founder',                        icon: <Telescope size={18} />,      roles: ['SUPER_ADMIN'] },
 ];
 
 const founderNav: NavItem[] = [
   { label: 'Founder Dashboard', path: '/founder', icon: <LayoutDashboard size={18} />, roles: ['SUPER_ADMIN'] },
 ];
 
+// Paths accessible during grace. Must mirror GRACE_ALLOWED_BASE_URLS in trial.ts.
+const GRACE_ALLOWED_PATHS = new Set(['/dispensing', '/inventory', '/analytics']);
+
+function isGracePath(path: string): boolean {
+  return (
+    GRACE_ALLOWED_PATHS.has(path) ||
+    [...GRACE_ALLOWED_PATHS].some((p) => path.startsWith(`${p}/`))
+  );
+}
+
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
   collapsed: boolean;
   onToggleCollapse: () => void;
+  /** Whether the pharmacy is currently in grace mode (subscription lapsed). */
+  inGrace?: boolean;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, collapsed, onToggleCollapse }) => {
+export const Sidebar: React.FC<SidebarProps> = ({
+  isOpen,
+  onClose,
+  collapsed,
+  onToggleCollapse,
+  inGrace = false,
+}) => {
   const { user, logout } = useAuthStore();
   const { pharmacy } = usePharmacyStore();
   const navigate = useNavigate();
@@ -57,7 +78,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, collapsed, on
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (!navRef.current) return;
-    const items = Array.from(navRef.current.querySelectorAll<HTMLElement>('a[href], button:not([disabled])'));
+    const items = Array.from(
+      navRef.current.querySelectorAll<HTMLElement>('a[href], button:not([disabled])'),
+    );
     const current = document.activeElement as HTMLElement;
     const idx = items.indexOf(current);
     if (e.key === 'ArrowDown') {
@@ -74,36 +97,90 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, collapsed, on
     navigate('/login');
   };
 
-  const NavItemEl: React.FC<{ item: NavItem }> = ({ item }) => {
-    const isActive =
-      item.path === '/dashboard'
-        ? location.pathname === '/dashboard'
-        : location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
+  const checkActive = (path: string) =>
+    path === '/dashboard'
+      ? location.pathname === '/dashboard'
+      : location.pathname === path || location.pathname.startsWith(`${path}/`);
 
-    return (
-      <Link
-        to={item.path}
-        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors ${
-          isActive
-            ? 'bg-[#1A6B5C] text-white'
-            : 'text-[#0D4035] hover:bg-[#D6F0E8]'
-        }`}
-        onClick={() => onClose()}
-      >
-        {item.icon}
-        {!collapsed && <span className="flex-1 text-sm font-medium truncate">{item.label}</span>}
-      </Link>
-    );
-  };
+  // ── Normal nav item ────────────────────────────────────────────────────────
+  const NavItemEl: React.FC<{ item: NavItem }> = ({ item }) => (
+    <Link
+      to={item.path}
+      className={`flex min-h-touch-target-min items-center gap-3 rounded-full px-3 py-2.5 transition-colors ${
+        checkActive(item.path)
+          ? 'bg-secondary-container text-on-secondary-container'
+          : 'text-on-surface-variant hover:bg-surface-container-high'
+      }`}
+      onClick={() => onClose()}
+    >
+      {item.icon}
+      {!collapsed && (
+        <span className="flex-1 text-sm font-medium truncate">{item.label}</span>
+      )}
+    </Link>
+  );
 
+  // ── Locked nav item — shown for non-grace features during grace mode ───────
+  const LockedNavItemEl: React.FC<{ item: NavItem }> = ({ item }) => (
+    <div
+      title={collapsed ? `${item.label} — Renew to unlock` : undefined}
+      className="group relative flex min-h-touch-target-min items-center gap-3 rounded-full px-3 py-2.5 cursor-not-allowed select-none opacity-40"
+      aria-disabled="true"
+      role="presentation"
+    >
+      <span className="shrink-0">{item.icon}</span>
+
+      {!collapsed && (
+        <>
+          <span className="flex-1 text-sm font-medium truncate text-on-surface-variant line-through">
+            {item.label}
+          </span>
+          <span className="flex shrink-0 items-center gap-1 rounded-full bg-surface-container-high px-2 py-0.5 text-[10px] font-semibold text-on-surface-variant">
+            <Lock size={9} />
+            Grace
+          </span>
+        </>
+      )}
+
+      {/* Tooltip: collapsed sidebar */}
+      {collapsed && (
+        <div className="pointer-events-none absolute left-full ml-2 z-50 hidden whitespace-nowrap rounded-lg bg-surface-variant px-3 py-1.5 text-xs font-medium text-on-surface-variant shadow-md group-hover:flex">
+          {item.label} — Renew to unlock
+        </div>
+      )}
+
+      {/* Tooltip: expanded sidebar */}
+      {!collapsed && (
+        <div className="pointer-events-none absolute left-3 right-3 top-full mt-0.5 z-50 hidden rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 shadow-sm group-hover:block">
+          <span className="font-semibold">Renew to unlock.</span>{' '}
+          Settings → Subscription.
+        </div>
+      )}
+    </div>
+  );
+
+  // ── Filter nav items ───────────────────────────────────────────────────────
   const visiblePhase1Nav = phase1Nav.filter((item) => {
-    const roleAllowed = !item.roles || (user?.role && item.roles.includes(user.role as UserRole));
-    if (!roleAllowed) {
-      return false;
+    if (inGrace && user?.role === 'OWNER') {
+      // In grace, show the owner everything (grace vs locked handled in render).
+      // Only hide items that are role-locked to roles that exclude OWNER entirely.
+      const ownerAllowed =
+        !item.roles ||
+        item.roles.includes('OWNER') ||
+        item.roles.includes('SUPER_ADMIN') ||
+        item.graceAllowed;
+      return ownerAllowed;
     }
 
+    const roleAllowed =
+      !item.roles || (user?.role && item.roles.includes(user.role as UserRole));
+    if (!roleAllowed) return false;
+
     if (item.path === '/cpd') {
-      return pharmacy?.subscriptionTier !== 'WHOLESALE' && pharmacy?.subscriptionTier !== 'ADDO';
+      return (
+        pharmacy?.subscriptionTier !== 'WHOLESALE' &&
+        pharmacy?.subscriptionTier !== 'ADDO'
+      );
     }
 
     return true;
@@ -112,7 +189,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, collapsed, on
   const SidebarContent = () => (
     <div className="flex h-full min-h-0 flex-col">
       {/* Logo */}
-      <div className={`flex items-center gap-3 px-4 py-5 border-b border-[#D6F0E8] ${collapsed ? 'justify-center' : ''}`}>
+      <div
+        className={`flex items-center gap-3 px-4 py-5 border-b border-outline-variant/30 ${
+          collapsed ? 'justify-center' : ''
+        }`}
+      >
         <img
           src="/assets/logo/apotekh-mark-light.svg"
           alt="APOTEKH"
@@ -121,45 +202,73 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, collapsed, on
         {!collapsed && (
           <div className="min-w-0">
             <p className="text-sm font-bold leading-tight">
-              <span className="text-[#0D4035]">APOTEK</span>
+              <span className="text-on-surface">APOTEK</span>
               <span className="text-[#7ECFB4]">H</span>
             </p>
-            <p className="text-xs text-[#64748B] truncate">{pharmacy?.name || 'Loading...'}</p>
+            <p className="text-label-md text-on-surface-variant truncate">
+              {pharmacy?.name || 'Loading...'}
+            </p>
           </div>
         )}
       </div>
 
       {/* Navigation */}
-      <nav ref={navRef} onKeyDown={handleKeyDown} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4 space-y-1">
-        {visiblePhase1Nav.map(item => <NavItemEl key={item.path} item={item} />)}
+      <nav
+        ref={navRef}
+        onKeyDown={handleKeyDown}
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4 space-y-1 no-scrollbar"
+      >
+        {visiblePhase1Nav.map((item) => {
+          // Dashboard always accessible
+          if (item.path === '/dashboard') return <NavItemEl key={item.path} item={item} />;
+          // In grace: lock non-grace items
+          if (inGrace && !isGracePath(item.path)) {
+            return <LockedNavItemEl key={item.path} item={item} />;
+          }
+          return <NavItemEl key={item.path} item={item} />;
+        })}
 
         {founderNav
-          .filter((item) => !item.roles || (user?.role && item.roles.includes(user.role as UserRole)))
-          .map(item => <NavItemEl key={item.path} item={item} />)}
+          .filter(
+            (item) =>
+              !item.roles ||
+              (user?.role && item.roles.includes(user.role as UserRole)),
+          )
+          .map((item) => <NavItemEl key={item.path} item={item} />)}
       </nav>
 
       {/* User Footer */}
-      <div className="border-t border-[#D6F0E8] p-3 space-y-1">
-        <Link to="/settings/profile" className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-[#D6F0E8] transition-colors" onClick={onClose}>
-          <Settings size={18} className="text-[#64748B] shrink-0" />
-          {!collapsed && <span className="text-sm text-[#0D4035]">Settings</span>}
+      <div className="border-t border-outline-variant/30 p-3 space-y-1">
+        <Link
+          to="/settings/profile"
+          className="flex min-h-touch-target-min items-center gap-3 rounded-full px-3 py-2 hover:bg-surface-container-high transition-colors"
+          onClick={onClose}
+        >
+          <Settings size={18} className="text-on-surface-variant shrink-0" />
+          {!collapsed && <span className="text-sm text-on-surface">Settings</span>}
         </Link>
 
-        <div className={`flex items-center gap-3 px-3 py-2 ${collapsed ? 'justify-center' : ''}`}>
-          <div className="w-8 h-8 rounded-full bg-[#1A6B5C] text-white flex items-center justify-center text-xs font-bold shrink-0">
-            {user?.firstName?.[0]}{user?.lastName?.[0]}
+        <div
+          className={`flex items-center gap-3 px-3 py-2 ${collapsed ? 'justify-center' : ''}`}
+        >
+          <div className="w-8 h-8 rounded-full bg-primary text-on-primary flex items-center justify-center text-xs font-bold shrink-0">
+            {user?.firstName?.[0]}
+            {user?.lastName?.[0]}
           </div>
           {!collapsed && (
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-[#0D4035] truncate">{user?.firstName} {user?.lastName}</p>
-              <Badge variant="info" size="sm">{user?.role?.replace(/_/g, ' ')}</Badge>
+              <p className="text-sm font-medium text-on-surface truncate">
+                {user?.firstName} {user?.lastName}
+              </p>
+              <Badge variant="info" size="sm">
+                {user?.role?.replace(/_/g, ' ')}
+              </Badge>
             </div>
           )}
-          {/* Logout always visible — even when collapsed */}
           <button
             onClick={handleLogout}
             title="Log out"
-            className="p-1.5 rounded-lg text-[#64748B] hover:text-[#DC2626] hover:bg-red-50 transition-colors shrink-0"
+            className="p-1.5 rounded-full text-on-surface-variant hover:text-error hover:bg-error-container transition-colors shrink-0"
           >
             <LogOut size={16} />
           </button>
@@ -172,25 +281,39 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, collapsed, on
     <>
       {/* Mobile overlay */}
       {isOpen && (
-        <div className="fixed inset-0 z-40 bg-black/40 lg:hidden" onClick={onClose} />
+        <div
+          className="fixed inset-0 z-40 bg-black/40 lg:hidden"
+          onClick={onClose}
+        />
       )}
 
       {/* Mobile sidebar */}
-      <div className={`fixed inset-y-0 left-0 z-50 h-screen w-64 bg-white border-r border-[#D6F0E8] transform transition-transform duration-300 lg:hidden ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <div
+        className={`fixed inset-y-0 left-0 z-50 h-screen w-64 bg-surface-container-lowest border-r border-outline-variant/30 transform transition-transform duration-300 lg:hidden ${
+          isOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
         <div className="absolute top-4 right-4">
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-[#EDF7F3]">
-            <X size={18} className="text-[#64748B]" />
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-full hover:bg-surface-container-high"
+          >
+            <X size={18} className="text-on-surface-variant" />
           </button>
         </div>
         <SidebarContent />
       </div>
 
       {/* Desktop sidebar */}
-      <div className={`relative hidden lg:flex h-screen min-h-0 flex-col bg-white border-r border-[#D6F0E8] transition-all duration-300 ${collapsed ? 'w-16' : 'w-64'}`}>
+      <div
+        className={`relative hidden lg:flex h-screen min-h-0 flex-col bg-surface-container-lowest border-r border-outline-variant/30 transition-all duration-300 ${
+          collapsed ? 'w-16' : 'w-64'
+        }`}
+      >
         <SidebarContent />
         <button
           onClick={onToggleCollapse}
-          className="absolute top-16 -right-3 w-6 h-6 bg-white border border-[#D6F0E8] rounded-full flex items-center justify-center shadow-sm hover:bg-[#D6F0E8] z-10"
+          className="absolute top-16 -right-3 w-6 h-6 bg-surface-container-lowest border border-outline-variant/30 rounded-full flex items-center justify-center shadow-sm hover:bg-surface-container-high z-10"
         >
           {collapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
         </button>
