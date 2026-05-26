@@ -1,0 +1,35 @@
+// ── Paste this block into backend/prisma/schema.prisma ──────────────────────
+// Replace or extend your existing OverrideLog model with these fields.
+
+model OverrideLog {
+  id            String    @id @default(cuid())
+  outletId      String
+  dispensedById String                        // userId of dispenser who triggered override
+  drugId        String?                       // nullable – not all overrides are drug-specific
+  drugName      String?                       // denormalised display name
+  overrideType  OverrideType                  // enum – see below
+  reason        String?                       // free-text reason dispenser entered
+  patientRef    String?                       // anonymised patient reference
+  createdAt     DateTime  @default(now())
+
+  // ── Review / flag fields (added in migration add_override_log_review_fields) ──
+  flagged       Boolean   @default(false)
+  flagReason    String?
+  reviewedBy    String?                       // userId of reviewer
+  reviewedAt    DateTime?
+
+  // Relations
+  outlet        Outlet    @relation(fields: [outletId], references: [id])
+
+  @@index([outletId, createdAt])
+  @@index([flagged])
+}
+
+enum OverrideType {
+  INTERACTION_WARNING     // dispensed despite drug-interaction alert
+  STOCK_NEGATIVE          // dispensed below zero stock
+  DOSAGE_LIMIT            // exceeded recommended dose threshold
+  PRESCRIPTION_REQUIRED   // dispensed Rx drug without linked prescription
+  EXPIRY_WARNING          // batch within expiry window
+  OTHER
+}

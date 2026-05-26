@@ -94,12 +94,37 @@ Errors thrown from services must carry a `.status` property; `errorHandler` midd
 
 ### Frontend offline architecture
 
-The service worker (`frontend/src/sw.js`) uses Workbox with two strategies:
+**Service Worker (Workbox strategies):**
+- **Stale-while-revalidate** — dashboard, analytics, knowledge, compliance, notifications. Serves cached response immediately, updates cache in background.
+- **Network-first** — inventory stock levels, batches, dispensing checkout. Tries network first for freshness; falls back to cache on failure.
 
-- **Stale-while-revalidate** — dashboard, analytics, knowledge, compliance, notifications.
-- **Network-first** — inventory stock levels, batches, dispensing checkout (freshness required for FEFO decisions).
+**React Query offline policy:**
+- `networkMode: 'offlineFirst'` on all queries and mutations — fires requests even when `navigator.onLine` is false so the Service Worker can intercept and serve from cache
+- `staleTime: 60_000` (60 seconds) default for queries unless feature requires stronger freshness
+- `refetchOnWindowFocus: false` — don't auto-refetch when user switches tabs
 
-Write mutations that fail while offline are queued in IndexedDB by `lib/api.ts` interceptors and replayed on reconnect. React Query's `networkMode: 'offlineFirst'` ensures queries still fire when `navigator.onLine` is false so the SW can serve from cache.
+**Offline write queueing:**
+- Writes (POST, PUT, PATCH, DELETE) that fail due to network unavailability are queued in IndexedDB with 7-day TTL
+- Queue store: `writeQueue` with indices on `createdAt` and `localTimestamp`
+- Separate `inventoryDeltas` store tracks offline stock adjustments by productId and sourceId
+- Expires writes older than 7 days; purges before sync and warns user
+
+**Sync strategy:**
+- `useOfflineSync` hook monitors server reachability via heartbeat (separate from `navigator.onLine`)
+- Auto-flushes queue when server becomes reachable after being unreachable
+- Manual flush available via `flushOfflineWrites()` — returns { synced, conflicts, remaining, purgedExpired }
+- Emits events (`OFFLINE_QUEUE_EVENT`, `OFFLINE_SYNC_STATUS_EVENT`) for UI updates and warnings
+
+**Retry logic:**
+- Don't retry when `navigator.onLine` is false (SW will serve from cache)
+- Don't retry on error codes `OFFLINE_QUEUED` or `ERR_NETWORK`
+- Max 1 retry when online, only if error is not a 4xx client error
+
+**Skip offline queueing for:**
+- `auth/*` — auth mutations must not queue
+- `health` — readiness checks
+- `inventory/conflicts` — conflict resolution must be real-time
+- `dispensing/checkout` — payment must complete or fail immediately, not queue
 
 The `@` alias maps to `frontend/src/`. All pages in `App.tsx` are `React.lazy()` loaded.
 
@@ -263,8 +288,8 @@ All three are loaded via Google Fonts in `frontend/index.html`.
 | Role | Tier availability | Primary function |
 |------|------------------|-----------------|
 | OWNER | All tiers | Remote oversight, billing, user management |
-| PHARMACIST_IN_CHARGE | All tiers | Full clinical + operational control (Superintendent Pharmacist — Tanzania Pharmacy Act title) |
-| DISPENSER | STANDARD, PREMIUM, ENTERPRISE | Retail dispensing + patient safety tools |
+| PHARMACIST_IN_CHARGE | BASIC, STANDARD, PREMIUM, ENTERPRISE | Full clinical + operational control (Superintendent Pharmacist — Tanzania Pharmacy Act title). Not applicable to ADDO — ADDOs are not staffed by licensed pharmacists. |
+| DISPENSER | ADDO, BASIC, STANDARD, PREMIUM, ENTERPRISE | Retail dispensing + patient safety tools. At ADDO, this is the ADDO operator. |
 | CASHIER | STANDARD, PREMIUM, ENTERPRISE | Complete payment on a prepared sale |
 | DATA_ENTRY_CLERK | All tiers | Stock intake and supplier management only |
 | WHOLESALE_MANAGER | WHOLESALE, ENTERPRISE | Full wholesale operations management |
@@ -298,7 +323,14 @@ CANNOT:
   checker (4 severity levels), dose calculator, contraindication alerts (8 flags),
   NCD hints, diagnosis-drug matching, alternative medicine suggestions, therapeutic
   equivalence matching, and override logging are identical across ADDO, BASIC,
-  STANDARD, and PREMIUM. Override permissions are role-based (Superintendent vs assistant dispenser).
+  STANDARD, and PREMIUM.
+- **Override model: dispenser proceeds at own risk.** When a drug interaction,
+  contraindication, or AWaRe RESERVE alert fires, the dispenser is shown a clear
+  warning. They may acknowledge and proceed — no Superintendent PIN required, no
+  escalation. The override is logged against the dispenser's account: who, what drug,
+  what alert level, what time. This applies at ADDO and all pharmacy tiers equally.
+  The warning is the protection; the log is the accountability. Do NOT implement a
+  PIN escalation gate for any alert severity level.
 - ADDO: Basic POS. No discounts, no void/reissue, no multi-outlet. DLDM
   compliance tracker only. Knowledge Hub read-only.
 - BASIC: Adds Owner Dashboard, roles & permissions, void/reissue audit trail,
@@ -356,6 +388,7 @@ Annual billing: 10× monthly (2 months free).
 | 1     | Analytics          | Live        |
 | 1     | Dispensing         | Live        |
 | 1     | Staff Activity     | Live — OWNER and PHARMACIST_IN_CHARGE only; derived from operational logs |
+| 1     | Supplier Discovery | Live — CSV-based wholesale supplier discovery with price comparison |
 | 2     | CPD Tracker        | Coming soon |
 | 2     | NHIF Claims        | Coming soon — blocked on NHIF reimbursement reform, not a tech problem |
 | 2     | Stock Exchange     | Coming soon — pharmacy-to-pharmacy stock trading within the APOTEKH network |
@@ -364,6 +397,271 @@ Annual billing: 10× monthly (2 months free).
 | 3     | Patient App        | Coming soon |
 | 4     | AI Safety          | Coming soon |
 | 4     | Data Products      | Coming soon |
+
+---
+
+## Supplier Discovery Module
+
+### Overview
+
+The Supplier Discovery module enables retail pharmacies to discover and compare wholesale supplier catalogues using CSV-based data. Tanzanian law restricts peer-to-peer pharmacy marketplaces, so this module provides supplier information (name, contact, product prices) with direct contact channels (WhatsApp, email) rather than automated ordering.
+
+**Data sources:**
+- CSV uploads by SUPER_ADMIN (primary source for accuracy and control)
+- Future: real-time sync from wholesaler systems (Phase 2)
+
+### Architecture
+
+**Files:**
+- `backend/src/modules/inventory/supplier-sync.router.ts` — API endpoints for listing, registering, and CSV uploads
+- `backend/src/modules/inventory/supplier-sync.service.ts` — Business logic for catalogue sync, supplier management, and price comparison
+- `frontend/src/modules/inventory/` — Supplier catalogue views (list, search, price comparison)
+
+**Database models** (in `backend/prisma/schema.prisma`):
+- `Supplier` — Wholesaler entity (name, phone, email, address, isApotekNetworkWholesaler flag)
+- `SupplierCatalogue` — Catalogue for a supplier (ties products to a specific wholesaler and optional retail pharmacy)
+- `SupplierCatalogueItem` — Individual product in a catalogue (productName, genericName, strength, dosageForm, unitPrice, quantity, minimumOrderQuantity)
+
+### Two-Mode Supplier Registration
+
+**Mode 1: Pre-registration (Recommended)**
+For accurate supplier details, register first then upload products:
+```
+POST /api/v1/suppliers/register
+  Body: { name, phone, email, address }
+  Response: { supplierId, catalogueId }
+
+POST /api/v1/suppliers/upload-csv
+  Params: supplierId=<id>
+  File: CSV with columns [productname, genericname, strength, dosageform, quantity, unitprice]
+```
+
+**Mode 2: Auto-create (Quick)**
+Upload CSV with supplier names; suppliers are created automatically:
+```
+POST /api/v1/suppliers/upload-csv
+  (no supplierId parameter)
+  File: CSV with columns [wholesalername, productname, genericname, strength, dosageform, quantity, unitprice]
+```
+
+Both modes coexist. The endpoint detects supplierId parameter to choose mode.
+
+### API Endpoints
+
+- `GET /api/v1/suppliers/apotekh-wholesalers` — List all APOTEKH network wholesalers (auth required)
+- `POST /api/v1/suppliers/register` — Pre-register a wholesaler (SUPER_ADMIN only)
+- `POST /api/v1/suppliers/upload-csv` — Upload catalogue CSV (SUPER_ADMIN only)
+- `GET /api/v1/suppliers/price-comparison?productName=<name>` — Search product prices across all suppliers (auth required)
+
+### Data Flow
+
+1. **SUPER_ADMIN** uploads CSV file (wholesaler details optional; product-supplier mappings required)
+2. System parses CSV, validates headers, creates/updates suppliers and products
+3. Products stored as global catalogue items (retailPharmacyId = null)
+4. Retail pharmacies query `price-comparison` endpoint to see all available suppliers and prices
+5. Pharmacist selects supplier, records contact details, communicates directly (WhatsApp/email)
+
+### CSV Format
+
+**Headers (required):**
+- `wholesalername` — Supplier name (required if no pre-registration; auto-creates supplier if not found)
+- `productname` — Medicine name/brand
+- `unitprice` — Price per unit (Tanzanian Shillings)
+
+**Headers (optional):**
+- `genericname` — Active ingredient (e.g., "Amoxicillin")
+- `strength` — Dose (e.g., "500mg")
+- `dosageform` — Form (TABLET, CAPSULE, SYRUP, INJECTION, CREAM, OINTMENT, DROPS, INHALER, SUPPOSITORY, POWDER, SOLUTION, OTHER)
+- `quantity` — Available stock quantity
+
+**Example:**
+```csv
+wholesalername,productname,unitprice,genericname,strength,dosageform,quantity
+Shelys Pharma Ltd,Amoxicillin 500mg Capsules,15000,Amoxicillin,500mg,CAPSULE,1000
+Metro Pharma Distribution,Paracetamol 500mg Tablets,3500,Paracetamol,500mg,TABLET,2000
+```
+
+### Frontend Integration
+
+**On ordering/stock preparation page:**
+- Supplier search panel shows available medicines across all wholesalers
+- Sort options: price (asc/desc), supplier name, availability
+- Display: product name, generic name, strength, form, price, supplier name, supplier contact
+- "Cheapest" badge on lowest-priced option
+- On selection: populate order form with supplier contact details (manual WhatsApp/email workflow)
+
+### Authorization
+
+- **List wholesalers**: Any authenticated user
+- **Register wholesaler**: SUPER_ADMIN only
+- **Upload CSV**: SUPER_ADMIN only
+- **Price comparison**: Any authenticated user
+
+### Rules
+
+- Suppliers created via CSV have `isApotekNetworkWholesaler = true` and `retailPharmacyId = null` (global catalogues)
+- Price comparison returns all products matching search, sorted by price ascending
+- No automated ordering; users must contact suppliers directly via contact details provided
+
+---
+
+## Wholesale System
+
+### Overview
+
+APOTEKH Wholesale is a separate B2B operations system for wholesale pharmacies and distributors. It runs on the same platform backbone (auth, users, catalogue, outlet data) as retail but has independent workflows: catalogues with tiered pricing, buyer orders, credit management, delivery logistics, VAT invoicing, and demand insights.
+
+**Key principle:** Wholesale is not actively marketed in Phase 1. Serve wholesale customers who approach you, but do not pitch or prioritise.
+
+### Registration & Setup (SUPER_ADMIN)
+
+**Step 1: Create wholesale pharmacy**
+- User registers new pharmacy with `pharmacyType: 'WHOLESALE'` during signup, OR
+- SUPER_ADMIN creates via Prisma Studio:
+  ```
+  Pharmacy { name, licenceNumber, region, pharmacyType: 'WHOLESALE', subscriptionTier: 'WHOLESALE' }
+  ```
+- Subscription tier defaults to WHOLESALE (Tsh 100,000/month, 1 outlet, 10 users + delivery staff)
+
+**Step 2: Assign roles**
+Invite staff with these wholesale-specific roles:
+- `WHOLESALE_MANAGER` — Full operations control (create/confirm orders, manage catalogue, view credit/invoicing)
+- `WHOLESALE_COUNTER_STAFF` — Picking, packing, delivery confirmation; view stock levels (read-only); barcode scan
+- `DELIVERY_STAFF` — Delivery status updates only; cannot access orders or stock
+- `OWNER` — Remote oversight (can do anything WHOLESALE_MANAGER can do)
+
+Do NOT assign retail roles (DISPENSER, CASHIER, DATA_ENTRY_CLERK) to pure wholesale staff.
+
+**Step 3: Enable hybrid mode (optional)**
+For pharmacies that are both retail AND wholesale:
+```
+POST /api/v1/settings/subscription (OWNER only)
+Body: { hybridAddonActive: true }
+```
+Hybrid mode allows:
+- Retail dispensing + wholesale operations in same pharmacy
+- Staff can switch between modes via UI toggle (Sell/Buy buttons in WholesaleShell)
+- Separate navigation: retail sidebar vs wholesale header
+- Single auth/user/outlet context
+
+### Wholesale Operations Workflow
+
+**Seller side (WHOLESALE_MANAGER, WHOLESALE_COUNTER_STAFF):**
+1. Create wholesale catalogue → set base price + per-tier overrides (ADDO, ESSENTIAL, STANDARD, PREMIUM, ENTERPRISE)
+2. Receive orders from buyer pharmacies → order status: SUBMITTED → CONFIRMED → PACKED → DISPATCHED
+3. Confirm delivery quantities via manifest, track delivery staff
+4. View VAT invoices auto-generated on order completion
+5. Monitor demand insights (top products, 30-day vs previous-30-day trends)
+6. Manage buyer credit limits (if buyer is on credit terms)
+
+**Buyer side (any OWNER, PHARMACIST_IN_CHARGE, WHOLESALE_MANAGER at retail pharmacy):**
+1. Search wholesale pharmacies on APOTEKH via `/b2b/pharmacies/search`
+2. Browse seller's catalogue → see tier-adjusted prices for own subscription tier
+3. Submit order → status: SUBMITTED → CONFIRMED → PACKED → DISPATCHED → DELIVERED
+4. View order history and receivables aging
+
+### API Endpoints (B2B Module)
+
+| Endpoint | Role | Purpose |
+|----------|------|---------|
+| `GET /api/v1/b2b/pharmacies/search?q=<name>` | Authenticated | Find wholesale pharmacies to order from |
+| `GET /api/v1/b2b/catalogue?sellerPharmacyId=<id>` | Authenticated | Browse seller's wholesale products + tier prices |
+| `POST /api/v1/b2b/catalogues` | WHOLESALE_MANAGER | Create/update catalogue with base + tier prices |
+| `POST /api/v1/b2b/orders` | OWNER, PHARMACIST_IN_CHARGE, WHOLESALE_MANAGER | Buyer submits order |
+| `POST /api/v1/b2b/orders/manual` | OWNER, WHOLESALE_MANAGER (seller) | Seller creates order on behalf of buyer |
+| `GET /api/v1/b2b/orders` | Order-scoped roles | List buyer or seller orders |
+| `PATCH /api/v1/b2b/orders/<id>/status` | WHOLESALE_MANAGER, OWNER | Update order status (CONFIRMED, PACKED, DISPATCHED, COMPLETED, DISPUTED) |
+| `POST /api/v1/b2b/orders/<id>/pick-items` | WHOLESALE_COUNTER_STAFF | Mark items as picked (batch operation) |
+| `POST /api/v1/b2b/orders/<id>/verify-items` | WHOLESALE_COUNTER_STAFF | Verify picked items before dispatch |
+| `POST /api/v1/b2b/orders/<id>/schedule-delivery` | WHOLESALE_MANAGER | Assign delivery staff and date |
+| `POST /api/v1/b2b/orders/<id>/confirm-delivery` | DELIVERY_STAFF | Confirm delivery received with quantities |
+| `GET /api/v1/b2b/invoices` | OWNER, WHOLESALE_MANAGER | View VAT invoices |
+| `GET /api/v1/b2b/credit-limits` | OWNER, WHOLESALE_MANAGER | View buyer credit limits |
+| `PUT /api/v1/b2b/credit-limits` | OWNER, WHOLESALE_MANAGER | Set/update credit limit for buyer |
+| `GET /api/v1/b2b/receivables-aging` | OWNER, WHOLESALE_MANAGER | View open receivables by buyer, aging buckets |
+| `GET /api/v1/b2b/demand-insights` | OWNER, WHOLESALE_MANAGER | Top products, 30d vs prev-30d, revenue trends |
+
+### Tiered Pricing
+
+Catalogues support per-tier price overrides. When a buyer from STANDARD tier views catalogue, they see:
+1. Product base price, OR
+2. STANDARD-specific override if set, OR
+3. Base price (fallback)
+
+**Tiers with pricing control:**
+- ADDO (Tsh 20,000/month)
+- ESSENTIAL (Tsh 39,000/month)
+- ADDO_PLUS (Tsh 55,000/month)
+- STANDARD (Tsh 55,000/month)
+- PREMIUM (Tsh 75,000/month)
+- ENTERPRISE (negotiated)
+
+**Example catalogue item:**
+```json
+{
+  "productId": "...",
+  "basePrice": 15000,
+  "tierPrices": {
+    "ADDO": 16500,        // markup for lowest tier
+    "STANDARD": 14500,    // discount for higher tier
+    "PREMIUM": 13500
+  },
+  "minOrderQuantity": 100,
+  "maxOrderQuantity": 5000
+}
+```
+
+### Authorization & Permissions
+
+- **Retail pharmacies cannot sell:** Even if a retail user has `WHOLESALE_MANAGER` role, they cannot create orders for buyers unless `pharmacyType: 'WHOLESALE'` OR `isHybrid: true`
+- **WHOLESALE_COUNTER_STAFF cannot see:** Client credit limits, prices, financial reports, retail dispensing screen, patient safety
+- **DELIVERY_STAFF cannot see:** Orders, stock levels, invoicing, credit limits (delivery updates only)
+- **OWNER overrides:** OWNER can perform any action WHOLESALE_MANAGER can perform
+- **SUPER_ADMIN override:** SUPER_ADMIN can perform any action on any pharmacy
+
+### Rules
+
+- Wholesale pharmacies cannot have retail dispensing in pure wholesale tier. Use hybrid if both needed.
+- Orders auto-transition through statuses (e.g., once all items picked, PACKED status becomes available)
+- VAT invoices generated on order completion (COMPLETED status); includes line items, tax rate, total
+- Credit limits per buyer; invoices track aging (30d, 60d, 90d+); over-limit orders flagged
+- Delivery manifests track manifests per truck/driver; DELIVERY_STAFF confirms pickup and drop-off quantities
+- Wholesale operations respect trial restrictions — features lock after trial ends unless subscribed
+- Demand insights computed from completed orders (COMPLETED status only); includes top-10 products, 30-day rolling windows
+
+### Wholesale Phase 2 Roadmap
+
+The following features are **not yet built** and are candidates for Phase 2. They represent the gap between "functional wholesale MVP" and "enterprise-grade distributor platform."
+
+| Feature | Current Status | Phase 2 Rationale | Complexity |
+|---------|---|---|---|
+| **Partial Fulfilment & Backorders** | Order creation exists; ship-what-you-have logic missing | Distributors run out of stock mid-order; need to ship available items and queue the rest. Backorder queue must be visible to both sides and auto-fulfilled when stock arrives. | Medium |
+| **Multi-Warehouse Stock Consolidation** | Stock is pharmacy-level only; no warehouse model | Distributors have multiple physical locations. Need unified stock view before committing to buyer order, and ability to pull from any warehouse. | High |
+| **Payment Terms & Aging** | Credit limits exist; no term scheduling | Buyers need net-30, net-60, net-90 terms. System must auto-calculate payment due date, track aging (30/60/90+), and flag overdue. | Medium |
+| **Return Merchandise Authorisation (RMA)** | Basic return reasons exist; no full RMA workflow | Returns need RMA number, approval step, reason tracking, credit note generation tied to original invoice. Inventory must reinstate or write-off. | Medium |
+| **Wholesale Licence Management** | Compliance tracks retail licences only | Wholesalers have separate dealer licences. System must track expiry and warn before license lapses. | Low |
+| **Suspicious Order Monitoring (SOM)** | Not implemented | Regulators require flagging of unusually large controlled-substance orders. System must alert if order quantity > threshold for that product. | Medium |
+| **Client-Level Custom Pricing** | Tier pricing exists; no per-client overrides | Volume contracts, preferred-partner rates, negotiated pricing per buyer (distinct from subscription tier pricing). | Low |
+| **Stock Movement Reports** | Raw audit log exists; no formatted reports | Warehouse managers and regulators need stock in/out by product, by warehouse, by time period. Need exportable format (CSV/PDF). | Low |
+| **Lot/Batch Traceability Audit Trail** | Batch data exists; no formal regulatory report | Regulator requests: "Show me all batches of this product from supplier X to dispenser Y." System must generate on demand. | Medium |
+| **Controlled Substance Dispensing Logs (Wholesale)** | Exists for retail only | Wholesalers distributing controlled items must log dispatch to each buyer. Separate from retail controlled register. | Medium |
+
+### Wholesale Phase 2 Implementation Priority
+
+**High impact, medium effort (do first):**
+1. Partial fulfilment & backorders — unblocks real-world order scenarios
+2. Multi-warehouse consolidation — enabler for distributor use case
+3. Payment terms & aging — credit risk visibility for wholesalers
+
+**Medium impact, lower effort (quick wins):**
+4. RMA workflow — reduces manual refund handling
+5. Suspicious order monitoring — compliance requirement
+6. Stock movement reports — regulatory audit readiness
+
+**Lower priority (Phase 2.5+):**
+7. Wholesale licence management — only for multi-territory expansion
+8. Client-level custom pricing — UX nicety; tier pricing covers 80%
+9. Lot traceability report — rarely requested; batch data already exists for manual audit
 
 ---
 
@@ -387,14 +685,12 @@ These are the target standards for new code:
 
 ### Offline and cache rules
 
-- Online reads should feel as fast as offline wherever stale data is acceptable.
-- Service worker API GET caching defaults to stale-while-revalidate for
-  dashboard, analytics, knowledge, compliance, notifications, and similar reads.
-- Inventory stock levels and FEFO-sensitive batch data must stay fresh for
-  dispensing decisions. Keep inventory products, inventory batches, and checkout
-  flows network-first or otherwise freshness-protected.
-- React Query default `staleTime` is 60 seconds unless a feature has a stronger
-  freshness requirement.
+- **Online reads feel offline-fast:** Use stale-while-revalidate for dashboard, analytics, knowledge, compliance, notifications where stale data is acceptable (60–90 second staleness OK).
+- **Freshness for critical paths:** Inventory stock levels, batch availability, FEFO expiry dates, and dispensing checkout must use network-first or shorter staleTime (10–30 seconds) so dispensers always see current quantity and earliest expiry first.
+- **Write mutations offline:** Automatically queue in IndexedDB if network unavailable; user gets a toast "Saved offline — will sync when back online." Queued writes expire after 7 days.
+- **Sync doesn't block UI:** Offline sync happens in the background. Don't show modal dialogs or block navigation during sync — use toast notifications and connectivity store updates.
+- **Don't queue risky operations:** Auth (login, refresh), payments, and conflict resolution never queue. These must complete or fail immediately.
+- **Inventory deltas persisted separately:** Stock adjustments made offline are tracked in the `inventoryDeltas` store with source ID and timestamp, separate from write queue. On sync, deltas are replayed in order and then cleared.
 
 ### Staff Activity rules
 
@@ -417,6 +713,33 @@ These are the target standards for new code:
   stock or expiry panels should render neutral empty states.
 - If today's activity values are all zero, keep the panel header and show:
   "No activity recorded today yet."
+
+### Frontend UI/UX patterns
+
+**SystemStatusWindow component:**
+- Used for full-page loading, error, and auth state transitions (AuthGuard, ErrorBoundary, Layout)
+- Shows: type (loading|error|success), title, message, optional actionLabel + onAction callback
+- Replaces spinners and error alerts that used to block the entire page
+- LoadingState: "Loading APOTEKH — Checking your session and preparing the workspace"
+- ErrorState: "Workspace could not be loaded — Check the connection and reload"
+
+**Lazy-loaded components:**
+- `BarcodeScanner`, `DoseCalculator`, `PatientSafetyPanel` in DispensingScreen loaded via `lazy(() => import(...).then(m => ({ default: m.ComponentName })))`
+- Wrapped in `<Suspense fallback={<Spinner />}>` for smooth progressive rendering
+- Reduces main bundle size; components load on-demand when dispensing flow needs them
+
+**Patient Safety severity indicators:**
+- Severity categories: HIGH/MAJOR/SEVERE, MODERATE/MEDIUM, INFORMATIONAL
+- UI: High-severity alerts show as full alert strips (border + background); moderate shows as dots or condensed rows; informational as text only
+- `severitySummary` object tracks counts: { high, moderate, informational }
+- Colors: high = red/danger, moderate = amber/warning, informational = blue/info
+- Override logging requires PIC PIN when high-severity alerts are present
+
+**Trial paywall & expiration:**
+- Layout component listens for `TRIAL_EXPIRED_EVENT` and shows `<TrialPaywall>` modal
+- `TrialBanner` shows at top of main when trial ends in <7 days
+- Subscription status checked via `/settings/subscription` on app load
+- `trialEndsAt` date vs current date determines expiration state
 
 ---
 

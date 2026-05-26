@@ -1,0 +1,102 @@
+// subscription/schema_addition.prisma
+//
+// Add these additions to backend/prisma/schema.prisma
+// Then run: npx prisma migrate dev --name add_subscription_module
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── 1. Extend the Pharmacy model ─────────────────────────────────────────────
+//
+// Add these fields to the EXISTING Pharmacy model (do not duplicate the model):
+//
+// model Pharmacy {
+//   // ... existing fields ...
+//
+//   subscriptionTier    SubscriptionTier  @default(ADDO)
+//   subscriptionStatus  SubscriptionStatus @default(TRIALING)
+//   trialStartedAt      DateTime          @default(now())
+//   trialEndsAt         DateTime?
+//   currentPeriodStart  DateTime?
+//   currentPeriodEnd    DateTime?
+//   gracePeriodEndsAt   DateTime?
+//
+//   // Email lifecycle flags (if not already added from email module)
+//   emailSentTrialDay7    Boolean  @default(false)
+//   emailSentTrialExpiry  Boolean  @default(false)
+//   emailSentGrace        Boolean  @default(false)
+//
+//   subscriptions  Subscription[]
+// }
+
+// ── 2. Enums ──────────────────────────────────────────────────────────────────
+
+enum SubscriptionTier {
+  ADDO
+  BASIC
+  STANDARD
+  PREMIUM
+  WHOLESALE
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  GRACE
+  EXPIRED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+// ── 3. New models ─────────────────────────────────────────────────────────────
+
+model Subscription {
+  id                String            @id @default(cuid())
+  pharmacyId        String
+  pharmacy          Pharmacy          @relation(fields: [pharmacyId], references: [id])
+
+  tier              SubscriptionTier
+  status            SubscriptionStatus @default(ACTIVE)
+  amountTzs         Int
+  billingCycleMonths Int              @default(1)   // 1 = monthly, 3 = quarterly, 12 = annual
+
+  periodStart       DateTime
+  periodEnd         DateTime
+
+  selcomOrderId     String?           @unique   // Selcom order reference
+  selcomTransId     String?           @unique   // Selcom transaction ID (from webhook)
+
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  payments          SubscriptionPayment[]
+
+  @@index([pharmacyId])
+  @@index([status])
+}
+
+model SubscriptionPayment {
+  id              String         @id @default(cuid())
+  subscriptionId  String
+  subscription    Subscription   @relation(fields: [subscriptionId], references: [id])
+  pharmacyId      String
+
+  amountTzs       Int
+  status          PaymentStatus  @default(PENDING)
+  paymentMethod   String?        // e.g. "TIGOPESA", "MPESA", "AIRTELMONEY", "HALOPESA"
+  phoneNumber     String?        // subscriber MSISDN used for payment
+  selcomOrderId   String?        @unique
+  selcomTransId   String?        @unique
+
+  paidAt          DateTime?
+  failureReason   String?
+  createdAt       DateTime       @default(now())
+
+  @@index([pharmacyId])
+  @@index([status])
+}

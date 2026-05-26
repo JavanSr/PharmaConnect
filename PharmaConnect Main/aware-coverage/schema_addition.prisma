@@ -1,0 +1,16 @@
+// ── Paste into backend/prisma/schema.prisma ─────────────────────────────────
+// Adds AWaRe antibiotic classification field to DrugDatabase.
+// AWaRe = WHO Access / Watch / Reserve framework for ANTIBIOTICS ONLY.
+// Non-antibiotic drugs always have awarClass = null.
+
+model DrugDatabase {
+  // ... existing fields ...
+
+  awarClass  String?  @map("awar_class")
+  // Valid values: 'ACCESS' | 'WATCH' | 'RESERVE' | null
+  // SOURCE: Tanzania NEMLIT 2021 (5th ed.) aligned with WHO AWaRe 2021.
+  // null   → drug is not an antibiotic (antifungals, antivirals, analgesics, etc.)
+  // ACCESS → first-line antibiotics; dispensable at all facility levels incl. ADDOs
+  // WATCH  → second-line; restricted to council hospital level and above
+  // RESERVE→ last-resort antibiotics; tertiary facilities only; protect against AMR
+}
