@@ -75,6 +75,7 @@ export type PharmacyAccessSnapshot = {
   trialEndsAt?: Date | string | null;
   isHybrid?: boolean | null;
   isActive?: boolean | null;
+  graceActivatedAt?: Date | string | null;
 };
 
 export function normalizeRole(role: string | null | undefined): AppRole | null {

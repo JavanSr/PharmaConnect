@@ -147,19 +147,20 @@ const productMatchesSearch = (product: Product, search: string) => {
   return tokens.every((token) => values.some((value) => valueMatchesTokenPrefix(value, token)));
 };
 
-const AwarBadge: React.FC<{ awarClass?: Product['awarClass'] }> = ({ awarClass }) => {
-  if (awarClass !== 'WATCH' && awarClass !== 'RESERVE') {
+const AwarDot: React.FC<{ awarClass?: Product['awarClass'] }> = ({ awarClass }) => {
+  if (!awarClass) {
     return null;
   }
 
-  const tooltip = `This antibiotic is classified as ${awarClass} under WHO AWaRe / Tanzania NEMLIT 2021. Dispensing requires a valid prescription from an authorised facility.`;
+  const colorClass =
+    awarClass === 'ACCESS'
+      ? 'bg-aware-access'
+      : awarClass === 'WATCH'
+        ? 'bg-aware-watch'
+        : 'bg-aware-reserve';
 
   return (
-    <span title={tooltip} aria-label={tooltip} tabIndex={0}>
-      <Badge variant={awarClass === 'WATCH' ? 'warning' : 'danger'} size="sm">
-        {awarClass} antibiotic
-      </Badge>
-    </span>
+    <span aria-hidden="true" className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${colorClass}`} />
   );
 };
 
@@ -744,11 +745,11 @@ export const DispensingScreen: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-stack-lg">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 className="text-xl font-bold text-[#0D4035]">Dispensing workflow</h1>
-          <p className="mt-1 text-sm text-[#64748B]">
+          <h1 className="text-headline-md text-on-surface">Dispensing workflow</h1>
+          <p className="mt-1 text-body-md text-on-surface-variant">
             Add products, review session-only safety guidance, then complete payment with FEFO stock allocation.
           </p>
         </div>
@@ -770,7 +771,7 @@ export const DispensingScreen: React.FC = () => {
             <div>
               <div className="flex items-center gap-2">
                 <CheckCircle size={16} className="text-[#1A6B5C]" />
-                <p className="text-sm font-semibold text-[#0D4035]">Dispensing complete</p>
+                <p className="text-title-md text-on-surface">Dispensing complete</p>
               </div>
               <p className="mt-2 text-sm text-[#475569]">
                 Reference {receipt.referenceNumber} | {receiptDate(receipt.createdAt)}
@@ -835,7 +836,7 @@ export const DispensingScreen: React.FC = () => {
       )}
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_420px]">
-        <div className="space-y-5">
+        <div className="space-y-stack-md">
           {/* Patient bar — collapsed by default, expands on toggle */}
           <div className="hidden">
             {/* Bar */}
@@ -1127,10 +1128,10 @@ export const DispensingScreen: React.FC = () => {
                         className="block w-full border-b border-[#D6F0E8] px-4 py-3 text-left last:border-b-0 hover:bg-[#EDF7F3]"
                       >
                         <div className="flex flex-wrap items-center gap-2">
-                          <p className="text-sm font-semibold text-[#0D4035]">
+                          <p className="flex items-center gap-2 text-sm font-semibold text-[#0D4035]">
+                            <AwarDot awarClass={product.awarClass} />
                             {product.genericName || product.name}
                           </p>
-                          <AwarBadge awarClass={product.awarClass} />
                         </div>
                         <p className="mt-1 text-xs text-[#64748B]">
                           {[product.name, product.strength, `Stock: ${product.currentStock ?? 0}`].filter(Boolean).join(' | ')}
@@ -1148,18 +1149,20 @@ export const DispensingScreen: React.FC = () => {
             </div>
 
             {selectedDrug && (
-              <div className="mt-4 rounded-2xl bg-[#EDF7F3] px-4 py-3">
+              <div className="mt-4 rounded-xl border border-outline-variant/30 bg-surface-container-low px-4 py-3">
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-sm font-semibold text-[#0D4035]">{selectedDrug.genericName || selectedDrug.name}</p>
-                  <AwarBadge awarClass={selectedDrug.awarClass} />
+                  <p className="flex items-center gap-2 text-sm font-semibold text-on-surface">
+                    <AwarDot awarClass={selectedDrug.awarClass} />
+                    {selectedDrug.genericName || selectedDrug.name}
+                  </p>
                 </div>
-                <p className="mt-1 text-xs text-[#64748B]">
+                <p className="mt-1 text-label-md text-on-surface-variant">
                   {[selectedDrug.strength, selectedDrug.dosageForm, selectedDrug.tmdaRegistrationNumber].filter(Boolean).join(' | ')}
                 </p>
-                <p className="mt-1 text-xs font-medium text-[#1A6B5C]">
+                <p className="mt-1 text-label-md font-medium text-primary">
                   {drugMeaning(selectedDrug)}
                 </p>
-                <p className="mt-1 text-xs text-[#1A6B5C]">
+                <p className="mt-1 text-label-md text-primary">
                   {selectedDrug.currentStock ?? 0} units available
                 </p>
               </div>
@@ -1202,7 +1205,7 @@ export const DispensingScreen: React.FC = () => {
           </Suspense>
         </div>
 
-        <div className="space-y-5">
+        <div className="space-y-stack-md">
           {cartItems.length > 0 && (
             <Suspense fallback={null}>
               <PatientSafetyPanel
@@ -1246,10 +1249,10 @@ export const DispensingScreen: React.FC = () => {
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
-                            <p className="text-sm font-bold text-[#0D4035]">
+                            <p className="flex items-center gap-2 text-sm font-bold text-[#0D4035]">
+                              <AwarDot awarClass={item.product.awarClass} />
                               {item.product.genericName || item.product.name}
                             </p>
-                            <AwarBadge awarClass={item.product.awarClass} />
                             {(isModerate || isMinor) && (
                               <button
                                 type="button"

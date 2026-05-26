@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/Input';
 import { useAuthStore } from '@/stores/authStore';
 import { usePharmacyStore } from '@/stores/pharmacyStore';
 import { api } from '@/lib/api';
+import { saveOfflineLoginCache, unlockOfflineLogin } from '@/lib/offlineAuth';
 import { loadMemberships } from '@/lib/pharmacySelection';
 import type { PharmacyMembership } from '@/types';
 
@@ -91,19 +92,65 @@ export const LoginPage: React.FC = () => {
           setPharmacy(onlyMembership.pharmacy);
           setDeviceSelectedPharmacyId(onlyMembership.pharmacyId);
         }
+        await saveOfflineLoginCache({
+          email: data.email,
+          password: data.password,
+          user: { ...user, pharmacyId: onlyMembership?.pharmacyId ?? user.pharmacyId },
+          accessToken,
+          refreshToken,
+          pharmacy: onlyMembership?.pharmacy ?? pharmacy,
+          memberships,
+          deviceSelectedPharmacyId: onlyMembership?.pharmacyId ?? deviceSelectedPharmacyId,
+        });
         navigate('/dashboard');
         return;
       }
 
       if (selectedMembership) {
+        await saveOfflineLoginCache({
+          email: data.email,
+          password: data.password,
+          user: { ...user, pharmacyId: selectedMembership.pharmacyId, role: selectedMembership.role },
+          accessToken,
+          refreshToken,
+          pharmacy: selectedMembership.pharmacy,
+          memberships,
+          deviceSelectedPharmacyId: selectedMembership.pharmacyId,
+        });
         navigate('/dashboard');
         return;
       }
 
+      await saveOfflineLoginCache({
+        email: data.email,
+        password: data.password,
+        user,
+        accessToken,
+        refreshToken,
+        pharmacy,
+        memberships,
+        deviceSelectedPharmacyId,
+      });
       navigate('/select-pharmacy');
     } catch (err: any) {
       if (!err.response) {
-        setError('Cannot reach the backend API. Start the backend server and try again.');
+        try {
+          const offlineSnapshot = await unlockOfflineLogin(data.email, data.password);
+          if (offlineSnapshot) {
+            setAuth(offlineSnapshot.user, offlineSnapshot.accessToken, offlineSnapshot.refreshToken);
+            if (offlineSnapshot.pharmacy) {
+              setPharmacy(offlineSnapshot.pharmacy);
+            }
+            setMemberships(offlineSnapshot.memberships);
+            setDeviceSelectedPharmacyId(offlineSnapshot.deviceSelectedPharmacyId);
+            navigate('/dashboard');
+            return;
+          }
+        } catch {
+          // Fall through to the regular network error below.
+        }
+
+        setError('Cannot reach the backend API. Offline sign-in is available only after a successful online login on this device.');
         return;
       }
 
@@ -112,23 +159,32 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#EDF7F3] flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
+    <div className="flex min-h-screen flex-col bg-surface text-on-surface">
+      <header className="flex h-10 w-full items-center justify-center bg-surface-container-high px-margin-mobile">
+        <div className="flex items-center gap-2">
+          <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+          <span className="text-label-md text-on-surface-variant">Online - syncing</span>
+        </div>
+      </header>
+
+      <main className="flex flex-1 items-center justify-center px-margin-mobile py-stack-md">
+      <div className="w-full max-w-sm">
         {/* Logo */}
-        <div className="flex justify-center mb-8">
+        <div className="mb-stack-md flex flex-col items-center justify-center text-center">
           <img
             src="/assets/logo/apotekh-logo.svg"
             alt="APOTEKH"
-            className="h-10 w-auto"
+            className="h-9 w-auto"
           />
+          <p className="mt-2 text-label-lg text-on-surface-variant">Clinical Stock &amp; Management System</p>
         </div>
 
-        <div className="bg-white rounded-2xl border border-[#D6F0E8] shadow-sm p-8">
-          <h1 className="text-xl font-bold text-[#0D4035] mb-1">Welcome back</h1>
-          <p className="text-sm text-[#64748B] mb-6">Sign in to your pharmacy account</p>
+        <div className="rounded-xl border border-outline-variant/30 bg-surface-container-low p-5 shadow-sm sm:p-6">
+          <h1 className="mb-1 text-title-lg text-on-surface">Welcome back</h1>
+          <p className="mb-6 text-body-md text-on-surface-variant">Sign in to your pharmacy account</p>
 
           {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-[#DC2626]">
+            <div className="mb-4 rounded-xl border border-error/20 bg-error-container p-3 text-sm text-on-error-container">
               {error}
             </div>
           )}
@@ -156,7 +212,7 @@ export const LoginPage: React.FC = () => {
               }
             />
             <div className="-mt-2 text-right">
-              <Link to="/auth/forgot-password" className="text-sm font-medium text-[#1A6B5C] hover:underline">
+              <Link to="/auth/forgot-password" className="text-label-lg text-primary hover:underline">
                 Forgot password?
               </Link>
             </div>
@@ -191,10 +247,11 @@ export const LoginPage: React.FC = () => {
           </p>
         </div>
 
-        <p className="text-center text-xs text-[#64748B] mt-4">
+        <p className="mt-4 text-center text-[10px] uppercase tracking-widest text-outline">
           TMDA-ready pharmacy operations
         </p>
       </div>
+      </main>
     </div>
   );
 };

@@ -59,11 +59,11 @@ const RevenueSparkline: React.FC<{ data?: Array<{ date: string; revenue: number 
 
 const StatCardEl: React.FC<StatCard> = ({ label, value, icon, color, link, children }) => (
   <Link to={link}>
-    <div className="bg-white rounded-2xl border border-[#D6F0E8] p-5 hover:shadow-md transition-shadow">
+    <div className="rounded-xl border border-outline-variant/30 bg-surface-container-low p-stack-md shadow-sm transition-shadow hover:shadow-md">
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-sm text-[#64748B] mb-1">{label}</p>
-          <p className="text-2xl font-bold text-[#0D4035]">{value}</p>
+          <p className="mb-1 text-label-lg text-on-surface-variant">{label}</p>
+          <p className="text-title-lg font-semibold text-on-surface">{value}</p>
           {children}
         </div>
         <div className={`w-10 h-10 rounded-xl ${color} flex items-center justify-center`}>
@@ -104,11 +104,11 @@ export const DashboardPage: React.FC = () => {
     Number(todayStats.events ?? 0);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-stack-lg">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-[#0D4035]">{greeting}, {user?.firstName}!</h1>
-          <p className="text-[#64748B] mt-1">{format(new Date(), 'EEEE, d MMMM yyyy')}</p>
+          <h1 className="text-headline-md text-on-surface">{greeting}, {user?.firstName}!</h1>
+          <p className="mt-1 text-body-md text-on-surface-variant">{format(new Date(), 'EEEE, d MMMM yyyy')}</p>
         </div>
         <div className="flex gap-2">
           <Link to="/dispensing">
@@ -120,7 +120,7 @@ export const DashboardPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-gutter sm:grid-cols-2 lg:grid-cols-3">
         <StatCardEl
           label="Today's Revenue"
           value={formatTsh(todayStats.revenue)}
@@ -150,8 +150,8 @@ export const DashboardPage: React.FC = () => {
         <Card
           header={
             <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold text-[#0D4035]">Low Stock Alerts</span>
-              <Link to="/inventory" className="text-xs text-[#1A6B5C] hover:underline flex items-center gap-1">
+              <span className="text-title-md text-on-surface">Low Stock Alerts</span>
+              <Link to="/inventory" className="text-label-md text-primary hover:underline flex items-center gap-1">
                 Manage <ArrowRight size={12} />
               </Link>
             </div>
@@ -159,9 +159,9 @@ export const DashboardPage: React.FC = () => {
           padding={false}
         >
           {lowStockProducts.length === 0 ? (
-            <div className="p-8 text-center text-sm text-[#64748B]">No low-stock products right now</div>
+            <div className="p-8 text-center text-body-md text-on-surface-variant">No low-stock products right now</div>
           ) : (
-            <div className="divide-y divide-[#D6F0E8]">
+            <div className="divide-y divide-outline-variant/30">
               {lowStockProducts.map((product: any) => {
                 const reorderLevel = Math.max(product.reorderLevel || 1, 1);
                 const currentStock = product.currentStock || 0;
@@ -171,14 +171,14 @@ export const DashboardPage: React.FC = () => {
                 return (
                   <div key={product.id} className="px-4 py-3">
                     <div className="flex items-center justify-between mb-1">
-                      <p className="text-sm font-medium text-[#0D4035] truncate flex-1">{product.name}</p>
+                      <p className="text-sm font-medium text-on-surface truncate flex-1">{product.name}</p>
                       <Badge variant={critical ? 'danger' : 'warning'} size="sm" className="ml-2 shrink-0">
                         {critical ? 'OUT' : `${currentStock}/${product.reorderLevel}`}
                       </Badge>
                     </div>
-                    <div className="h-1.5 bg-[#D6F0E8] rounded-full overflow-hidden">
+                    <div className="h-1.5 bg-surface-container-highest rounded-full overflow-hidden">
                       <div
-                        className={`h-full rounded-full ${critical ? 'bg-[#DC2626]' : 'bg-[#D97706]'}`}
+                        className={`h-full rounded-full ${critical ? 'bg-error' : 'bg-tertiary-container'}`}
                         style={{ width: `${pct}%` }}
                       />
                     </div>
@@ -192,8 +192,8 @@ export const DashboardPage: React.FC = () => {
         <Card
           header={
             <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold text-[#0D4035]">Recent Movements</span>
-              <Link to="/inventory" className="text-xs text-[#1A6B5C] hover:underline flex items-center gap-1">
+              <span className="text-title-md text-on-surface">Recent Movements</span>
+              <Link to="/inventory" className="text-label-md text-primary hover:underline flex items-center gap-1">
                 View all <ArrowRight size={12} />
               </Link>
             </div>
@@ -201,9 +201,9 @@ export const DashboardPage: React.FC = () => {
           padding={false}
         >
           {recentMovements.length === 0 ? (
-            <div className="p-6 text-center text-sm text-[#64748B]">No movements recorded yet</div>
+            <div className="p-6 text-center text-body-md text-on-surface-variant">No movements recorded yet</div>
           ) : (
-            <div className="divide-y divide-[#D6F0E8]">
+            <div className="divide-y divide-outline-variant/30">
               {recentMovements.map((movement: any) => {
                 const typeColor: Record<string, string> = {
                   RECEIVED: 'success',
@@ -218,8 +218,8 @@ export const DashboardPage: React.FC = () => {
                 return (
                   <div key={movement.id} className="px-4 py-3 flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-[#0D4035] truncate">{movement.product?.name}</p>
-                      <p className="text-xs text-[#64748B]">
+                      <p className="text-sm font-medium text-on-surface truncate">{movement.product?.name}</p>
+                      <p className="text-xs text-on-surface-variant">
                         {movement.user?.firstName} {movement.user?.lastName}
                       </p>
                     </div>
@@ -227,7 +227,7 @@ export const DashboardPage: React.FC = () => {
                       <Badge variant={(typeColor[movement.type] || 'muted') as any} size="sm">
                         {movement.type.replace(/_/g, ' ')}
                       </Badge>
-                      <p className="text-xs font-semibold text-[#0D4035] mt-1">
+                      <p className="text-xs font-semibold text-on-surface mt-1">
                         {sign}{movement.quantity} units
                       </p>
                     </div>
@@ -238,9 +238,9 @@ export const DashboardPage: React.FC = () => {
           )}
         </Card>
 
-        <Card header={<span className="text-sm font-semibold text-[#0D4035]">Today's Activity</span>}>
+        <Card header={<span className="text-title-md text-on-surface">Today's Activity</span>}>
           {todayActivityTotal === 0 ? (
-            <div className="p-8 text-center text-sm text-[#64748B]">No activity recorded today yet.</div>
+            <div className="p-8 text-center text-body-md text-on-surface-variant">No activity recorded today yet.</div>
           ) : (
             <div className="space-y-4 pt-1">
               <div className="flex items-center justify-between p-3 bg-[#D6F0E8] rounded-2xl">

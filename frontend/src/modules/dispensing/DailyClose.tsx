@@ -36,10 +36,10 @@ export const DailyClose: React.FC = () => {
   });
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-stack-lg">
       <div>
-        <h1 className="text-xl font-bold text-[#0D4035]">Daily close</h1>
-        <p className="mt-1 text-sm text-[#64748B]">
+        <h1 className="text-headline-md text-on-surface">Daily close</h1>
+        <p className="mt-1 text-body-md text-on-surface-variant">
           Reconcile cash collections for today and capture any discrepancy before sign-off.
         </p>
       </div>
@@ -48,11 +48,11 @@ export const DailyClose: React.FC = () => {
         header={
           <div className="flex items-center gap-2">
             <Calculator size={16} className="text-[#1A6B5C]" />
-            <span className="text-sm font-semibold text-[#0D4035]">Cash reconciliation</span>
+            <span className="text-title-md text-on-surface">Cash reconciliation</span>
           </div>
         }
       >
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-gutter md:grid-cols-2">
           <Input
             label="Actual cash counted"
             type="number"
@@ -81,22 +81,22 @@ export const DailyClose: React.FC = () => {
         </div>
 
         {result && (
-          <div className="mt-4 grid gap-3 md:grid-cols-3">
-            <div className="rounded-2xl bg-[#EDF7F3] px-4 py-3">
-              <p className="text-xs uppercase tracking-wide text-[#64748B]">Expected cash</p>
-              <p className="mt-1 text-lg font-semibold text-[#0D4035]">
+          <div className="mt-stack-md flex flex-wrap gap-3">
+            <div className="rounded-full bg-surface-container px-4 py-2">
+              <p className="text-label-md uppercase tracking-wide text-on-surface-variant">Expected cash</p>
+              <p className="mt-1 text-title-lg text-on-surface">
                 Tsh {result.expectedCash.toLocaleString()}
               </p>
             </div>
-            <div className="rounded-2xl bg-white px-4 py-3 border border-[#D6F0E8]">
-              <p className="text-xs uppercase tracking-wide text-[#64748B]">Counted cash</p>
-              <p className="mt-1 text-lg font-semibold text-[#0D4035]">
+            <div className="rounded-full border border-outline-variant/30 bg-surface-container-lowest px-4 py-2">
+              <p className="text-label-md uppercase tracking-wide text-on-surface-variant">Counted cash</p>
+              <p className="mt-1 text-title-lg text-on-surface">
                 Tsh {result.actualCashCounted.toLocaleString()}
               </p>
             </div>
-            <div className="rounded-2xl bg-[#FFFBEB] px-4 py-3">
-              <p className="text-xs uppercase tracking-wide text-[#64748B]">Discrepancy</p>
-              <p className="mt-1 text-lg font-semibold text-[#92400E]">
+            <div className="rounded-full bg-error-container px-4 py-2">
+              <p className="text-label-md uppercase tracking-wide text-on-surface-variant">Discrepancy</p>
+              <p className="mt-1 text-title-lg font-medium text-error">
                 Tsh {result.discrepancy.toLocaleString()}
               </p>
             </div>

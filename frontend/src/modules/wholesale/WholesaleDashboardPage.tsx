@@ -40,39 +40,39 @@ export const WholesaleDashboardPage: React.FC = () => {
 
   return (
     <WholesaleShell>
-      <div className="space-y-6">
-        <div className="grid gap-4 lg:grid-cols-4">
-          <Card>
-            <p className="text-sm text-[#64748B]">Catalogue lines</p>
-            <p className="mt-2 text-3xl font-semibold text-[#0D4035]">{catalogueQuery.data?.length ?? 0}</p>
+      <div className="space-y-stack-lg">
+        <div className="grid gap-gutter sm:grid-cols-2 lg:grid-cols-4">
+          <Card className="bg-primary text-on-primary">
+            <p className="text-label-lg text-on-primary/80">Catalogue lines</p>
+            <p className="mt-2 text-headline-md">{catalogueQuery.data?.length ?? 0}</p>
           </Card>
           <Card>
-            <p className="text-sm text-[#64748B]">Orders in view</p>
-            <p className="mt-2 text-3xl font-semibold text-[#0D4035]">{ordersQuery.data?.length ?? 0}</p>
+            <p className="text-label-lg text-on-surface-variant">Orders in view</p>
+            <p className="mt-2 text-headline-md text-on-surface">{ordersQuery.data?.length ?? 0}</p>
           </Card>
           <Card>
-            <p className="text-sm text-[#64748B]">VAT invoices</p>
-            <p className="mt-2 text-3xl font-semibold text-[#0D4035]">{invoicesQuery.data?.length ?? 0}</p>
+            <p className="text-label-lg text-on-surface-variant">VAT invoices</p>
+            <p className="mt-2 text-headline-md text-on-surface">{invoicesQuery.data?.length ?? 0}</p>
           </Card>
           <Card>
-            <p className="text-sm text-[#64748B]">Open receivables</p>
-            <p className="mt-2 text-3xl font-semibold text-[#0D4035]">Tsh {(receivablesQuery.data?.totalOpenAmount ?? 0).toLocaleString()}</p>
+            <p className="text-label-lg text-on-surface-variant">Open receivables</p>
+            <p className="mt-2 text-title-lg text-on-surface">Tsh {(receivablesQuery.data?.totalOpenAmount ?? 0).toLocaleString()}</p>
           </Card>
         </div>
 
         <div className="grid gap-4 xl:grid-cols-[1.25fr_0.95fr]">
-          <Card header={<h2 className="text-lg font-semibold text-[#0D4035]">Demand insights</h2>}>
+          <Card header={<h2 className="text-title-md text-on-surface">Demand insights</h2>}>
             <div className="space-y-4">
               <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-2xl border border-[#D6F0E8] bg-[#F7FCFA] p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#64748B]">Current 30 days</p>
-                  <p className="mt-2 text-2xl font-semibold text-[#0D4035]">{demandInsightsQuery.data?.windows.current30d.units ?? 0} units</p>
-                  <p className="mt-1 text-sm text-[#64748B]">Tsh {(demandInsightsQuery.data?.windows.current30d.revenueTzs ?? 0).toLocaleString()}</p>
+                <div className="rounded-xl border border-outline-variant/30 bg-surface-container-high p-4">
+                  <p className="text-label-md uppercase tracking-[0.2em] text-on-surface-variant">Current 30 days</p>
+                  <p className="mt-2 text-title-lg text-on-surface">{demandInsightsQuery.data?.windows.current30d.units ?? 0} units</p>
+                  <p className="mt-1 text-body-md text-on-surface-variant">Tsh {(demandInsightsQuery.data?.windows.current30d.revenueTzs ?? 0).toLocaleString()}</p>
                 </div>
-                <div className="rounded-2xl border border-[#D6F0E8] bg-[#F7FCFA] p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#64748B]">Previous 30 days</p>
-                  <p className="mt-2 text-2xl font-semibold text-[#0D4035]">{demandInsightsQuery.data?.windows.previous30d.units ?? 0} units</p>
-                  <p className="mt-1 text-sm text-[#64748B]">Tsh {(demandInsightsQuery.data?.windows.previous30d.revenueTzs ?? 0).toLocaleString()}</p>
+                <div className="rounded-xl border border-outline-variant/30 bg-surface-container-high p-4">
+                  <p className="text-label-md uppercase tracking-[0.2em] text-on-surface-variant">Previous 30 days</p>
+                  <p className="mt-2 text-title-lg text-on-surface">{demandInsightsQuery.data?.windows.previous30d.units ?? 0} units</p>
+                  <p className="mt-1 text-body-md text-on-surface-variant">Tsh {(demandInsightsQuery.data?.windows.previous30d.revenueTzs ?? 0).toLocaleString()}</p>
                 </div>
               </div>
               <div className="space-y-3">

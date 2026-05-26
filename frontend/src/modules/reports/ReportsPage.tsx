@@ -59,25 +59,25 @@ export const ReportsPage: React.FC = () => {
   const overrideCount = safety?.byAction.find((item) => item.key === 'OVERRIDE_ENTERED')?.count ?? 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-stack-lg">
       {!isOfficeAccount && (
         <>
-          <div className="grid gap-4 lg:grid-cols-3">
-            <Card>
-              <p className="text-sm text-[#64748B]">Revenue</p>
-              <p className="mt-2 text-3xl font-semibold text-[#0D4035]">Tsh {(revenueQuery.data?.totalRevenue ?? 0).toFixed(2)}</p>
+          <div className="grid gap-gutter lg:grid-cols-3">
+            <Card className="bg-primary-container text-on-primary-container">
+              <p className="text-label-lg opacity-80">Revenue</p>
+              <p className="mt-2 text-headline-md">Tsh {(revenueQuery.data?.totalRevenue ?? 0).toFixed(2)}</p>
             </Card>
             <Card>
-              <p className="text-sm text-[#64748B]">Transactions</p>
-              <p className="mt-2 text-3xl font-semibold text-[#0D4035]">{revenueQuery.data?.transactionCount ?? 0}</p>
+              <p className="text-label-lg text-on-surface-variant">Transactions</p>
+              <p className="mt-2 text-headline-md text-on-surface">{revenueQuery.data?.transactionCount ?? 0}</p>
             </Card>
             <Card>
-              <p className="text-sm text-[#64748B]">Cohort size</p>
-              <p className="mt-2 text-3xl font-semibold text-[#0D4035]">{benchmarkQuery.data?.cohortSize ?? 0}</p>
+              <p className="text-label-lg text-on-surface-variant">Cohort size</p>
+              <p className="mt-2 text-headline-md text-on-surface">{benchmarkQuery.data?.cohortSize ?? 0}</p>
             </Card>
           </div>
 
-          <Card header={<h2 className="text-lg font-semibold text-[#0D4035]">Peer Benchmark</h2>}>
+          <Card header={<h2 className="text-title-md text-on-surface">Peer Benchmark</h2>}>
             {benchmarkQuery.data?.available ? (
               <div className="space-y-2 text-sm text-[#4B5563]">
                 <p>Own revenue: Tsh {Number(benchmarkQuery.data.ownRevenue ?? 0).toFixed(2)}</p>
@@ -89,10 +89,10 @@ export const ReportsPage: React.FC = () => {
             )}
           </Card>
 
-          <Card header={<h2 className="text-lg font-semibold text-[#0D4035]">Custom Builder Snapshot</h2>}>
-            <div className="space-y-2">
+          <Card header={<h2 className="text-title-md text-on-surface">Custom Builder Snapshot</h2>}>
+            <div className="flex flex-wrap gap-2">
               {(customMutation.data ?? []).map((row: { dimension: string; value: number }) => (
-                <div key={row.dimension} className="flex items-center justify-between rounded-xl bg-[#EDF7F3] px-4 py-3 text-sm">
+                <div key={row.dimension} className="flex items-center justify-between gap-3 rounded-full bg-surface-container px-4 py-2 text-label-lg">
                   <span className="font-medium text-[#0D4035]">{row.dimension || 'Unknown'}</span>
                   <span className="text-[#0D4035]">Tsh {Number(row.value ?? 0).toFixed(2)}</span>
                 </div>
