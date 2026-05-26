@@ -3,9 +3,12 @@
 --
 -- GRACE is a new PharmacyAccountStatus that replaces the hard paywall for
 -- lapsed subscriptions. A pharmacy in GRACE retains single-owner read access
--- to core dispensing features permanently — it is never cut off.
---
--- In SQLite, enum values are stored as plain text, so no ALTER TYPE is needed.
--- We only need to add the new column.
+-- to core dispensing features — it is never cut off.
 
-ALTER TABLE "pharmacies" ADD COLUMN "grace_activated_at" DATETIME;
+-- Add GRACE to the existing PharmacyAccountStatus enum.
+-- IF NOT EXISTS guard is safe on PostgreSQL 9.3+ (Railway uses 14+).
+ALTER TYPE "PharmacyAccountStatus" ADD VALUE IF NOT EXISTS 'GRACE';
+
+-- Add the graceActivatedAt timestamp column.
+-- IF NOT EXISTS prevents a crash if the migration was partially applied.
+ALTER TABLE "pharmacies" ADD COLUMN IF NOT EXISTS "grace_activated_at" TIMESTAMPTZ;
