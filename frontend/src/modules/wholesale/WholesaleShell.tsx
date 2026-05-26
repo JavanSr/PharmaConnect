@@ -59,18 +59,19 @@ export const WholesaleShell: React.FC<{ children: React.ReactNode }> = ({ childr
 
   return (
     <div className="space-y-stack-lg">
-      <Card className="overflow-hidden bg-primary text-on-primary" padding={false} shadow="md">
+      {/* Hero banner — raw div avoids Card's bg-surface-container-low override */}
+      <div className="overflow-hidden rounded-xl bg-active-fill text-active-text shadow-md">
         <div className={`gap-5 px-5 py-5 ${(isHybrid || (canSell && canBuy)) ? 'grid lg:grid-cols-[1.6fr_1fr]' : 'flex flex-col'}`}>
           <div className="space-y-2">
-            <p className="text-label-md uppercase tracking-[0.3em] text-on-primary/70">
+            <p className="text-label-md uppercase tracking-[0.3em] text-white/70">
               {mode === 'seller' ? 'Wholesale Operations' : 'Buy from Suppliers'}
             </p>
-            <h1 className="text-title-lg font-semibold leading-snug">
+            <h1 className="text-title-lg font-semibold leading-snug text-white">
               {mode === 'seller'
                 ? 'Wholesale workspace — shared platform backbone.'
                 : 'Order from wholesale pharmacies on APOTEKH.'}
             </h1>
-            <p className="max-w-2xl text-body-md text-on-primary/80">
+            <p className="max-w-2xl text-body-md text-white/80">
               {mode === 'seller'
                 ? 'Orders, credit, delivery, invoicing, and demand signals in one place.'
                 : 'Browse supplier catalogues, check your tier pricing, and submit orders. Confirmation and dispatch updates arrive by email.'}
@@ -83,13 +84,13 @@ export const WholesaleShell: React.FC<{ children: React.ReactNode }> = ({ childr
                 <div className="flex gap-2">
                   <button
                     onClick={() => setMode('seller')}
-                    className={`min-h-touch-target-min flex-1 rounded-full px-3 py-2 text-sm font-medium transition-colors ${mode === 'seller' ? 'bg-white text-primary' : 'bg-white/20 text-white hover:bg-white/30'}`}
+                    className={`min-h-touch-target-min flex-1 rounded-full px-3 py-2 text-sm font-medium transition-colors ${mode === 'seller' ? 'bg-white text-active-fill' : 'bg-white/20 text-white hover:bg-white/30'}`}
                   >
                     Sell
                   </button>
                   <button
                     onClick={() => setMode('buyer')}
-                    className={`min-h-touch-target-min flex-1 rounded-full px-3 py-2 text-sm font-medium transition-colors ${mode === 'buyer' ? 'bg-white text-primary' : 'bg-white/20 text-white hover:bg-white/30'}`}
+                    className={`min-h-touch-target-min flex-1 rounded-full px-3 py-2 text-sm font-medium transition-colors ${mode === 'buyer' ? 'bg-white text-active-fill' : 'bg-white/20 text-white hover:bg-white/30'}`}
                   >
                     Buy
                   </button>
@@ -101,7 +102,7 @@ export const WholesaleShell: React.FC<{ children: React.ReactNode }> = ({ childr
             </div>
           )}
         </div>
-      </Card>
+      </div>
 
       <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
         {navItems.map((item) => (
@@ -112,8 +113,8 @@ export const WholesaleShell: React.FC<{ children: React.ReactNode }> = ({ childr
             className={({ isActive }) =>
               `inline-flex min-h-touch-target-min shrink-0 items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
                 isActive
-                  ? 'border-primary bg-secondary-container text-on-secondary-container'
-                  : 'border-outline-variant bg-surface-container-low text-on-surface-variant hover:bg-surface-container'
+                  ? 'border-active-fill bg-active-fill text-active-text'
+                  : 'border-outline-variant bg-surface-container-low text-on-surface-variant hover:bg-hover-fill hover:text-hover-text'
               }`
             }
           >

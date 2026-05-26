@@ -40,6 +40,18 @@ export default {
         'background': '#f7faf9',
         'on-background': '#181c1c',
         'surface-variant': '#e0e3e2',
+        // ── 3-state interactive palette ──────────────────────────────────
+        // Use only these three states for all nav, button, and list interactions:
+        //   hover-fill   → light green bg on hover
+        //   active-fill  → solid teal bg when item is selected / current page
+        //   gold         → amber accent for badges, highlights, indicators
+        'hover-fill':  '#D6F0E8',   // pc-100  light green hover background
+        'hover-text':  '#0D4035',   // pc-800  dark teal text on hover
+        'active-fill': '#1A6B5C',   // pc-600  brand teal active background
+        'active-text': '#ffffff',   // white   text on active
+        'gold':        '#E8A020',   // amber   accent (logo right node)
+        'on-gold':     '#0D4035',   // pc-800  dark text on gold background
+        // ─────────────────────────────────────────────────────────────────
         'aware-access': '#2e7d32',
         'aware-watch': '#e65100',
         'aware-reserve': '#b71c1c',

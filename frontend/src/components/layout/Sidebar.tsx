@@ -108,8 +108,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
       to={item.path}
       className={`flex min-h-touch-target-min items-center gap-3 rounded-full px-3 py-2.5 transition-colors ${
         checkActive(item.path)
-          ? 'bg-secondary-container text-on-secondary-container'
-          : 'text-on-surface-variant hover:bg-surface-container-high'
+          ? 'bg-active-fill text-active-text font-semibold'
+          : 'text-on-surface-variant hover:bg-hover-fill hover:text-hover-text'
       }`}
       onClick={() => onClose()}
     >

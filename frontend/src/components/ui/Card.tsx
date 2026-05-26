@@ -16,8 +16,11 @@ const shadowStyles = {
 };
 
 export const Card: React.FC<CardProps> = ({ children, className = '', header, footer, shadow = 'sm', padding = true }) => {
+  // If caller passes a bg-* class, don't apply the default background —
+  // Tailwind resolves conflicts by CSS definition order, not HTML class order.
+  const hasBg = className.split(' ').some((c) => c.startsWith('bg-'));
   return (
-    <div className={`bg-surface-container-low rounded-xl border border-outline-variant/30 ${shadowStyles[shadow]} ${className}`}>
+    <div className={`${hasBg ? '' : 'bg-surface-container-low '}rounded-xl border border-outline-variant/30 ${shadowStyles[shadow]} ${className}`}>
       {header && <div className="px-5 py-4 border-b border-outline-variant/30">{header}</div>}
       <div className={padding ? 'p-5' : ''}>{children}</div>
       {footer && <div className="px-5 py-4 border-t border-outline-variant/30 bg-surface-container rounded-b-xl">{footer}</div>}
