@@ -62,7 +62,7 @@ export const InventoryDashboardPage: React.FC = () => {
   return (
     <div className="space-y-stack-lg">
       <div className="flex items-center justify-between">
-        <h1 className="text-headline-md text-on-surface">Inventory</h1>
+        <h1 className="text-title-lg font-semibold text-on-surface">Inventory</h1>
         <div className="flex gap-2 flex-wrap">
           <Link to="/inventory/receive"><Button leftIcon={<Plus size={16} />}>Receive Stock</Button></Link>
           <Link to="/inventory/adjust"><Button variant="secondary">Adjust Stock</Button></Link>

@@ -38,7 +38,7 @@ export const DailyClose: React.FC = () => {
   return (
     <div className="space-y-stack-lg">
       <div>
-        <h1 className="text-headline-md text-on-surface">Daily close</h1>
+        <h1 className="text-title-lg font-semibold text-on-surface">Daily close</h1>
         <p className="mt-1 text-body-md text-on-surface-variant">
           Reconcile cash collections for today and capture any discrepancy before sign-off.
         </p>

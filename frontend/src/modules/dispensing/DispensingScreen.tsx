@@ -748,7 +748,7 @@ export const DispensingScreen: React.FC = () => {
     <div className="space-y-stack-lg">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 className="text-headline-md text-on-surface">Dispensing workflow</h1>
+          <h1 className="text-title-lg font-semibold text-on-surface">Dispensing</h1>
           <p className="mt-1 text-body-md text-on-surface-variant">
             Add products, review session-only safety guidance, then complete payment with FEFO stock allocation.
           </p>

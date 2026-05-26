@@ -60,30 +60,30 @@ export const WholesaleShell: React.FC<{ children: React.ReactNode }> = ({ childr
   return (
     <div className="space-y-stack-lg">
       <Card className="overflow-hidden bg-primary text-on-primary" padding={false} shadow="md">
-        <div className="grid gap-5 px-5 py-6 lg:grid-cols-[1.6fr_1fr]">
-          <div className="space-y-3">
+        <div className={`gap-5 px-5 py-5 ${(isHybrid || (canSell && canBuy)) ? 'grid lg:grid-cols-[1.6fr_1fr]' : 'flex flex-col'}`}>
+          <div className="space-y-2">
             <p className="text-label-md uppercase tracking-[0.3em] text-on-primary/70">
               {mode === 'seller' ? 'Wholesale Operations' : 'Buy from Suppliers'}
             </p>
-            <h1 className="text-headline-md leading-tight">
+            <h1 className="text-title-lg font-semibold leading-snug">
               {mode === 'seller'
-                ? 'Separate wholesale workspace, shared platform backbone.'
+                ? 'Wholesale workspace — shared platform backbone.'
                 : 'Order from wholesale pharmacies on APOTEKH.'}
             </h1>
             <p className="max-w-2xl text-body-md text-on-primary/80">
               {mode === 'seller'
-                ? 'Orders, credit, delivery, invoicing, and demand signals — shared auth, users, catalogue, and outlet data.'
+                ? 'Orders, credit, delivery, invoicing, and demand signals in one place.'
                 : 'Browse supplier catalogues, check your tier pricing, and submit orders. Confirmation and dispatch updates arrive by email.'}
             </p>
           </div>
-          <div className="rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur">
-            {(isHybrid || (canSell && canBuy)) ? (
+          {(isHybrid || (canSell && canBuy)) && (
+            <div className="rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur">
               <div className="space-y-3">
                 <p className="text-sm font-semibold text-white">Switch mode</p>
                 <div className="flex gap-2">
                   <button
                     onClick={() => setMode('seller')}
-                  className={`min-h-touch-target-min flex-1 rounded-full px-3 py-2 text-sm font-medium transition-colors ${mode === 'seller' ? 'bg-white text-primary' : 'bg-white/20 text-white hover:bg-white/30'}`}
+                    className={`min-h-touch-target-min flex-1 rounded-full px-3 py-2 text-sm font-medium transition-colors ${mode === 'seller' ? 'bg-white text-primary' : 'bg-white/20 text-white hover:bg-white/30'}`}
                   >
                     Sell
                   </button>
@@ -95,21 +95,11 @@ export const WholesaleShell: React.FC<{ children: React.ReactNode }> = ({ childr
                   </button>
                 </div>
                 <p className="text-xs text-white/60">
-                  {mode === 'seller' ? 'Currently managing outgoing wholesale orders' : 'Currently placing orders with suppliers'}
+                  {mode === 'seller' ? 'Managing outgoing wholesale orders' : 'Placing orders with suppliers'}
                 </p>
               </div>
-            ) : (
-              <div>
-                <p className="text-sm font-semibold text-white">Shared with retail</p>
-                <div className="mt-3 grid gap-2 text-sm text-white/80">
-                  <span>Authentication and outlet access</span>
-                  <span>Team and user records</span>
-                  <span>Marketplace and product data</span>
-                  <span>Audit trails and subscriptions</span>
-                </div>
-              </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </Card>
 
