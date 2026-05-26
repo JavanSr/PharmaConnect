@@ -17,6 +17,88 @@ import {
 export const analyticsRouter = Router();
 analyticsRouter.use(authenticate);
 analyticsRouter.use(enforceTrialRestrictions);
+
+// ── Grace mode: daily revenue only (no permission check needed) ───────────────
+// This route is declared before requirePermission so the owner can reach it
+// without needing an explicit analytics permission grant.
+analyticsRouter.get('/daily-revenue', async (req: AuthRequest, res, next) => {
+  try {
+    const pharmacyId = req.user?.pharmacyId;
+    if (!pharmacyId) {
+      res.status(400).json({ error: 'Pharmacy context required' });
+      return;
+    }
+
+    // Today's window in UTC (good enough for Dodoma — TZ offset handled client-side).
+    const todayStart = new Date();
+    todayStart.setUTCHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setUTCHours(23, 59, 59, 999);
+
+    // Yesterday for comparison
+    const yesterdayStart = new Date(todayStart);
+    yesterdayStart.setUTCDate(yesterdayStart.getUTCDate() - 1);
+    const yesterdayEnd = new Date(todayStart);
+    yesterdayEnd.setUTCMilliseconds(-1);
+
+    const [todayRows, yesterdayRows] = await Promise.all([
+      prisma.$queryRaw<Array<{ total: string | null; count: bigint }>>`
+        SELECT
+          SUM(total_amount)  AS total,
+          COUNT(*)           AS count
+        FROM dispensing_events
+        WHERE pharmacy_id = ${pharmacyId}
+          AND created_at >= ${todayStart}
+          AND created_at <= ${todayEnd}
+          AND status != 'VOIDED'
+      `,
+      prisma.$queryRaw<Array<{ total: string | null; count: bigint }>>`
+        SELECT
+          SUM(total_amount)  AS total,
+          COUNT(*)           AS count
+        FROM dispensing_events
+        WHERE pharmacy_id = ${pharmacyId}
+          AND created_at >= ${yesterdayStart}
+          AND created_at <= ${yesterdayEnd}
+          AND status != 'VOIDED'
+      `,
+    ]);
+
+    const todayRevenue = Number(todayRows[0]?.total ?? 0);
+    const todayCount   = Number(todayRows[0]?.count ?? 0);
+    const yesterdayRevenue = Number(yesterdayRows[0]?.total ?? 0);
+
+    const change = yesterdayRevenue > 0
+      ? Math.round(((todayRevenue - yesterdayRevenue) / yesterdayRevenue) * 100)
+      : null;
+
+    res.json({
+      data: {
+        todayRevenue,
+        todayCount,
+        yesterdayRevenue,
+        change,          // percentage change vs yesterday, null if no yesterday data
+        date: todayStart.toISOString().slice(0, 10),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ── Grace mode restriction for all other analytics routes ─────────────────────
+analyticsRouter.use((req: AuthRequest, res, next) => {
+  if (req.graceMode) {
+    res.status(402).json({
+      error: 'GRACE_FEATURE_LOCKED',
+      message: 'Only daily revenue is available during grace access. Renew your subscription to unlock full analytics.',
+      subscribeUrl: '/settings/subscription',
+    });
+    return;
+  }
+  next();
+});
+
 analyticsRouter.use(requirePermission('analytics.view_dashboard'));
 
 const pid = (req: AuthRequest): string => {

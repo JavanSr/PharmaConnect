@@ -15,12 +15,136 @@ import {
   Pie,
   Legend,
 } from 'recharts';
-import { Package, TrendingDown, ShieldCheck, AlertTriangle, ArrowRight } from 'lucide-react';
+import { Package, TrendingDown, ShieldCheck, AlertTriangle, ArrowRight, TrendingUp, Minus } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Select } from '@/components/ui/Select';
 import { api } from '@/lib/api';
 import { usePharmacyStore } from '@/stores/pharmacyStore';
+
+// ── Daily Revenue Widget (grace mode) ────────────────────────────────────────
+type DailyRevenueData = {
+  todayRevenue: number;
+  todayCount: number;
+  yesterdayRevenue: number;
+  change: number | null;
+  date: string;
+};
+
+const Tsh = (value: number) =>
+  `Tsh ${Number(value ?? 0).toLocaleString('en-TZ', { maximumFractionDigits: 0 })}`;
+
+const DailyRevenueWidget: React.FC = () => {
+  const { data, isLoading, isError } = useQuery<{ data: DailyRevenueData }>({
+    queryKey: ['analytics-daily-revenue'],
+    queryFn: () => api.get('/analytics/daily-revenue').then((r) => r.data),
+    staleTime: 2 * 60 * 1000,
+  });
+
+  const revenue = data?.data;
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-xl font-bold text-[#0D4035]">Analytics</h1>
+        <p className="mt-1 text-sm text-[#64748B]">
+          Grace access — daily revenue only. Renew to unlock full analytics.
+        </p>
+      </div>
+
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        Your subscription has lapsed. You can see today's revenue below.{' '}
+        <Link to="/settings/subscription" className="font-semibold underline">
+          Renew now
+        </Link>{' '}
+        to restore full analytics access.
+      </div>
+
+      {isLoading && (
+        <div className="flex h-48 items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#1A6B5C] border-t-transparent" />
+        </div>
+      )}
+
+      {isError && (
+        <Card>
+          <div className="p-8 text-center text-sm text-[#64748B]">
+            Revenue data could not be loaded. Check your connection and refresh.
+          </div>
+        </Card>
+      )}
+
+      {revenue && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          {/* Today's revenue — main figure */}
+          <div className="rounded-2xl border border-[#D6F0E8] bg-white p-6 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-widest text-[#64748B]">
+              Today's revenue
+            </p>
+            <p className="mt-3 text-4xl font-bold text-[#0D4035]">
+              {Tsh(revenue.todayRevenue)}
+            </p>
+            <p className="mt-1 text-sm text-[#64748B]">
+              {revenue.todayCount} {revenue.todayCount === 1 ? 'sale' : 'sales'} ·{' '}
+              {new Date(revenue.date).toLocaleDateString('en-GB', {
+                weekday: 'long',
+                day: 'numeric',
+                month: 'long',
+              })}
+            </p>
+
+            {/* Change vs yesterday */}
+            {revenue.change !== null && (
+              <div
+                className={`mt-4 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold ${
+                  revenue.change > 0
+                    ? 'bg-green-100 text-green-700'
+                    : revenue.change < 0
+                    ? 'bg-red-100 text-red-700'
+                    : 'bg-[#EDF7F3] text-[#64748B]'
+                }`}
+              >
+                {revenue.change > 0 ? (
+                  <TrendingUp size={14} />
+                ) : revenue.change < 0 ? (
+                  <TrendingDown size={14} />
+                ) : (
+                  <Minus size={14} />
+                )}
+                {revenue.change > 0 ? '+' : ''}
+                {revenue.change}% vs yesterday
+              </div>
+            )}
+          </div>
+
+          {/* Yesterday comparison */}
+          <div className="rounded-2xl border border-[#D6F0E8] bg-[#F8FAFC] p-6">
+            <p className="text-xs font-semibold uppercase tracking-widest text-[#64748B]">
+              Yesterday's revenue
+            </p>
+            <p className="mt-3 text-3xl font-bold text-[#475569]">
+              {Tsh(revenue.yesterdayRevenue)}
+            </p>
+            <p className="mt-1 text-sm text-[#64748B]">Previous day</p>
+
+            <div className="mt-4 rounded-xl bg-white border border-[#D6F0E8] p-3">
+              <p className="text-xs text-[#64748B]">
+                Renew your subscription to unlock revenue trends, inventory analytics,
+                compliance tracking, and multi-outlet comparison.
+              </p>
+              <Link
+                to="/settings/subscription"
+                className="mt-2 inline-block text-xs font-semibold text-[#1A6B5C] hover:underline"
+              >
+                View plans →
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 type MovementKey = 'received' | 'dispensed' | 'adjusted' | 'damaged' | 'other';
 type ComplianceKey = 'GREEN' | 'AMBER' | 'RED' | 'EXPIRED';
@@ -94,9 +218,6 @@ const COMPARE_RANGE_OPTIONS = [
 
 const COMPARE_COLORS = ['#1A6B5C', '#D97706', '#1D4ED8', '#DC2626', '#7C3AED'];
 
-const Tsh = (value: number) =>
-  `Tsh ${Number(value ?? 0).toLocaleString('en-TZ', { maximumFractionDigits: 0 })}`;
-
 const MOVEMENT_COLORS: Record<MovementKey, string> = {
   received: '#1A6B5C',
   dispensed: '#1D9E75',
@@ -115,6 +236,14 @@ const COMPLIANCE_COLORS: Record<ComplianceKey, string> = {
 export const AnalyticsPage: React.FC = () => {
   const memberships = usePharmacyStore((state) => state.memberships);
   const activePharmacy = usePharmacyStore((state) => state.pharmacy);
+
+  // Grace mode: subscription lapsed — show daily revenue widget only.
+  const isSubscriptionLapsed =
+    activePharmacy?.status === 'ACTIVE' &&
+    activePharmacy?.trialEndsAt != null &&
+    new Date(activePharmacy.trialEndsAt) < new Date();
+  const inGrace = activePharmacy?.status === 'GRACE' || isSubscriptionLapsed;
+  if (inGrace) return <DailyRevenueWidget />;
   const compareEligibleMemberships = useMemo(
     () => memberships.filter((membership) => membership.pharmacy?.isActive !== false),
     [memberships]
