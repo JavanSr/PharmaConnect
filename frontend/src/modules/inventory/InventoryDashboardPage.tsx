@@ -17,6 +17,12 @@ type DashboardSummary = {
 
 type StatValue = number | string;
 
+const AwarDot: React.FC<{ awarClass?: 'ACCESS' | 'WATCH' | 'RESERVE' | null }> = ({ awarClass }) => {
+  if (!awarClass) return null;
+  const colorClass = awarClass === 'ACCESS' ? 'bg-aware-access' : awarClass === 'WATCH' ? 'bg-aware-watch' : 'bg-aware-reserve';
+  return <span aria-hidden="true" className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${colorClass}`} />;
+};
+
 const getProductStock = (product: any) => {
   if (typeof product.currentStock === 'number') return product.currentStock;
   if (typeof product.totalQuantity === 'number') return product.totalQuantity;
@@ -54,9 +60,9 @@ export const InventoryDashboardPage: React.FC = () => {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-stack-lg">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-[#0D4035]">Inventory</h1>
+        <h1 className="text-headline-md text-on-surface">Inventory</h1>
         <div className="flex gap-2 flex-wrap">
           <Link to="/inventory/receive"><Button leftIcon={<Plus size={16} />}>Receive Stock</Button></Link>
           <Link to="/inventory/adjust"><Button variant="secondary">Adjust Stock</Button></Link>
@@ -67,13 +73,13 @@ export const InventoryDashboardPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 gap-gutter sm:grid-cols-2 lg:grid-cols-4">
         {stats.map(s => (
-          <div key={s.label} className="bg-white rounded-2xl border border-[#D6F0E8] p-5">
+          <div key={s.label} className="rounded-xl border border-outline-variant/30 bg-surface-container-low p-stack-md shadow-sm">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-sm text-[#64748B]">{s.label}</p>
-                <p className="text-2xl font-bold text-[#0D4035] mt-0.5">{s.value}</p>
+                <p className="text-label-lg text-on-surface-variant">{s.label}</p>
+                <p className="mt-0.5 text-title-lg font-semibold text-on-surface">{s.value}</p>
               </div>
               <div className={`w-10 h-10 rounded-xl ${s.color} flex items-center justify-center`}>{s.icon}</div>
             </div>
@@ -84,7 +90,7 @@ export const InventoryDashboardPage: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card header={
           <div className="flex items-center justify-between gap-3">
-            <span className="text-sm font-semibold text-[#0D4035]">Low Stock Items</span>
+            <span className="text-title-md text-on-surface">Low Stock Items</span>
             <div className="flex items-center gap-2">
               <Link to="/inventory/stock-orders/new?prefill=low-stock">
                 <Button size="sm" variant="secondary">Prepare Restock Order</Button>
@@ -94,35 +100,44 @@ export const InventoryDashboardPage: React.FC = () => {
           </div>
         } padding={false}>
           {lowStock.length === 0 ? (
-            <div className="p-8 text-center text-sm text-[#64748B]">All products adequately stocked</div>
+            <div className="p-8 text-center text-body-md text-on-surface-variant">All products adequately stocked</div>
           ) : (
-            <div className="divide-y divide-[#D6F0E8]">
-              {lowStock.slice(0, 6).map((p: any) => (
-                <div key={p.id} className="px-5 py-3 flex items-center justify-between">
+            <div className="divide-y divide-outline-variant/30">
+              {lowStock.slice(0, 6).map((p: any) => {
+                const reorderLevel = Math.max(Number(p.reorderLevel ?? 1), 1);
+                const currentStock = Number(p.currentStock ?? 0);
+                const stockPct = Math.max(0, Math.min(100, Math.round((currentStock / reorderLevel) * 100)));
+                return (
+                <div key={p.id} className="px-5 py-3">
+                  <div className="flex items-center justify-between gap-4">
                   <div>
-                    <p className="text-sm font-medium text-[#0D4035]">{p.genericName || p.name}</p>
-                    <p className="text-xs text-[#64748B]">{p.dosageForm} {p.strength}</p>
+                    <p className="flex items-center gap-2 text-sm font-medium text-on-surface"><AwarDot awarClass={p.awarClass} />{p.genericName || p.name}</p>
+                    <p className="text-xs text-on-surface-variant">{p.dosageForm} {p.strength}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-bold text-[#DC2626]">{p.currentStock}</p>
-                    <p className="text-xs text-[#64748B]">of {p.reorderLevel} min</p>
+                    <p className="text-sm font-bold text-error">{p.currentStock}</p>
+                    <p className="text-xs text-on-surface-variant">of {p.reorderLevel} min</p>
                   </div>
                 </div>
-              ))}
+                  <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-surface-container-highest">
+                    <div className={`h-full rounded-full ${stockPct < 10 ? 'bg-error' : 'bg-tertiary-container'}`} style={{ width: `${stockPct}%` }} />
+                  </div>
+                </div>
+              );})}
             </div>
           )}
         </Card>
 
         <Card header={
           <div className="flex items-center justify-between">
-            <span className="text-sm font-semibold text-[#0D4035]">Expiring Soon</span>
+            <span className="text-title-md text-on-surface">Expiring Soon</span>
             <Link to="/inventory/expiry" className="text-xs text-[#1A6B5C] hover:underline flex items-center gap-1">View all <ArrowRight size={12} /></Link>
           </div>
         } padding={false}>
           {expiryBatches.length === 0 ? (
-            <div className="p-8 text-center text-sm text-[#64748B]">No batches expiring within 30 days</div>
+            <div className="p-8 text-center text-body-md text-on-surface-variant">No batches expiring within 30 days</div>
           ) : (
-            <div className="divide-y divide-[#D6F0E8]">
+            <div className="divide-y divide-outline-variant/30">
               {expiryBatches.slice(0, 6).map((b: any) => {
                 const days = differenceInDays(new Date(b.expiryDate), new Date());
                 return (

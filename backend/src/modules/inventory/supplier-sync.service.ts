@@ -311,7 +311,10 @@ export async function getPriceComparison(
   const results = await prisma.supplierCatalogueItem.findMany({
     where: {
       catalogue: {
-        retailPharmacyId,
+        OR: [
+          { retailPharmacyId }, // Pharmacy-specific catalogues
+          { retailPharmacyId: null }, // Global APOTEKH catalogues (CSV-imported)
+        ],
       },
       OR: [
         { productName: { contains: productName, mode: 'insensitive' } },

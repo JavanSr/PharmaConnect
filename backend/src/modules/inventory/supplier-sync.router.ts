@@ -62,6 +62,71 @@ router.get('/apotekh-wholesalers', authenticate, async (req: AuthRequest, res) =
   }
 });
 
+// POST /api/v1/suppliers/register
+// Pre-register a wholesaler with full details (SUPER_ADMIN only)
+router.post('/register', authenticate, requireRole('SUPER_ADMIN'), async (req: AuthRequest, res): Promise<void> => {
+  try {
+    const schema = z.object({
+      name: z.string().min(1, 'Supplier name required'),
+      phone: z.string().optional(),
+      email: z.string().email().optional(),
+      address: z.string().optional(),
+    });
+
+    const body = schema.parse(req.body);
+
+    // Find or create a system pharmacy to hold APOTEKH wholesalers
+    let systemPharmacy = await prisma.pharmacy.findFirst({
+      where: { name: 'APOTEKH Office' },
+    });
+
+    if (!systemPharmacy) {
+      systemPharmacy = await prisma.pharmacy.findFirst();
+    }
+
+    if (!systemPharmacy) {
+      res.status(500).json({ error: 'No pharmacy found in system' });
+      return;
+    }
+
+    const supplier = await prisma.supplier.create({
+      data: {
+        pharmacyId: systemPharmacy.id,
+        name: body.name,
+        phone: body.phone,
+        email: body.email,
+        address: body.address,
+        isApotekNetworkWholesaler: true,
+        isActive: true,
+      },
+    });
+
+    const catalogue = await prisma.supplierCatalogue.create({
+      data: {
+        wholesalerId: supplier.id,
+        lastSyncedAt: new Date(),
+        syncStatus: 'ACTIVE',
+        totalItemsAvailable: 0,
+      },
+    });
+
+    res.status(201).json({
+      data: {
+        supplierId: supplier.id,
+        name: supplier.name,
+        phone: supplier.phone,
+        email: supplier.email,
+        address: supplier.address,
+        catalogueId: catalogue.id,
+        message: 'Wholesaler registered. Ready to upload product CSV.',
+      },
+    });
+  } catch (error) {
+    const err = error as any;
+    res.status(err.status || 500).json({ error: err.message });
+  }
+});
+
 // POST /api/v1/sync/supplier-catalogue/:supplierId
 // Sync a specific wholesaler's catalogue for the current pharmacy
 router.post('/sync/supplier-catalogue/:supplierId', authenticate, async (req: AuthRequest, res): Promise<void> => {
@@ -133,6 +198,8 @@ router.get('/supplier-catalogues/:catalogueId/items', authenticate, async (req: 
 
 // POST /api/v1/suppliers/upload-csv
 // Upload wholesaler catalogue as CSV (SUPER_ADMIN only)
+// Mode 1 (pre-registration): supplierId in body — link all products to that supplier
+// Mode 2 (auto-create): no supplierId — group by wholesalername and create suppliers
 router.post('/upload-csv', authenticate, requireRole('SUPER_ADMIN'), upload.single('file'), async (req: AuthRequest, res): Promise<void> => {
   try {
     if (!req.file) {
@@ -154,37 +221,49 @@ router.post('/upload-csv', authenticate, requireRole('SUPER_ADMIN'), upload.sing
       headerMap[h.toLowerCase().replace(/\s+/g, '')] = i;
     });
 
-    // Required headers: wholesaler_name, product_name, unit_price
-    const requiredHeaders = ['wholesalername', 'productname', 'unitprice'];
+    // Required headers: product_name, unit_price (wholesalername required only for auto-create mode)
+    const requiredHeaders = ['productname', 'unitprice'];
     const missing = requiredHeaders.filter((h) => !(h in headerMap));
     if (missing.length > 0) {
       res.status(400).json({
-        error: `Missing required headers: ${missing.join(', ')}. Required: wholesaler_name, product_name, unit_price`,
+        error: `Missing required headers: ${missing.join(', ')}. Required: product_name, unit_price`,
       });
       return;
     }
 
+    const supplierId = req.body.supplierId as string | undefined;
     const results: Array<{ success: boolean; row: number; message: string }> = [];
     const suppressErrors = (req.query.suppressErrors as string) === 'true';
 
-    // Group by wholesaler to create/update
+    // Group by wholesaler (for auto-create mode) OR use single supplier (pre-registration mode)
     const wholesalerMap = new Map<string, Array<{ productName: string; unitPrice: number; genericName?: string; strength?: string; dosageForm?: string; quantity?: number }>>();
 
     for (let i = 1; i < lines.length; i++) {
       const values = parseCSVLine(lines[i]);
       if (values.every((v) => !v)) continue; // Skip empty rows
 
-      const wholesalerName = values[headerMap['wholesalername']]?.trim() || '';
       const productName = values[headerMap['productname']]?.trim() || '';
       const unitPriceStr = values[headerMap['unitprice']]?.trim() || '0';
       const unitPrice = parseFloat(unitPriceStr);
 
-      if (!wholesalerName || !productName || !unitPriceStr || isNaN(unitPrice)) {
+      if (!productName || !unitPriceStr || isNaN(unitPrice)) {
         if (!suppressErrors) {
           results.push({
             success: false,
             row: i + 1,
-            message: `Missing required fields: wholesaler_name, product_name, unit_price`,
+            message: `Missing required fields: product_name, unit_price`,
+          });
+        }
+        continue;
+      }
+
+      const wholesalerName = supplierId ? 'PRE_REGISTERED' : (values[headerMap['wholesalername']]?.trim() || '');
+      if (!supplierId && !wholesalerName) {
+        if (!suppressErrors) {
+          results.push({
+            success: false,
+            row: i + 1,
+            message: `Missing wholesalername (required for auto-create mode)`,
           });
         }
         continue;
@@ -210,27 +289,57 @@ router.post('/upload-csv', authenticate, requireRole('SUPER_ADMIN'), upload.sing
       });
     }
 
+    // Get system pharmacy for auto-create mode
+    let systemPharmacy;
+    if (!supplierId) {
+      systemPharmacy = await prisma.pharmacy.findFirst({
+        where: { name: 'APOTEKH Office' },
+      });
+      if (!systemPharmacy) {
+        systemPharmacy = await prisma.pharmacy.findFirst();
+      }
+      if (!systemPharmacy) {
+        res.status(500).json({ error: 'No pharmacy found in system' });
+        return;
+      }
+    }
+
     // Process each wholesaler and create/update their products
     for (const [wholesalerName, products] of wholesalerMap.entries()) {
       try {
-        // Find or create wholesaler supplier
-        let supplier = await prisma.supplier.findFirst({
-          where: {
-            name: wholesalerName,
-            isApotekNetworkWholesaler: true,
-          },
-        });
+        let supplier;
 
-        if (!supplier) {
-          // Create a new supplier marked as APOTEKH network wholesaler
-          supplier = await prisma.supplier.create({
-            data: {
-              pharmacyId: 'system', // System-managed supplier
+        // Pre-registration mode: use provided supplierId
+        if (supplierId) {
+          supplier = await prisma.supplier.findUnique({ where: { id: supplierId } });
+          if (!supplier) {
+            results.push({
+              success: false,
+              row: 0,
+              message: `Supplier with ID ${supplierId} not found`,
+            });
+            continue;
+          }
+        } else {
+          // Auto-create mode: find or create supplier by name
+          supplier = await prisma.supplier.findFirst({
+            where: {
               name: wholesalerName,
               isApotekNetworkWholesaler: true,
-              isActive: true,
             },
           });
+
+          if (!supplier) {
+            // Create a new supplier marked as APOTEKH network wholesaler
+            supplier = await prisma.supplier.create({
+              data: {
+                pharmacyId: systemPharmacy!.id,
+                name: wholesalerName,
+                isApotekNetworkWholesaler: true,
+                isActive: true,
+              },
+            });
+          }
         }
 
         // Create catalogue items for this supplier (global catalogue, not tied to specific retail pharmacies)
