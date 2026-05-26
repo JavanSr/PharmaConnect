@@ -67,3 +67,22 @@ backend/task*.json
 backend/task*.md
 frontend/task*.json
 .gstack/
+
+# Founder working materials — investor docs, pitch decks, strategy docs, pre-deploy scratch dir
+PRE DEPLOYMENT/
+
+# Founder working materials — investor docs, pitch decks, strategy docs
+# Not part of the developer codebase; kept locally only
+PharmaConnect Main/
+
+# Root-level Next.js artifacts (caused by accidentally running next from repo root)
+# The real website source is in website/
+next-env.d.ts
+
+# Temp / dev log files
+tmp/
+
+# Word doc lock files
+~$*.docx
+~$*.xlsx
+~$*.pptx
