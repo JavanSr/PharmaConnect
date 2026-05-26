@@ -1591,7 +1591,7 @@ model OverrideLog {
   id                 String   @id @default(uuid())
   pharmacyId         String   @map("pharmacy_id")
   userId             String   @map("user_id")
-  picUserId          String   @map("pic_user_id")
+  picUserId          String?  @map("pic_user_id")
   alertType          String   @map("alert_type")
   reason             String
   interactionId      String?  @map("interaction_id")
@@ -1601,7 +1601,7 @@ model OverrideLog {
 
   pharmacy         Pharmacy              @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
   user             User                  @relation("OverrideLogUser", fields: [userId], references: [id], onDelete: Restrict)
-  picUser          User                  @relation("OverrideLogPicUser", fields: [picUserId], references: [id], onDelete: Restrict)
+  picUser          User?                 @relation("OverrideLogPicUser", fields: [picUserId], references: [id], onDelete: Restrict)
   interaction      DrugInteraction?      @relation(fields: [interactionId], references: [id], onDelete: SetNull)
   contraindication DrugContraindication? @relation(fields: [contraindicationId], references: [id], onDelete: SetNull)
 

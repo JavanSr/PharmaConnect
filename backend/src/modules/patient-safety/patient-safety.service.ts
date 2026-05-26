@@ -1154,7 +1154,7 @@ export async function matchDiagnosis(input: { diagnosis: string; limit?: number 
 export async function createOverrideLog(input: {
   pharmacyId: string;
   userId: string;
-  picUserId: string;
+  picUserId?: string | undefined;  // optional — no PIC approval required per product design
   alertType: string;
   reason: string;
   interactionId?: string;

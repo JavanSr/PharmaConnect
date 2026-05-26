@@ -11,7 +11,7 @@ type OverrideLogEntry = {
   reason: string;
   createdAt: string;
   user: { firstName: string; lastName: string; role: string };
-  picUser: { firstName: string; lastName: string };
+  picUser: { firstName: string; lastName: string } | null;
 };
 
 function alertTypeVariant(t: string): 'danger' | 'warning' | 'info' {
@@ -69,8 +69,7 @@ export const PatientSafetyAlertsPage: React.FC = () => {
                     <p className="text-sm text-[#0D4035] leading-snug">{entry.reason}</p>
                     <p className="text-xs text-[#64748B] mt-1.5">
                       Dispenser: {entry.user.firstName} {entry.user.lastName} ({entry.user.role.replace(/_/g, ' ')})
-                      {' · '}
-                      PIC: {entry.picUser.firstName} {entry.picUser.lastName}
+                      {entry.picUser && ` · PIC: ${entry.picUser.firstName} ${entry.picUser.lastName}`}
                     </p>
                   </div>
                 </div>

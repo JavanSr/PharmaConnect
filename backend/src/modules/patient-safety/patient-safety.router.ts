@@ -4,7 +4,8 @@ import type { Prisma } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 import { authenticate, hasRoleAccess, type AuthRequest } from '../../middleware/auth';
 import { enforceTrialRestrictions } from '../../middleware/trial';
-import { picPinLimiter, requirePicPin } from '../../middleware/pic-pin';
+// picPinLimiter / requirePicPin removed — CLAUDE.md: dispenser overrides at own risk,
+// no Superintendent PIN required, no escalation. Override is logged against the dispenser.
 import {
   calculateDose,
   createOverrideLog,
@@ -217,7 +218,8 @@ patientSafetyRouter.get('/override-log', async (req: AuthRequest, res, next) => 
   }
 });
 
-patientSafetyRouter.post('/override', picPinLimiter, requirePicPin, async (req: AuthRequest, res, next) => {
+// No PIC PIN gate — dispenser proceeds at own risk and is accountable via this log.
+patientSafetyRouter.post('/override', async (req: AuthRequest, res, next) => {
   try {
     const payload = z.object({
       alertType: z.string().min(1),
@@ -230,7 +232,7 @@ patientSafetyRouter.post('/override', picPinLimiter, requirePicPin, async (req: 
     const data = await createOverrideLog({
       pharmacyId: pid(req),
       userId: req.user!.userId,
-      picUserId: req.picVerifiedUser!.userId,
+      picUserId: undefined,   // no PIC approval required per product design
       alertType: payload.alertType,
       reason: payload.reason,
       interactionId: payload.interactionId,
