@@ -33,12 +33,17 @@ export const RoleGuard: React.FC<{ children: React.ReactNode; roles?: UserRole[]
   }
 
   return (
-    <div className="max-w-3xl rounded-2xl border border-[#FDE68A] bg-[#FFFBEB] p-6">
-      <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#B45309]">403</p>
-      <h1 className="mt-2 text-2xl font-semibold text-[#0D4035]">Access is restricted</h1>
-      <p className="mt-2 text-sm text-[#4B5563]">
-        Your current role does not have access to this workspace.
-      </p>
+    <div className="flex flex-1 items-center justify-center p-8">
+      <div className="max-w-md w-full rounded-2xl border border-outline-variant/40 bg-surface-container-low p-8 text-center shadow-sm">
+        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-error-container">
+          <span className="text-xl font-bold text-on-error-container">403</span>
+        </div>
+        <h1 className="text-title-lg text-on-surface">Access restricted</h1>
+        <p className="mt-2 text-body-md text-on-surface-variant">
+          Your current role does not have permission to view this page.
+          Contact your pharmacy owner if you need access.
+        </p>
+      </div>
     </div>
   );
 };

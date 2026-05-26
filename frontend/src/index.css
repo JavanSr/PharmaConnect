@@ -12,7 +12,7 @@
 
 @layer base {
   body {
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: 'DM Sans', system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
     background-color: #f7faf9;
     color: #181c1c;

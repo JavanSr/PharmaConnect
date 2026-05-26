@@ -230,14 +230,15 @@ export const App: React.FC = () => (
         <Route path="/auth/verify-email" element={<Suspense fallback={<PageLoader />}><VerifyEmailPage /></Suspense>} />
         <Route path="/auth/trial-confirmed" element={<AuthGuard><Suspense fallback={<PageLoader />}><TrialConfirmPage /></Suspense></AuthGuard>} />
         <Route path="/select-pharmacy" element={<AuthGuard><Suspense fallback={<PageLoader />}><PharmacySelectorPage /></Suspense></AuthGuard>} />
-        <Route path="/nhif-claims" element={<Suspense fallback={<PageLoader />}><NhifClaimsPage /></Suspense>} />
-        <Route path="/prescriptions" element={<Suspense fallback={<PageLoader />}><PrescriptionManagementPage /></Suspense>} />
-        <Route path="/symptom-checker" element={<Suspense fallback={<PageLoader />}><SymptomCheckerPage /></Suspense>} />
-        <Route path="/patient-records" element={<Suspense fallback={<PageLoader />}><PatientRecordsPage /></Suspense>} />
-        <Route path="/accredited-cpd" element={<Suspense fallback={<PageLoader />}><AccreditedCpdPage /></Suspense>} />
-        <Route path="/controlled-substances" element={<Suspense fallback={<PageLoader />}><ControlledSubstancesPage /></Suspense>} />
+        {/* Deferred "coming soon" pages — require login; placeholder content only */}
+        <Route path="/nhif-claims" element={<AuthGuard><Suspense fallback={<PageLoader />}><NhifClaimsPage /></Suspense></AuthGuard>} />
+        <Route path="/prescriptions" element={<AuthGuard><Suspense fallback={<PageLoader />}><PrescriptionManagementPage /></Suspense></AuthGuard>} />
+        <Route path="/symptom-checker" element={<AuthGuard><Suspense fallback={<PageLoader />}><SymptomCheckerPage /></Suspense></AuthGuard>} />
+        <Route path="/patient-records" element={<AuthGuard><Suspense fallback={<PageLoader />}><PatientRecordsPage /></Suspense></AuthGuard>} />
+        <Route path="/accredited-cpd" element={<AuthGuard><Suspense fallback={<PageLoader />}><AccreditedCpdPage /></Suspense></AuthGuard>} />
+        <Route path="/controlled-substances" element={<AuthGuard><Suspense fallback={<PageLoader />}><ControlledSubstancesPage /></Suspense></AuthGuard>} />
         <Route path="/controlled-substances-reporting" element={<Navigate to="/controlled-substances" replace />} />
-        <Route path="/pharmacovigilance" element={<Suspense fallback={<PageLoader />}><PharmacovigilancePage /></Suspense>} />
+        <Route path="/pharmacovigilance" element={<AuthGuard><Suspense fallback={<PageLoader />}><PharmacovigilancePage /></Suspense></AuthGuard>} />
         <Route path="/unsubscribe/:token" element={<Suspense fallback={<PageLoader />}><UnsubscribePage /></Suspense>} />
         <Route path="/verify/:certificateId" element={<Suspense fallback={<PageLoader />}><CertificateVerifyPage /></Suspense>} />
 
@@ -245,27 +246,29 @@ export const App: React.FC = () => (
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Suspense fallback={<PageLoader />}><DashboardPage /></Suspense>} />
           <Route path="/analytics" element={page(<AnalyticsPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'CASHIER', 'WHOLESALE_MANAGER'])} />
-          <Route path="/forecasting" element={<Suspense fallback={<PageLoader />}><ForecastingPage /></Suspense>} />
+          <Route path="/forecasting" element={page(<ForecastingPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'WHOLESALE_MANAGER'])} />
           <Route path="/knowledge" element={<Suspense fallback={<PageLoader />}><KnowledgeFeedPage /></Suspense>} />
           <Route path="/tmda-updates" element={<Suspense fallback={<PageLoader />}><TmdaUpdatesPage /></Suspense>} />
           <Route path="/knowledge/:slug" element={<Suspense fallback={<PageLoader />}><ArticlePage /></Suspense>} />
-          <Route path="/inventory" element={page(<InventoryDashboardPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'CASHIER', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF'])} />
-          <Route path="/inventory/products" element={page(<ProductsListPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'CASHIER', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF'])} />
+          {/* DATA_ENTRY_CLERK: stock intake + supplier management (all tiers) */}
+          <Route path="/inventory" element={page(<InventoryDashboardPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'CASHIER', 'DATA_ENTRY_CLERK', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF'])} />
+          <Route path="/inventory/products" element={page(<ProductsListPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'CASHIER', 'DATA_ENTRY_CLERK', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF'])} />
           <Route path="/inventory/products/new" element={page(<ProductFormPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'WHOLESALE_MANAGER'])} />
-          <Route path="/inventory/products/:id" element={page(<ProductFormPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'WHOLESALE_MANAGER'])} />
-          <Route path="/inventory/drug-master" element={<Suspense fallback={<PageLoader />}><DrugCataloguePage /></Suspense>} />
-          <Route path="/inventory/receive" element={page(<StockIntakePage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF'])} />
-          <Route path="/inventory/stock-orders" element={<Suspense fallback={<PageLoader />}><StockOrderListPage /></Suspense>} />
-          <Route path="/inventory/stock-orders/new" element={<Suspense fallback={<PageLoader />}><StockOrderPreparePage /></Suspense>} />
-          <Route path="/inventory/stock-orders/:id/edit" element={<Suspense fallback={<PageLoader />}><StockOrderPreparePage /></Suspense>} />
-          <Route path="/inventory/stock-orders/:id" element={<Suspense fallback={<PageLoader />}><StockOrderViewPage /></Suspense>} />
-          <Route path="/inventory/wholesalers" element={<Suspense fallback={<PageLoader />}><WholesalerDiscoveryPage /></Suspense>} />
-          <Route path="/inventory/wholesaler/:wholesalerId" element={<Suspense fallback={<PageLoader />}><WholesalerCataloguePage /></Suspense>} />
-          <Route path="/inventory/price-comparison" element={<Suspense fallback={<PageLoader />}><MedicinePriceComparisonPage /></Suspense>} />
+          <Route path="/inventory/products/:id" element={page(<ProductFormPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'DATA_ENTRY_CLERK', 'WHOLESALE_MANAGER'])} />
+          <Route path="/inventory/drug-master" element={page(<DrugCataloguePage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'DATA_ENTRY_CLERK', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF'])} />
+          <Route path="/inventory/receive" element={page(<StockIntakePage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'DATA_ENTRY_CLERK', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF'])} />
+          <Route path="/inventory/stock-orders" element={page(<StockOrderListPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'DATA_ENTRY_CLERK', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF'])} />
+          <Route path="/inventory/stock-orders/new" element={page(<StockOrderPreparePage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'DATA_ENTRY_CLERK', 'WHOLESALE_MANAGER'])} />
+          <Route path="/inventory/stock-orders/:id/edit" element={page(<StockOrderPreparePage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'DATA_ENTRY_CLERK', 'WHOLESALE_MANAGER'])} />
+          <Route path="/inventory/stock-orders/:id" element={page(<StockOrderViewPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'DATA_ENTRY_CLERK', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF'])} />
+          {/* Supplier discovery: DATA_ENTRY_CLERK has supplier management access */}
+          <Route path="/inventory/wholesalers" element={page(<WholesalerDiscoveryPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'DATA_ENTRY_CLERK', 'WHOLESALE_MANAGER'])} />
+          <Route path="/inventory/wholesaler/:wholesalerId" element={page(<WholesalerCataloguePage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'DATA_ENTRY_CLERK', 'WHOLESALE_MANAGER'])} />
+          <Route path="/inventory/price-comparison" element={page(<MedicinePriceComparisonPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'DATA_ENTRY_CLERK', 'WHOLESALE_MANAGER'])} />
           <Route path="/inventory/upload-wholesalers" element={page(<WholesalerCSVUploadPage />, ['SUPER_ADMIN'])} />
           <Route path="/inventory/adjust" element={page(<StockAdjustPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF'])} />
-          <Route path="/inventory/batches" element={<Suspense fallback={<PageLoader />}><BatchManagerPage /></Suspense>} />
-          <Route path="/inventory/expiry" element={<Suspense fallback={<PageLoader />}><ExpiryDashboardPage /></Suspense>} />
+          <Route path="/inventory/batches" element={page(<BatchManagerPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'DATA_ENTRY_CLERK', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF'])} />
+          <Route path="/inventory/expiry" element={page(<ExpiryDashboardPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'DATA_ENTRY_CLERK', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF'])} />
           <Route path="/inventory/conflicts" element={page(<InventoryConflictsPage />, ['OWNER', 'PHARMACIST_IN_CHARGE'])} />
           <Route path="/inventory/import-catalogue" element={page(<CatalogueImportPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER'])} />
           <Route path="/compliance" element={page(<ComplianceDashboardPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF'])} />

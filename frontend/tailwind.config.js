@@ -67,7 +67,7 @@ export default {
         },
       },
       fontFamily: {
-        sans:    ['Inter', 'system-ui', 'sans-serif'],
+        sans:    ['DM Sans', 'system-ui', 'sans-serif'],
         display: ['DM Serif Display', 'Georgia', 'serif'],
         mono:    ['JetBrains Mono', 'Menlo', 'monospace'],
       },
