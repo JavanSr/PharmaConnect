@@ -33,7 +33,7 @@ export interface AuthTokens {
 export type PharmacyType = 'RETAIL' | 'ADDO' | 'WHOLESALE';
 export type SubscriptionTier = 'FREE' | 'ADDO' | 'ESSENTIAL' | 'ADDO_PLUS' | 'STANDARD' | 'PREMIUM' | 'WHOLESALE' | 'ENTERPRISE';
 export type BillingCycle = 'MONTHLY' | 'ANNUAL';
-export type PharmacyAccountStatus = 'TRIAL' | 'ACTIVE' | 'SUSPENDED' | 'CANCELLED';
+export type PharmacyAccountStatus = 'TRIAL' | 'ACTIVE' | 'GRACE' | 'SUSPENDED' | 'CANCELLED';
 
 export interface Pharmacy {
   id: string;
@@ -53,6 +53,7 @@ export interface Pharmacy {
   vfdEnabled?: boolean;
   userLimit?: number;
   isActive: boolean;
+  graceActivatedAt?: string | null;
   createdAt: string;
 }
 

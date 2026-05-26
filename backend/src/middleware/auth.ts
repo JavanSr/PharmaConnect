@@ -29,6 +29,8 @@ export interface AuthRequest extends Request {
     assignedPickerUserId?: string;
   };
   picVerifiedUser?: VerifiedPicUser;
+  /** Set by enforceTrialRestrictions when the pharmacy is in grace mode (subscription lapsed). */
+  graceMode?: boolean;
 }
 
 const authContextCacheTtlMs = Number(
@@ -129,6 +131,7 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
                 isHybrid: true,
                 hybridAddonActive: true,
                 isActive: true,
+                graceActivatedAt: true,
               },
             },
           },

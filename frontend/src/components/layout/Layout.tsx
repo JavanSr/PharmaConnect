@@ -2,12 +2,13 @@ import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { differenceInCalendarDays } from 'date-fns';
 import { Outlet, useLocation } from 'react-router-dom';
-import { api, TRIAL_EXPIRED_EVENT } from '@/lib/api';
+import { api, TRIAL_EXPIRED_EVENT, GRACE_ACCESS_EVENT } from '@/lib/api';
 import { useAuthStore } from '@/stores/authStore';
 import { usePharmacyStore } from '@/stores/pharmacyStore';
 import { loadMemberships } from '@/lib/pharmacySelection';
 import { TrialBanner } from '@/components/TrialBanner';
 import { TrialPaywall } from '@/components/TrialPaywall';
+import { GraceAccessBanner } from '@/components/GraceAccessBanner';
 import { SystemStatusWindow } from '@/components/SystemStatusWindow';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
@@ -59,6 +60,7 @@ export const Layout: React.FC = () => {
   const setPharmacy = usePharmacyStore((state) => state.setPharmacy);
   const setMemberships = usePharmacyStore((state) => state.setMemberships);
   const [forceTrialExpired, setForceTrialExpired] = React.useState(false);
+  const [forceGraceAccess, setForceGraceAccess] = React.useState(false);
 
   const title = routeTitles[location.pathname] || '';
   const user = useAuthStore((state) => state.user);
@@ -109,12 +111,26 @@ export const Layout: React.FC = () => {
     return () => window.removeEventListener(TRIAL_EXPIRED_EVENT, handleTrialExpired);
   }, []);
 
+  React.useEffect(() => {
+    const handleGraceAccess = () => setForceGraceAccess(true);
+    window.addEventListener(GRACE_ACCESS_EVENT, handleGraceAccess);
+    return () => window.removeEventListener(GRACE_ACCESS_EVENT, handleGraceAccess);
+  }, []);
+
   const daysRemaining =
     effectiveSubscription?.trialEndsAt
       ? Math.max(0, differenceInCalendarDays(new Date(effectiveSubscription.trialEndsAt), new Date()))
       : null;
   const trialEndedByDate = effectiveSubscription?.trialEndsAt ? new Date(effectiveSubscription.trialEndsAt) < new Date() : false;
   const isTrialExpired = forceTrialExpired || (effectiveSubscription?.status === 'TRIAL' && (effectiveSubscription?.trialActive === false || trialEndedByDate));
+
+  // Grace access: subscription lapsed on a paid account, or status explicitly GRACE.
+  // Never a hard block — owner keeps access, banner shown instead.
+  const isSubscriptionLapsed =
+    effectiveSubscription?.status === 'ACTIVE' &&
+    effectiveSubscription?.trialEndsAt != null &&
+    new Date(effectiveSubscription.trialEndsAt) < new Date();
+  const isInGrace = forceGraceAccess || effectiveSubscription?.status === 'GRACE' || isSubscriptionLapsed;
 
   if (!isFounderAccount && subscriptionQuery.isLoading && !effectiveSubscription) {
     return (
@@ -147,14 +163,18 @@ export const Layout: React.FC = () => {
     );
   }
 
+  // Grace mode: never block, but show a persistent banner.
+  // The full app renders normally — only the banner differs.
+
   return (
-    <div className="flex h-screen bg-[#EDF7F3] overflow-hidden print:block print:h-auto print:overflow-visible print:bg-white">
+    <div className="flex h-screen bg-background text-on-surface overflow-hidden print:block print:h-auto print:overflow-visible print:bg-white">
       <div className="relative print:hidden">
         <Sidebar
           isOpen={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
           collapsed={sidebarCollapsed}
           onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+          inGrace={isInGrace}
         />
       </div>
 
@@ -163,7 +183,10 @@ export const Layout: React.FC = () => {
         {!isFounderAccount && daysRemaining != null && daysRemaining >= 0 && effectiveSubscription?.status === 'TRIAL' && effectiveSubscription?.trialActive && daysRemaining < 7 && (
           <TrialBanner daysRemaining={daysRemaining} />
         )}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 print:block print:overflow-visible print:p-0">
+        {!isFounderAccount && isInGrace && (
+          <GraceAccessBanner graceActivatedAt={effectiveSubscription?.graceActivatedAt} />
+        )}
+        <main className="flex-1 overflow-y-auto px-margin-mobile py-stack-lg sm:px-margin-tablet print:block print:overflow-visible print:p-0">
           <Outlet />
         </main>
       </div>

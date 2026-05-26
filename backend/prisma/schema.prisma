@@ -53,6 +53,7 @@ enum BillingCycle {
 enum PharmacyAccountStatus {
   TRIAL
   ACTIVE
+  GRACE
   SUSPENDED
   CANCELLED
 }
@@ -263,6 +264,7 @@ model Pharmacy {
   timezone              String                @default("Africa/Nairobi")
   userLimit             Int                   @default(4) @map("user_limit")
   subscriptionUpdatedAt DateTime              @default(now()) @map("subscription_updated_at")
+  graceActivatedAt      DateTime?             @map("grace_activated_at")
   createdAt             DateTime              @default(now())
   updatedAt             DateTime              @updatedAt
 

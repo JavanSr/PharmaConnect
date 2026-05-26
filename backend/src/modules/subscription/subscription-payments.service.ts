@@ -130,6 +130,8 @@ export async function activateSubscriptionFromPayment(
       isActive: true,
       trialEndsAt: paidUntil,
       subscriptionUpdatedAt: new Date(),
+      // Clear grace state when a payment is confirmed — pharmacy is fully active again.
+      graceActivatedAt: null,
     },
   });
 
