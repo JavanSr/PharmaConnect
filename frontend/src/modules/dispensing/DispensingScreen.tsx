@@ -17,7 +17,7 @@ import {
   UserRound,
   X,
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -166,6 +166,7 @@ const AwarDot: React.FC<{ awarClass?: Product['awarClass'] }> = ({ awarClass }) 
 
 export const DispensingScreen: React.FC = () => {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const toast = useNotificationStore((state) => state.toast);
   const pharmacy = usePharmacyStore((state) => state.pharmacy);
   const user = useAuthStore((state) => state.user);
@@ -182,6 +183,7 @@ export const DispensingScreen: React.FC = () => {
   const [drugSearch, setDrugSearch] = useState('');
   const [showDrugDropdown, setShowDrugDropdown] = useState(false);
   const [showMedicineScanner, setShowMedicineScanner] = useState(false);
+  const [scanUnknownBarcode, setScanUnknownBarcode] = useState<string | null>(null);
   const [selectedDrug, setSelectedDrug] = useState<Product | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [cartItems, setCartItems] = useState<DispensingCartItem[]>([]);
@@ -564,17 +566,20 @@ export const DispensingScreen: React.FC = () => {
     },
   });
 
-  const addToCart = async () => {
-    if (!selectedDrug) {
+  const addToCart = async (drugOverride?: Product, qtyOverride?: number) => {
+    const drug = drugOverride ?? selectedDrug;
+    const qty  = qtyOverride  ?? quantity;
+
+    if (!drug) {
       toast.error('Select a medicine first');
       return;
     }
-    if (!Number.isInteger(quantity) || quantity <= 0) {
+    if (!Number.isInteger(qty) || qty <= 0) {
       toast.error('Quantity must be a positive number');
       return;
     }
 
-    let latestSelectedDrug = selectedDrug;
+    let latestSelectedDrug = drug;
     try {
       const response = await api.get(`/inventory/products/${selectedDrug.id}`);
       if (response.data?.data && !Array.isArray(response.data.data)) {
@@ -582,9 +587,9 @@ export const DispensingScreen: React.FC = () => {
         setSelectedDrug(latestSelectedDrug);
       }
     } catch {
-      const fromCache = !navigator.onLine ? await getCachedProductById(selectedDrug.id) : null;
+      const fromCache = !navigator.onLine ? await getCachedProductById(drug.id) : null;
       latestSelectedDrug = await applyInventoryDeltaToProduct(fromCache ?? latestSelectedDrug);
-      if (fromCache) setSelectedDrug(latestSelectedDrug);
+      if (fromCache && !drugOverride) setSelectedDrug(latestSelectedDrug);
     }
 
     if (!latestSelectedDrug.sellingPrice) {
@@ -597,13 +602,13 @@ export const DispensingScreen: React.FC = () => {
       .filter((item) => item.product.id === latestSelectedDrug.id)
       .reduce((sum, item) => sum + item.quantity, 0);
 
-    if (quantity + existingQuantity > currentStock) {
+    if (qty + existingQuantity > currentStock) {
       toast.error(`Only ${currentStock} units available`);
       return;
     }
 
     const unitPrice = Number(latestSelectedDrug.sellingPrice ?? 0);
-    const lineTotal = Number((unitPrice * quantity).toFixed(2));
+    const lineTotal = Number((unitPrice * qty).toFixed(2));
     const lineId = latestSelectedDrug.id;
 
     setCartItems((items) => {
@@ -614,14 +619,14 @@ export const DispensingScreen: React.FC = () => {
           {
             id: lineId,
             product: latestSelectedDrug,
-            quantity,
+            quantity: qty,
             unitPrice,
             lineTotal,
           },
         ];
       }
 
-      const quantityTotal = existing.quantity + quantity;
+      const quantityTotal = existing.quantity + qty;
       return items.map((item) =>
         item.id === lineId
           ? {
@@ -715,11 +720,14 @@ export const DispensingScreen: React.FC = () => {
   };
 
   const handleMedicineBarcodeDetected = async (barcode: string) => {
+    setShowMedicineScanner(false);
+
+    // Try pharmacy inventory first (barcode exact match)
     let product: Product | undefined;
     try {
       const response = await api
         .get('/inventory/products/suggestions', { params: { barcode, limit: 1 } })
-        .then((response) => response.data);
+        .then((r) => r.data);
       product = Array.isArray(response.data) ? response.data[0] as Product | undefined : undefined;
     } catch {
       if (!navigator.onLine) {
@@ -732,16 +740,15 @@ export const DispensingScreen: React.FC = () => {
       setSelectedDrug(await applyInventoryDeltaToProduct(product));
       setDrugSearch('');
       setShowDrugDropdown(false);
-      setShowMedicineScanner(false);
-      toast.success(`Matched ${product.genericName || product.name}`);
+      setScanUnknownBarcode(null);
       return;
     }
 
+    // Not found in inventory — show "record it?" prompt
+    setScanUnknownBarcode(barcode);
     setSelectedDrug(null);
-    setDrugSearch(barcode);
-    setShowDrugDropdown(true);
-    setShowMedicineScanner(false);
-    toast.warning('No exact barcode match. Search results are shown for manual selection.');
+    setDrugSearch('');
+    setShowDrugDropdown(false);
   };
 
   return (
@@ -1105,10 +1112,33 @@ export const DispensingScreen: React.FC = () => {
                 }
               />
               {showMedicineScanner && (
-                <div className="mt-3 rounded-2xl border border-dashed border-[#D6F0E8] bg-[#F8FCFA] p-4">
-                  <Suspense fallback={<div className="text-sm text-[#64748B]">Loading scanner...</div>}>
-                    <BarcodeScanner label="Scan medicine barcode" placeholder="Scan or type barcode" onDetected={handleMedicineBarcodeDetected} />
+                <div className="mt-3">
+                  <Suspense fallback={<div className="rounded-2xl bg-black/80 h-64 flex items-center justify-center text-sm text-white">Starting camera…</div>}>
+                    <BarcodeScanner onDetected={handleMedicineBarcodeDetected} onClose={() => setShowMedicineScanner(false)} />
                   </Suspense>
+                </div>
+              )}
+              {scanUnknownBarcode && (
+                <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                  <div>
+                    <p className="text-sm font-medium text-amber-900">Barcode not in your inventory</p>
+                    <p className="text-xs text-amber-700 font-mono mt-0.5">{scanUnknownBarcode}</p>
+                  </div>
+                  <div className="flex shrink-0 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setScanUnknownBarcode(null)}
+                      className="text-xs text-amber-700 underline underline-offset-2"
+                    >
+                      Dismiss
+                    </button>
+                    <Button
+                      size="sm"
+                      onClick={() => navigate(`/inventory/products/new?barcode=${encodeURIComponent(scanUnknownBarcode)}`)}
+                    >
+                      Record it
+                    </Button>
+                  </div>
                 </div>
               )}
               {showDrugDropdown && !selectedDrug && immediateDrugSearch.length > 0 && (
@@ -1124,6 +1154,7 @@ export const DispensingScreen: React.FC = () => {
                           setSelectedDrug(product);
                           setDrugSearch('');
                           setShowDrugDropdown(false);
+                          void addToCart(product, 1);
                         }}
                         className="block w-full border-b border-[#D6F0E8] px-4 py-3 text-left last:border-b-0 hover:bg-[#EDF7F3]"
                       >

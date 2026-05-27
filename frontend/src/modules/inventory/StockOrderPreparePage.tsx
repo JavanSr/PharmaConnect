@@ -3,7 +3,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Check, ClipboardList, PackagePlus, Search, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
-import { useDebounce } from '@/hooks/useDebounce';
 import { useNotificationStore } from '@/stores/notificationStore';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -12,6 +11,27 @@ import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import type { Product, Supplier } from '@/types';
 import { groupItemsBySupplier, type LowStockSuggestion, type StockOrder, type StockOrderItem } from './stockOrderTypes';
+
+/** Shape returned by GET /inventory/drug-master */
+type DrugMasterEntry = {
+  id: string;
+  productName: string;
+  genericName: string;
+  brandName: string | null;
+  manufacturer: string | null;
+  dosageForm: string | null;
+  strength: string | null;
+  storageCondition: string;
+  isColdChain: boolean;
+  isEssentialMedicine: boolean;
+  therapeuticCategory: string | null;
+  tmdaRegistrationNumber: string;
+};
+
+/** Unified result from the merged search */
+type SearchResult =
+  | { source: 'inventory'; product: Product }
+  | { source: 'catalogue'; entry: DrugMasterEntry };
 
 type OrderItemPayload = {
   productId?: string;
@@ -43,6 +63,17 @@ function itemPayloadFromProduct(product: Product | LowStockSuggestion, quantity:
   };
 }
 
+function itemPayloadFromCatalogueEntry(entry: DrugMasterEntry): OrderItemPayload {
+  return {
+    // No productId — this is a drug master entry, not a pharmacy product
+    productName: entry.brandName ?? entry.genericName,
+    genericName: entry.genericName,
+    strength: entry.strength ?? undefined,
+    dosageForm: entry.dosageForm ?? undefined,
+    quantityOrdered: 1,
+  };
+}
+
 export const StockOrderPreparePage: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -58,7 +89,7 @@ export const StockOrderPreparePage: React.FC = () => {
   const [notes, setNotes] = useState('');
   const [savedState, setSavedState] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [dirtyItemIds, setDirtyItemIds] = useState<Set<string>>(new Set());
-  const debouncedSearch = useDebounce(search, 300);
+  const immediateSearch = search.trim();
   const saveTimerRef = useRef<number | null>(null);
 
   const { data: orderData } = useQuery({
@@ -73,12 +104,40 @@ export const StockOrderPreparePage: React.FC = () => {
     enabled: suggestionsOpen,
   });
 
-  const { data: productData } = useQuery({
-    queryKey: ['order-product-search', debouncedSearch],
-    queryFn: () =>
-      api.get('/inventory/products', { params: { search: debouncedSearch, limit: 12 } }).then((r) => r.data),
-    enabled: debouncedSearch.length > 1,
+  // Pharmacy inventory — same fast pattern as dispensing screen
+  const { data: productData, isFetching: inventoryFetching, isError: inventoryError } = useQuery({
+    queryKey: ['order-product-search', immediateSearch],
+    queryFn: async ({ signal }) =>
+      api
+        .get('/inventory/products/suggestions', {
+          params: { search: immediateSearch, limit: 12 },
+          signal,
+          timeout: 2500,
+        })
+        .then((r) => r.data),
+    enabled: immediateSearch.length > 1,
+    staleTime: 30_000,
+    networkMode: 'always',
   });
+
+  // Drug Master Catalogue — parallel, same fast pattern
+  const { data: catalogueData, isFetching: catalogueFetching, isError: catalogueError } = useQuery({
+    queryKey: ['drug-master-search', immediateSearch],
+    queryFn: async ({ signal }) =>
+      api
+        .get('/inventory/drug-master', {
+          params: { q: immediateSearch, limit: 20 },
+          signal,
+          timeout: 2500,
+        })
+        .then((r) => r.data),
+    enabled: immediateSearch.length > 1,
+    staleTime: 30_000,
+    networkMode: 'always',
+  });
+
+  const productsLoading = inventoryFetching || catalogueFetching;
+  const productsError = inventoryError && catalogueError;
 
   const { data: supplierData } = useQuery({
     queryKey: ['suppliers'],
@@ -86,7 +145,25 @@ export const StockOrderPreparePage: React.FC = () => {
   });
 
   const suggestions = suggestionsData ?? [];
-  const products: Product[] = productData?.data ?? [];
+  const inventoryProducts: Product[] = productData?.data ?? [];
+  const catalogueEntries: DrugMasterEntry[] = catalogueData?.data ?? [];
+
+  // Merge: inventory products first, then catalogue items whose generic name isn't
+  // already represented by an inventory product. Case-insensitive dedup by genericName.
+  const inventoryGenericNames = new Set(
+    inventoryProducts
+      .map((p) => p.genericName?.toLowerCase().trim())
+      .filter(Boolean) as string[],
+  );
+  const newCatalogueEntries = catalogueEntries.filter(
+    (entry) => !inventoryGenericNames.has(entry.genericName.toLowerCase().trim()),
+  );
+
+  const mergedResults: SearchResult[] = [
+    ...inventoryProducts.map((p): SearchResult => ({ source: 'inventory', product: p })),
+    ...newCatalogueEntries.map((e): SearchResult => ({ source: 'catalogue', entry: e })),
+  ];
+
   const suppliers = supplierData ?? [];
   const supplierOptions = [{ value: '', label: 'No supplier assigned' }, ...suppliers.map((s) => ({ value: s.id, label: s.name }))];
 
@@ -177,6 +254,10 @@ export const StockOrderPreparePage: React.FC = () => {
     void addPayload(itemPayloadFromProduct(product, 1, defaultSupplierId));
   };
 
+  const addCatalogueEntry = (entry: DrugMasterEntry) => {
+    void addPayload(itemPayloadFromCatalogueEntry(entry));
+  };
+
   const addSuggestion = (suggestion: LowStockSuggestion) => {
     void addPayload(itemPayloadFromProduct(suggestion, suggestion.suggestedOrderQuantity, suggestion.lastSupplierId ?? undefined));
   };
@@ -249,27 +330,84 @@ export const StockOrderPreparePage: React.FC = () => {
         <div className="space-y-5">
           <Card header={<span className="text-sm font-semibold text-[#0D4035]">Add products</span>}>
             <Input
-              label="Search inventory"
-              placeholder="Search by brand, generic, SKU, or barcode"
+              label="Search medicines"
+              placeholder="Search by generic name, brand, or strength"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               leftIcon={<Search size={16} />}
             />
-            {products.length > 0 && (
-              <div className="mt-3 overflow-hidden rounded-xl border border-[#D6F0E8]">
-                {products.map((product) => (
-                  <div key={product.id} className="flex items-center justify-between gap-3 border-b border-[#D6F0E8] px-4 py-3 last:border-0">
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-[#0D4035]">{productLabel(product)}</p>
-                      <p className="text-xs text-[#64748B]">
-                        {[product.brandName && `Brand: ${product.brandName}`, product.genericName && `Generic: ${product.genericName}`, `Stock: ${product.currentStock ?? 0}`].filter(Boolean).join(' | ')}
-                      </p>
-                    </div>
-                    <Button size="sm" variant="secondary" onClick={() => addProduct(product)} leftIcon={<PackagePlus size={14} />}>
-                      Add
-                    </Button>
+            {/* Search feedback */}
+            {immediateSearch.length > 1 && (
+              <div className="mt-3">
+                {productsLoading && (
+                  <p className="rounded-xl border border-[#D6F0E8] px-4 py-3 text-sm text-[#64748B]">
+                    Searching for "{immediateSearch}"…
+                  </p>
+                )}
+                {productsError && (
+                  <p className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">
+                    Could not reach the server. Check the backend is running.
+                  </p>
+                )}
+                {!productsLoading && !productsError && mergedResults.length === 0 && (
+                  <p className="rounded-xl border border-[#D6F0E8] px-4 py-3 text-sm text-[#64748B]">
+                    No medicines found for "{immediateSearch}" in your inventory or the drug catalogue. Try a shorter name.
+                  </p>
+                )}
+                {!productsLoading && mergedResults.length > 0 && (
+                  <div className="overflow-hidden rounded-xl border border-[#D6F0E8]">
+                    {mergedResults.map((result) => {
+                      if (result.source === 'inventory') {
+                        const product = result.product;
+                        return (
+                          <div key={`inv-${product.id}`} className="flex items-center justify-between gap-3 border-b border-[#D6F0E8] px-4 py-3 last:border-0 hover:bg-[#F8FCFA]">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="text-sm font-medium text-[#0D4035]">{productLabel(product)}</p>
+                                <span className="inline-flex items-center rounded-full bg-[#D6F0E8] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#1A6B5C]">In stock</span>
+                              </div>
+                              <p className="mt-0.5 text-xs text-[#64748B]">
+                                {[
+                                  product.genericName && `Generic: ${product.genericName}`,
+                                  product.brandName && `Brand: ${product.brandName}`,
+                                  `Stock: ${product.currentStock ?? 0}`,
+                                ].filter(Boolean).join(' · ')}
+                              </p>
+                            </div>
+                            <Button size="sm" variant="secondary" onClick={() => addProduct(product)} leftIcon={<PackagePlus size={14} />}>
+                              Add
+                            </Button>
+                          </div>
+                        );
+                      }
+
+                      // source === 'catalogue'
+                      const entry = result.entry;
+                      return (
+                        <div key={`cat-${entry.id}`} className="flex items-center justify-between gap-3 border-b border-[#D6F0E8] px-4 py-3 last:border-0 hover:bg-[#F8FCFA]">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="text-sm font-medium text-[#0D4035]">
+                                {[entry.brandName ?? entry.genericName, entry.strength, entry.dosageForm].filter(Boolean).join(' | ')}
+                              </p>
+                              <span className="inline-flex items-center rounded-full bg-[#F1F5F9] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#64748B]">Drug catalogue</span>
+                            </div>
+                            <p className="mt-0.5 text-xs text-[#64748B]">
+                              {[
+                                `Generic: ${entry.genericName}`,
+                                entry.manufacturer && `Mfr: ${entry.manufacturer}`,
+                                entry.therapeuticCategory,
+                              ].filter(Boolean).join(' · ')}
+                            </p>
+                          </div>
+                          <Button size="sm" variant="secondary" onClick={() => addCatalogueEntry(entry)} leftIcon={<PackagePlus size={14} />}>
+                            Add
+                          </Button>
+                        </div>
+                      );
+                    })}
                   </div>
-                ))}
+                )}
               </div>
             )}
           </Card>

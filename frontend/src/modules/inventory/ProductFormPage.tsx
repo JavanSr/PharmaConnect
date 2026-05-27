@@ -327,9 +327,8 @@ export const ProductFormPage: React.FC = () => {
         {showBarcodeScanner && (
           <div className="mt-3">
             <BarcodeScanner
-              label="Scan barcode for this product"
-              placeholder="Scan or type product barcode"
               onDetected={handleBarcodeDetected}
+              onClose={() => setShowBarcodeScanner(false)}
             />
           </div>
         )}

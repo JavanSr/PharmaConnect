@@ -580,7 +580,7 @@ export const StockIntakePage: React.FC = () => {
           {showScanner && (
             <div className="rounded-2xl border border-dashed border-[#D6F0E8] bg-[#F8FCFA] p-4">
               <Suspense fallback={<div className="text-sm text-[#64748B]">Loading scanner...</div>}>
-                <BarcodeScanner label="Scan barcode" placeholder="Scan or type barcode" onDetected={handleBarcodeDetected} />
+                <BarcodeScanner onDetected={handleBarcodeDetected} onClose={() => setShowScanner(false)} />
               </Suspense>
             </div>
           )}

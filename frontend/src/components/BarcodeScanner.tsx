@@ -1,31 +1,20 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { BrowserCodeReader, BrowserMultiFormatReader, type IScannerControls } from '@zxing/browser';
 import { NotFoundException } from '@zxing/library';
-import { Camera, CameraOff, ScanLine } from 'lucide-react';
-import { Input } from '@/components/ui/Input';
-import { Button } from '@/components/ui/Button';
+import { X } from 'lucide-react';
 
 type BarcodeScannerProps = {
-  label?: string;
-  placeholder?: string;
   onDetected: (value: string) => void | Promise<void>;
+  onClose: () => void;
 };
 
-export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
-  label = 'Barcode scanner',
-  placeholder = 'Scan or enter barcode',
-  onDetected,
-}) => {
+export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onDetected, onClose }) => {
   const readerRef = useRef<BrowserMultiFormatReader | null>(null);
   const controlsRef = useRef<IScannerControls | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const lastValueRef = useRef<string>('');
   const lastScanAtRef = useRef<number>(0);
-
-  const [manualValue, setManualValue] = useState('');
-  const [isScannerOpen, setIsScannerOpen] = useState(false);
-  const [isStarting, setIsStarting] = useState(false);
-  const [scannerError, setScannerError] = useState('');
+  const [error, setError] = useState('');
 
   const stopScanner = () => {
     controlsRef.current?.stop();
@@ -33,137 +22,106 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
     readerRef.current = null;
   };
 
-  useEffect(() => stopScanner, []);
-
-  const handleDetected = async (rawValue: string) => {
-    const value = rawValue.trim();
-    if (!value) return;
-
-    const now = Date.now();
-    const withinCooldown = now - lastScanAtRef.current < 1500;
-    if (withinCooldown && value === lastValueRef.current) {
-      return;
-    }
-
-    lastValueRef.current = value;
-    lastScanAtRef.current = now;
-    setManualValue('');
-    await onDetected(value);
+  const handleClose = () => {
+    stopScanner();
+    onClose();
   };
 
-  const startScanner = async () => {
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setScannerError('Camera scanning is not supported on this device. Use manual barcode entry instead.');
-      return;
-    }
+  useEffect(() => {
+    let cancelled = false;
 
-    setScannerError('');
-    setIsStarting(true);
-
-    try {
-      const devices = await BrowserCodeReader.listVideoInputDevices();
-      if (!devices.length) {
-        throw new Error('No camera found for barcode scanning.');
+    const start = async () => {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setError('Camera not supported on this device.');
+        return;
       }
 
-      const preferredDevice =
-        devices.find((device) => /back|rear|environment/i.test(device.label))?.deviceId ||
-        devices[0]?.deviceId;
+      try {
+        const devices = await BrowserCodeReader.listVideoInputDevices();
+        if (!devices.length) throw new Error('No camera found on this device.');
 
-      const reader = new BrowserMultiFormatReader();
-      readerRef.current = reader;
-      controlsRef.current = await reader.decodeFromVideoDevice(
-        preferredDevice,
-        videoRef.current ?? undefined,
-        async (result, error) => {
-          if (result) {
-            await handleDetected(result.getText());
-            return;
-          }
+        const preferredDevice =
+          devices.find((d) => /back|rear|environment/i.test(d.label))?.deviceId ??
+          devices[0]?.deviceId;
 
-          if (error && !(error instanceof NotFoundException)) {
-            setScannerError(error.message || 'Unable to decode barcode from camera feed.');
-          }
-        }
-      );
+        const reader = new BrowserMultiFormatReader();
+        if (cancelled) return;
+        readerRef.current = reader;
 
-      setIsScannerOpen(true);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to start the barcode scanner.';
-      setScannerError(message);
-      setIsScannerOpen(false);
-      stopScanner();
-    } finally {
-      setIsStarting(false);
-    }
-  };
-
-  const submitManual = async () => {
-    const value = manualValue.trim();
-    if (!value) return;
-    await handleDetected(value);
-  };
-
-  return (
-    <div className="space-y-3 rounded-2xl border border-[#D6F0E8] bg-[#F8FAFC] p-4">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-sm font-semibold text-[#0D4035]">{label}</p>
-          <p className="text-xs text-[#64748B]">
-            Continuous scan mode for camera devices, with manual entry as fallback.
-          </p>
-        </div>
-        <Button
-          type="button"
-          variant={isScannerOpen ? 'ghost' : 'secondary'}
-          leftIcon={isScannerOpen ? <CameraOff size={16} /> : <Camera size={16} />}
-          loading={isStarting}
-          onClick={() => {
-            if (isScannerOpen) {
-              stopScanner();
-              setIsScannerOpen(false);
+        controlsRef.current = await reader.decodeFromVideoDevice(
+          preferredDevice,
+          videoRef.current ?? undefined,
+          async (result, err) => {
+            if (cancelled) return;
+            if (result) {
+              const value = result.getText().trim();
+              if (!value) return;
+              const now = Date.now();
+              if (now - lastScanAtRef.current < 1500 && value === lastValueRef.current) return;
+              lastValueRef.current = value;
+              lastScanAtRef.current = now;
+              await onDetected(value);
               return;
             }
+            if (err && !(err instanceof NotFoundException)) {
+              setError(err.message || 'Could not read barcode from camera.');
+            }
+          },
+        );
+      } catch (e) {
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : 'Could not start camera.');
+        }
+      }
+    };
 
-            void startScanner();
-          }}
-        >
-          {isScannerOpen ? 'Stop camera' : 'Start camera'}
-        </Button>
+    void start();
+    return () => {
+      cancelled = true;
+      stopScanner();
+    };
+  }, []);
+
+  return (
+    <div className="relative overflow-hidden rounded-2xl bg-black">
+      {/* Camera feed — autoPlay is required or the video stays black */}
+      <video ref={videoRef} className="h-64 w-full object-cover" autoPlay muted playsInline />
+
+      {/* Scan guide line */}
+      <div className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 px-8">
+        <div className="h-0.5 w-full bg-[#1A6B5C]/70" />
       </div>
 
-      {isScannerOpen && (
-        <div className="overflow-hidden rounded-2xl border border-[#D6F0E8] bg-black">
-          <video ref={videoRef} className="h-64 w-full object-cover" muted playsInline />
+      {/* Corner brackets */}
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+        <div className="relative h-40 w-56">
+          <span className="absolute left-0 top-0 h-5 w-5 border-l-2 border-t-2 border-white/70 rounded-tl" />
+          <span className="absolute right-0 top-0 h-5 w-5 border-r-2 border-t-2 border-white/70 rounded-tr" />
+          <span className="absolute bottom-0 left-0 h-5 w-5 border-b-2 border-l-2 border-white/70 rounded-bl" />
+          <span className="absolute bottom-0 right-0 h-5 w-5 border-b-2 border-r-2 border-white/70 rounded-br" />
+        </div>
+      </div>
+
+      {/* Close button */}
+      <button
+        type="button"
+        onClick={handleClose}
+        className="absolute right-2 top-2 rounded-full bg-black/50 p-1.5 text-white hover:bg-black/70 transition-colors"
+        aria-label="Close scanner"
+      >
+        <X size={16} />
+      </button>
+
+      {/* Error overlay */}
+      {error && (
+        <div className="absolute inset-x-0 bottom-0 bg-red-900/80 px-3 py-2 text-center text-xs text-white">
+          {error}
         </div>
       )}
 
-      <Input
-        label="Manual barcode entry"
-        value={manualValue}
-        onChange={(event) => setManualValue(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') {
-            event.preventDefault();
-            void submitManual();
-          }
-        }}
-        placeholder={placeholder}
-        leftIcon={<ScanLine size={16} />}
-      />
-
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-xs text-[#64748B]">
-          Barcode scanners that type and press Enter will also work here.
-        </p>
-        <Button type="button" variant="secondary" onClick={() => void submitManual()}>
-          Record barcode
-        </Button>
-      </div>
-
-      {scannerError && (
-        <p className="text-xs text-[#DC2626]">{scannerError}</p>
-      )}
+      <p className="absolute inset-x-0 bottom-0 pb-2 text-center text-[10px] text-white/50 pointer-events-none">
+        {!error && 'Point camera at barcode'}
+      </p>
     </div>
   );
 };

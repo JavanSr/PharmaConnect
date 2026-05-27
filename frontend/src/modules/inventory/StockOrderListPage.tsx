@@ -22,7 +22,7 @@ export const StockOrderListPage: React.FC = () => {
   const navigate = useNavigate();
   const [status, setStatus] = useState<StockOrderStatus | 'ALL'>('ALL');
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['stock-orders', status],
     queryFn: () =>
       api
@@ -81,7 +81,14 @@ export const StockOrderListPage: React.FC = () => {
                   <td colSpan={7} className="px-5 py-8 text-center text-[#64748B]">Loading orders...</td>
                 </tr>
               )}
-              {!isLoading && orders.length === 0 && (
+              {isError && (
+                <tr>
+                  <td colSpan={7} className="px-5 py-8 text-center text-sm text-red-500">
+                    Could not load orders — check your connection and that the backend is running.
+                  </td>
+                </tr>
+              )}
+              {!isLoading && !isError && orders.length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-5 py-10 text-center">
                     <div className="mx-auto flex max-w-sm flex-col items-center gap-3">

@@ -13,11 +13,11 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variantStyles: Record<Variant, string> = {
-  primary: 'bg-primary-container text-on-primary hover:opacity-90 active:scale-[0.98] disabled:bg-primary-container/40',
-  secondary: 'border border-primary text-primary bg-transparent hover:bg-secondary-container/50 active:bg-secondary-container/60',
-  danger: 'bg-error text-on-error hover:opacity-90 active:scale-[0.98] disabled:bg-error/40',
-  ghost: 'text-on-surface bg-transparent hover:bg-surface-variant active:bg-surface-container-high',
-  warning: 'bg-tertiary-container text-on-tertiary hover:opacity-90 active:scale-[0.98] disabled:bg-tertiary-container/40',
+  primary:   'bg-[#1A6B5C] text-white hover:bg-[#145748] active:scale-[0.98] disabled:opacity-40',
+  secondary: 'border border-[#1A6B5C] text-[#1A6B5C] bg-transparent hover:bg-[#D6F0E8] active:bg-[#AFDFD3] disabled:opacity-40',
+  danger:    'bg-[#BA1A1A] text-white hover:bg-[#93000A] active:scale-[0.98] disabled:opacity-40',
+  ghost:     'text-[#0D4035] bg-transparent hover:bg-[#D6F0E8] active:bg-[#AFDFD3] disabled:opacity-40',
+  warning:   'bg-[#E8A020] text-[#0D4035] hover:bg-[#C98A18] active:scale-[0.98] disabled:opacity-40',
 };
 
 const sizeStyles: Record<Size, string> = {
