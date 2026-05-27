@@ -68,6 +68,12 @@ export const Layout: React.FC = () => {
   const subscriptionQuery = useQuery({
     queryKey: ['layout-subscription-status'],
     queryFn: () => api.get('/settings/subscription').then((response) => response.data),
+    // networkMode: 'offlineFirst' — fire query even when offline so the SW
+    // can serve the cached response; don't pause with an infinite spinner.
+    networkMode: 'offlineFirst',
+    staleTime: 60_000,
+    // Don't retry on network failure — the SW cache either has it or doesn't.
+    retry: false,
   });
   const membershipsQuery = useQuery({
     queryKey: ['me-pharmacies'],
@@ -143,6 +149,20 @@ export const Layout: React.FC = () => {
   }
 
   if (!isFounderAccount && subscriptionQuery.isError && !effectiveSubscription) {
+    // If offline, the subscription fetch failed because there's no network AND
+    // no SW cache yet (very first visit, or SW not yet installed). Show an
+    // "offline" message rather than "something is broken".
+    if (!navigator.onLine) {
+      return (
+        <SystemStatusWindow
+          type="error"
+          title="You're offline"
+          message="Connect to the internet to access your workspace. Your data will load automatically once reconnected."
+          actionLabel="Try reconnecting"
+          onAction={() => window.location.reload()}
+        />
+      );
+    }
     return (
       <SystemStatusWindow
         type="error"

@@ -2,7 +2,7 @@ import React, { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthGuard, RoleGuard } from '@/components/layout/AuthGuard';
-import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { ErrorBoundary, PageErrorBoundary } from '@/components/ErrorBoundary';
 import { SystemStatusWindow } from '@/components/SystemStatusWindow';
 import { useOfflineSync } from '@/hooks/useOfflineSync';
 import { useHeartbeat } from '@/hooks/useHeartbeat';
@@ -119,7 +119,9 @@ const PageLoader = () => (
 
 const page = (node: React.ReactNode, roles?: UserRole[]) => (
   <RoleGuard roles={roles}>
-    <Suspense fallback={<PageLoader />}>{node}</Suspense>
+    <PageErrorBoundary>
+      <Suspense fallback={<PageLoader />}>{node}</Suspense>
+    </PageErrorBoundary>
   </RoleGuard>
 );
 
@@ -242,14 +244,14 @@ export const App: React.FC = () => (
         <Route path="/unsubscribe/:token" element={<Suspense fallback={<PageLoader />}><UnsubscribePage /></Suspense>} />
         <Route path="/verify/:certificateId" element={<Suspense fallback={<PageLoader />}><CertificateVerifyPage /></Suspense>} />
 
-        <Route element={<AuthGuard><Suspense fallback={<PageLoader />}><Layout /></Suspense></AuthGuard>}>
+        <Route element={<AuthGuard><PageErrorBoundary><Suspense fallback={<PageLoader />}><Layout /></Suspense></PageErrorBoundary></AuthGuard>}>
           <Route index element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard" element={<Suspense fallback={<PageLoader />}><DashboardPage /></Suspense>} />
+          <Route path="/dashboard" element={<PageErrorBoundary><Suspense fallback={<PageLoader />}><DashboardPage /></Suspense></PageErrorBoundary>} />
           <Route path="/analytics" element={page(<AnalyticsPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'CASHIER', 'WHOLESALE_MANAGER'])} />
           <Route path="/forecasting" element={page(<ForecastingPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'WHOLESALE_MANAGER'])} />
-          <Route path="/knowledge" element={<Suspense fallback={<PageLoader />}><KnowledgeFeedPage /></Suspense>} />
-          <Route path="/tmda-updates" element={<Suspense fallback={<PageLoader />}><TmdaUpdatesPage /></Suspense>} />
-          <Route path="/knowledge/:slug" element={<Suspense fallback={<PageLoader />}><ArticlePage /></Suspense>} />
+          <Route path="/knowledge" element={<PageErrorBoundary><Suspense fallback={<PageLoader />}><KnowledgeFeedPage /></Suspense></PageErrorBoundary>} />
+          <Route path="/tmda-updates" element={<PageErrorBoundary><Suspense fallback={<PageLoader />}><TmdaUpdatesPage /></Suspense></PageErrorBoundary>} />
+          <Route path="/knowledge/:slug" element={<PageErrorBoundary><Suspense fallback={<PageLoader />}><ArticlePage /></Suspense></PageErrorBoundary>} />
           {/* DATA_ENTRY_CLERK: stock intake + supplier management (all tiers) */}
           <Route path="/inventory" element={page(<InventoryDashboardPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'CASHIER', 'DATA_ENTRY_CLERK', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF'])} />
           <Route path="/inventory/products" element={page(<ProductsListPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'CASHIER', 'DATA_ENTRY_CLERK', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF'])} />
@@ -297,11 +299,11 @@ export const App: React.FC = () => (
           <Route path="/nhif" element={<Navigate to="/nhif-claims" replace />} />
           <Route path="/nhif/claims" element={<Navigate to="/nhif-claims" replace />} />
           <Route path="/nhif/claims/:id" element={<Navigate to="/nhif-claims" replace />} />
-          <Route path="/cpd" element={<Suspense fallback={<PageLoader />}><CpdDashboardPage /></Suspense>} />
-          <Route path="/cpd/log" element={<Suspense fallback={<PageLoader />}><LogActivityPage /></Suspense>} />
-          <Route path="/cpd/courses/:slug" element={<Suspense fallback={<PageLoader />}><CourseDetailPage /></Suspense>} />
+          <Route path="/cpd" element={<PageErrorBoundary><Suspense fallback={<PageLoader />}><CpdDashboardPage /></Suspense></PageErrorBoundary>} />
+          <Route path="/cpd/log" element={<PageErrorBoundary><Suspense fallback={<PageLoader />}><LogActivityPage /></Suspense></PageErrorBoundary>} />
+          <Route path="/cpd/courses/:slug" element={<PageErrorBoundary><Suspense fallback={<PageLoader />}><CourseDetailPage /></Suspense></PageErrorBoundary>} />
           <Route path="/settings" element={<Navigate to="/settings/profile" replace />} />
-          <Route path="/settings/profile" element={<Suspense fallback={<PageLoader />}><ProfilePage /></Suspense>} />
+          <Route path="/settings/profile" element={<PageErrorBoundary><Suspense fallback={<PageLoader />}><ProfilePage /></Suspense></PageErrorBoundary>} />
           <Route path="/settings/team" element={page(<TeamManagementPage />, ['OWNER', 'PHARMACIST_IN_CHARGE'])} />
           <Route path="/settings/subscription" element={page(<SubscriptionPage />, ['OWNER'])} />
           <Route path="/settings/data-review" element={page(<DataReviewPage />, ['OWNER', 'PHARMACIST_IN_CHARGE'])} />

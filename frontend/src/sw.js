@@ -1,9 +1,16 @@
 import { clientsClaim, skipWaiting } from 'workbox-core';
+import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching';
 import { registerRoute } from 'workbox-routing';
 import { CacheFirst, NetworkFirst, StaleWhileRevalidate } from 'workbox-strategies';
 import { ExpirationPlugin } from 'workbox-expiration';
 
-const CACHE_VERSION = '20260514-api-swr';
+// VitePWA injects the complete list of hashed assets here.
+// precacheAndRoute caches them on SW install so every page works offline
+// even on first visit — and stale chunks from old deploys are cleaned up.
+precacheAndRoute(self.__WB_MANIFEST);
+cleanupOutdatedCaches();
+
+const CACHE_VERSION = '20260527-precache';
 const APP_CACHE = `pc-app-shell-${CACHE_VERSION}`;
 const API_READ_CACHE = `pc-api-reads-${CACHE_VERSION}`;
 const FONT_CSS_CACHE = 'pc-google-fonts-css';

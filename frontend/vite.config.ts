@@ -55,7 +55,9 @@ export default defineConfig(({ mode }) => {
         injectRegister: null,
         manifest: false,
         injectManifest: {
-          injectionPoint: undefined,
+          // injectionPoint defaults to 'self.__WB_MANIFEST' — matches sw.js
+          // Do NOT set injectionPoint: undefined here; that would disable
+          // precache manifest injection and break offline chunk loading.
         },
         devOptions: {
           enabled: true,
