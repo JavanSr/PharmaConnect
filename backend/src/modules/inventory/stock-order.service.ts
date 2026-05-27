@@ -35,33 +35,23 @@ type ReceiptInput = {
   sellingPrice?: number;
 };
 
-function fullOrderInclude() {
+// Minimal item include used in all responses (3 queries → Prisma batches products+suppliers IN)
+function itemInclude() {
   return {
-    createdByUser: {
-      select: { id: true, firstName: true, lastName: true, email: true },
-    },
-    pharmacy: {
-      select: { id: true, name: true, address: true, licenceNumber: true },
-    },
-    items: {
-      orderBy: { createdAt: 'asc' as const },
-      include: {
-        product: {
-          select: {
-            id: true,
-            name: true,
-            genericName: true,
-            brandName: true,
-            strength: true,
-            dosageForm: true,
-            sellingPrice: true,
-            reorderLevel: true,
-          },
-        },
-        supplier: {
-          select: { id: true, name: true, phone: true, email: true },
-        },
+    product: {
+      select: {
+        id: true,
+        name: true,
+        genericName: true,
+        brandName: true,
+        strength: true,
+        dosageForm: true,
+        sellingPrice: true,
+        reorderLevel: true,
       },
+    },
+    supplier: {
+      select: { id: true, name: true, phone: true, email: true },
     },
   };
 }
@@ -92,56 +82,30 @@ function toExpectedBy(value?: string | null) {
   return new Date(value);
 }
 
-async function assertProductBelongsToPharmacy(
-  tx: Prisma.TransactionClient,
+// ── Parallel validation helpers ───────────────────────────────────────────────
+// Run all ownership checks concurrently using pool connections (NOT inside a tx)
+// so they fire in parallel instead of sequentially.
+
+async function validateDraftOrder(
   pharmacyId: string,
-  productId?: string | null,
+  orderId: string,
+  opts?: { productId?: string | null; supplierId?: string | null },
 ) {
-  if (!productId) {
-    return;
-  }
+  const cleanProductId = cleanOptionalText(opts?.productId);
+  const cleanSupplierId = cleanOptionalText(opts?.supplierId);
 
-  const product = await tx.product.findFirst({
-    where: { id: productId, pharmacyId, isActive: true },
-    select: { id: true },
-  });
-  if (!product) {
-    throw Object.assign(new Error('Product not found for this pharmacy'), { status: 404 });
-  }
-}
-
-async function assertSupplierBelongsToPharmacy(
-  tx: Prisma.TransactionClient,
-  pharmacyId: string,
-  supplierId?: string | null,
-) {
-  if (!supplierId) {
-    return;
-  }
-
-  const supplier = await tx.supplier.findFirst({
-    where: { id: supplierId, pharmacyId, isActive: true },
-    select: { id: true },
-  });
-  if (!supplier) {
-    throw Object.assign(new Error('Supplier not found for this pharmacy'), { status: 404 });
-  }
-}
-
-async function assertItemReferences(
-  tx: Prisma.TransactionClient,
-  pharmacyId: string,
-  item: Pick<StockOrderItemInput, 'productId' | 'supplierId'>,
-) {
-  await assertProductBelongsToPharmacy(tx, pharmacyId, item.productId);
-  await assertSupplierBelongsToPharmacy(tx, pharmacyId, item.supplierId);
-}
-
-async function getDraftOrder(tx: Prisma.TransactionClient, pharmacyId: string, orderId: string) {
-  const order = await tx.stockOrder.findFirst({
-    where: { id: orderId, pharmacyId },
-    select: { id: true, status: true },
-  });
+  const [order, product, supplier] = await Promise.all([
+    prisma.stockOrder.findFirst({
+      where: { id: orderId, pharmacyId },
+      select: { id: true, status: true },
+    }),
+    cleanProductId
+      ? prisma.product.findFirst({ where: { id: cleanProductId, pharmacyId, isActive: true }, select: { id: true } })
+      : Promise.resolve(null),
+    cleanSupplierId
+      ? prisma.supplier.findFirst({ where: { id: cleanSupplierId, pharmacyId, isActive: true }, select: { id: true } })
+      : Promise.resolve(null),
+  ]);
 
   if (!order) {
     throw Object.assign(new Error('Stock order not found'), { status: 404 });
@@ -149,10 +113,73 @@ async function getDraftOrder(tx: Prisma.TransactionClient, pharmacyId: string, o
   if (order.status !== 'DRAFT') {
     throw Object.assign(new Error('Only draft orders can be edited'), { status: 400 });
   }
+  if (cleanProductId && !product) {
+    throw Object.assign(new Error('Product not found for this pharmacy'), { status: 404 });
+  }
+  if (cleanSupplierId && !supplier) {
+    throw Object.assign(new Error('Supplier not found for this pharmacy'), { status: 404 });
+  }
 
   return order;
 }
 
+async function validateItemRef(
+  pharmacyId: string,
+  productId?: string | null,
+  supplierId?: string | null,
+) {
+  const cleanProductId = cleanOptionalText(productId);
+  const cleanSupplierId = cleanOptionalText(supplierId);
+
+  const [product, supplier] = await Promise.all([
+    cleanProductId
+      ? prisma.product.findFirst({ where: { id: cleanProductId, pharmacyId, isActive: true }, select: { id: true } })
+      : Promise.resolve(null),
+    cleanSupplierId
+      ? prisma.supplier.findFirst({ where: { id: cleanSupplierId, pharmacyId, isActive: true }, select: { id: true } })
+      : Promise.resolve(null),
+  ]);
+
+  if (cleanProductId && !product) {
+    throw Object.assign(new Error('Product not found for this pharmacy'), { status: 404 });
+  }
+  if (cleanSupplierId && !supplier) {
+    throw Object.assign(new Error('Supplier not found for this pharmacy'), { status: 404 });
+  }
+}
+
+// ── Lean response helpers ─────────────────────────────────────────────────────
+// Mutations only need items back (frontend reads order.items from mutations).
+// Run order header + items fetches in parallel → 2 effective round-trips.
+
+async function orderMutationResponse(orderId: string) {
+  const [order, items] = await Promise.all([
+    prisma.stockOrder.findUniqueOrThrow({
+      where: { id: orderId },
+      select: {
+        id: true,
+        pharmacyId: true,
+        orderNumber: true,
+        status: true,
+        notes: true,
+        expectedBy: true,
+        submittedAt: true,
+        createdAt: true,
+        updatedAt: true,
+        createdBy: true,
+      },
+    }),
+    prisma.stockOrderItem.findMany({
+      where: { stockOrderId: orderId },
+      orderBy: { createdAt: 'asc' },
+      include: itemInclude(),
+    }),
+  ]);
+
+  return { ...order, items };
+}
+
+// ── Order number (must stay inside tx for uniqueness) ─────────────────────────
 async function nextOrderNumber(tx: Prisma.TransactionClient, pharmacyId: string) {
   const year = new Date().getFullYear();
   const prefix = `PO-${year}-`;
@@ -164,6 +191,8 @@ async function nextOrderNumber(tx: Prisma.TransactionClient, pharmacyId: string)
   const latestSequence = latest ? Number(latest.orderNumber.slice(prefix.length)) : 0;
   return `${prefix}${String((Number.isFinite(latestSequence) ? latestSequence : 0) + 1).padStart(4, '0')}`;
 }
+
+// ── Public service functions ──────────────────────────────────────────────────
 
 export async function getLowStockSuggestions(pharmacyId: string) {
   const rows = await prisma.$queryRaw<Array<{
@@ -246,24 +275,38 @@ export async function createStockOrder(
   userId: string,
   data: { notes?: string; expectedBy?: string | null; items: StockOrderItemInput[] },
 ) {
-  return withPrismaRetry(() => prisma.$transaction(async (tx) => {
-    for (const item of data.items) {
-      await assertItemReferences(tx, pharmacyId, item);
-    }
+  // Validate all item references concurrently (outside tx — pool connections, parallel)
+  if (data.items.length > 0) {
+    await Promise.all(data.items.map((item) => validateItemRef(pharmacyId, item.productId, item.supplierId)));
+  }
 
-    const orderNumber = await nextOrderNumber(tx, pharmacyId);
-    return tx.stockOrder.create({
-      data: {
-        pharmacyId,
-        orderNumber,
-        notes: cleanOptionalText(data.notes),
-        expectedBy: toExpectedBy(data.expectedBy),
-        createdBy: userId,
-        items: { create: data.items.map(toItemCreateInput) },
-      },
-      include: fullOrderInclude(),
-    });
-  }));
+  // Short transaction: generate order number + create order + batch-create items
+  const orderId = await withPrismaRetry(() =>
+    prisma.$transaction(async (tx) => {
+      const orderNumber = await nextOrderNumber(tx, pharmacyId);
+      const order = await tx.stockOrder.create({
+        data: {
+          pharmacyId,
+          orderNumber,
+          notes: cleanOptionalText(data.notes),
+          expectedBy: toExpectedBy(data.expectedBy),
+          createdBy: userId,
+        },
+        select: { id: true },
+      });
+
+      if (data.items.length > 0) {
+        await tx.stockOrderItem.createMany({
+          data: data.items.map((item) => ({ ...toItemCreateInput(item), stockOrderId: order.id })),
+        });
+      }
+
+      return order.id;
+    }),
+  );
+
+  // Fetch full response outside tx (order + items in parallel)
+  return orderMutationResponse(orderId);
 }
 
 export async function getStockOrders(
@@ -323,42 +366,67 @@ export async function getStockOrders(
 }
 
 export async function getStockOrder(pharmacyId: string, orderId: string) {
-  const order = await prisma.stockOrder.findFirst({
-    where: { id: orderId, pharmacyId },
-    include: fullOrderInclude(),
-  });
+  // Run order header and items in parallel — two independent fetches
+  // vs. previous fullOrderInclude() which serialised 6 Prisma sub-queries
+  const [order, items] = await Promise.all([
+    prisma.stockOrder.findFirst({
+      where: { id: orderId, pharmacyId },
+      include: {
+        createdByUser: {
+          select: { id: true, firstName: true, lastName: true, email: true },
+        },
+        pharmacy: {
+          select: { id: true, name: true, address: true, licenceNumber: true },
+        },
+      },
+    }),
+    prisma.stockOrderItem.findMany({
+      where: { stockOrderId: orderId },
+      orderBy: { createdAt: 'asc' },
+      include: itemInclude(),
+    }),
+  ]);
+
   if (!order) {
     throw Object.assign(new Error('Stock order not found'), { status: 404 });
   }
-  return order;
+
+  return { ...order, items };
 }
 
 export async function updateStockOrder(pharmacyId: string, orderId: string, data: StockOrderUpdateInput) {
-  return withPrismaRetry(() => prisma.$transaction(async (tx) => {
-    await getDraftOrder(tx, pharmacyId, orderId);
-    return tx.stockOrder.update({
+  // Validate status outside tx
+  await validateDraftOrder(pharmacyId, orderId);
+
+  // Minimal write
+  await withPrismaRetry(() =>
+    prisma.stockOrder.update({
       where: { id: orderId },
       data: {
         ...(data.notes !== undefined ? { notes: data.notes?.trim() || null } : {}),
         ...(data.expectedBy !== undefined ? { expectedBy: toExpectedBy(data.expectedBy) } : {}),
       },
-      include: fullOrderInclude(),
-    });
-  }));
+      select: { id: true },
+    }),
+  );
+
+  return orderMutationResponse(orderId);
 }
 
 export async function addItemToStockOrder(pharmacyId: string, orderId: string, data: StockOrderItemInput) {
-  return withPrismaRetry(() => prisma.$transaction(async (tx) => {
-    await getDraftOrder(tx, pharmacyId, orderId);
-    await assertItemReferences(tx, pharmacyId, data);
-    await tx.stockOrderItem.create({
-      data: {
-        ...toItemCreateInput(data),
-        stockOrderId: orderId,
-      },
-    });
-    return tx.stockOrder.findUniqueOrThrow({ where: { id: orderId }, include: fullOrderInclude() });
-  }));
+  // Validate concurrently (getDraftOrder + product check + supplier check in parallel)
+  await validateDraftOrder(pharmacyId, orderId, { productId: data.productId, supplierId: data.supplierId });
+
+  // Minimal single-row insert (no validation, no re-fetch inside)
+  await withPrismaRetry(() =>
+    prisma.stockOrderItem.create({
+      data: { ...toItemCreateInput(data), stockOrderId: orderId },
+      select: { id: true },
+    }),
+  );
+
+  // Fetch lean response (order header + items in parallel)
+  return orderMutationResponse(orderId);
 }
 
 export async function updateStockOrderItem(
@@ -367,15 +435,17 @@ export async function updateStockOrderItem(
   itemId: string,
   data: StockOrderItemUpdateInput,
 ) {
-  return withPrismaRetry(() => prisma.$transaction(async (tx) => {
-    await getDraftOrder(tx, pharmacyId, orderId);
-    await assertSupplierBelongsToPharmacy(tx, pharmacyId, data.supplierId);
-    const item = await tx.stockOrderItem.findFirst({ where: { id: itemId, stockOrderId: orderId } });
-    if (!item) {
-      throw Object.assign(new Error('Stock order item not found'), { status: 404 });
-    }
+  // Validate order status + supplier ownership concurrently
+  await validateDraftOrder(pharmacyId, orderId, { supplierId: data.supplierId });
 
-    await tx.stockOrderItem.update({
+  // Find then update (2 sequential queries but short — no tx needed)
+  const item = await prisma.stockOrderItem.findFirst({ where: { id: itemId, stockOrderId: orderId } });
+  if (!item) {
+    throw Object.assign(new Error('Stock order item not found'), { status: 404 });
+  }
+
+  await withPrismaRetry(() =>
+    prisma.stockOrderItem.update({
       where: { id: itemId },
       data: {
         ...(data.quantityOrdered !== undefined ? { quantityOrdered: data.quantityOrdered } : {}),
@@ -383,46 +453,76 @@ export async function updateStockOrderItem(
         ...(data.expectedUnitCost !== undefined ? { expectedUnitCost: data.expectedUnitCost } : {}),
         ...(data.notes !== undefined ? { notes: data.notes?.trim() || null } : {}),
       },
-    });
-    return tx.stockOrder.findUniqueOrThrow({ where: { id: orderId }, include: fullOrderInclude() });
-  }));
+      select: { id: true },
+    }),
+  );
+
+  return orderMutationResponse(orderId);
 }
 
 export async function removeStockOrderItem(pharmacyId: string, orderId: string, itemId: string) {
-  return withPrismaRetry(() => prisma.$transaction(async (tx) => {
-    await getDraftOrder(tx, pharmacyId, orderId);
-    const remaining = await tx.stockOrderItem.count({ where: { stockOrderId: orderId, id: { not: itemId } } });
-    if (remaining === 0) {
-      throw Object.assign(new Error('An order must have at least one item.'), { status: 400 });
-    }
-    await tx.stockOrderItem.delete({ where: { id: itemId } });
-    return tx.stockOrder.findUniqueOrThrow({ where: { id: orderId }, include: fullOrderInclude() });
-  }));
+  // Validate order status outside tx
+  await validateDraftOrder(pharmacyId, orderId);
+
+  // Count check + delete atomically (prevents removing the last item)
+  await withPrismaRetry(() =>
+    prisma.$transaction(async (tx) => {
+      const item = await tx.stockOrderItem.findFirst({ where: { id: itemId, stockOrderId: orderId } });
+      if (!item) {
+        throw Object.assign(new Error('Stock order item not found'), { status: 404 });
+      }
+
+      const remaining = await tx.stockOrderItem.count({ where: { stockOrderId: orderId, id: { not: itemId } } });
+      if (remaining === 0) {
+        throw Object.assign(new Error('An order must have at least one item.'), { status: 400 });
+      }
+
+      await tx.stockOrderItem.delete({ where: { id: itemId } });
+    }),
+  );
+
+  return orderMutationResponse(orderId);
 }
 
 export async function submitStockOrder(pharmacyId: string, orderId: string) {
-  return withPrismaRetry(() => prisma.$transaction(async (tx) => {
-    await getDraftOrder(tx, pharmacyId, orderId);
-    const itemCount = await tx.stockOrderItem.count({ where: { stockOrderId: orderId } });
-    if (itemCount === 0) {
-      throw Object.assign(new Error('An order must have at least one item.'), { status: 400 });
-    }
+  // Run order check and item count in parallel (both are reads, no side-effects)
+  const [order, itemCount] = await Promise.all([
+    prisma.stockOrder.findFirst({
+      where: { id: orderId, pharmacyId },
+      select: { id: true, status: true },
+    }),
+    prisma.stockOrderItem.count({ where: { stockOrderId: orderId } }),
+  ]);
 
-    const updated = await tx.stockOrder.update({
+  if (!order) {
+    throw Object.assign(new Error('Stock order not found'), { status: 404 });
+  }
+  if (order.status !== 'DRAFT') {
+    throw Object.assign(new Error('Only draft orders can be submitted'), { status: 400 });
+  }
+  if (itemCount === 0) {
+    throw Object.assign(new Error('An order must have at least one item.'), { status: 400 });
+  }
+
+  await withPrismaRetry(() =>
+    prisma.stockOrder.update({
       where: { id: orderId },
       data: { status: 'SUBMITTED', submittedAt: new Date() },
-      include: fullOrderInclude(),
-    });
+      select: { id: true },
+    }),
+  );
 
-    const supplierEmails = Array.from(
-      new Set(updated.items.map((item) => item.supplier?.email).filter((email): email is string => Boolean(email))),
-    );
-    if (supplierEmails.length > 0) {
-      console.info(`[stock-orders] Email notifications not configured; skipped ${supplierEmails.length} supplier email(s).`);
-    }
+  const response = await orderMutationResponse(orderId);
 
-    return updated;
-  }));
+  // Log supplier email notification skipped (no email integration yet)
+  const supplierEmails = Array.from(
+    new Set(response.items.map((item) => (item as any).supplier?.email).filter((email): email is string => Boolean(email))),
+  );
+  if (supplierEmails.length > 0) {
+    console.info(`[stock-orders] Email notifications not configured; skipped ${supplierEmails.length} supplier email(s).`);
+  }
+
+  return response;
 }
 
 export async function receiveStockOrderItems(
@@ -431,7 +531,7 @@ export async function receiveStockOrderItems(
   userId: string,
   receipts: ReceiptInput[],
 ) {
-  return withPrismaRetry(() => prisma.$transaction(async (tx) => {
+  await withPrismaRetry(() => prisma.$transaction(async (tx) => {
     const order = await tx.stockOrder.findFirst({
       where: { id: orderId, pharmacyId, status: { in: ['SUBMITTED', 'PARTIALLY_RECEIVED'] } },
       include: { items: true },
@@ -515,12 +615,15 @@ export async function receiveStockOrderItems(
         ? 'PARTIALLY_RECEIVED'
         : order.status;
 
-    return tx.stockOrder.update({
+    await tx.stockOrder.update({
       where: { id: orderId },
       data: { status: nextStatus },
-      include: fullOrderInclude(),
+      select: { id: true },
     });
   }));
+
+  // Fetch full order outside tx (parallel order + items)
+  return getStockOrder(pharmacyId, orderId);
 }
 
 export async function cancelStockOrder(pharmacyId: string, orderId: string) {
@@ -532,9 +635,11 @@ export async function cancelStockOrder(pharmacyId: string, orderId: string) {
     throw Object.assign(new Error('Only draft or submitted orders can be cancelled'), { status: 400 });
   }
 
-  return prisma.stockOrder.update({
+  await prisma.stockOrder.update({
     where: { id: orderId },
     data: { status: 'CANCELLED' },
-    include: fullOrderInclude(),
+    select: { id: true },
   });
+
+  return orderMutationResponse(orderId);
 }
