@@ -581,7 +581,7 @@ export const DispensingScreen: React.FC = () => {
 
     let latestSelectedDrug = drug;
     try {
-      const response = await api.get(`/inventory/products/${selectedDrug.id}`);
+      const response = await api.get(`/inventory/products/${drug.id}`);
       if (response.data?.data && !Array.isArray(response.data.data)) {
         latestSelectedDrug = await applyInventoryDeltaToProduct(response.data.data as Product);
         setSelectedDrug(latestSelectedDrug);
@@ -1210,7 +1210,7 @@ export const DispensingScreen: React.FC = () => {
             </div>
 
             <div className="mt-4 flex flex-wrap gap-3">
-              <Button leftIcon={<Plus size={16} />} onClick={addToCart} disabled={!selectedDrug}>
+              <Button leftIcon={<Plus size={16} />} onClick={() => void addToCart()} disabled={!selectedDrug}>
                 Add to basket
               </Button>
               <Button
