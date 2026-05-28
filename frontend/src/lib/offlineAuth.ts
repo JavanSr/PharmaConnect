@@ -103,10 +103,14 @@ async function hashPassword(email: string, password: string): Promise<string> {
 export async function saveOfflineLoginCache(params: SaveOfflineLoginCacheParams): Promise<void> {
   try {
     const { email, password, ...snapshot } = params;
-    const passwordHash = await hashPassword(email, password);
+    // Normalize email so the DB key always matches the lowercase lookup in unlockOfflineLogin.
+    // Without this, a user who typed "Admin@Pharmacy.tz" would get a key of "Admin@Pharmacy.tz"
+    // but the lookup uses "admin@pharmacy.tz" — a case mismatch that silently breaks offline login.
+    const normalizedEmail = email.toLowerCase().trim();
+    const passwordHash = await hashPassword(normalizedEmail, password);
     const db = await openDb();
     await dbPut(db, {
-      email,
+      email: normalizedEmail,
       passwordHash,
       savedAt: new Date().toISOString(),
       ...snapshot,
