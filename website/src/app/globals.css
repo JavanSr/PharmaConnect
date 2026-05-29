@@ -208,6 +208,46 @@ textarea {
   animation: fadeArea 2.5s ease forwards 1.1s;
 }
 
+/* ── Responsive layout helpers ─────────────────────────────────────────── */
+
+/* Nav: hide links on mobile, show hamburger */
+.nav-desktop-links { display: flex; }
+.nav-hamburger     { display: none; }
+
+/* Hero background overlay — fades right on desktop, full cover on mobile */
+.hero-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to right,
+    rgba(247,251,248,0.98) 0%,
+    rgba(247,251,248,0.96) 45%,
+    rgba(247,251,248,0.55) 72%,
+    rgba(247,251,248,0.0)  100%
+  );
+}
+
+/* Stack two- and three-column grids on small screens */
+.mob-stack { }   /* marker — override columns below */
+
+@media (max-width: 900px) {
+  .nav-desktop-links { display: none !important; }
+  .nav-hamburger     { display: flex  !important; align-items: center; }
+
+  .hero-overlay {
+    background: rgba(247,251,248,0.90) !important;
+  }
+
+  .mob-stack {
+    grid-template-columns: 1fr !important;
+    gap: 32px !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .mob-stack { gap: 24px !important; }
+}
+
 .line-clamp-1 {
   display: -webkit-box;
   -webkit-line-clamp: 1;

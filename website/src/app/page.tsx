@@ -212,35 +212,60 @@ function Logo({ white = false, height = 30 }: { white?: boolean; height?: number
 
 function Nav() {
   const [scrolled, setScrolled] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   useEffect(() => {
     const fn = () => setScrolled(window.scrollY > 50);
     window.addEventListener('scroll', fn);
     return () => window.removeEventListener('scroll', fn);
   }, []);
+  const navLinks = [['Features', '#features'], ['Modules', '#modules'], ['Pricing', '#pricing'], ['FAQ', '#faq']] as [string, string][];
   return (
-    <header style={{
-      position: 'sticky', top: 0, zIndex: 50,
-      background: scrolled ? 'rgba(247,251,248,0.94)' : 'transparent',
-      backdropFilter: scrolled ? 'blur(14px)' : 'none',
-      borderBottom: `1px solid ${scrolled ? '#E2EDE8' : 'transparent'}`,
-      transition: 'all 200ms ease',
-    }}>
-      <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 32px', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Logo height={28} />
-        <nav style={{ display: 'flex', gap: 28 }}>
-          {([['Features', '#features'], ['Modules', '#modules'], ['Pricing', '#pricing'], ['FAQ', '#faq']] as [string, string][]).map(([l, h]) => (
-            <a key={l} href={h}
-              style={{ fontSize: 13, fontWeight: 500, color: '#0D4035', opacity: 0.65, transition: 'opacity 150ms' }}
-              onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
-              onMouseLeave={e => (e.currentTarget.style.opacity = '0.65')}>{l}</a>
-          ))}
-        </nav>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <a href="https://app.apotekh.co.tz" style={{ padding: '8px 18px', fontSize: 13, fontWeight: 500, color: '#0D4035', opacity: 0.7 }}>Sign in</a>
-          <a href="https://app.apotekh.co.tz/register" style={{ padding: '8px 18px', borderRadius: 8, background: '#0D4035', color: 'white', fontSize: 13, fontWeight: 600 }}>Start free trial</a>
+    <>
+      <header style={{
+        position: 'sticky', top: 0, zIndex: 50,
+        background: scrolled ? 'rgba(247,251,248,0.94)' : 'transparent',
+        backdropFilter: scrolled ? 'blur(14px)' : 'none',
+        borderBottom: `1px solid ${scrolled ? '#E2EDE8' : 'transparent'}`,
+        transition: 'all 200ms ease',
+      }}>
+        <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 20px', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Logo height={28} />
+          <nav className="nav-desktop-links" style={{ gap: 28 }}>
+            {navLinks.map(([l, h]) => (
+              <a key={l} href={h}
+                style={{ fontSize: 13, fontWeight: 500, color: '#0D4035', opacity: 0.65, transition: 'opacity 150ms' }}
+                onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
+                onMouseLeave={e => (e.currentTarget.style.opacity = '0.65')}>{l}</a>
+            ))}
+          </nav>
+          <div className="nav-desktop-links" style={{ gap: 10, alignItems: 'center' }}>
+            <a href="https://app.apotekh.co.tz" style={{ padding: '8px 18px', fontSize: 13, fontWeight: 500, color: '#0D4035', opacity: 0.7 }}>Sign in</a>
+            <a href="https://app.apotekh.co.tz/register" style={{ padding: '8px 18px', borderRadius: 8, background: '#0D4035', color: 'white', fontSize: 13, fontWeight: 600 }}>Start free trial</a>
+          </div>
+          <button className="nav-hamburger" onClick={() => setMobileOpen(true)}
+            style={{ background: 'none', border: '1px solid #E2EDE8', borderRadius: 8, width: 40, height: 40, cursor: 'pointer', color: '#0D4035', fontSize: 18 }}>
+            ☰
+          </button>
         </div>
-      </div>
-    </header>
+      </header>
+      {mobileOpen && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'white', display: 'flex', flexDirection: 'column', padding: '0 20px' }}>
+          <div style={{ height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Logo height={26} />
+            <button onClick={() => setMobileOpen(false)} style={{ background: 'none', border: '1px solid #E2EDE8', borderRadius: 8, width: 40, height: 40, cursor: 'pointer', color: '#0D4035', fontSize: 18 }}>✕</button>
+          </div>
+          <nav style={{ display: 'flex', flexDirection: 'column', gap: 28, padding: '32px 0', borderBottom: '1px solid #E2EDE8' }}>
+            {navLinks.map(([l, h]) => (
+              <a key={l} href={h} onClick={() => setMobileOpen(false)} style={{ fontSize: 22, fontWeight: 600, color: '#0D4035' }}>{l}</a>
+            ))}
+          </nav>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingTop: 28 }}>
+            <a href="https://app.apotekh.co.tz" style={{ display: 'block', textAlign: 'center', padding: '13px', borderRadius: 10, border: '1.5px solid #E2EDE8', color: '#0D4035', fontSize: 15, fontWeight: 600 }}>Sign in</a>
+            <a href="https://app.apotekh.co.tz/register" style={{ display: 'block', textAlign: 'center', padding: '13px', borderRadius: 10, background: '#1A6B5C', color: 'white', fontSize: 15, fontWeight: 600 }}>Start free trial</a>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -248,9 +273,18 @@ function Nav() {
 
 function Hero() {
   return (
-    <section className="grid-bg" style={{ background: '#F7FBF8', padding: '88px 32px 80px', overflow: 'hidden' }}>
-      <div style={{ maxWidth: 1280, margin: '0 auto', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 64, alignItems: 'center' }}>
-        <div>
+    <section className="grid-bg" style={{ background: '#F7FBF8', padding: '88px 32px 80px', overflow: 'hidden', position: 'relative' }}>
+      <Image
+        src="https://images.pexels.com/photos/30678215/pexels-photo-30678215.jpeg?auto=compress&cs=tinysrgb&w=1800"
+        alt="Pharmacist helping a customer at the dispensing counter"
+        fill
+        style={{ objectFit: 'cover', objectPosition: 'right center' }}
+        priority
+        sizes="100vw"
+      />
+      <div className="hero-overlay" />
+      <div style={{ position: 'relative', zIndex: 1, maxWidth: 1280, margin: '0 auto' }}>
+        <div style={{ maxWidth: 620 }}>
           <h1 className="serif" style={{
             fontSize: 'clamp(42px,5vw,70px)', lineHeight: 1.05, letterSpacing: '-0.02em',
             color: '#0D4035', margin: '0 0 24px', animation: 'fadeUp 700ms ease both 100ms',
@@ -278,17 +312,6 @@ function Hero() {
             </a>
           </div>
           <p style={{ fontSize: 12, color: '#516965', opacity: 0.7, animation: 'fadeUp 600ms ease both 700ms' }}>No credit card required · Cancel anytime · Clinical Decision Support on every plan</p>
-        </div>
-        <div style={{ position: 'relative', borderRadius: 20, overflow: 'hidden', aspectRatio: '4/3', boxShadow: '0 24px 64px rgba(13,64,53,0.18)', animation: 'fadeUp 700ms ease both 300ms' }}>
-          <Image
-            src="https://images.unsplash.com/photo-1631549916768-4119b2e5f926?w=1200&q=85&fm=jpg&fit=crop&crop=center"
-            alt="Pharmacist at the dispensing counter"
-            fill
-            style={{ objectFit: 'cover' }}
-            priority
-            sizes="(max-width: 768px) 100vw, 50vw"
-          />
-          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, rgba(13,64,53,0.08) 0%, transparent 60%)' }} />
         </div>
       </div>
     </section>
@@ -470,7 +493,7 @@ function FeatureTabs() {
             <button key={t.id} className={`tab-btn${i === a ? ' active' : ''}`} onClick={() => setA(i)}>{t.label}</button>
           ))}
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 64, alignItems: 'start' }}>
+        <div className="mob-stack" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 64, alignItems: 'start' }}>
           <div>
             <h3 className="serif" style={{ fontSize: 32, color: '#0D4035', margin: '0 0 16px', lineHeight: 1.15 }}>{tab.headline}</h3>
             <p style={{ fontSize: 15, lineHeight: 1.78, color: '#516965', marginBottom: 28 }}>{tab.body}</p>
@@ -500,7 +523,7 @@ function DashboardScreens() {
           <h2 className="serif" style={{ fontSize: 'clamp(28px,3.5vw,44px)', color: '#0D4035', margin: '0 0 16px', lineHeight: 1.1 }}>Built for the pharmacy counter</h2>
           <p style={{ fontSize: 15, color: '#516965', lineHeight: 1.78 }}>One platform connecting dispensing, stock, compliance, and management — from any device, online or off.</p>
         </div>
-        <div style={{ border: '1px solid #E2EDE8', borderRadius: 16, overflow: 'hidden', boxShadow: '0 24px 64px rgba(13,64,53,0.12)', background: 'white' }}>
+        <div style={{ border: '1px solid #E2EDE8', borderRadius: 16, overflowX: 'auto', boxShadow: '0 24px 64px rgba(13,64,53,0.12)', background: 'white' }}>
           {/* Browser chrome */}
           <div style={{ background: '#0D4035', padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ display: 'flex', gap: 6 }}>
@@ -616,7 +639,7 @@ function CallatTheTill() {
   return (
     <section className="reveal" style={{ background: '#F7FBF8', padding: '88px 32px', borderTop: '1px solid #E2EDE8' }}>
       <div style={{ maxWidth: 1280, margin: '0 auto' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 64, alignItems: 'center', marginBottom: 56 }}>
+        <div className="mob-stack" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 64, alignItems: 'center', marginBottom: 56 }}>
           <div>
             <p className="mono" style={{ fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#1A6B5C', marginBottom: 16 }}>Designed for the counter</p>
             <h2 className="serif" style={{ fontSize: 'clamp(36px,4.5vw,58px)', color: '#0D4035', margin: 0, lineHeight: 1.0 }}>
@@ -625,7 +648,7 @@ function CallatTheTill() {
           </div>
           <p style={{ fontSize: 16, lineHeight: 1.8, color: '#516965' }}>Every screen is built for the speed of a real pharmacy day. Big buttons, fast keyboard paths, large legible numbers — and quiet, sensible defaults so new staff are productive in an hour, not a week.</p>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 20 }}>
+        <div className="mob-stack" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 20 }}>
 
           {/* Dispensing POS */}
           <div style={{ border: '1px solid #E2EDE8', borderRadius: 16, overflow: 'hidden', background: 'white' }}>
@@ -848,7 +871,7 @@ function EverythingIncluded() {
 function SafetyChecks() {
   return (
     <section className="reveal" style={{ background: 'white', padding: '88px 32px', borderTop: '1px solid #E2EDE8' }}>
-      <div style={{ maxWidth: 1280, margin: '0 auto', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 72, alignItems: 'center' }}>
+      <div className="mob-stack" style={{ maxWidth: 1280, margin: '0 auto', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 72, alignItems: 'center' }}>
         <div>
           <p className="mono" style={{ fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#1A6B5C', marginBottom: 12 }}>Patient safety</p>
           <h2 className="serif" style={{ fontSize: 'clamp(28px,3.5vw,44px)', color: '#0D4035', margin: '0 0 20px', lineHeight: 1.1 }}>Safety checks at every dispensing event</h2>
@@ -932,7 +955,7 @@ function RoleSection() {
             </button>
           ))}
         </div>
-        <div style={{ background: 'white', border: '1px solid #E2EDE8', borderRadius: 20, padding: 40, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 48, alignItems: 'center' }}>
+        <div className="mob-stack" style={{ background: 'white', border: '1px solid #E2EDE8', borderRadius: 20, padding: 40, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 48, alignItems: 'center' }}>
           <div>
             <h3 className="serif" style={{ fontSize: 'clamp(22px,3vw,34px)', color: '#0D4035', margin: '0 0 24px', lineHeight: 1.1 }}>{r.headline}</h3>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -946,29 +969,29 @@ function RoleSection() {
           <div style={{ borderRadius: 16, overflow: 'hidden', position: 'relative', minHeight: 220 }}>
             {tab === 0 && (
               <Image
-                src="https://images.unsplash.com/photo-1576602976047-174e57a47881?w=900&q=85&fm=jpg&fit=crop&crop=center"
-                alt="Pharmacy owner reviewing dashboard"
+                src="https://images.pexels.com/photos/5452274/pexels-photo-5452274.jpeg?auto=compress&cs=tinysrgb&w=900"
+                alt="Pharmacy owner reviewing analytics on a tablet"
                 fill
-                style={{ objectFit: 'cover' }}
-                sizes="(max-width: 768px) 100vw, 40vw"
+                style={{ objectFit: 'cover', objectPosition: 'center top' }}
+                sizes="(max-width: 900px) 100vw, 40vw"
               />
             )}
             {tab === 1 && (
               <Image
-                src="https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=900&q=85&fm=jpg&fit=crop&crop=faces"
-                alt="Pharmacist-in-charge reviewing compliance"
+                src="https://images.pexels.com/photos/3825541/pexels-photo-3825541.jpeg?auto=compress&cs=tinysrgb&w=900"
+                alt="Pharmacist-in-charge conducting clinical review"
                 fill
-                style={{ objectFit: 'cover' }}
-                sizes="(max-width: 768px) 100vw, 40vw"
+                style={{ objectFit: 'cover', objectPosition: 'center' }}
+                sizes="(max-width: 900px) 100vw, 40vw"
               />
             )}
             {tab === 2 && (
               <Image
-                src="https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=900&q=85&fm=jpg&fit=crop&crop=center"
-                alt="Counter staff dispensing medicines"
+                src="https://images.pexels.com/photos/30678215/pexels-photo-30678215.jpeg?auto=compress&cs=tinysrgb&w=900"
+                alt="Counter staff assisting a customer at the dispensing counter"
                 fill
-                style={{ objectFit: 'cover' }}
-                sizes="(max-width: 768px) 100vw, 40vw"
+                style={{ objectFit: 'cover', objectPosition: 'center' }}
+                sizes="(max-width: 900px) 100vw, 40vw"
               />
             )}
             <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(13,64,53,0.85) 0%, rgba(13,64,53,0.2) 60%, transparent 100%)' }} />
@@ -1250,7 +1273,7 @@ export default function HomePage() {
     <div>
       <div style={{ background: '#0D4035', padding: '9px 32px', textAlign: 'center' }}>
         <p className="mono" style={{ margin: 0, fontSize: 12, letterSpacing: '0.12em', color: 'rgba(255,255,255,0.75)' }}>
-          APOTEKH &nbsp;·&nbsp; <span style={{ color: '#7ECFB4' }}>Empowering Pharmacies. Protecting Patients.</span>
+          APOTEKH &nbsp;·&nbsp; <span style={{ color: '#7ECFB4' }}>Powering Pharmacies. Protecting Patients.</span>
         </p>
       </div>
       <Nav />
