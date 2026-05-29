@@ -250,7 +250,7 @@ const OrderCard: React.FC<{ order: WholesaleOrder; role: string; invoice?: VatIn
 
   const statusMutation = useMutation({
     mutationFn: (payload: { nextStatus: OrderStatus; assignedPicker?: string | null; assignedDriver?: string | null }) =>
-      api.patch(`/b2b/orders/${order.id}/status`, payload).then((r) => r.data.data.order as WholesaleOrder),
+      api.patch(`/b2b/orders/${order.id}/status`, payload).then((r) => r.data.data as WholesaleOrder),
     onSuccess: (updated) => {
       toast.success(`Order ${STATUS_LABEL[updated.status]}`);
       onUpdated(updated);
@@ -260,7 +260,7 @@ const OrderCard: React.FC<{ order: WholesaleOrder; role: string; invoice?: VatIn
   });
 
   const deliveryMutation = useMutation({
-    mutationFn: () => api.patch(`/b2b/orders/${order.id}/confirm-delivery`).then((r) => r.data.data.order as WholesaleOrder),
+    mutationFn: () => api.patch(`/b2b/orders/${order.id}/confirm-delivery`).then((r) => r.data.data as WholesaleOrder),
     onSuccess: (updated) => { toast.success('Delivery confirmed'); onUpdated(updated); },
     onError: (error: any) => toast.error(error.response?.data?.error ?? 'Could not confirm delivery'),
   });

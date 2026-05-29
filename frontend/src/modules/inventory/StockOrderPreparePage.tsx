@@ -112,12 +112,13 @@ export const StockOrderPreparePage: React.FC = () => {
         .get('/inventory/products/suggestions', {
           params: { search: immediateSearch, limit: 12 },
           signal,
-          timeout: 2500,
+          timeout: 8000,
         })
         .then((r) => r.data),
     enabled: immediateSearch.length > 1,
     staleTime: 30_000,
     networkMode: 'always',
+    retry: 1,
   });
 
   // Drug Master Catalogue — parallel, same fast pattern
@@ -128,16 +129,18 @@ export const StockOrderPreparePage: React.FC = () => {
         .get('/inventory/drug-master', {
           params: { q: immediateSearch, limit: 20 },
           signal,
-          timeout: 2500,
+          timeout: 8000,
         })
         .then((r) => r.data),
     enabled: immediateSearch.length > 1,
     staleTime: 30_000,
     networkMode: 'always',
+    retry: 1,
   });
 
   const productsLoading = inventoryFetching || catalogueFetching;
-  const productsError = inventoryError && catalogueError;
+  // Only show hard error when both fail AND we're not loading — don't block on one slow query
+  const productsError = inventoryError && catalogueError && !productsLoading;
 
   const { data: supplierData } = useQuery({
     queryKey: ['suppliers'],

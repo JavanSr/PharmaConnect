@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { useNotificationStore } from '@/stores/notificationStore';
 import type { Pharmacy, WholesaleCatalogueItem, WholesaleOrder } from '@/types';
+import { usePharmacyStore } from '@/stores/pharmacyStore';
 import { WholesaleShell } from './WholesaleShell';
 
 type CartLine = WholesaleCatalogueItem & { qty: number };
@@ -14,6 +15,7 @@ type CartLine = WholesaleCatalogueItem & { qty: number };
 export const ManualOrderPage: React.FC = () => {
   const toast = useNotificationStore((s) => s.toast);
   const queryClient = useQueryClient();
+  const myPharmacyId = usePharmacyStore((s) => s.pharmacy?.id);
 
   const [buyerSearch, setBuyerSearch] = React.useState('');
   const [selectedBuyer, setSelectedBuyer] = React.useState<Pharmacy | null>(null);
@@ -28,8 +30,11 @@ export const ManualOrderPage: React.FC = () => {
   });
 
   const catalogueQuery = useQuery({
-    queryKey: ['wholesale-catalogue-seller'],
-    queryFn: () => api.get('/b2b/catalogue').then((r) => r.data.data as WholesaleCatalogueItem[]),
+    queryKey: ['wholesale-catalogue-seller', myPharmacyId],
+    queryFn: () =>
+      api.get('/b2b/catalogue', { params: { sellerPharmacyId: myPharmacyId } })
+        .then((r) => r.data.data as WholesaleCatalogueItem[]),
+    enabled: Boolean(myPharmacyId),
   });
 
   const [productSearch, setProductSearch] = React.useState('');
