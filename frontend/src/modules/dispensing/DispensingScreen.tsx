@@ -1096,6 +1096,18 @@ export const DispensingScreen: React.FC = () => {
                   setSelectedDrug(null);
                   setShowDrugDropdown(true);
                 }}
+                onKeyDown={(event) => {
+                  // USB barcode scanners type the barcode then press Enter.
+                  // If the current value looks like a barcode (8-14 digits), treat Enter as a scan.
+                  if (event.key === 'Enter' && !selectedDrug) {
+                    const val = drugSearch.trim();
+                    if (/^\d{8,14}$/.test(val)) {
+                      event.preventDefault();
+                      setShowDrugDropdown(false);
+                      void handleMedicineBarcodeDetected(val);
+                    }
+                  }
+                }}
                 onFocus={() => setShowDrugDropdown(true)}
                 placeholder="Search generic or brand name"
                 leftIcon={<Search size={16} />}

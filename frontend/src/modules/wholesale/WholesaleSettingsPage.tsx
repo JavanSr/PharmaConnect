@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Search, UserPlus } from 'lucide-react';
+import { Pencil, Plus, Search, Trash2, UserPlus, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -10,7 +10,7 @@ import { Select } from '@/components/ui/Select';
 import { useAuthStore } from '@/stores/authStore';
 import { useNotificationStore } from '@/stores/notificationStore';
 import { usePharmacyStore } from '@/stores/pharmacyStore';
-import type { Pharmacy, Product, WholesaleCatalogueItem, WholesaleCreditLimit } from '@/types';
+import type { Pharmacy, Product, Supplier, WholesaleCatalogueItem, WholesaleCreditLimit } from '@/types';
 import { WholesaleShell } from './WholesaleShell';
 
 export const WholesaleSettingsPage: React.FC = () => {
@@ -37,10 +37,73 @@ export const WholesaleSettingsPage: React.FC = () => {
   const [newClientId, setNewClientId] = React.useState('');
   const [newClientLimit, setNewClientLimit] = React.useState('500000');
 
+  // Supplier management state
+  const blankSupplier = { name: '', contactName: '', phone: '', email: '', address: '' };
+  const [supplierForm, setSupplierForm] = React.useState(blankSupplier);
+  const [editingSupplierId, setEditingSupplierId] = React.useState<string | null>(null);
+
   const productsQuery = useQuery({
     queryKey: ['wholesale-settings-products'],
     queryFn: () => api.get('/inventory/products', { params: { limit: 50 } }).then((response) => response.data.data as Product[]),
   });
+
+  const suppliersQuery = useQuery({
+    queryKey: ['b2b-suppliers'],
+    queryFn: () => api.get('/b2b/suppliers').then((r) => r.data.data as Supplier[]),
+  });
+
+  const createSupplierMutation = useMutation({
+    mutationFn: () => api.post('/b2b/suppliers', {
+      name: supplierForm.name.trim(),
+      contactName: supplierForm.contactName.trim() || undefined,
+      phone: supplierForm.phone.trim() || undefined,
+      email: supplierForm.email.trim() || undefined,
+      address: supplierForm.address.trim() || undefined,
+    }).then((r) => r.data.data as Supplier),
+    onSuccess: () => {
+      toast.success('Supplier added');
+      setSupplierForm(blankSupplier);
+      queryClient.invalidateQueries({ queryKey: ['b2b-suppliers'] });
+    },
+    onError: (error: any) => toast.error(error.response?.data?.error ?? 'Could not add supplier'),
+  });
+
+  const updateSupplierMutation = useMutation({
+    mutationFn: (id: string) => api.patch(`/b2b/suppliers/${id}`, {
+      name: supplierForm.name.trim(),
+      contactName: supplierForm.contactName.trim() || undefined,
+      phone: supplierForm.phone.trim() || undefined,
+      email: supplierForm.email.trim() || undefined,
+      address: supplierForm.address.trim() || undefined,
+    }).then((r) => r.data.data as Supplier),
+    onSuccess: () => {
+      toast.success('Supplier updated');
+      setSupplierForm(blankSupplier);
+      setEditingSupplierId(null);
+      queryClient.invalidateQueries({ queryKey: ['b2b-suppliers'] });
+    },
+    onError: (error: any) => toast.error(error.response?.data?.error ?? 'Could not update supplier'),
+  });
+
+  const deleteSupplierMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/b2b/suppliers/${id}`),
+    onSuccess: () => {
+      toast.success('Supplier removed');
+      queryClient.invalidateQueries({ queryKey: ['b2b-suppliers'] });
+    },
+    onError: (error: any) => toast.error(error.response?.data?.error ?? 'Could not remove supplier'),
+  });
+
+  function startEditSupplier(supplier: Supplier) {
+    setEditingSupplierId(supplier.id);
+    setSupplierForm({
+      name: supplier.name,
+      contactName: supplier.contactName ?? '',
+      phone: supplier.phone ?? '',
+      email: supplier.email ?? '',
+      address: '',
+    });
+  }
 
   const pharmacySearchQuery = useQuery({
     queryKey: ['pharmacy-search', clientSearch],
@@ -207,6 +270,108 @@ export const WholesaleSettingsPage: React.FC = () => {
               <li>Audit logs, sync, and subscription entitlements</li>
             </ul>
           </div>
+        </div>
+      </Card>
+
+      {/* ── Supplier management ─────────────────────────────────────── */}
+      <Card header={<h3 className="text-lg font-semibold text-[#0D4035]">Your suppliers</h3>}>
+        <p className="mb-4 text-sm text-[#64748B]">
+          Suppliers you buy stock from (manufacturers, distributors). Required before creating purchase orders.
+        </p>
+        {canManageWholesaleSettings && (
+          <div className="mb-4 grid gap-3 rounded-2xl border border-[#D6F0E8] bg-[#F7FCFA] p-4 sm:grid-cols-2 lg:grid-cols-3">
+            <Input
+              label="Supplier name *"
+              value={supplierForm.name}
+              onChange={(e) => setSupplierForm((f) => ({ ...f, name: e.target.value }))}
+              placeholder="Shelys Pharma Ltd"
+            />
+            <Input
+              label="Contact name"
+              value={supplierForm.contactName}
+              onChange={(e) => setSupplierForm((f) => ({ ...f, contactName: e.target.value }))}
+              placeholder="Sales rep name"
+            />
+            <Input
+              label="Phone"
+              value={supplierForm.phone}
+              onChange={(e) => setSupplierForm((f) => ({ ...f, phone: e.target.value }))}
+              placeholder="+255 7XX XXX XXX"
+            />
+            <Input
+              label="Email"
+              type="email"
+              value={supplierForm.email}
+              onChange={(e) => setSupplierForm((f) => ({ ...f, email: e.target.value }))}
+              placeholder="orders@supplier.co.tz"
+            />
+            <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-1">
+              {editingSupplierId ? (
+                <>
+                  <Button
+                    onClick={() => updateSupplierMutation.mutate(editingSupplierId)}
+                    loading={updateSupplierMutation.isPending}
+                    disabled={!supplierForm.name.trim()}
+                    className="flex-1"
+                  >
+                    Save changes
+                  </Button>
+                  <button
+                    onClick={() => { setEditingSupplierId(null); setSupplierForm(blankSupplier); }}
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#D6F0E8] text-[#94A3B8] hover:text-[#64748B]"
+                  >
+                    <X size={14} />
+                  </button>
+                </>
+              ) : (
+                <Button
+                  leftIcon={<Plus size={14} />}
+                  onClick={() => createSupplierMutation.mutate()}
+                  loading={createSupplierMutation.isPending}
+                  disabled={!supplierForm.name.trim()}
+                  className="flex-1"
+                >
+                  Add supplier
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
+
+        <div className="space-y-2">
+          {(suppliersQuery.data ?? []).map((supplier) => (
+            <div key={supplier.id} className={`flex items-start justify-between gap-4 rounded-2xl border p-4 ${editingSupplierId === supplier.id ? 'border-[#1A6B5C] bg-[#EDF7F3]' : 'border-[#D6F0E8]'}`}>
+              <div>
+                <p className="font-medium text-[#0D4035]">{supplier.name}</p>
+                <div className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-[#64748B]">
+                  {supplier.contactName && <span>{supplier.contactName}</span>}
+                  {supplier.phone && <span>{supplier.phone}</span>}
+                  {supplier.email && <span>{supplier.email}</span>}
+                </div>
+              </div>
+              {canManageWholesaleSettings && (
+                <div className="flex shrink-0 gap-1">
+                  <button
+                    onClick={() => startEditSupplier(supplier)}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#D6F0E8] text-[#94A3B8] hover:text-[#1A6B5C]"
+                    title="Edit"
+                  >
+                    <Pencil size={13} />
+                  </button>
+                  <button
+                    onClick={() => deleteSupplierMutation.mutate(supplier.id)}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#D6F0E8] text-[#94A3B8] hover:text-[#B91C1C]"
+                    title="Remove"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+          {suppliersQuery.data?.length === 0 && (
+            <p className="text-sm text-[#64748B]">No suppliers yet. Add your first supplier above to enable purchase orders.</p>
+          )}
         </div>
       </Card>
 

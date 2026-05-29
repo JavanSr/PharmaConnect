@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Building2, ClipboardList, Settings, ShoppingCart, RefreshCw } from 'lucide-react';
+import { Building2, ClipboardCheck, ClipboardList, CreditCard, FileText, PackagePlus, Percent, RotateCcw, Settings, ShoppingCart, RefreshCw, Tag, Truck, UserPlus } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { useAuthStore } from '@/stores/authStore';
 import { usePharmacyStore } from '@/stores/pharmacyStore';
@@ -11,6 +11,14 @@ const BUYER_ROLES = ['OWNER', 'PHARMACIST_IN_CHARGE', 'WHOLESALE_MANAGER', 'SUPE
 const SELLER_NAV = [
   { label: 'Dashboard', path: '/wholesale', icon: <Building2 size={16} /> },
   { label: 'Orders', path: '/wholesale/orders', icon: <ClipboardList size={16} /> },
+  { label: 'Manual order', path: '/wholesale/manual-order', icon: <UserPlus size={16} /> },
+  { label: 'Invoices', path: '/wholesale/invoices', icon: <FileText size={16} /> },
+  { label: 'Manifests', path: '/wholesale/manifests', icon: <Truck size={16} /> },
+  { label: 'Returns', path: '/wholesale/returns', icon: <RotateCcw size={16} /> },
+  { label: 'Purchase orders', path: '/wholesale/purchase-orders', icon: <PackagePlus size={16} /> },
+  { label: 'Client pricing', path: '/wholesale/client-pricing', icon: <Tag size={16} /> },
+  { label: 'Schemes', path: '/wholesale/schemes', icon: <Percent size={16} /> },
+  { label: 'Collections', path: '/wholesale/collections', icon: <CreditCard size={16} /> },
   { label: 'Settings', path: '/wholesale/settings', icon: <Settings size={16} /> },
 ];
 

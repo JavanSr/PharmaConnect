@@ -24,13 +24,16 @@ import {
 } from './b2b.service';
 import {
   WHOLESALE_RETURN_REASONS,
+  WHOLESALE_SCHEME_TYPES,
   SUPPLIER_ORDER_STATUSES,
   approveWholesaleReturn,
   completeDeliveryManifest,
   createDeliveryManifest,
   createSupplierOrder,
   createWholesaleReturn,
+  createWholesaleScheme,
   createWholesaleSupplier,
+  deactivateWholesaleScheme,
   deleteClientPriceOverride,
   deleteWholesaleSupplier,
   departDeliveryManifest,
@@ -40,9 +43,13 @@ import {
   listClientEffectivePrices,
   listDeliveryManifests,
   listSupplierOrders,
+  listWholesalePayments,
   listWholesaleReturns,
+  listWholesaleSchemes,
   listWholesaleSuppliers,
+  recordWholesalePayment,
   updateSupplierOrderStatus,
+  updateWholesaleScheme,
   updateWholesaleSupplier,
   upsertClientPriceOverride,
 } from './b2b.extensions.service';
@@ -683,6 +690,115 @@ b2bRouter.get('/receivables-aging', requirePermission('wholesale.view_financial_
 b2bRouter.get('/demand-insights', requirePermission('wholesale.view_dashboard'), async (req: AuthRequest, res, next) => {
   try {
     res.json({ data: await getDemandInsights(pid(req)) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ─── Wholesale schemes ────────────────────────────────────────────────────────
+
+b2bRouter.get('/schemes', requireRole(...sellerOnlyRoles), async (req: AuthRequest, res, next) => {
+  try {
+    res.json({ data: await listWholesaleSchemes(pid(req)) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+b2bRouter.post('/schemes', requireRole(...sellerOnlyRoles), async (req: AuthRequest, res, next) => {
+  try {
+    const payload = z.object({
+      name: z.string().min(1).max(120),
+      description: z.string().max(500).optional().nullable(),
+      schemeType: z.enum(WHOLESALE_SCHEME_TYPES),
+      productId: z.string().optional().nullable(),
+      minOrderQty: z.coerce.number().int().min(1).optional(),
+      bonusQty: z.coerce.number().int().positive().optional().nullable(),
+      discountPct: z.coerce.number().min(0).max(100).optional().nullable(),
+      discountTzs: z.coerce.number().nonnegative().optional().nullable(),
+      validFrom: z.coerce.date().optional(),
+      validUntil: z.coerce.date().optional().nullable(),
+    }).parse(req.body);
+
+    res.status(201).json({
+      data: await createWholesaleScheme({ sellerPharmacyId: pid(req), createdBy: uid(req), ...payload }),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+b2bRouter.patch('/schemes/:id', requireRole(...sellerOnlyRoles), async (req: AuthRequest, res, next) => {
+  try {
+    const payload = z.object({
+      name: z.string().min(1).max(120),
+      description: z.string().max(500).optional().nullable(),
+      minOrderQty: z.coerce.number().int().min(1).default(1),
+      bonusQty: z.coerce.number().int().positive().optional().nullable(),
+      discountPct: z.coerce.number().min(0).max(100).optional().nullable(),
+      discountTzs: z.coerce.number().nonnegative().optional().nullable(),
+      isActive: z.boolean().default(true),
+      validFrom: z.coerce.date(),
+      validUntil: z.coerce.date().optional().nullable(),
+    }).parse(req.body);
+
+    res.json({
+      data: await updateWholesaleScheme({
+        sellerPharmacyId: pid(req),
+        schemeId: req.params.id,
+        name: payload.name,
+        description: payload.description ?? null,
+        minOrderQty: payload.minOrderQty,
+        bonusQty: payload.bonusQty ?? null,
+        discountPct: payload.discountPct ?? null,
+        discountTzs: payload.discountTzs ?? null,
+        isActive: payload.isActive,
+        validFrom: payload.validFrom,
+        validUntil: payload.validUntil ?? null,
+      }),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+b2bRouter.delete('/schemes/:id', requireRole(...sellerOnlyRoles), async (req: AuthRequest, res, next) => {
+  try {
+    await deactivateWholesaleScheme(pid(req), req.params.id);
+    res.json({ data: { deactivated: true } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ─── Wholesale payments ───────────────────────────────────────────────────────
+
+b2bRouter.get('/payments', requirePermission('wholesale.view_financial_reports'), async (req: AuthRequest, res, next) => {
+  try {
+    const query = z.object({
+      page: z.coerce.number().int().positive().optional(),
+      limit: z.coerce.number().int().positive().optional(),
+    }).parse(req.query);
+    res.json({ data: await listWholesalePayments(pid(req), query) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+b2bRouter.post('/payments', requireRole(...sellerOnlyRoles), async (req: AuthRequest, res, next) => {
+  try {
+    const payload = z.object({
+      buyerPharmacyId: z.string().min(1),
+      invoiceId: z.string().optional().nullable(),
+      amountTzs: z.coerce.number().positive(),
+      paymentMethod: z.string().min(1).max(50),
+      paymentRef: z.string().max(100).optional().nullable(),
+      notes: z.string().max(500).optional().nullable(),
+    }).parse(req.body);
+
+    res.status(201).json({
+      data: await recordWholesalePayment({ sellerPharmacyId: pid(req), recordedBy: uid(req), ...payload }),
+    });
   } catch (error) {
     next(error);
   }

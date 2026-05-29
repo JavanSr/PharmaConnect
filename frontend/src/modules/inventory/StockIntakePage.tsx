@@ -561,6 +561,17 @@ export const StockIntakePage: React.FC = () => {
                 placeholder="Search generic or brand name"
                 value={productSearch}
                 onChange={e => setProductSearch(e.target.value)}
+                onKeyDown={(e) => {
+                  // USB barcode scanner: 8-14 digit input + Enter triggers lookup
+                  if (e.key === 'Enter') {
+                    const val = productSearch.trim();
+                    if (/^\d{8,14}$/.test(val)) {
+                      e.preventDefault();
+                      void handleBarcodeDetected(val);
+                      setProductSearch('');
+                    }
+                  }
+                }}
                 leftIcon={<Search size={16} />}
                 rightIcon={
                   <button

@@ -1,8 +1,11 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { CheckCircle2, Circle } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
 import type {
+  Supplier,
   VatInvoice,
   WholesaleCatalogueItem,
   WholesaleCreditLimit,
@@ -38,9 +41,79 @@ export const WholesaleDashboardPage: React.FC = () => {
     queryFn: () => api.get('/b2b/demand-insights').then((response) => response.data.data as WholesaleDemandInsights),
   });
 
+  const suppliersQuery = useQuery({
+    queryKey: ['b2b-suppliers'],
+    queryFn: () => api.get('/b2b/suppliers').then((r) => r.data.data as Supplier[]),
+  });
+
+  const hasCatalogue = (catalogueQuery.data?.length ?? 0) > 0;
+  const hasSuppliers = (suppliersQuery.data?.length ?? 0) > 0;
+  const hasOrders = (ordersQuery.data?.length ?? 0) > 0;
+  const allLoaded = !catalogueQuery.isLoading && !suppliersQuery.isLoading && !ordersQuery.isLoading;
+  const showChecklist = allLoaded && (!hasCatalogue || !hasSuppliers);
+
+  const SETUP_STEPS = [
+    {
+      done: hasCatalogue,
+      label: 'Add products to your wholesale catalogue',
+      description: 'Set base and tier prices so buyer pharmacies can see and order your products.',
+      href: '/wholesale/settings',
+      cta: 'Go to Settings → Catalogue',
+    },
+    {
+      done: hasSuppliers,
+      label: 'Add your suppliers',
+      description: 'Register the manufacturers or distributors you buy stock from. Required for purchase orders.',
+      href: '/wholesale/settings',
+      cta: 'Go to Settings → Your suppliers',
+    },
+    {
+      done: false,
+      label: 'Invite delivery staff',
+      description: 'Add a team member with the DELIVERY_STAFF role so you can assign delivery manifests.',
+      href: '/settings/team',
+      cta: 'Open Team settings',
+    },
+  ];
+
   return (
     <WholesaleShell>
       <div className="space-y-stack-lg">
+        {showChecklist && (
+          <Card header={
+            <div className="flex items-center gap-2">
+              <span className="text-base font-semibold text-[#0D4035]">Getting started</span>
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">
+                {SETUP_STEPS.filter((s) => !s.done).length} remaining
+              </span>
+            </div>
+          }>
+            <div className="space-y-3">
+              {SETUP_STEPS.map((step) => (
+                <div key={step.label} className={`flex gap-3 rounded-2xl border p-4 ${step.done ? 'border-[#AFDFD3] bg-[#EDF7F3] opacity-60' : 'border-[#D6F0E8]'}`}>
+                  <div className="mt-0.5 shrink-0">
+                    {step.done
+                      ? <CheckCircle2 size={18} className="text-[#1A6B5C]" />
+                      : <Circle size={18} className="text-[#94A3B8]" />
+                    }
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className={`text-sm font-semibold ${step.done ? 'line-through text-[#94A3B8]' : 'text-[#0D4035]'}`}>{step.label}</p>
+                    {!step.done && (
+                      <>
+                        <p className="mt-0.5 text-xs text-[#64748B]">{step.description}</p>
+                        <Link to={step.href} className="mt-2 inline-block text-xs font-semibold text-[#1A6B5C] hover:underline">
+                          {step.cta} →
+                        </Link>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
+
         <div className="grid gap-gutter sm:grid-cols-2 lg:grid-cols-4">
           <Card className="bg-primary text-on-primary">
             <p className="text-label-lg text-on-primary/80">Catalogue lines</p>

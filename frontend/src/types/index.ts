@@ -121,6 +121,8 @@ export interface WholesaleOrder {
   scheduledDeliveryAt?: string | null;
   deliveryWindowLabel?: string | null;
   deliveryNote?: string | null;
+  schemeSavingsTzs?: number;
+  appliedSchemeIds?: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -195,6 +197,129 @@ export interface WholesaleDemandInsights {
     };
   };
   topProducts: WholesaleDemandInsightProduct[];
+}
+
+// ─── Wholesale extensions ─────────────────────────────────────────────────────
+
+export type WholesaleReturnReason = 'DAMAGED' | 'WRONG_ITEM' | 'EXPIRED' | 'OTHER';
+export type WholesaleReturnStatus = 'PENDING' | 'APPROVED' | 'CREDITED';
+
+export interface WholesaleReturnLine {
+  productId: string;
+  qty: number;
+  unitPrice: number;
+}
+
+export interface WholesaleReturn {
+  id: string;
+  orderId: string;
+  outletId: string;
+  createdBy: string;
+  reason: WholesaleReturnReason;
+  status: WholesaleReturnStatus;
+  lines: WholesaleReturnLine[];
+  creditNoteNumber: string | null;
+  creditAmountTzs: number;
+  createdAt: string;
+  updatedAt: string;
+  resolvedAt: string | null;
+}
+
+export type SupplierOrderStatus = 'DRAFT' | 'SENT' | 'PARTIAL' | 'RECEIVED' | 'CANCELLED';
+
+export interface SupplierOrderLine {
+  productId: string;
+  quantity: number;
+  unitPriceTzs: number;
+  receivedQuantity?: number;
+  note?: string | null;
+}
+
+export interface SupplierOrder {
+  id: string;
+  outletId: string;
+  supplierId: string;
+  supplierName: string | null;
+  status: SupplierOrderStatus;
+  lines: SupplierOrderLine[];
+  expectedDeliveryDate: string | null;
+  notes: string | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type DeliveryManifestStatus = 'PENDING' | 'IN_TRANSIT' | 'DELIVERED' | 'PARTIAL';
+
+export interface ManifestOrderDetail {
+  id: string;
+  orderNumber: string;
+  status: string;
+  items: WholesaleOrderLine[];
+}
+
+export interface DeliveryManifest {
+  id: string;
+  outletId: string;
+  deliveryStaffId: string;
+  deliveryStaffName: string | null;
+  orders: string[];
+  route: string;
+  vehicleReg: string | null;
+  status: DeliveryManifestStatus;
+  departedAt: string | null;
+  completedAt: string | null;
+  notes: string | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  orderDetails: ManifestOrderDetail[];
+}
+
+export type WholesaleSchemeType = 'FREE_GOODS' | 'PERCENTAGE_DISCOUNT' | 'FIXED_DISCOUNT';
+
+export interface WholesaleScheme {
+  id: string;
+  sellerPharmacyId: string;
+  name: string;
+  description: string | null;
+  schemeType: WholesaleSchemeType;
+  productId: string | null;
+  minOrderQty: number;
+  bonusQty: number | null;
+  discountPct: number | null;
+  discountTzs: number | null;
+  isActive: boolean;
+  validFrom: string;
+  validUntil: string | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WholesalePayment {
+  id: string;
+  sellerPharmacyId: string;
+  buyerPharmacyId: string;
+  buyerName: string | null;
+  invoiceId: string | null;
+  amountTzs: number;
+  paymentMethod: string;
+  paymentRef: string | null;
+  notes: string | null;
+  recordedBy: string;
+  createdAt: string;
+}
+
+export interface ClientPriceEntry {
+  productId: string;
+  productName: string;
+  genericName: string | null;
+  cataloguePriceTzs: number;
+  tierPriceTzs: number;
+  effectivePriceTzs: number;
+  overridePriceTzs: number | null;
+  hasOverride: boolean;
 }
 
 // ─── Inventory ────────────────────────────────────────────────────────────────

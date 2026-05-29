@@ -3,7 +3,7 @@ import PDFDocument from 'pdfkit';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 import { storeComplianceObject } from '../compliance/compliance.storage';
-import { resolveActiveClientPriceOverrideMap } from './b2b.extensions.service';
+import { resolveActiveClientPriceOverrideMap, resolveSchemeDiscounts } from './b2b.extensions.service';
 import { sendOrderStatusEmail } from '../../lib/email';
 
 export const ORDER_STATUSES = [
@@ -55,6 +55,8 @@ type OrderRow = {
   scheduled_delivery_at: Date | null;
   delivery_window_label: string | null;
   delivery_note: string | null;
+  scheme_savings_tzs: Prisma.Decimal | string | number;
+  applied_scheme_ids: Prisma.JsonValue;
   created_at: Date;
   updated_at: Date;
 };
@@ -174,6 +176,8 @@ function mapOrder(row: OrderRow) {
     scheduledDeliveryAt: row.scheduled_delivery_at?.toISOString() ?? null,
     deliveryWindowLabel: row.delivery_window_label,
     deliveryNote: row.delivery_note,
+    schemeSavingsTzs: asNumber(row.scheme_savings_tzs),
+    appliedSchemeIds: Array.isArray(row.applied_scheme_ids) ? (row.applied_scheme_ids as string[]) : [],
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };
@@ -656,8 +660,11 @@ export async function createOrder(input: {
   });
 
   const subtotalAmount = Number(lines.reduce((sum, line) => sum + line.lineTotal, 0).toFixed(2));
+  const { totalSavings, appliedSchemeIds } = await resolveSchemeDiscounts(input.sellerPharmacyId, lines);
+  const totalAmount = Number((subtotalAmount - totalSavings).toFixed(2));
+
   await checkStockAvailability(input.sellerPharmacyId, input.items);
-  await validateCreditLimit(input.sellerPharmacyId, input.buyerPharmacyId, subtotalAmount);
+  await validateCreditLimit(input.sellerPharmacyId, input.buyerPharmacyId, totalAmount);
 
   const orderId = randomUUID();
   const rows = await prisma.$queryRaw<OrderRow[]>(Prisma.sql`
@@ -669,6 +676,8 @@ export async function createOrder(input: {
       "items",
       "subtotal_amount",
       "total_amount",
+      "scheme_savings_tzs",
+      "applied_scheme_ids",
       "notes",
       "submitted_at"
     )
@@ -679,7 +688,9 @@ export async function createOrder(input: {
       'SUBMITTED',
       ${JSON.stringify(lines)}::jsonb,
       ${subtotalAmount},
-      ${subtotalAmount},
+      ${totalAmount},
+      ${totalSavings},
+      ${JSON.stringify(appliedSchemeIds)}::jsonb,
       ${input.notes ?? null},
       NOW()
     )

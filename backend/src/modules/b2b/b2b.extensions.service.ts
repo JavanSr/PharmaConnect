@@ -1019,3 +1019,282 @@ export async function completeDeliveryManifest(input: {
 }
 
 export { requireSellerWholesaleRole };
+
+// ─── Wholesale schemes ────────────────────────────────────────────────────────
+
+export const WHOLESALE_SCHEME_TYPES = ['FREE_GOODS', 'PERCENTAGE_DISCOUNT', 'FIXED_DISCOUNT'] as const;
+type WholesaleSchemeType = (typeof WHOLESALE_SCHEME_TYPES)[number];
+
+type WholesaleSchemeRow = {
+  id: string;
+  seller_pharmacy_id: string;
+  name: string;
+  description: string | null;
+  scheme_type: WholesaleSchemeType;
+  product_id: string | null;
+  min_order_qty: number;
+  bonus_qty: number | null;
+  discount_pct: Prisma.Decimal | number | null;
+  discount_tzs: Prisma.Decimal | number | null;
+  is_active: boolean;
+  valid_from: Date;
+  valid_until: Date | null;
+  created_by: string;
+  created_at: Date;
+  updated_at: Date;
+};
+
+type WholesalePaymentRow = {
+  id: string;
+  seller_pharmacy_id: string;
+  buyer_pharmacy_id: string;
+  buyer_name?: string;
+  invoice_id: string | null;
+  amount_tzs: Prisma.Decimal | number;
+  payment_method: string;
+  payment_ref: string | null;
+  notes: string | null;
+  recorded_by: string;
+  created_at: Date;
+};
+
+function mapScheme(row: WholesaleSchemeRow) {
+  return {
+    id: row.id,
+    sellerPharmacyId: row.seller_pharmacy_id,
+    name: row.name,
+    description: row.description,
+    schemeType: row.scheme_type,
+    productId: row.product_id,
+    minOrderQty: row.min_order_qty,
+    bonusQty: row.bonus_qty,
+    discountPct: row.discount_pct != null ? asNumber(row.discount_pct) : null,
+    discountTzs: row.discount_tzs != null ? asNumber(row.discount_tzs) : null,
+    isActive: row.is_active,
+    validFrom: row.valid_from.toISOString().slice(0, 10),
+    validUntil: row.valid_until?.toISOString().slice(0, 10) ?? null,
+    createdBy: row.created_by,
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+  };
+}
+
+function mapPayment(row: WholesalePaymentRow) {
+  return {
+    id: row.id,
+    sellerPharmacyId: row.seller_pharmacy_id,
+    buyerPharmacyId: row.buyer_pharmacy_id,
+    buyerName: row.buyer_name ?? null,
+    invoiceId: row.invoice_id,
+    amountTzs: asNumber(row.amount_tzs),
+    paymentMethod: row.payment_method,
+    paymentRef: row.payment_ref,
+    notes: row.notes,
+    recordedBy: row.recorded_by,
+    createdAt: row.created_at.toISOString(),
+  };
+}
+
+export async function listWholesaleSchemes(sellerPharmacyId: string) {
+  const rows = await prisma.$queryRaw<WholesaleSchemeRow[]>(Prisma.sql`
+    SELECT *
+    FROM "wholesale_schemes"
+    WHERE "seller_pharmacy_id" = ${sellerPharmacyId}
+    ORDER BY "created_at" DESC
+  `);
+  return rows.map(mapScheme);
+}
+
+export async function createWholesaleScheme(input: {
+  sellerPharmacyId: string;
+  name: string;
+  description?: string | null;
+  schemeType: WholesaleSchemeType;
+  productId?: string | null;
+  minOrderQty?: number;
+  bonusQty?: number | null;
+  discountPct?: number | null;
+  discountTzs?: number | null;
+  validFrom?: Date;
+  validUntil?: Date | null;
+  createdBy: string;
+}) {
+  const rows = await prisma.$queryRaw<WholesaleSchemeRow[]>(Prisma.sql`
+    INSERT INTO "wholesale_schemes" (
+      "id", "seller_pharmacy_id", "name", "description",
+      "scheme_type", "product_id", "min_order_qty",
+      "bonus_qty", "discount_pct", "discount_tzs",
+      "is_active", "valid_from", "valid_until",
+      "created_by", "created_at", "updated_at"
+    )
+    VALUES (
+      ${randomUUID()},
+      ${input.sellerPharmacyId},
+      ${input.name.trim()},
+      ${input.description?.trim() ?? null},
+      ${input.schemeType},
+      ${input.productId ?? null},
+      ${input.minOrderQty ?? 1},
+      ${input.bonusQty ?? null},
+      ${input.discountPct ?? null},
+      ${input.discountTzs ?? null},
+      true,
+      ${input.validFrom ?? new Date()},
+      ${input.validUntil ?? null},
+      ${input.createdBy},
+      CURRENT_TIMESTAMP,
+      CURRENT_TIMESTAMP
+    )
+    RETURNING *
+  `);
+  return mapScheme(rows[0]);
+}
+
+export async function updateWholesaleScheme(input: {
+  sellerPharmacyId: string;
+  schemeId: string;
+  name: string;
+  description: string | null;
+  minOrderQty: number;
+  bonusQty: number | null;
+  discountPct: number | null;
+  discountTzs: number | null;
+  isActive: boolean;
+  validFrom: Date;
+  validUntil: Date | null;
+}) {
+  const rows = await prisma.$queryRaw<WholesaleSchemeRow[]>(Prisma.sql`
+    UPDATE "wholesale_schemes"
+    SET
+      "name"          = ${input.name.trim()},
+      "description"   = ${input.description?.trim() ?? null},
+      "min_order_qty" = ${input.minOrderQty},
+      "bonus_qty"     = ${input.bonusQty ?? null},
+      "discount_pct"  = ${input.discountPct ?? null},
+      "discount_tzs"  = ${input.discountTzs ?? null},
+      "is_active"     = ${input.isActive},
+      "valid_from"    = ${input.validFrom},
+      "valid_until"   = ${input.validUntil ?? null},
+      "updated_at"    = CURRENT_TIMESTAMP
+    WHERE "id" = ${input.schemeId}
+      AND "seller_pharmacy_id" = ${input.sellerPharmacyId}
+    RETURNING *
+  `);
+
+  if (!rows[0]) {
+    throw Object.assign(new Error('Scheme not found'), { status: 404 });
+  }
+
+  return mapScheme(rows[0]);
+}
+
+export async function deactivateWholesaleScheme(sellerPharmacyId: string, schemeId: string) {
+  await prisma.$executeRaw(Prisma.sql`
+    UPDATE "wholesale_schemes"
+    SET "is_active" = false, "updated_at" = CURRENT_TIMESTAMP
+    WHERE "id" = ${schemeId}
+      AND "seller_pharmacy_id" = ${sellerPharmacyId}
+  `);
+}
+
+export async function resolveSchemeDiscounts(
+  sellerPharmacyId: string,
+  lines: Array<{ productId: string; quantity: number; lineTotal: number }>,
+): Promise<{ totalSavings: number; appliedSchemeIds: string[] }> {
+  const today = new Date().toISOString().slice(0, 10);
+  const schemes = await prisma.$queryRaw<WholesaleSchemeRow[]>(Prisma.sql`
+    SELECT *
+    FROM "wholesale_schemes"
+    WHERE "seller_pharmacy_id" = ${sellerPharmacyId}
+      AND "is_active" = true
+      AND "scheme_type" = 'PERCENTAGE_DISCOUNT'
+      AND "discount_pct" IS NOT NULL
+      AND "valid_from" <= ${today}::date
+      AND ("valid_until" IS NULL OR "valid_until" >= ${today}::date)
+    ORDER BY "discount_pct" DESC
+  `);
+
+  if (!schemes.length) return { totalSavings: 0, appliedSchemeIds: [] };
+
+  let totalSavings = 0;
+  const appliedSchemeIds = new Set<string>();
+
+  for (const line of lines) {
+    const best = schemes.find(
+      (s) => (s.product_id === null || s.product_id === line.productId) && line.quantity >= s.min_order_qty,
+    );
+    if (!best) continue;
+    const savings = Number((line.lineTotal * asNumber(best.discount_pct) / 100).toFixed(2));
+    totalSavings += savings;
+    appliedSchemeIds.add(best.id);
+  }
+
+  return { totalSavings: Number(totalSavings.toFixed(2)), appliedSchemeIds: [...appliedSchemeIds] };
+}
+
+// ─── Wholesale payments ───────────────────────────────────────────────────────
+
+export async function recordWholesalePayment(input: {
+  sellerPharmacyId: string;
+  buyerPharmacyId: string;
+  invoiceId?: string | null;
+  amountTzs: number;
+  paymentMethod: string;
+  paymentRef?: string | null;
+  notes?: string | null;
+  recordedBy: string;
+}) {
+  const rows = await prisma.$queryRaw<WholesalePaymentRow[]>(Prisma.sql`
+    INSERT INTO "wholesale_payments" (
+      "id", "seller_pharmacy_id", "buyer_pharmacy_id",
+      "invoice_id", "amount_tzs", "payment_method",
+      "payment_ref", "notes", "recorded_by", "created_at"
+    )
+    VALUES (
+      ${randomUUID()},
+      ${input.sellerPharmacyId},
+      ${input.buyerPharmacyId},
+      ${input.invoiceId ?? null},
+      ${Math.round(input.amountTzs)},
+      ${input.paymentMethod},
+      ${input.paymentRef?.trim() ?? null},
+      ${input.notes?.trim() ?? null},
+      ${input.recordedBy},
+      CURRENT_TIMESTAMP
+    )
+    RETURNING *
+  `);
+  return mapPayment(rows[0]);
+}
+
+export async function listWholesalePayments(sellerPharmacyId: string, params: { page?: number; limit?: number }) {
+  const page = Math.max(params.page ?? 1, 1);
+  const limit = Math.min(Math.max(params.limit ?? 20, 1), 100);
+  const offset = (page - 1) * limit;
+
+  const [rows, counts] = await Promise.all([
+    prisma.$queryRaw<WholesalePaymentRow[]>(Prisma.sql`
+      SELECT wp.*, ph."name" AS buyer_name
+      FROM "wholesale_payments" wp
+      LEFT JOIN "pharmacies" ph ON ph."id" = wp."buyer_pharmacy_id"
+      WHERE wp."seller_pharmacy_id" = ${sellerPharmacyId}
+      ORDER BY wp."created_at" DESC
+      LIMIT ${limit}
+      OFFSET ${offset}
+    `),
+    prisma.$queryRaw<Array<{ total: bigint | number }>>(Prisma.sql`
+      SELECT COUNT(*)::bigint AS "total"
+      FROM "wholesale_payments"
+      WHERE "seller_pharmacy_id" = ${sellerPharmacyId}
+    `),
+  ]);
+
+  const total = Number(counts[0]?.total ?? 0);
+  return {
+    data: rows.map(mapPayment),
+    page,
+    limit,
+    total,
+    totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+  };
+}

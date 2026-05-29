@@ -93,7 +93,15 @@ const LogActivityPage = lazy(() => import('@/modules/cpd/LogActivityPage').then(
 const CourseDetailPage = lazy(() => import('@/modules/cpd/CourseDetailPage').then(m => ({ default: m.CourseDetailPage })));
 const WholesaleDashboardPage = lazy(() => import('@/modules/wholesale/WholesaleDashboardPage').then(m => ({ default: m.WholesaleDashboardPage })));
 const WholesaleSettingsPage = lazy(() => import('@/modules/wholesale/WholesaleSettingsPage').then(m => ({ default: m.WholesaleSettingsPage })));
+const WholesaleInvoicesPage = lazy(() => import('@/modules/wholesale/WholesaleInvoicesPage').then(m => ({ default: m.WholesaleInvoicesPage })));
+const ManualOrderPage = lazy(() => import('@/modules/wholesale/ManualOrderPage').then(m => ({ default: m.ManualOrderPage })));
+const DeliveryManifestsPage = lazy(() => import('@/modules/wholesale/DeliveryManifestsPage').then(m => ({ default: m.DeliveryManifestsPage })));
+const ReturnsPage = lazy(() => import('@/modules/wholesale/ReturnsPage').then(m => ({ default: m.ReturnsPage })));
+const PurchaseOrdersPage = lazy(() => import('@/modules/wholesale/PurchaseOrdersPage').then(m => ({ default: m.PurchaseOrdersPage })));
+const ClientPricingPage = lazy(() => import('@/modules/wholesale/ClientPricingPage').then(m => ({ default: m.ClientPricingPage })));
 const BuyerOrderPage = lazy(() => import('@/modules/wholesale/BuyerOrderPage').then(m => ({ default: m.BuyerOrderPage })));
+const WholesaleSchemesPage = lazy(() => import('@/modules/wholesale/WholesaleSchemesPage').then(m => ({ default: m.WholesaleSchemesPage })));
+const WholesaleCollectionsPage = lazy(() => import('@/modules/wholesale/WholesaleCollectionsPage').then(m => ({ default: m.WholesaleCollectionsPage })));
 const OrdersPage = lazy(() => import('@/modules/orders/OrdersPage').then(m => ({ default: m.OrdersPage })));
 const ReportsPage = lazy(() => import('@/modules/reports/ReportsPage').then(m => ({ default: m.ReportsPage })));
 const StaffActivityPage = lazy(() => import('@/modules/reports/StaffActivityPage').then(m => ({ default: m.StaffActivityPage })));
@@ -288,6 +296,14 @@ export const App: React.FC = () => (
           <Route path="/wholesale" element={page(<WholesaleDashboardPage />, ['OWNER', 'WHOLESALE_MANAGER'])} />
           <Route path="/wholesale/orders" element={page(<OrdersPage />, ['OWNER', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF', 'DELIVERY_STAFF'])} />
           <Route path="/wholesale/buy" element={page(<BuyerOrderPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'WHOLESALE_MANAGER'])} />
+          <Route path="/wholesale/invoices" element={page(<WholesaleInvoicesPage />, ['OWNER', 'WHOLESALE_MANAGER'])} />
+          <Route path="/wholesale/manual-order" element={page(<ManualOrderPage />, ['OWNER', 'WHOLESALE_MANAGER', 'SUPER_ADMIN'])} />
+          <Route path="/wholesale/manifests" element={page(<DeliveryManifestsPage />, ['OWNER', 'WHOLESALE_MANAGER', 'DELIVERY_STAFF', 'SUPER_ADMIN'])} />
+          <Route path="/wholesale/returns" element={page(<ReturnsPage />, ['OWNER', 'WHOLESALE_MANAGER', 'SUPER_ADMIN'])} />
+          <Route path="/wholesale/purchase-orders" element={page(<PurchaseOrdersPage />, ['OWNER', 'WHOLESALE_MANAGER', 'SUPER_ADMIN'])} />
+          <Route path="/wholesale/client-pricing" element={page(<ClientPricingPage />, ['OWNER', 'WHOLESALE_MANAGER', 'SUPER_ADMIN'])} />
+          <Route path="/wholesale/schemes" element={page(<WholesaleSchemesPage />, ['OWNER', 'WHOLESALE_MANAGER', 'SUPER_ADMIN'])} />
+          <Route path="/wholesale/collections" element={page(<WholesaleCollectionsPage />, ['OWNER', 'WHOLESALE_MANAGER', 'SUPER_ADMIN'])} />
           <Route path="/wholesale/settings" element={page(<WholesaleSettingsPage />, ['OWNER', 'WHOLESALE_MANAGER'])} />
           <Route path="/b2b" element={<Navigate to="/wholesale/orders" replace />} />
           <Route path="/orders" element={<Navigate to="/wholesale/orders" replace />} />
