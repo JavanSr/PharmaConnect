@@ -275,7 +275,7 @@ function Hero() {
   return (
     <section className="grid-bg" style={{ background: '#F7FBF8', padding: '88px 32px 80px', overflow: 'hidden', position: 'relative' }}>
       <Image
-        src="https://images.pexels.com/photos/30678215/pexels-photo-30678215.jpeg?auto=compress&cs=tinysrgb&w=1800"
+        src="/assets/photos/hero-pharmacist.jpg"
         alt="Pharmacist helping a customer at the dispensing counter"
         fill
         style={{ objectFit: 'cover', objectPosition: 'right center' }}
@@ -523,7 +523,7 @@ function DashboardScreens() {
           <h2 className="serif" style={{ fontSize: 'clamp(28px,3.5vw,44px)', color: '#0D4035', margin: '0 0 16px', lineHeight: 1.1 }}>Built for the pharmacy counter</h2>
           <p style={{ fontSize: 15, color: '#516965', lineHeight: 1.78 }}>One platform connecting dispensing, stock, compliance, and management — from any device, online or off.</p>
         </div>
-        <div style={{ border: '1px solid #E2EDE8', borderRadius: 16, overflowX: 'auto', boxShadow: '0 24px 64px rgba(13,64,53,0.12)', background: 'white' }}>
+        <div className="dashboard-mockup" style={{ border: '1px solid #E2EDE8', borderRadius: 16, overflowX: 'auto', boxShadow: '0 24px 64px rgba(13,64,53,0.12)', background: 'white' }}>
           {/* Browser chrome */}
           <div style={{ background: '#0D4035', padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ display: 'flex', gap: 6 }}>
@@ -779,7 +779,7 @@ function HowItWorks() {
       <div style={{ maxWidth: 1280, margin: '0 auto' }}>
         <h2 className="serif" style={{ fontSize: 'clamp(28px,3.5vw,44px)', color: '#0D4035', margin: '0 0 8px', lineHeight: 1.1 }}>How it works</h2>
         <p style={{ fontSize: 15, color: '#516965', marginBottom: 52 }}>From sign-up to daily operations in three steps.</p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 48 }}>
+        <div className="mob-stack" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 48 }}>
           {[
             { n: 1, c: '#1A6B5C', title: 'Set up your pharmacy', body: 'Register, load your products from the catalogue or by scanning, and build your team. Most pharmacies are running within the same day — no training workshop required.' },
             { n: 2, c: '#D97706', title: 'Work smarter at the counter', body: 'Dispensing, drug interaction checks, and stock updates happen in one controlled flow. Scan a product, confirm safety, complete the sale. No separate tools, no double entry.' },
@@ -831,6 +831,8 @@ function OwnerRevenue() {
     </section>
   );
 }
+
+
 
 function EverythingIncluded() {
   const features = [
@@ -969,7 +971,7 @@ function RoleSection() {
           <div style={{ borderRadius: 16, overflow: 'hidden', position: 'relative', minHeight: 220 }}>
             {tab === 0 && (
               <Image
-                src="https://images.pexels.com/photos/5452274/pexels-photo-5452274.jpeg?auto=compress&cs=tinysrgb&w=900"
+                src="/assets/photos/owner-dashboard.jpg"
                 alt="Pharmacy owner reviewing analytics on a tablet"
                 fill
                 style={{ objectFit: 'cover', objectPosition: 'center top' }}
@@ -978,7 +980,7 @@ function RoleSection() {
             )}
             {tab === 1 && (
               <Image
-                src="https://images.pexels.com/photos/3825541/pexels-photo-3825541.jpeg?auto=compress&cs=tinysrgb&w=900"
+                src="/assets/photos/inventory-stock.jpg"
                 alt="Pharmacist-in-charge conducting clinical review"
                 fill
                 style={{ objectFit: 'cover', objectPosition: 'center' }}
@@ -987,7 +989,7 @@ function RoleSection() {
             )}
             {tab === 2 && (
               <Image
-                src="https://images.pexels.com/photos/30678215/pexels-photo-30678215.jpeg?auto=compress&cs=tinysrgb&w=900"
+                src="/assets/photos/team-staff.jpg"
                 alt="Counter staff assisting a customer at the dispensing counter"
                 fill
                 style={{ objectFit: 'cover', objectPosition: 'center' }}
@@ -1274,6 +1276,11 @@ export default function HomePage() {
       <div style={{ background: '#0D4035', padding: '9px 32px', textAlign: 'center' }}>
         <p className="mono" style={{ margin: 0, fontSize: 12, letterSpacing: '0.12em', color: 'rgba(255,255,255,0.75)' }}>
           APOTEKH &nbsp;·&nbsp; <span style={{ color: '#7ECFB4' }}>Powering Pharmacies. Protecting Patients.</span>
+        </p>
+      </div>
+      <div style={{ background: '#0D4035', padding: '9px 32px', textAlign: 'center' }}>
+        <p className="mono" style={{ margin: 0, fontSize: 12, letterSpacing: '0.12em', color: 'rgba(255,255,255,0.75)' }}>
+          APOTEKH &nbsp;·&nbsp; <span style={{ color: '#7ECFB4' }}>Empowering Pharmacies. Protecting Patients.</span>
         </p>
       </div>
       <Nav />

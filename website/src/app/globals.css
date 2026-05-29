@@ -242,6 +242,9 @@ textarea {
     grid-template-columns: 1fr !important;
     gap: 32px !important;
   }
+
+  /* Dashboard browser mockup is desktop-only — too complex to reflow on mobile */
+  .dashboard-mockup { display: none; }
 }
 
 @media (max-width: 640px) {
