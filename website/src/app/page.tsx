@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 
 // ── DATA ──────────────────────────────────────────────────────────────────────
 
@@ -248,34 +249,47 @@ function Nav() {
 function Hero() {
   return (
     <section className="grid-bg" style={{ background: '#F7FBF8', padding: '88px 32px 80px', overflow: 'hidden' }}>
-      <div style={{ maxWidth: 1280, margin: '0 auto' }}>
-        <h1 className="serif" style={{
-          fontSize: 'clamp(48px,6vw,76px)', lineHeight: 1.05, letterSpacing: '-0.02em',
-          color: '#0D4035', margin: '0 0 24px', maxWidth: 900, animation: 'fadeUp 700ms ease both 100ms',
-        }}>
-          The operating system<br />
-          <span style={{ color: '#1A6B5C' }}>for pharmacies</span>
-        </h1>
-        <p style={{ fontSize: 18, lineHeight: 1.78, color: '#516965', maxWidth: 560, marginBottom: 36, animation: 'fadeUp 700ms ease both 420ms' }}>
-          Tanzania&apos;s pharmacies need more than a point-of-sale system. APOTEKH gives them inventory control,
-          patient safety checks, regulatory compliance, and analytics — in one platform built for how pharmacies actually work.
-        </p>
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', marginBottom: 16, animation: 'fadeUp 700ms ease both 560ms' }}>
-          <a href="https://app.apotekh.co.tz/register" style={{
-            display: 'inline-flex', alignItems: 'center', padding: '13px 24px',
-            borderRadius: 10, background: '#1A6B5C', color: 'white', fontSize: 14, fontWeight: 600,
-            boxShadow: '0 4px 14px rgba(26,107,92,0.25)',
+      <div style={{ maxWidth: 1280, margin: '0 auto', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 64, alignItems: 'center' }}>
+        <div>
+          <h1 className="serif" style={{
+            fontSize: 'clamp(42px,5vw,70px)', lineHeight: 1.05, letterSpacing: '-0.02em',
+            color: '#0D4035', margin: '0 0 24px', animation: 'fadeUp 700ms ease both 100ms',
           }}>
-            Start free trial — 14 days free
-          </a>
-          <a href="/platform" style={{
-            display: 'inline-flex', alignItems: 'center', gap: 6, padding: '13px 24px',
-            borderRadius: 10, border: '1.5px solid #E2EDE8', background: 'white', color: '#0D4035', fontSize: 14, fontWeight: 600,
-          }}>
-            Explore the platform →
-          </a>
+            The operating system<br />
+            <span style={{ color: '#1A6B5C' }}>for pharmacies</span>
+          </h1>
+          <p style={{ fontSize: 17, lineHeight: 1.78, color: '#516965', marginBottom: 36, animation: 'fadeUp 700ms ease both 420ms' }}>
+            Tanzania&apos;s pharmacies need more than a point-of-sale system. APOTEKH gives them inventory control,
+            patient safety checks, regulatory compliance, and analytics — in one platform built for how pharmacies actually work.
+          </p>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', marginBottom: 16, animation: 'fadeUp 700ms ease both 560ms' }}>
+            <a href="https://app.apotekh.co.tz/register" style={{
+              display: 'inline-flex', alignItems: 'center', padding: '13px 24px',
+              borderRadius: 10, background: '#1A6B5C', color: 'white', fontSize: 14, fontWeight: 600,
+              boxShadow: '0 4px 14px rgba(26,107,92,0.25)',
+            }}>
+              Start free trial — 14 days free
+            </a>
+            <a href="/platform" style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6, padding: '13px 24px',
+              borderRadius: 10, border: '1.5px solid #E2EDE8', background: 'white', color: '#0D4035', fontSize: 14, fontWeight: 600,
+            }}>
+              Explore the platform →
+            </a>
+          </div>
+          <p style={{ fontSize: 12, color: '#516965', opacity: 0.7, animation: 'fadeUp 600ms ease both 700ms' }}>No credit card required · Cancel anytime · Clinical Decision Support on every plan</p>
         </div>
-        <p style={{ fontSize: 12, color: '#516965', opacity: 0.7, animation: 'fadeUp 600ms ease both 700ms' }}>No credit card required · Cancel anytime · Clinical Decision Support on every plan</p>
+        <div style={{ position: 'relative', borderRadius: 20, overflow: 'hidden', aspectRatio: '4/3', boxShadow: '0 24px 64px rgba(13,64,53,0.18)', animation: 'fadeUp 700ms ease both 300ms' }}>
+          <Image
+            src="https://images.unsplash.com/photo-1631549916768-4119b2e5f926?w=1200&q=85&fm=jpg&fit=crop&crop=center"
+            alt="Pharmacist at the dispensing counter"
+            fill
+            style={{ objectFit: 'cover' }}
+            priority
+            sizes="(max-width: 768px) 100vw, 50vw"
+          />
+          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, rgba(13,64,53,0.08) 0%, transparent 60%)' }} />
+        </div>
       </div>
     </section>
   );
@@ -929,11 +943,40 @@ function RoleSection() {
               ))}
             </div>
           </div>
-          <div style={{ background: '#0D4035', borderRadius: 16, padding: 32, position: 'relative', overflow: 'hidden', minHeight: 180 }}>
-            <div style={{ position: 'absolute', top: -40, right: -40, width: 140, height: 140, borderRadius: '50%', background: 'radial-gradient(circle,rgba(42,148,120,0.35),transparent 70%)' }} />
-            <p className="mono" style={{ fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', marginBottom: 20 }}>{r.stat.eye}</p>
-            <p className="serif" style={{ fontSize: 52, color: 'white', lineHeight: 1.05, marginBottom: 12, whiteSpace: 'pre-line' }}>{r.stat.val}</p>
-            <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.55)', lineHeight: 1.6 }}>{r.stat.sub}</p>
+          <div style={{ borderRadius: 16, overflow: 'hidden', position: 'relative', minHeight: 220 }}>
+            {tab === 0 && (
+              <Image
+                src="https://images.unsplash.com/photo-1576602976047-174e57a47881?w=900&q=85&fm=jpg&fit=crop&crop=center"
+                alt="Pharmacy owner reviewing dashboard"
+                fill
+                style={{ objectFit: 'cover' }}
+                sizes="(max-width: 768px) 100vw, 40vw"
+              />
+            )}
+            {tab === 1 && (
+              <Image
+                src="https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=900&q=85&fm=jpg&fit=crop&crop=faces"
+                alt="Pharmacist-in-charge reviewing compliance"
+                fill
+                style={{ objectFit: 'cover' }}
+                sizes="(max-width: 768px) 100vw, 40vw"
+              />
+            )}
+            {tab === 2 && (
+              <Image
+                src="https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=900&q=85&fm=jpg&fit=crop&crop=center"
+                alt="Counter staff dispensing medicines"
+                fill
+                style={{ objectFit: 'cover' }}
+                sizes="(max-width: 768px) 100vw, 40vw"
+              />
+            )}
+            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(13,64,53,0.85) 0%, rgba(13,64,53,0.2) 60%, transparent 100%)' }} />
+            <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: 24 }}>
+              <p className="mono" style={{ fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.5)', marginBottom: 10 }}>{r.stat.eye}</p>
+              <p className="serif" style={{ fontSize: 42, color: 'white', lineHeight: 1.05, marginBottom: 8, whiteSpace: 'pre-line' }}>{r.stat.val}</p>
+              <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', lineHeight: 1.6 }}>{r.stat.sub}</p>
+            </div>
           </div>
         </div>
       </div>
@@ -1205,6 +1248,11 @@ export default function HomePage() {
 
   return (
     <div>
+      <div style={{ background: '#0D4035', padding: '9px 32px', textAlign: 'center' }}>
+        <p className="mono" style={{ margin: 0, fontSize: 12, letterSpacing: '0.12em', color: 'rgba(255,255,255,0.75)' }}>
+          APOTEKH &nbsp;·&nbsp; <span style={{ color: '#7ECFB4' }}>Empowering Pharmacies. Protecting Patients.</span>
+        </p>
+      </div>
       <Nav />
       <Hero />
       <Marquee />
