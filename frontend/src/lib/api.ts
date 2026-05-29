@@ -40,6 +40,20 @@ export const api = axios.create({
   timeout: 30_000,
 });
 
+// Block write operations during impersonation sessions
+api.interceptors.request.use((config) => {
+  const { isImpersonating } = useAuthStore.getState();
+  const method = (config.method ?? 'get').toUpperCase();
+  if (isImpersonating && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+    const url = config.url ?? '';
+    const isReadOnlyException = url.includes('/auth/logout');
+    if (!isReadOnlyException) {
+      return Promise.reject(Object.assign(new Error('IMPERSONATION_WRITE_BLOCKED'), { code: 'IMPERSONATION_WRITE_BLOCKED' }));
+    }
+  }
+  return config;
+});
+
 // Attach access token to every request
 api.interceptors.request.use((config) => {
   const token = useAuthStore.getState().accessToken;

@@ -6,6 +6,7 @@ import { ErrorBoundary, PageErrorBoundary } from '@/components/ErrorBoundary';
 import { SystemStatusWindow } from '@/components/SystemStatusWindow';
 import { useOfflineSync } from '@/hooks/useOfflineSync';
 import { useHeartbeat } from '@/hooks/useHeartbeat';
+import { ImpersonationBanner } from '@/modules/admin/ImpersonationBanner';
 import { useNotificationStore } from '@/stores/notificationStore';
 import { useAuthStore } from '@/stores/authStore';
 import { usePharmacyStore } from '@/stores/pharmacyStore';
@@ -112,6 +113,14 @@ const DataReviewPage = lazy(() => import('@/modules/settings/DataReviewPage').th
 const SourceUpdatesPage = lazy(() => import('@/modules/settings/SourceUpdatesPage').then(m => ({ default: m.SourceUpdatesPage })));
 const FeaturesPage = lazy(() => import('@/modules/settings/FeaturesPage').then(m => ({ default: m.FeaturesPage })));
 const FounderDashboardPage = lazy(() => import('@/modules/founder/FounderDashboardPage').then(m => ({ default: m.FounderDashboardPage })));
+const AdminShell = lazy(() => import('@/modules/admin/AdminShell').then(m => ({ default: m.AdminShell })));
+const AdminAuthGuard = lazy(() => import('@/modules/admin/AdminAuthGuard').then(m => ({ default: m.AdminAuthGuard })));
+const AdminDashboardPage = lazy(() => import('@/modules/admin/AdminDashboardPage').then(m => ({ default: m.AdminDashboardPage })));
+const AdminPharmaciesPage = lazy(() => import('@/modules/admin/AdminPharmaciesPage').then(m => ({ default: m.AdminPharmaciesPage })));
+const AdminPharmacyDetailPage = lazy(() => import('@/modules/admin/AdminPharmacyDetailPage').then(m => ({ default: m.AdminPharmacyDetailPage })));
+const AdminAuditPage = lazy(() => import('@/modules/admin/AdminAuditPage').then(m => ({ default: m.AdminAuditPage })));
+const AdminFeatureFlagsPage = lazy(() => import('@/modules/admin/AdminFeatureFlagsPage').then(m => ({ default: m.AdminFeatureFlagsPage })));
+const AdminMessagesPage = lazy(() => import('@/modules/admin/AdminMessagesPage').then(m => ({ default: m.AdminMessagesPage })));
 const WholesalerDiscoveryPage = lazy(() => import('@/modules/inventory/WholesalerDiscoveryPage').then(m => ({ default: m.WholesalerDiscoveryPage })));
 const WholesalerCataloguePage = lazy(() => import('@/modules/inventory/WholesalerCataloguePage').then(m => ({ default: m.WholesalerCataloguePage })));
 const MedicinePriceComparisonPage = lazy(() => import('@/modules/inventory/MedicinePriceComparisonPage').then(m => ({ default: m.MedicinePriceComparisonPage })));
@@ -226,10 +235,49 @@ const AuthenticatedOfflineSyncBootstrap: React.FC = () => {
   ) : null;
 };
 
+// Reads ?impersonation_token=... from the URL on mount and activates impersonation mode.
+const ImpersonationBootstrap: React.FC = () => {
+  const setImpersonation = useAuthStore((s) => s.setImpersonation);
+  const setPharmacy = usePharmacyStore((s) => s.setPharmacy);
+
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('impersonation_token');
+    const ownerName = params.get('impersonation_name') ?? 'Owner';
+    const pharmacyName = params.get('impersonation_pharmacy') ?? 'Pharmacy';
+
+    if (token) {
+      setImpersonation(token, { ownerName, pharmacyName });
+      // Decode pharmacy context from the JWT payload
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        if (payload.pharmacyId) {
+          // Fetch pharmacy info to populate the store
+          import('@/lib/api').then(({ api }) => {
+            api.get('/me/pharmacy').then((r) => {
+              if (r.data?.data) setPharmacy(r.data.data);
+            }).catch(() => {});
+          });
+        }
+      } catch {}
+      // Clean URL so token doesn't sit in history
+      const clean = new URL(window.location.href);
+      clean.searchParams.delete('impersonation_token');
+      clean.searchParams.delete('impersonation_name');
+      clean.searchParams.delete('impersonation_pharmacy');
+      window.history.replaceState({}, '', clean.pathname + (clean.search !== '?' ? clean.search : ''));
+    }
+  }, []);
+
+  return null;
+};
+
 export const App: React.FC = () => (
   <ErrorBoundary>
   <QueryClientProvider client={queryClient}>
     <AuthenticatedOfflineSyncBootstrap />
+    <ImpersonationBootstrap />
+    <ImpersonationBanner />
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Suspense fallback={<PageLoader />}><LoginPage /></Suspense>} />
@@ -326,6 +374,18 @@ export const App: React.FC = () => (
           <Route path="/settings/source-updates" element={page(<SourceUpdatesPage />, ['OWNER', 'PHARMACIST_IN_CHARGE'])} />
           <Route path="/settings/features" element={page(<FeaturesPage />, ['OWNER', 'PHARMACIST_IN_CHARGE'])} />
           <Route path="/founder" element={page(<FounderDashboardPage />, ['SUPER_ADMIN'])} />
+        </Route>
+
+        {/* ── Super-admin panel — completely separate layout ─────────────────── */}
+        <Route element={<Suspense fallback={<PageLoader />}><AdminAuthGuard /></Suspense>}>
+          <Route element={<Suspense fallback={<PageLoader />}><AdminShell /></Suspense>}>
+            <Route path="/superadmin" element={<Suspense fallback={<PageLoader />}><AdminDashboardPage /></Suspense>} />
+            <Route path="/superadmin/pharmacies" element={<Suspense fallback={<PageLoader />}><AdminPharmaciesPage /></Suspense>} />
+            <Route path="/superadmin/pharmacies/:id" element={<Suspense fallback={<PageLoader />}><AdminPharmacyDetailPage /></Suspense>} />
+            <Route path="/superadmin/audit" element={<Suspense fallback={<PageLoader />}><AdminAuditPage /></Suspense>} />
+            <Route path="/superadmin/feature-flags" element={<Suspense fallback={<PageLoader />}><AdminFeatureFlagsPage /></Suspense>} />
+            <Route path="/superadmin/messages" element={<Suspense fallback={<PageLoader />}><AdminMessagesPage /></Suspense>} />
+          </Route>
         </Route>
 
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
