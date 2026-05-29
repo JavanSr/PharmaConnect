@@ -764,6 +764,37 @@ function HowItWorks() {
 
 // ── EVERYTHING INCLUDED ───────────────────────────────────────────────────────
 
+
+// ── OWNER REVENUE SECTION ─────────────────────────────────────────────────────
+
+function OwnerRevenue() {
+  return (
+    <section className="reveal" style={{ background: '#0D4035', padding: '88px 32px' }}>
+      <div style={{ maxWidth: 900, margin: '0 auto', textAlign: 'center' }}>
+        <p className="mono" style={{ fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 20 }}>Full visibility. Complete accountability.</p>
+        <h2 className="serif" style={{ fontSize: 'clamp(32px,4.5vw,58px)', color: 'white', lineHeight: 1.05, margin: '0 0 24px' }}>
+          Nothing moves<br />without you knowing.
+        </h2>
+        <p style={{ fontSize: 17, color: 'rgba(255,255,255,0.65)', lineHeight: 1.7, maxWidth: 620, margin: '0 auto 48px' }}>
+          Every sale, every void, every stock adjustment posts to your Owner Dashboard the moment it happens. You do not wait for a report. You do not ask the counter team. Every shilling is accounted for — before anyone tells you.
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 1, background: 'rgba(255,255,255,0.08)', borderRadius: 16, overflow: 'hidden' }}>
+          {[
+            { val: 'Live', label: 'Revenue posted to your dashboard the moment a sale completes' },
+            { val: "Locked", label: "Dispensers see their own screen — not the daily takings" },
+            { val: 'Permanent', label: 'Every void and edit is logged — no transaction disappears quietly' },
+          ].map(({ val, label }) => (
+            <div key={val} style={{ padding: '32px 24px', background: 'rgba(255,255,255,0.04)' }}>
+              <p className="serif" style={{ fontSize: 38, color: '#7ECFB4', margin: '0 0 10px' }}>{val}</p>
+              <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, margin: 0 }}>{label}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function EverythingIncluded() {
   const features = [
     { icon: '⊞', name: 'FEFO Dispensing', desc: 'First expiry-first out enforced at every sale — no manual stock decisions.' },
@@ -851,8 +882,8 @@ function RoleSection() {
     {
       label: 'Owner',
       headline: 'Your whole business, in your pocket.',
-      features: ['Live sales and stock across all outlets', 'Compliance status before every deadline', 'Staff access controls without being on site', 'Profitability analytics across your portfolio', 'Attendance and shift oversight', 'Supplier performance at a glance'],
-      stat: { eye: 'OWNER · IN NUMBERS', val: '5 branches.\n1 login.', sub: 'Zero WhatsApp reports.' },
+      features: ["See today's revenue before your dispenser reports it", "Every sale posted live — nothing adjustable after the fact", 'Live sales and stock across all outlets', 'Compliance status before every deadline', 'Staff access controls without being on site', 'Profitability analytics across your portfolio'],
+      stat: { eye: 'OWNER · IN NUMBERS', val: '5 branches.\n1 login.', sub: "Revenue visible to you before anyone closes the till." },
     },
     {
       label: 'Pharmacist-in-Charge',
@@ -982,7 +1013,7 @@ function PricingSection() {
                 ))}
               </div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 20, marginBottom: 20 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 20, marginBottom: 20 }}>
               {TIERS.map(tier => <TierCard key={tier.id} tier={tier} bill={bill} />)}
             </div>
           </>
@@ -990,7 +1021,7 @@ function PricingSection() {
 
         {cat === 'wholesale' && (
           <>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, maxWidth: 880, marginBottom: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20, maxWidth: 880, marginBottom: 16 }}>
               <TierCard tier={WHOLESALE_TIERS[0]} bill="monthly" wide />
               <div className="card-stagger" style={{ border: '1px solid #0D4035', borderRadius: 16, padding: 28, position: 'relative', background: '#0D4035' }}>
                 <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.45)', marginBottom: 8 }}>ENTERPRISE</p>
@@ -1154,11 +1185,21 @@ function SiteFooter() {
 
 export default function HomePage() {
   useEffect(() => {
-    const els = document.querySelectorAll('.reveal');
-    const io = new IntersectionObserver(entries => {
-      entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('in'); });
-    }, { threshold: 0.1 });
-    els.forEach(el => io.observe(el));
+    const els = Array.from(document.querySelectorAll<Element>('.reveal'));
+    const io = new IntersectionObserver(
+      entries => entries.forEach(e => {
+        if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+      }),
+      { threshold: 0, rootMargin: '0px 0px 120px 0px' },
+    );
+    els.forEach(el => {
+      const rect = el.getBoundingClientRect();
+      if (rect.top < window.innerHeight + 120) {
+        el.classList.add('in');
+      } else {
+        io.observe(el);
+      }
+    });
     return () => io.disconnect();
   }, []);
 
@@ -1171,6 +1212,7 @@ export default function HomePage() {
       <FeatureTabs />
       <DashboardScreens />
       <CallatTheTill />
+      <OwnerRevenue />
       <EverythingIncluded />
       <SafetyChecks />
       <RoleSection />

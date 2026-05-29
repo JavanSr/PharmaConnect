@@ -46,10 +46,12 @@
 
 html {
   scroll-behavior: smooth;
+  overflow-x: hidden;
 }
 
 body {
   margin: 0;
+  overflow-x: hidden;
   font-family: var(--font-sans), 'DM Sans', system-ui, sans-serif;
   background-color: #f7fbf8;
   color: #0d4035;
@@ -181,8 +183,8 @@ textarea {
   color: var(--ink);
 }
 
-.card-stagger { opacity: 0; }
-.reveal.in .card-stagger { animation: fadeUp 560ms ease both; }
+.reveal:not(.in) .card-stagger { opacity: 0; }
+.reveal.in .card-stagger { animation: fadeUp 480ms ease both; }
 .reveal.in .card-stagger:nth-child(1)  { animation-delay:   0ms; }
 .reveal.in .card-stagger:nth-child(2)  { animation-delay:  65ms; }
 .reveal.in .card-stagger:nth-child(3)  { animation-delay: 130ms; }
