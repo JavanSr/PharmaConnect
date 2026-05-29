@@ -152,7 +152,7 @@ export async function sendFounderNotification(opts: {
 
   await sendEmail({
     from: FROM,
-    to: FOUNDER_EMAIL,
+    to: SUPPORT_EMAIL,
     subject: `New registration: ${opts.pharmacyName} (${opts.region})`,
     html,
   });
