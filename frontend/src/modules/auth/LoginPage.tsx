@@ -37,6 +37,7 @@ export const LoginPage: React.FC = () => {
   const setAuth = useAuthStore(s => s.setAuth);
   const updateUser = useAuthStore(s => s.updateUser);
   const setPharmacy = usePharmacyStore(s => s.setPharmacy);
+  const clearPharmacy = usePharmacyStore(s => s.clearPharmacy);
   const setMemberships = usePharmacyStore(s => s.setMemberships);
   const setDeviceSelectedPharmacyId = usePharmacyStore(s => s.setDeviceSelectedPharmacyId);
   const deviceSelectedPharmacyId = usePharmacyStore(s => s.deviceSelectedPharmacyId);
@@ -67,6 +68,9 @@ export const LoginPage: React.FC = () => {
         pharmacy: Parameters<typeof setPharmacy>[0] | null;
         memberships?: PharmacyMembership[];
       };
+      // Clear any stale pharmacy context from a previous user's session before
+      // applying the new user's data — prevents the old pharmacy bleeding through.
+      clearPharmacy();
       setAuth(user, accessToken, refreshToken);
       if (pharmacy) {
         setPharmacy(pharmacy);
