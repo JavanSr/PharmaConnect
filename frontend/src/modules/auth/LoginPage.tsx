@@ -27,7 +27,8 @@ const DEMO_ACCOUNTS = showDemoAccounts ? [
   { label: 'Owner', email: 'owner@amani.co.tz' },
   { label: 'Dispenser 2', email: 'dispenser2@amani.co.tz' },
   { label: 'Clerk Demo', email: 'clerk@amani.co.tz' },
-  { label: 'Wholesale Seller', email: 'seller@amani.co.tz' },
+  { label: 'Wholesale Manager', email: 'manager@kwd.co.tz' },
+  { label: 'Counter Staff',    email: 'counter@kwd.co.tz' },
 ] : [];
 const DEMO_PASSWORD = showDemoAccounts ? 'Demo123!' : '';
 

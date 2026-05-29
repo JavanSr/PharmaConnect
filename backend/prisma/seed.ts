@@ -3,11 +3,13 @@ import bcrypt from 'bcryptjs';
 
 function toMembershipRole(role: UserRole): PharmacyMembershipRole {
   switch (role) {
-    case 'OWNER':               return 'OWNER';
-    case 'PHARMACIST_IN_CHARGE': return 'PHARMACIST_IN_CHARGE';
-    case 'DISPENSER':           return 'DISPENSER';
-    case 'WHOLESALE_SELLER':    return 'OWNER';
-    default:                    return 'DISPENSER';
+    case 'OWNER':                   return 'OWNER';
+    case 'PHARMACIST_IN_CHARGE':    return 'PHARMACIST_IN_CHARGE';
+    case 'DISPENSER':               return 'DISPENSER';
+    case 'WHOLESALE_SELLER':        return 'OWNER';
+    case 'WHOLESALE_MANAGER':       return 'OWNER';
+    case 'WHOLESALE_COUNTER_STAFF': return 'DISPENSER';
+    default:                        return 'DISPENSER';
   }
 }
 
@@ -251,7 +253,205 @@ async function main() {
     console.log('No drugs in master catalogue yet — run drug database import first');
   }
 
+  // ─── Wholesale demo pharmacy ──────────────────────────────────────────────────
+
+  const wholesale = await prisma.pharmacy.upsert({
+    where: { licenceNumber: 'WH-AR-2024-001' },
+    update: {
+      subscriptionTier: 'WHOLESALE',
+      status: 'ACTIVE',
+      trialActive: false,
+      trialEndsAt: oneYearFromNow,
+      isActive: true,
+    },
+    create: {
+      name: 'Kilimanjaro Wholesale Distributors',
+      licenceNumber: 'WH-AR-2024-001',
+      address: 'Moshi Road, Industrial Area, Arusha',
+      region: 'Arusha',
+      pharmacyType: 'WHOLESALE',
+      subscriptionTier: 'WHOLESALE',
+      billingCycle: 'MONTHLY',
+      status: 'ACTIVE',
+      trialActive: false,
+      trialEndsAt: oneYearFromNow,
+      subscriptionUpdatedAt: new Date(),
+      userLimit: 20,
+      isActive: true,
+    },
+  });
+  console.log('Created wholesale pharmacy:', wholesale.name);
+
+  const wholesaleUsers = [
+    { email: 'manager@kwd.co.tz', firstName: 'Farida',  lastName: 'Omari',  role: 'WHOLESALE_MANAGER'       as const },
+    { email: 'counter@kwd.co.tz', firstName: 'Hassan',  lastName: 'Mwangi', role: 'WHOLESALE_COUNTER_STAFF' as const },
+  ];
+
+  for (const u of wholesaleUsers) {
+    const user = await prisma.user.upsert({
+      where: { email: u.email },
+      update: { password: await bcrypt.hash('Demo123!', 12) },
+      create: {
+        email: u.email,
+        password: await bcrypt.hash('Demo123!', 12),
+        firstName: u.firstName,
+        lastName: u.lastName,
+        role: u.role,
+        pharmacyId: wholesale.id,
+      },
+    });
+
+    await prisma.pharmacyMembership.upsert({
+      where: { userId_pharmacyId: { userId: user.id, pharmacyId: wholesale.id } },
+      update: { active: true },
+      create: {
+        userId: user.id,
+        pharmacyId: wholesale.id,
+        role: toMembershipRole(u.role),
+        active: true,
+        validFrom: new Date(),
+        createdBy: user.id,
+      },
+    });
+    console.log('Created wholesale user:', u.email);
+  }
+
+  // Founder gets membership on wholesale pharmacy too
+  await prisma.pharmacyMembership.upsert({
+    where: { userId_pharmacyId: { userId: superAdmin.id, pharmacyId: wholesale.id } },
+    update: { active: true },
+    create: {
+      userId: superAdmin.id,
+      pharmacyId: wholesale.id,
+      role: 'OWNER',
+      active: true,
+      validFrom: new Date(),
+      createdBy: superAdmin.id,
+    },
+  });
+  console.log('Ensured founder membership in wholesale pharmacy');
+
+  // Seed products into wholesale inventory
+  const wholesaleDrugs = await prisma.drugProduct.findMany({
+    where: { genericName: { in: ['Amoxicillin', 'Paracetamol', 'Metformin', 'Atenolol', 'Artemether', 'Metronidazole', 'Cotrimoxazole', 'Ibuprofen', 'Zinc Sulfate', 'Omeprazole', 'Amlodipine', 'Diclofenac', 'Ciprofloxacin', 'Doxycycline', 'Salbutamol'] } },
+    take: 20,
+    orderBy: { productName: 'asc' },
+    select: { id: true, productName: true, genericName: true, dosageFormName: true, strengthText: true },
+  });
+
+  const fallbackDrugs = [
+    { productName: 'Amoxicillin 500mg Capsules',     genericName: 'Amoxicillin',   dosageFormName: 'CAPSULE', strengthText: '500mg',  drugMasterId: undefined },
+    { productName: 'Paracetamol 500mg Tablets',      genericName: 'Paracetamol',   dosageFormName: 'TABLET',  strengthText: '500mg',  drugMasterId: undefined },
+    { productName: 'Metformin 500mg Tablets',        genericName: 'Metformin',     dosageFormName: 'TABLET',  strengthText: '500mg',  drugMasterId: undefined },
+    { productName: 'Atenolol 50mg Tablets',          genericName: 'Atenolol',      dosageFormName: 'TABLET',  strengthText: '50mg',   drugMasterId: undefined },
+    { productName: 'Metronidazole 200mg Tablets',    genericName: 'Metronidazole', dosageFormName: 'TABLET',  strengthText: '200mg',  drugMasterId: undefined },
+    { productName: 'Ciprofloxacin 500mg Tablets',    genericName: 'Ciprofloxacin', dosageFormName: 'TABLET',  strengthText: '500mg',  drugMasterId: undefined },
+    { productName: 'Ibuprofen 400mg Tablets',        genericName: 'Ibuprofen',     dosageFormName: 'TABLET',  strengthText: '400mg',  drugMasterId: undefined },
+    { productName: 'Omeprazole 20mg Capsules',       genericName: 'Omeprazole',    dosageFormName: 'CAPSULE', strengthText: '20mg',   drugMasterId: undefined },
+    { productName: 'Doxycycline 100mg Capsules',     genericName: 'Doxycycline',   dosageFormName: 'CAPSULE', strengthText: '100mg',  drugMasterId: undefined },
+    { productName: 'Salbutamol Inhaler 100mcg/dose', genericName: 'Salbutamol',    dosageFormName: 'INHALER', strengthText: '100mcg', drugMasterId: undefined },
+  ];
+
+  const drugsToSeed = wholesaleDrugs.length >= 5
+    ? wholesaleDrugs.map(d => ({ productName: d.productName, genericName: d.genericName ?? '', dosageFormName: d.dosageFormName ?? 'TABLET', strengthText: d.strengthText ?? null, drugMasterId: d.id }))
+    : fallbackDrugs;
+
+  const basePrices: Record<string, number> = {
+    Amoxicillin: 120, Paracetamol: 35, Metformin: 80, Atenolol: 65,
+    Artemether: 180, Metronidazole: 45, Cotrimoxazole: 40, Ibuprofen: 55,
+    'Zinc Sulfate': 50, Omeprazole: 90, Amlodipine: 70, Diclofenac: 60,
+    Ciprofloxacin: 150, Doxycycline: 130, Salbutamol: 4500,
+  };
+
+  const wholesaleProducts: { id: string; basePrice: number }[] = [];
+
+  for (const drug of drugsToSeed) {
+    let product = await prisma.product.findFirst({
+      where: { pharmacyId: wholesale.id, name: drug.productName },
+      select: { id: true },
+    });
+    if (!product) {
+      product = await prisma.product.create({
+        data: {
+          pharmacyId: wholesale.id,
+          name: drug.productName,
+          genericName: drug.genericName || undefined,
+          drugMasterId: drug.drugMasterId || undefined,
+          strength: drug.strengthText || undefined,
+          sellingPrice: null,
+          reorderLevel: 50,
+          isActive: true,
+        },
+        select: { id: true },
+      });
+    }
+
+    const existingBatch = await prisma.batch.findFirst({
+      where: { productId: product.id, batchNumber: 'WH-SEED-001' },
+      select: { id: true },
+    });
+    if (!existingBatch) {
+      const basePrice = basePrices[drug.genericName] ?? 80;
+      await prisma.batch.create({
+        data: {
+          productId: product.id,
+          pharmacyId: wholesale.id,
+          batchNumber: 'WH-SEED-001',
+          expiryDate: new Date('2027-12-31'),
+          quantityRemaining: 500,
+          purchasePrice: Math.round(basePrice * 0.7),
+        },
+      });
+    }
+
+    wholesaleProducts.push({ id: product.id, basePrice: basePrices[drug.genericName] ?? 80 });
+  }
+  console.log(`Seeded ${wholesaleProducts.length} products into wholesale pharmacy`);
+
+  // Create wholesale catalogue if not already there
+  const existingCat = await prisma.$queryRaw<Array<{ id: string }>>`
+    SELECT id FROM "wholesale_catalogues"
+    WHERE "pharmacy_id" = ${wholesale.id} AND "is_active" = true
+    LIMIT 1
+  `;
+
+  if (existingCat.length === 0 && wholesaleProducts.length > 0) {
+    const catRows = await prisma.$queryRaw<Array<{ id: string }>>`
+      INSERT INTO "wholesale_catalogues" ("id", "pharmacy_id", "title", "description")
+      VALUES (gen_random_uuid()::text, ${wholesale.id}, 'Main Catalogue', 'Standard product list — minimum order 100 units per line')
+      RETURNING id
+    `;
+    const catalogueId = catRows[0]?.id;
+
+    if (catalogueId) {
+      for (const p of wholesaleProducts) {
+        const tierPrices = JSON.stringify({
+          ADDO:     Math.round(p.basePrice * 1.10),
+          STANDARD: Math.round(p.basePrice * 0.97),
+          PREMIUM:  Math.round(p.basePrice * 0.95),
+        });
+        await prisma.$executeRaw`
+          INSERT INTO "wholesale_catalogue_pricing" (
+            "id", "catalogue_id", "product_id", "price",
+            "tier_prices", "min_order_quantity", "max_order_quantity"
+          )
+          VALUES (
+            gen_random_uuid()::text, ${catalogueId}, ${p.id},
+            ${p.basePrice}, ${tierPrices}::jsonb, 100, NULL
+          )
+          ON CONFLICT DO NOTHING
+        `;
+      }
+      console.log(`Created wholesale catalogue with ${wholesaleProducts.length} items`);
+    }
+  } else {
+    console.log('Wholesale catalogue already exists — skipping');
+  }
+
   console.log('\nSeed complete. Login with any demo account using password: Demo123!');
+  console.log('  Retail  → owner@amani.co.tz / admin@pharmaconnect.tz / staff@pharmaconnect.tz');
+  console.log('  Wholesale seller → manager@kwd.co.tz (WHOLESALE_MANAGER)');
+  console.log('  Wholesale counter → counter@kwd.co.tz (WHOLESALE_COUNTER_STAFF)');
 }
 
 main()
