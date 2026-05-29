@@ -36,7 +36,14 @@ const FAQS = [
 ];
 
 export default function FaqAccordion() {
-  const [open, setOpen] = useState<number | null>(null);
+  const [open, setOpen] = useState<Set<number>>(new Set([0, 1]));
+
+  const toggle = (i: number) =>
+    setOpen((prev) => {
+      const next = new Set(prev);
+      next.has(i) ? next.delete(i) : next.add(i);
+      return next;
+    });
 
   return (
     <div className="divide-y divide-slate/10">
@@ -44,20 +51,20 @@ export default function FaqAccordion() {
         <div key={i}>
           <button
             className="flex w-full items-center justify-between gap-4 py-5 text-left"
-            onClick={() => setOpen(open === i ? null : i)}
+            onClick={() => toggle(i)}
             type="button"
-            aria-expanded={open === i}
+            aria-expanded={open.has(i)}
           >
             <span className="text-base font-medium text-slate">{faq.q}</span>
             <ChevronDown
               size={18}
               className={cn(
                 "shrink-0 text-primary transition-transform duration-200",
-                open === i && "rotate-180",
+                open.has(i) && "rotate-180",
               )}
             />
           </button>
-          {open === i && (
+          {open.has(i) && (
             <p className="pb-5 text-sm leading-relaxed text-slate/65">{faq.a}</p>
           )}
         </div>

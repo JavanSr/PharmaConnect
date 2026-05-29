@@ -45,8 +45,8 @@ export default function AboutPage() {
           <table className="mt-5 w-full text-left text-sm">
             <tbody>
               {[
-                ["Technical co-founder / senior engineer", "Equity discussion", "elihaki.yusuph@gmail.com"],
-                ["Clinical/regulatory advisor", "Advisor equity or early-stage partnership terms", "elihaki.yusuph@gmail.com"],
+                ["Technical co-founder / senior engineer", "Equity discussion", "support@apotekh.co.tz"],
+                ["Clinical/regulatory advisor", "Advisor equity or early-stage partnership terms", "support@apotekh.co.tz"],
               ].map(([role, terms, contact]) => (
                 <tr className="border-b border-slate/10" key={role}>
                   <td className="py-3 font-semibold text-slate">{role}</td>

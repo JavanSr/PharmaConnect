@@ -2,9 +2,9 @@ import { Resend } from 'resend';
 
 let resend: Resend | null = null;
 
-const FROM = process.env.EMAIL_FROM ?? process.env.RESEND_FROM_EMAIL ?? 'APOTEKH <onboarding@resend.dev>';
-const FOUNDER_EMAIL = 'godright.turner@gmail.com';
-const APP_URL = process.env.FRONTEND_URL ?? 'https://pharma-connect-rouge.vercel.app';
+const FROM = process.env.EMAIL_FROM ?? process.env.RESEND_FROM_EMAIL ?? 'APOTEKH <noreply@apotekh.co.tz>';
+const SUPPORT_EMAIL = 'support@apotekh.co.tz';
+const APP_URL = process.env.FRONTEND_URL ?? 'https://apotekh.co.tz';
 
 function getResendClient() {
   if (!process.env.RESEND_API_KEY) {
@@ -88,7 +88,7 @@ export async function sendVerificationEmail(opts: {
   await sendEmail({
     from: FROM,
     to: opts.to,
-    replyTo: FOUNDER_EMAIL,
+    replyTo: SUPPORT_EMAIL,
     subject: 'Verify your APOTEKH account',
     html,
   });
@@ -118,13 +118,13 @@ export async function sendWelcomeEmail(opts: {
     </ul>
     <a href="${APP_URL}/dashboard" class="btn">Open APOTEKH</a>
     <hr class="divider" />
-    <p style="font-size:13px;color:#64748B;">Questions? Reply to this email — Javan reads every message personally.</p>
+    <p style="font-size:13px;color:#64748B;">Questions? Reply to this email — we read every message personally.</p>
   `);
 
   await sendEmail({
     from: FROM,
     to: opts.to,
-    replyTo: FOUNDER_EMAIL,
+    replyTo: SUPPORT_EMAIL,
     subject: `Welcome to APOTEKH, ${opts.pharmacyName}!`,
     html,
   });
@@ -147,7 +147,7 @@ export async function sendFounderNotification(opts: {
       <p style="margin-top:6px;"><strong>Type:</strong> ${opts.pharmacyType} &nbsp; <span class="pill">${opts.tier}</span></p>
     </div>
     <p style="font-size:13px;color:#64748B;">They need to verify their email before they can log in. Check the Founder Dashboard for status.</p>
-    <a href="${APP_URL}/founder" class="btn">Open Founder Dashboard</a>
+    <a href="${APP_URL}/admin" class="btn">Open Admin Dashboard</a>
   `);
 
   await sendEmail({
@@ -189,7 +189,7 @@ export async function sendOrderStatusEmail(opts: {
   await sendEmail({
     from: FROM,
     to: opts.to,
-    replyTo: FOUNDER_EMAIL,
+    replyTo: SUPPORT_EMAIL,
     subject: `${statusLabel[opts.status] ?? 'Order update'}: ${opts.orderNumber}`,
     html,
   });
@@ -220,7 +220,7 @@ export async function sendSubscriptionPaymentFailedEmail(opts: {
   await sendEmail({
     from: FROM,
     to: opts.to,
-    replyTo: FOUNDER_EMAIL,
+    replyTo: SUPPORT_EMAIL,
     subject: `APOTEKH payment failed: ${opts.reference}`,
     html,
   });
@@ -242,7 +242,7 @@ export async function sendPasswordResetEmail(opts: {
   await sendEmail({
     from: FROM,
     to: opts.to,
-    replyTo: FOUNDER_EMAIL,
+    replyTo: SUPPORT_EMAIL,
     subject: 'Reset your APOTEKH password',
     html,
   });

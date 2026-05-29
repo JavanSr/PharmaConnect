@@ -235,8 +235,8 @@ function Nav() {
           ))}
         </nav>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <a href="/login" style={{ padding: '8px 18px', fontSize: 13, fontWeight: 500, color: '#0D4035', opacity: 0.7 }}>Sign in</a>
-          <a href="/contact#waitlist" style={{ padding: '8px 18px', borderRadius: 8, background: '#0D4035', color: 'white', fontSize: 13, fontWeight: 600 }}>Start free trial</a>
+          <a href="https://app.apotekh.co.tz" style={{ padding: '8px 18px', fontSize: 13, fontWeight: 500, color: '#0D4035', opacity: 0.7 }}>Sign in</a>
+          <a href="https://app.apotekh.co.tz/register" style={{ padding: '8px 18px', borderRadius: 8, background: '#0D4035', color: 'white', fontSize: 13, fontWeight: 600 }}>Start free trial</a>
         </div>
       </div>
     </header>
@@ -261,7 +261,7 @@ function Hero() {
           patient safety checks, regulatory compliance, and analytics — in one platform built for how pharmacies actually work.
         </p>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', marginBottom: 16, animation: 'fadeUp 700ms ease both 560ms' }}>
-          <a href="/contact#waitlist" style={{
+          <a href="https://app.apotekh.co.tz/register" style={{
             display: 'inline-flex', alignItems: 'center', padding: '13px 24px',
             borderRadius: 10, background: '#1A6B5C', color: 'white', fontSize: 14, fontWeight: 600,
             boxShadow: '0 4px 14px rgba(26,107,92,0.25)',
@@ -284,7 +284,7 @@ function Hero() {
 // ── MARQUEE ───────────────────────────────────────────────────────────────────
 
 function Marquee() {
-  const t = 'Drug Interaction Checking · Expiry Monitoring · Barcode Scanning · Compliance Alerts · Inventory Management · Patient Safety · Knowledge Hub · Dispensing · Analytics · Offline-First · Regulatory Compliance · FEFO Enforcement · Role-Based Access · Multi-Branch · ';
+  const t = 'Drug Interaction Checking · Expiry Monitoring · Barcode Scanning · Compliance Alerts · Inventory Management · Patient Safety · Offline-First · FEFO Enforcement · ';
   return (
     <div style={{ background: '#0D4035', padding: '12px 0', overflow: 'hidden', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
       <div className="marquee-track" style={{ display: 'flex', whiteSpace: 'nowrap' }}>
@@ -779,13 +779,12 @@ function EverythingIncluded() {
     { icon: '▩', name: 'Analytics & Reporting', desc: 'Sales trends, stock movement, and compliance summaries — one management view.' },
     { icon: '◼', name: 'Permanent Audit Log', desc: 'Every void, edit, and override is a revision permanently recorded — tamper-proof by design.' },
   ];
-  const coming = ['NHIF Claims', 'Stock Exchange', 'B2B Platform', 'Patient App', 'AI Safety', 'Data Products'];
   return (
     <section id="modules" className="reveal" style={{ background: '#F7FBF8', padding: '88px 32px', borderTop: '1px solid #E2EDE8' }}>
       <div style={{ maxWidth: 1280, margin: '0 auto' }}>
         <h2 className="serif" style={{ fontSize: 'clamp(28px,3.5vw,44px)', color: '#0D4035', margin: '0 0 8px', lineHeight: 1.1 }}>Everything included</h2>
         <p style={{ fontSize: 15, color: '#516965', marginBottom: 48 }}>No add-ons. No separate tools. Every capability ships with your plan.</p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16, marginBottom: 40 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16 }}>
           {features.map(({ icon, name, desc }) => (
             <div key={name} className="card-stagger" style={{ background: 'white', border: '1px solid #E2EDE8', borderRadius: 12, padding: 20 }}>
               <span style={{ fontSize: 20, display: 'block', marginBottom: 10, color: '#1A6B5C' }}>{icon}</span>
@@ -793,16 +792,6 @@ function EverythingIncluded() {
               <p style={{ fontSize: 12, color: '#516965', lineHeight: 1.65, margin: 0 }}>{desc}</p>
             </div>
           ))}
-        </div>
-        <div style={{ borderTop: '1px solid #E2EDE8', paddingTop: 28, display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-          <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#516965', margin: 0, flexShrink: 0 }}>Coming soon</p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {coming.map(name => (
-              <span key={name} style={{ border: '1px dashed #E2EDE8', borderRadius: 999, padding: '4px 14px', fontSize: 12, color: '#516965' }}>
-                {name}
-              </span>
-            ))}
-          </div>
         </div>
       </div>
     </section>
@@ -943,7 +932,7 @@ function TierCard({ tier, bill, wide }: { tier: AnyTier; bill: string; wide?: bo
       {bill === 'annual' && <p style={{ fontSize: 11, color: '#2A9478', marginBottom: 6 }}>Billed Tsh {(tier.price * 10).toLocaleString()} /year</p>}
       {'outlets' in tier && tier.outlets && <p style={{ fontSize: 12, color: '#516965', marginBottom: 6 }}>{tier.outlets} outlet{tier.outlets > 1 ? 's' : ''} · {tier.users} users</p>}
       <p style={{ fontSize: 12, color: '#516965', lineHeight: 1.65, marginBottom: 18, minHeight: 44 }}>{tier.desc}</p>
-      <a href="/contact#waitlist" style={{
+      <a href="https://app.apotekh.co.tz/register" style={{
         display: 'block', textAlign: 'center', padding: '10px', borderRadius: 8, marginBottom: 20,
         background: tier.popular ? '#1A6B5C' : 'transparent', border: tier.popular ? 'none' : '1px solid #E2EDE8',
         color: tier.popular ? 'white' : '#0D4035', fontSize: 13, fontWeight: 600,
@@ -1036,18 +1025,20 @@ function PricingSection() {
 // ── FAQ ───────────────────────────────────────────────────────────────────────
 
 function FAQ() {
-  const [open, setOpen] = useState<number | null>(null);
+  const [open, setOpen] = useState<Set<number>>(new Set([0, 1]));
+  const toggle = (i: number) =>
+    setOpen((prev) => { const s = new Set(prev); s.has(i) ? s.delete(i) : s.add(i); return s; });
   return (
     <section id="faq" className="reveal" style={{ background: '#F7FBF8', padding: '88px 32px' }}>
       <div style={{ maxWidth: 860, margin: '0 auto' }}>
         <h2 className="serif" style={{ fontSize: 'clamp(28px,3.5vw,44px)', color: '#0D4035', margin: '0 0 40px', lineHeight: 1.1 }}>Common questions</h2>
         {FAQS.map((f, i) => (
           <div key={i} className="faq-item">
-            <button className="faq-btn" onClick={() => setOpen(open === i ? null : i)}>
+            <button className="faq-btn" onClick={() => toggle(i)}>
               <span>{f.q}</span>
-              <span style={{ color: '#1A6B5C', fontSize: 20, transform: open === i ? 'rotate(45deg)' : 'none', transition: 'transform 200ms', flexShrink: 0, lineHeight: 1 }}>+</span>
+              <span style={{ color: '#1A6B5C', fontSize: 20, transform: open.has(i) ? 'rotate(45deg)' : 'none', transition: 'transform 200ms', flexShrink: 0, lineHeight: 1 }}>+</span>
             </button>
-            {open === i && <p style={{ fontSize: 14, lineHeight: 1.85, color: '#516965', paddingBottom: 20 }}>{f.a}</p>}
+            {open.has(i) && <p style={{ fontSize: 14, lineHeight: 1.85, color: '#516965', paddingBottom: 20 }}>{f.a}</p>}
           </div>
         ))}
       </div>
@@ -1113,7 +1104,7 @@ function FinalCTA() {
           )}
         </div>
         <p style={{ textAlign: 'center', marginTop: 24, fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>
-          elihaki.yusuph@gmail.com · +255 764 591 374 · @APOTEKH · Tanzania
+          support@apotekh.co.tz · @APOTEKH · Tanzania
         </p>
       </div>
     </section>
@@ -1131,7 +1122,7 @@ function SiteFooter() {
             <Logo white height={26} />
             <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.55)', lineHeight: 1.75, margin: '16px 0 12px', maxWidth: 280 }}>The pharmacy-side platform for better pharmaceutical services in Tanzania.</p>
             <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)' }}>Tanzania · 2026</p>
-            <a href="mailto:elihaki.yusuph@gmail.com" style={{ display: 'block', marginTop: 8, fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>elihaki.yusuph@gmail.com</a>
+            <a href="mailto:support@apotekh.co.tz" style={{ display: 'block', marginTop: 8, fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>support@apotekh.co.tz</a>
           </div>
           {[
             { title: 'Platform', links: [['Dashboard', '/platform/dashboard'], ['Inventory', '/platform/inventory'], ['Dispensing', '/platform/dispensing'], ['Compliance', '/platform/compliance-tracker'], ['Analytics', '/platform/analytics'], ['Knowledge Hub', '/platform/knowledge-hub']] },

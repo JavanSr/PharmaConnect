@@ -66,7 +66,7 @@ export default function Nav() {
           </nav>
 
           <div className="hidden items-center gap-3 lg:flex">
-            <Button href="/contact#waitlist" size="sm" variant="primary">
+            <Button href="https://app.apotekh.co.tz/register" size="sm" variant="primary">
               Get access
             </Button>
             <Button href="/investors" size="sm" variant="ghost">
@@ -116,7 +116,7 @@ export default function Nav() {
               })}
             </nav>
             <div className="mt-8 grid gap-3">
-              <Button href="/contact#waitlist" size="lg" variant="primary">
+              <Button href="https://app.apotekh.co.tz/register" size="lg" variant="primary">
                 Get access
               </Button>
               <Button href="/investors" size="lg" variant="ghost">

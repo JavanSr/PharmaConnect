@@ -34,8 +34,8 @@ export default function Footer() {
               The pharmacy-side platform for better pharmaceutical services in Tanzania.
             </p>
             <p className="text-sm text-white/60">Dodoma, Tanzania · 2026</p>
-            <a className="text-sm text-white/70 hover:text-white" href="mailto:elihaki.yusuph@gmail.com">
-              elihaki.yusuph@gmail.com
+            <a className="text-sm text-white/70 hover:text-white" href="mailto:support@apotekh.co.tz">
+              support@apotekh.co.tz
             </a>
           </div>
 
@@ -49,7 +49,6 @@ export default function Footer() {
                   {link.label}
                 </Link>
               ))}
-              <span className="text-white/50">More coming soon →</span>
             </div>
           </div>
 
