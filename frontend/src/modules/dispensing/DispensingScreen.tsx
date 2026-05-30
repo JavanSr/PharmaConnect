@@ -185,7 +185,8 @@ export const DispensingScreen: React.FC = () => {
   const [showMedicineScanner, setShowMedicineScanner] = useState(false);
   const [scanUnknownBarcode, setScanUnknownBarcode] = useState<string | null>(null);
   const [selectedDrug, setSelectedDrug] = useState<Product | null>(null);
-  const [quantity, setQuantity] = useState(1);
+  const [quantityRaw, setQuantityRaw] = useState('1');
+  const quantity = Math.max(1, parseInt(quantityRaw, 10) || 1);
   const [cartItems, setCartItems] = useState<DispensingCartItem[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CASH');
   const [paymentRef, setPaymentRef] = useState('');
@@ -640,7 +641,7 @@ export const DispensingScreen: React.FC = () => {
 
     setSelectedDrug(null);
     setDrugSearch('');
-    setQuantity(1);
+    setQuantityRaw('1');
     toast.success('Medicine added to cart');
   };
 
@@ -1216,8 +1217,8 @@ export const DispensingScreen: React.FC = () => {
                 label="Quantity"
                 type="number"
                 min="1"
-                value={String(quantity)}
-                onChange={(event) => setQuantity(Math.max(1, Number(event.target.value) || 1))}
+                value={quantityRaw}
+                onChange={(event) => setQuantityRaw(event.target.value.replace(/[^0-9]/g, ''))}
               />
             </div>
 
@@ -1230,7 +1231,7 @@ export const DispensingScreen: React.FC = () => {
                 onClick={() => {
                   setSelectedDrug(null);
                   setDrugSearch('');
-                  setQuantity(1);
+                  setQuantityRaw('1');
                 }}
               >
                 Clear line

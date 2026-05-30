@@ -2,7 +2,7 @@ import React, { Suspense, lazy, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Search, ScanLine, Trash2, PackageCheck, AlertTriangle, Package } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Input } from '@/components/ui/Input';
@@ -194,10 +194,31 @@ type LineFormData = z.infer<typeof lineSchema>;
 
 export const StockIntakePage: React.FC = () => {
   const toast = useNotificationStore(s => s.toast);
+  const qc = useQueryClient();
   const { pendingWrites } = useOfflineSync(false);
 
   // session-level supplier (applies to all lines in this receipt)
   const [sessionSupplierId, setSessionSupplierId] = useState<string>('');
+  const [showNewSupplier, setShowNewSupplier] = useState(false);
+  const [newSupplierName, setNewSupplierName] = useState('');
+  const [newSupplierPhone, setNewSupplierPhone] = useState('');
+
+  const createSupplierMutation = useMutation({
+    mutationFn: () =>
+      api.post('/inventory/suppliers', {
+        name: newSupplierName.trim(),
+        phone: newSupplierPhone.trim() || undefined,
+      }).then(r => r.data.data as { id: string; name: string }),
+    onSuccess: (supplier) => {
+      toast.success(`Supplier "${supplier.name}" added`);
+      qc.invalidateQueries({ queryKey: ['suppliers'] });
+      setSessionSupplierId(supplier.id);
+      setShowNewSupplier(false);
+      setNewSupplierName('');
+      setNewSupplierPhone('');
+    },
+    onError: (err: any) => toast.error(err.response?.data?.error ?? 'Could not add supplier'),
+  });
 
   // cart
   const [cart, setCart] = useState<CartLine[]>([]);
@@ -527,9 +548,21 @@ export const StockIntakePage: React.FC = () => {
           <div className="flex-1 min-w-0">
             <Select
               label="Supplier for this receipt (optional)"
-              options={[{ value: '', label: 'No supplier / walk-in purchase' }, ...suppliers.map((s: any) => ({ value: s.id, label: s.name }))]}
+              options={[
+                { value: '', label: 'No supplier / walk-in purchase' },
+                ...suppliers.map((s: any) => ({ value: s.id, label: s.name })),
+                { value: '__new__', label: '+ Add new supplier…' },
+              ]}
               value={sessionSupplierId}
-              onChange={e => setSessionSupplierId(e.target.value)}
+              onChange={e => {
+                if (e.target.value === '__new__') {
+                  setShowNewSupplier(true);
+                  setSessionSupplierId('');
+                } else {
+                  setShowNewSupplier(false);
+                  setSessionSupplierId(e.target.value);
+                }
+              }}
             />
           </div>
           {sessionSupplierId && (
@@ -538,6 +571,44 @@ export const StockIntakePage: React.FC = () => {
             </button>
           )}
         </div>
+
+        {showNewSupplier && (
+          <div className="mt-4 space-y-3 rounded-xl border border-[#D6F0E8] bg-[#F7FCFA] p-4">
+            <p className="text-xs font-semibold text-[#0D4035]">New supplier</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Input
+                label="Supplier name *"
+                value={newSupplierName}
+                onChange={e => setNewSupplierName(e.target.value)}
+                placeholder="e.g. Shelys Pharma Ltd"
+              />
+              <Input
+                label="Phone (optional)"
+                value={newSupplierPhone}
+                onChange={e => setNewSupplierPhone(e.target.value)}
+                placeholder="+255 …"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                onClick={() => createSupplierMutation.mutate()}
+                loading={createSupplierMutation.isPending}
+                disabled={!newSupplierName.trim()}
+              >
+                Save supplier
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => { setShowNewSupplier(false); setNewSupplierName(''); setNewSupplierPhone(''); }}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
+
         <p className="mt-2 text-xs text-[#64748B]">All items added to this cart will be attributed to this supplier.</p>
       </Card>
 
