@@ -167,11 +167,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
     </div>
   );
 
+  // ── Wholesale-only nav ────────────────────────────────────────────────────
+  const WHOLESALE_ALLOWED_PATHS = new Set([
+    '/wholesale', '/wholesale/orders', '/inventory', '/inventory/stock-orders',
+    '/analytics', '/reports', '/settings', '/notifications',
+  ]);
+  const isWholesalePharmacy = pharmacy?.pharmacyType === 'WHOLESALE';
+
   // ── Filter nav items ───────────────────────────────────────────────────────
   const visiblePhase1Nav = phase1Nav.filter((item) => {
+    // Pure wholesale pharmacies: only wholesale-relevant nav
+    if (isWholesalePharmacy && user?.role !== 'SUPER_ADMIN') {
+      return WHOLESALE_ALLOWED_PATHS.has(item.path) || item.path.startsWith('/wholesale');
+    }
+
     if (inGrace && user?.role === 'OWNER') {
-      // In grace, show the owner everything (grace vs locked handled in render).
-      // Only hide items that are role-locked to roles that exclude OWNER entirely.
       const ownerAllowed =
         !item.roles ||
         item.roles.includes('OWNER') ||

@@ -233,9 +233,165 @@ const COMPLIANCE_COLORS: Record<ComplianceKey, string> = {
   EXPIRED: '#94A3B8',
 };
 
+// ── Wholesale Analytics ───────────────────────────────────────────────────────
+
+type DemandInsight = {
+  topProducts: { productName: string; totalUnits: number; totalRevenue: number }[];
+  revenueThisPeriod: number;
+  revenueLastPeriod: number;
+  ordersThisPeriod: number;
+  ordersLastPeriod: number;
+  fulfillmentRate: number;
+};
+
+type ReceivablesAging = {
+  buckets: { label: string; amount: number }[];
+  totalOutstanding: number;
+};
+
+const Tsh2 = (v: number) => `Tsh ${Number(v ?? 0).toLocaleString('en-TZ', { maximumFractionDigits: 0 })}`;
+
+const WholesaleAnalyticsPage: React.FC = () => {
+  const { data: demandData, isLoading: demandLoading } = useQuery<{ data: DemandInsight }>({
+    queryKey: ['wholesale-demand-insights'],
+    queryFn: () => api.get('/b2b/demand-insights').then(r => r.data),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: agingData, isLoading: agingLoading } = useQuery<{ data: ReceivablesAging }>({
+    queryKey: ['wholesale-receivables-aging'],
+    queryFn: () => api.get('/b2b/receivables-aging').then(r => r.data),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const demand = demandData?.data;
+  const aging = agingData?.data;
+
+  const revChange = demand
+    ? demand.revenueLastPeriod > 0
+      ? Math.round(((demand.revenueThisPeriod - demand.revenueLastPeriod) / demand.revenueLastPeriod) * 100)
+      : null
+    : null;
+
+  const ordChange = demand
+    ? demand.ordersLastPeriod > 0
+      ? Math.round(((demand.ordersThisPeriod - demand.ordersLastPeriod) / demand.ordersLastPeriod) * 100)
+      : null
+    : null;
+
+  const isLoading = demandLoading || agingLoading;
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-xl font-bold text-[#0D4035]">Analytics</h1>
+        <p className="mt-1 text-sm text-[#64748B]">Order volume, revenue, top products, and receivables — last 30 days vs previous 30 days.</p>
+      </div>
+
+      {isLoading && (
+        <div className="flex h-48 items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#1A6B5C] border-t-transparent" />
+        </div>
+      )}
+
+      {!isLoading && demand && (
+        <>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            {[
+              { label: "Revenue (30d)", value: Tsh2(demand.revenueThisPeriod), change: revChange },
+              { label: "Orders (30d)", value: demand.ordersThisPeriod.toLocaleString(), change: ordChange },
+              { label: "Fulfillment rate", value: `${demand.fulfillmentRate ?? 0}%`, change: null },
+              { label: "Outstanding receivables", value: Tsh2(aging?.totalOutstanding ?? 0), change: null },
+            ].map(({ label, value, change }) => (
+              <div key={label} className="rounded-2xl border border-[#D6F0E8] bg-white p-5 shadow-sm">
+                <p className="text-xs font-semibold uppercase tracking-widest text-[#64748B]">{label}</p>
+                <p className="mt-2 text-2xl font-bold text-[#0D4035]">{value}</p>
+                {change !== null && change !== undefined && (
+                  <p className={`mt-1 flex items-center gap-1 text-xs font-medium ${change >= 0 ? "text-emerald-600" : "text-red-500"}`}>
+                    {change >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+                    {change >= 0 ? "+" : ""}{change}% vs prev 30d
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div className="rounded-2xl border border-[#D6F0E8] bg-white p-6 shadow-sm">
+            <h2 className="mb-4 text-sm font-bold text-[#0D4035]">Top products by revenue — last 30 days</h2>
+            {demand.topProducts?.length ? (
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={demand.topProducts.slice(0, 10)} layout="vertical" margin={{ left: 8, right: 24, top: 4, bottom: 4 }}>
+                  <XAxis type="number" tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
+                  <YAxis type="category" dataKey="productName" width={160} tick={{ fontSize: 11 }} />
+                  <Tooltip formatter={(v) => Tsh2(Number(v))} />
+                  <Bar dataKey="totalRevenue" fill="#1A6B5C" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="py-8 text-center text-sm text-[#64748B]">No completed orders in the last 30 days yet.</p>
+            )}
+          </div>
+
+          {demand.topProducts?.length > 0 && (
+            <div className="rounded-2xl border border-[#D6F0E8] bg-white shadow-sm overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-[#D6F0E8] bg-[#F7FBF8]">
+                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-widest text-[#64748B]">#</th>
+                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-widest text-[#64748B]">Product</th>
+                    <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-widest text-[#64748B]">Units sold</th>
+                    <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-widest text-[#64748B]">Revenue</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {demand.topProducts.slice(0, 10).map((p, i) => (
+                    <tr key={p.productName} className="border-b border-[#F0F7F4] last:border-0">
+                      <td className="px-5 py-3 text-[#94A3B8]">{i + 1}</td>
+                      <td className="px-5 py-3 font-medium text-[#0D4035]">{p.productName}</td>
+                      <td className="px-5 py-3 text-right text-[#374151]">{p.totalUnits.toLocaleString()}</td>
+                      <td className="px-5 py-3 text-right font-semibold text-[#1A6B5C]">{Tsh2(p.totalRevenue)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+
+      {!agingLoading && (aging?.buckets?.length ?? 0) > 0 && (
+        <div className="rounded-2xl border border-[#D6F0E8] bg-white p-6 shadow-sm">
+          <h2 className="mb-4 text-sm font-bold text-[#0D4035]">Receivables aging</h2>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {aging!.buckets.map(b => (
+              <div key={b.label} className="rounded-xl border border-[#E2EDE8] p-4">
+                <p className="text-xs font-semibold text-[#64748B]">{b.label}</p>
+                <p className="mt-1 text-lg font-bold text-[#0D4035]">{Tsh2(b.amount)}</p>
+              </div>
+            ))}
+          </div>
+          <p className="mt-4 text-xs text-[#94A3B8]">
+            Total outstanding: <span className="font-semibold text-[#0D4035]">{Tsh2(aging!.totalOutstanding)}</span>
+          </p>
+        </div>
+      )}
+
+      {!isLoading && !demand && (
+        <Card>
+          <div className="p-8 text-center text-sm text-[#64748B]">Analytics data could not be loaded. Check your connection and refresh.</div>
+        </Card>
+      )}
+    </div>
+  );
+};
+
 export const AnalyticsPage: React.FC = () => {
   const memberships = usePharmacyStore((state) => state.memberships);
   const activePharmacy = usePharmacyStore((state) => state.pharmacy);
+
+  // Wholesale pharmacies get a dedicated analytics view
+  if (activePharmacy?.pharmacyType === 'WHOLESALE') return <WholesaleAnalyticsPage />;
+
 
   // Grace mode: subscription lapsed — show daily revenue widget only.
   const isSubscriptionLapsed =

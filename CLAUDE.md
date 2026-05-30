@@ -629,6 +629,45 @@ Catalogues support per-tier price overrides. When a buyer from STANDARD tier vie
 - Wholesale operations respect trial restrictions — features lock after trial ends unless subscribed
 - Demand insights computed from completed orders (COMPLETED status only); includes top-10 products, 30-day rolling windows
 
+### Wholesale UI — Sidebar and Route Access
+
+**Pure WHOLESALE pharmacies (`pharmacyType === 'WHOLESALE'`) see ONLY these nav items:**
+- Wholesale (dashboard, orders, manual order, invoices, manifests, returns, purchase orders, client pricing)
+- Inventory (stock levels, batches, expiry, intake, stock orders)
+- Analytics (wholesale-specific — see below)
+- Reports
+- Settings / Notifications
+
+**Blocked for pure WHOLESALE (redirected to /wholesale):**
+- Dispensing — no retail sales workflow
+- Compliance (TMDA/PC tracker) — retail regulatory tool, irrelevant to wholesale
+- Knowledge Hub / TMDA Updates — clinical and CPD content for pharmacists
+- Patient Safety / Safety Alerts / Controlled Register — no patients, no clinical workflow
+- Staff Activity — built for retail dispenser tracking
+- CPD — not applicable
+- Sync Conflicts — retail inventory tool
+
+This filtering is enforced at two layers:
+1. `Sidebar.tsx` — `isWholesalePharmacy` check strips nav to the allowed set
+2. `App.tsx` — `WholesaleBlockedRoute` wrapper redirects to `/wholesale` on any blocked path
+
+SUPER_ADMIN bypasses both filters and sees everything.
+Hybrid pharmacies (`isHybrid: true`) are NOT pure wholesale — they get the full retail nav plus wholesale.
+
+### Wholesale Analytics
+
+`AnalyticsPage` detects `pharmacyType === 'WHOLESALE'` and renders `WholesaleAnalyticsPage` instead of the retail view.
+
+**Wholesale analytics metrics (sourced from existing B2B endpoints):**
+- Revenue this 30d vs previous 30d — `/b2b/demand-insights`
+- Order count this 30d vs previous 30d — `/b2b/demand-insights`
+- Fulfillment rate (% dispatched/delivered) — `/b2b/demand-insights`
+- Outstanding receivables total — `/b2b/receivables-aging`
+- Top 10 products by revenue — bar chart + table — `/b2b/demand-insights`
+- Receivables aging buckets (30d / 60d / 90d+) — `/b2b/receivables-aging`
+
+These mirror the analytics approach of systems like Unleashed, TradeGecko/QuickBooks Commerce, and SAP B1 wholesale — focused on order throughput, product velocity, and credit exposure rather than dispensing counts or compliance scores.
+
 ### Wholesale Phase 2 Roadmap
 
 The following features are **not yet built** and are candidates for Phase 2. They represent the gap between "functional wholesale MVP" and "enterprise-grade distributor platform."

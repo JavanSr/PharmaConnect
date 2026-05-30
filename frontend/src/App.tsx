@@ -142,6 +142,22 @@ const page = (node: React.ReactNode, roles?: UserRole[]) => (
   </RoleGuard>
 );
 
+// Blocks pure WHOLESALE pharmacies from retail-only routes.
+const WholesaleBlockedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const pharmacy = usePharmacyStore((state) => state.pharmacy);
+  const user = useAuthStore((state) => state.user);
+  if (pharmacy?.pharmacyType === 'WHOLESALE' && user?.role !== 'SUPER_ADMIN') {
+    return <Navigate to="/wholesale" replace />;
+  }
+  return <>{children}</>;
+};
+
+const retailPage = (node: React.ReactNode, roles?: UserRole[]) => (
+  <WholesaleBlockedRoute>
+    {page(node, roles)}
+  </WholesaleBlockedRoute>
+);
+
 const OfflineSyncBootstrap: React.FC = () => {
   const { lastWarning } = useOfflineSync(true);
   const toast = useNotificationStore((state) => state.toast);
@@ -305,9 +321,9 @@ export const App: React.FC = () => (
           <Route path="/dashboard" element={<PageErrorBoundary><Suspense fallback={<PageLoader />}><DashboardPage /></Suspense></PageErrorBoundary>} />
           <Route path="/analytics" element={page(<AnalyticsPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'CASHIER', 'WHOLESALE_MANAGER'])} />
           <Route path="/forecasting" element={page(<ForecastingPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'WHOLESALE_MANAGER'])} />
-          <Route path="/knowledge" element={<PageErrorBoundary><Suspense fallback={<PageLoader />}><KnowledgeFeedPage /></Suspense></PageErrorBoundary>} />
-          <Route path="/tmda-updates" element={<PageErrorBoundary><Suspense fallback={<PageLoader />}><TmdaUpdatesPage /></Suspense></PageErrorBoundary>} />
-          <Route path="/knowledge/:slug" element={<PageErrorBoundary><Suspense fallback={<PageLoader />}><ArticlePage /></Suspense></PageErrorBoundary>} />
+          <Route path="/knowledge" element={<WholesaleBlockedRoute><PageErrorBoundary><Suspense fallback={<PageLoader />}><KnowledgeFeedPage /></Suspense></PageErrorBoundary></WholesaleBlockedRoute>} />
+          <Route path="/tmda-updates" element={<WholesaleBlockedRoute><PageErrorBoundary><Suspense fallback={<PageLoader />}><TmdaUpdatesPage /></Suspense></PageErrorBoundary></WholesaleBlockedRoute>} />
+          <Route path="/knowledge/:slug" element={<WholesaleBlockedRoute><PageErrorBoundary><Suspense fallback={<PageLoader />}><ArticlePage /></Suspense></PageErrorBoundary></WholesaleBlockedRoute>} />
           {/* DATA_ENTRY_CLERK: stock intake + supplier management (all tiers) */}
           <Route path="/inventory" element={page(<InventoryDashboardPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'CASHIER', 'DATA_ENTRY_CLERK', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF'])} />
           <Route path="/inventory/products" element={page(<ProductsListPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'CASHIER', 'DATA_ENTRY_CLERK', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF'])} />
@@ -329,18 +345,18 @@ export const App: React.FC = () => (
           <Route path="/inventory/expiry" element={page(<ExpiryDashboardPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'DATA_ENTRY_CLERK', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF'])} />
           <Route path="/inventory/conflicts" element={page(<InventoryConflictsPage />, ['OWNER', 'PHARMACIST_IN_CHARGE'])} />
           <Route path="/inventory/import-catalogue" element={page(<CatalogueImportPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER'])} />
-          <Route path="/compliance" element={page(<ComplianceDashboardPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF'])} />
-          <Route path="/compliance/items" element={page(<ComplianceListPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF'])} />
-          <Route path="/compliance/items/new" element={page(<ComplianceItemFormPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF'])} />
-          <Route path="/compliance/items/:id" element={page(<ComplianceItemDetailPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF'])} />
-          <Route path="/compliance/items/:id/edit" element={page(<ComplianceItemFormPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF'])} />
-          <Route path="/compliance/staff" element={page(<StaffCredentialsPage />, ['OWNER', 'PHARMACIST_IN_CHARGE'])} />
-          <Route path="/compliance/inspection" element={page(<InspectionChecklistPage />, ['OWNER', 'PHARMACIST_IN_CHARGE'])} />
-          <Route path="/dispensing" element={page(<DispensingScreen />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'CASHIER'])} />
-          <Route path="/dispensing/returns" element={page(<DispensingReturnsPage />, ['OWNER', 'PHARMACIST_IN_CHARGE'])} />
-          <Route path="/dispensing/alerts" element={page(<PatientSafetyAlertsPage />, ['OWNER', 'PHARMACIST_IN_CHARGE'])} />
-          <Route path="/dispensing/daily-close" element={page(<DailyClose />, ['OWNER', 'PHARMACIST_IN_CHARGE'])} />
-          <Route path="/dispensing/controlled-register" element={page(<ControlledDrugsRegisterPage />, ['OWNER', 'PHARMACIST_IN_CHARGE'])} />
+          <Route path="/compliance" element={retailPage(<ComplianceDashboardPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF'])} />
+          <Route path="/compliance/items" element={retailPage(<ComplianceListPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF'])} />
+          <Route path="/compliance/items/new" element={retailPage(<ComplianceItemFormPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF'])} />
+          <Route path="/compliance/items/:id" element={retailPage(<ComplianceItemDetailPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF'])} />
+          <Route path="/compliance/items/:id/edit" element={retailPage(<ComplianceItemFormPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF'])} />
+          <Route path="/compliance/staff" element={retailPage(<StaffCredentialsPage />, ['OWNER', 'PHARMACIST_IN_CHARGE'])} />
+          <Route path="/compliance/inspection" element={retailPage(<InspectionChecklistPage />, ['OWNER', 'PHARMACIST_IN_CHARGE'])} />
+          <Route path="/dispensing" element={retailPage(<DispensingScreen />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'CASHIER'])} />
+          <Route path="/dispensing/returns" element={retailPage(<DispensingReturnsPage />, ['OWNER', 'PHARMACIST_IN_CHARGE'])} />
+          <Route path="/dispensing/alerts" element={retailPage(<PatientSafetyAlertsPage />, ['OWNER', 'PHARMACIST_IN_CHARGE'])} />
+          <Route path="/dispensing/daily-close" element={retailPage(<DailyClose />, ['OWNER', 'PHARMACIST_IN_CHARGE'])} />
+          <Route path="/dispensing/controlled-register" element={retailPage(<ControlledDrugsRegisterPage />, ['OWNER', 'PHARMACIST_IN_CHARGE'])} />
           <Route path="/wholesale" element={page(<WholesaleDashboardPage />, ['OWNER', 'WHOLESALE_MANAGER'])} />
           <Route path="/wholesale/orders" element={page(<OrdersPage />, ['OWNER', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF', 'DELIVERY_STAFF'])} />
           <Route path="/wholesale/buy" element={page(<BuyerOrderPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'WHOLESALE_MANAGER'])} />
@@ -356,7 +372,7 @@ export const App: React.FC = () => (
           <Route path="/b2b" element={<Navigate to="/wholesale/orders" replace />} />
           <Route path="/orders" element={<Navigate to="/wholesale/orders" replace />} />
           <Route path="/reports" element={page(<ReportsPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'CASHIER', 'WHOLESALE_MANAGER', 'SUPER_ADMIN'])} />
-          <Route path="/staff-activity" element={page(<StaffActivityPage />, ['OWNER', 'PHARMACIST_IN_CHARGE'])} />
+          <Route path="/staff-activity" element={retailPage(<StaffActivityPage />, ['OWNER', 'PHARMACIST_IN_CHARGE'])} />
           <Route path="/attendance" element={<Navigate to="/staff-activity" replace />} />
           <Route path="/patients/new" element={<Navigate to="/patient-records" replace />} />
           <Route path="/patients/:id" element={<Navigate to="/patient-records" replace />} />
