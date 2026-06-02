@@ -81,6 +81,8 @@ const packSizeCache = new Map<string, Awaited<ReturnType<typeof prisma.packSizeD
 const therapeuticClassCache = new Map<string, Awaited<ReturnType<typeof prisma.therapeuticClass.upsert>>>();
 const strengthCache = new Map<string, Awaited<ReturnType<typeof prisma.strengthDefinition.upsert>>>();
 const ingredientCache = new Map<string, Awaited<ReturnType<typeof prisma.activeIngredient.upsert>>>();
+const brandCache = new Map<string, string>(); // normalizedName → id
+const manufacturerCache = new Map<string, string>(); // normalizedName → id
 
 function normalizeText(value: string): string {
   return value
@@ -111,7 +113,7 @@ async function connectPrisma() {
 
 function buildAliasPayloads(
   productId: string,
-  seed: Pick<TanzaniaMasterCatalogProductSeed, 'genericName' | 'productName' | 'aliases' | 'ingredients' | 'msdCode'>,
+  seed: Pick<TanzaniaMasterCatalogProductSeed, 'genericName' | 'productName' | 'aliases' | 'ingredients' | 'msdCode' | 'brandName'>,
 ): Array<{
   drugProductId: string;
   alias: string;
@@ -144,6 +146,10 @@ function buildAliasPayloads(
 
   if (seed.msdCode) {
     registerAlias(seed.msdCode, AliasType.MSD_CODE);
+  }
+
+  if (seed.brandName) {
+    registerAlias(seed.brandName, AliasType.BRAND);
   }
 
   for (const alias of seed.aliases ?? []) {
@@ -331,6 +337,32 @@ async function upsertIngredient(seed: TanzaniaMasterCatalogIngredientSeed, thera
   return value;
 }
 
+async function upsertBrand(name: string): Promise<string> {
+  const normalizedName = normalizeText(name);
+  const cached = brandCache.get(normalizedName);
+  if (cached) return cached;
+  const brand = await prisma.brand.upsert({
+    where: { normalizedName },
+    update: { name, isActive: true },
+    create: { name, normalizedName, isActive: true },
+  });
+  brandCache.set(normalizedName, brand.id);
+  return brand.id;
+}
+
+async function upsertManufacturer(name: string): Promise<string> {
+  const normalizedName = normalizeText(name);
+  const cached = manufacturerCache.get(normalizedName);
+  if (cached) return cached;
+  const mfr = await prisma.manufacturer.upsert({
+    where: { normalizedName },
+    update: { name, isActive: true },
+    create: { name, normalizedName, isActive: true },
+  });
+  manufacturerCache.set(normalizedName, mfr.id);
+  return mfr.id;
+}
+
 async function ensureReviewQueueEntry(
   productId: string,
   sourceDocumentId: string,
@@ -470,6 +502,8 @@ async function main() {
     const route = seed.routeName ? await upsertRoute(seed.routeName) : null;
     const packSize = await upsertPackSize(seed.packSizeLabel, seed.packSizeQuantity, seed.packSizeUnit);
     const therapeuticClass = await upsertTherapeuticClass(seed.therapeuticClassName);
+    const brandId = seed.brandName ? await upsertBrand(seed.brandName) : null;
+    const manufacturerId = seed.manufacturer ? await upsertManufacturer(seed.manufacturer) : null;
     const existingProductId =
       (seed.msdCode ? productIdByMsdCode.get(seed.msdCode) : null) ??
       productIdBySourceAndName.get(`${sourceDocument.id}:${normalizeText(seed.productName)}`) ??
@@ -495,9 +529,12 @@ async function main() {
 
     const productData = {
       msdCode: seed.msdCode ?? null,
+      tmdaRegistrationNumber: seed.tmdaRegistrationNumber ?? null,
       productName: seed.productName,
       normalizedProductName: normalizeText(seed.productName),
       genericName: seed.genericName,
+      brandId: brandId ?? null,
+      manufacturerId: manufacturerId ?? null,
       dosageFormId: dosageForm.id,
       dosageFormName: seed.dosageFormName,
       routeId: route?.id ?? null,

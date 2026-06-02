@@ -2812,7 +2812,20 @@ export async function searchDrugMaster(params: {
       ? {
           OR: [
             { genericName: textFilter },
+            { productName: textFilter },
+            { tmdaRegistrationNumber: textFilter },
             { brand: { is: { name: textFilter } } },
+            { manufacturer: { is: { name: textFilter } } },
+            {
+              aliases: {
+                some: {
+                  normalizedAlias: {
+                    contains: trimmedQuery.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(),
+                    mode: 'insensitive',
+                  },
+                },
+              },
+            },
           ],
         }
       : {}),
