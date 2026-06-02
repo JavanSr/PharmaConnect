@@ -184,6 +184,10 @@ export const ProductFormPage: React.FC = () => {
         purchasePriceDefault: p.purchasePriceDefault != null ? String(p.purchasePriceDefault) : '',
         reorderLevel: String(p.reorderLevel ?? 10),
         minStock: String(p.minStock ?? 5),
+        initialQty: '',
+        initialBatchNo: '',
+        initialExpiryDate: '',
+        initialPurchasePrice: '',
       });
     }
   }, [data]);
