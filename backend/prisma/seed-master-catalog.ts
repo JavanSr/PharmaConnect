@@ -560,6 +560,12 @@ async function main() {
           where: { id: existingProductId as string },
           data: productData,
         })
+      : seed.tmdaRegistrationNumber
+      ? await prisma.drugProduct.upsert({
+          where: { tmdaRegistrationNumber: seed.tmdaRegistrationNumber },
+          update: productData,
+          create: productData,
+        })
       : await prisma.drugProduct.create({
           data: productData,
         });
