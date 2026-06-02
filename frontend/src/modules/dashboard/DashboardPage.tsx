@@ -17,6 +17,7 @@ import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { useAuthStore } from '@/stores/authStore';
+import { usePharmacyStore } from '@/stores/pharmacyStore';
 import { api } from '@/lib/api';
 
 interface StatCard {
@@ -76,6 +77,8 @@ const StatCardEl: React.FC<StatCard> = ({ label, value, icon, color, link, child
 
 export const DashboardPage: React.FC = () => {
   const user = useAuthStore(s => s.user);
+  const pharmacy = usePharmacyStore(s => s.pharmacy);
+  const isWholesale = pharmacy?.pharmacyType === 'WHOLESALE';
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
@@ -111,9 +114,15 @@ export const DashboardPage: React.FC = () => {
           <p className="mt-1 text-body-md text-on-surface-variant">{format(new Date(), 'EEEE, d MMMM yyyy')}</p>
         </div>
         <div className="flex gap-2">
-          <Link to="/dispensing">
-            <Button leftIcon={<Plus size={16} />}>Dispense</Button>
-          </Link>
+          {isWholesale ? (
+            <Link to="/wholesale/manual-order">
+              <Button leftIcon={<Plus size={16} />}>New Order</Button>
+            </Link>
+          ) : (
+            <Link to="/dispensing">
+              <Button leftIcon={<Plus size={16} />}>Dispense</Button>
+            </Link>
+          )}
           <Link to="/inventory/receive">
             <Button variant="secondary" leftIcon={<Plus size={16} />}>Receive Stock</Button>
           </Link>

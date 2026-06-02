@@ -4,7 +4,7 @@ import {
   LayoutDashboard, BookOpen, Package, Shield, Pill,
   Lock, ChevronLeft, ChevronRight, Settings, LogOut, BarChart3,
   AlertTriangle, ClipboardList, Users,
-  Building2, X, ShieldAlert, Telescope
+  Building2, X, ShieldAlert, Telescope, PackagePlus
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { usePharmacyStore } from '@/stores/pharmacyStore';
@@ -25,6 +25,7 @@ const phase1Nav: NavItem[] = [
   { label: 'Knowledge Hub',       path: '/knowledge',                      icon: <BookOpen size={18} /> },
   { label: 'TMDA Updates',        path: '/tmda-updates',                   icon: <BookOpen size={18} /> },
   { label: 'Inventory',           path: '/inventory',                      icon: <Package size={18} />,        graceAllowed: true },
+  { label: 'Receive Stock',        path: '/inventory/receive',              icon: <PackagePlus size={18} />,    roles: ['OWNER','PHARMACIST_IN_CHARGE','DISPENSER','DATA_ENTRY_CLERK','SUPER_ADMIN'] },
   { label: 'Order Preparation',   path: '/inventory/stock-orders',         icon: <ClipboardList size={18} />,  roles: ['OWNER','PHARMACIST_IN_CHARGE','DISPENSER','WHOLESALE_MANAGER','SUPER_ADMIN'] },
   { label: 'Compliance',          path: '/compliance',                     icon: <Shield size={18} />,         roles: ['OWNER','PHARMACIST_IN_CHARGE','DISPENSER','SUPER_ADMIN'] },
   { label: 'Analytics',           path: '/analytics',                      icon: <BarChart3 size={18} />,      graceAllowed: true },
@@ -169,7 +170,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   // ── Wholesale-only nav ────────────────────────────────────────────────────
   const WHOLESALE_ALLOWED_PATHS = new Set([
-    '/wholesale', '/wholesale/orders', '/inventory',
+    '/dashboard', '/wholesale', '/wholesale/orders', '/inventory',
     '/analytics', '/reports', '/settings', '/notifications',
   ]);
   const isWholesalePharmacy = pharmacy?.pharmacyType === 'WHOLESALE';

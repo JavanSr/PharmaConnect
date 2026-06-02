@@ -48,6 +48,11 @@ interface FormState {
   purchasePriceDefault: string;
   reorderLevel: string;
   minStock: string;
+  // Initial stock (create mode only)
+  initialQty: string;
+  initialBatchNo: string;
+  initialExpiryDate: string;
+  initialPurchasePrice: string;
 }
 
 interface DrugMaster {
@@ -95,6 +100,7 @@ const empty: FormState = {
   storageCondition: 'AMBIENT', isColdChain: false,
   tmdaRegistrationNumber: '', sellingPrice: '',
   purchasePriceDefault: '', reorderLevel: '10', minStock: '5',
+  initialQty: '', initialBatchNo: '', initialExpiryDate: '', initialPurchasePrice: '',
 };
 
 const optionValuesWithCurrent = (options: string[], current: string) =>
@@ -222,7 +228,7 @@ export const ProductFormPage: React.FC = () => {
   }, [toast]);
 
   const mutation = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       const payload = {
         name: form.name,
         genericName: form.genericName || undefined,
@@ -246,12 +252,28 @@ export const ProductFormPage: React.FC = () => {
         reorderLevel: parseInt(form.reorderLevel, 10) || 10,
         minStock: parseInt(form.minStock, 10) || 5,
       };
-      return isEdit
-        ? api.put(`/inventory/products/${id}`, payload)
-        : api.post('/inventory/products', payload);
+      const res = isEdit
+        ? await api.put(`/inventory/products/${id}`, payload)
+        : await api.post('/inventory/products', payload);
+
+      // If creating and initial stock was provided, add the opening batch
+      if (!isEdit && form.initialQty && parseFloat(form.initialQty) > 0) {
+        const productId = res.data?.data?.id;
+        if (productId) {
+          await api.post('/inventory/batches', {
+            productId,
+            batchNumber: form.initialBatchNo || `OPENING-${Date.now()}`,
+            expiryDate: form.initialExpiryDate || undefined,
+            quantityRemaining: parseFloat(form.initialQty),
+            purchasePrice: form.initialPurchasePrice ? parseFloat(form.initialPurchasePrice) : undefined,
+          });
+        }
+      }
+      return res;
     },
     onSuccess: () => {
-      toast.success(isEdit ? 'Product updated' : 'Product created');
+      const hadInitialStock = !isEdit && form.initialQty && parseFloat(form.initialQty) > 0;
+      toast.success(isEdit ? 'Product updated' : hadInitialStock ? 'Product created with opening stock' : 'Product created');
       qc.invalidateQueries({ queryKey: ['products'] });
       navigate('/inventory/products');
     },
@@ -508,6 +530,46 @@ export const ProductFormPage: React.FC = () => {
           </div>
         </div>
       </Card>
+
+      {/* Initial Stock — mandatory on create */}
+      {!isEdit && (
+        <Card>
+          <p className="text-xs font-semibold text-[#64748B] uppercase tracking-wide mb-1">Current Stock on Hand</p>
+          <p className="text-xs text-[#64748B] mb-4">
+            How many units do you have right now? Enter 0 if you're out of stock but plan to reorder. Leave blank only if you'll receive this product through a supplier delivery later.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input
+              label="Quantity on Hand"
+              type="number"
+              min="0"
+              value={form.initialQty}
+              onChange={set('initialQty')}
+              placeholder="e.g. 200 — enter 0 if currently out of stock"
+            />
+            <Input
+              label="Batch / Lot Number"
+              value={form.initialBatchNo}
+              onChange={set('initialBatchNo')}
+              placeholder="Leave blank to auto-generate"
+            />
+            <Input
+              label="Expiry Date"
+              type="date"
+              value={form.initialExpiryDate}
+              onChange={set('initialExpiryDate')}
+            />
+            <Input
+              label="Purchase Price per Unit (Tsh)"
+              type="number"
+              min="0"
+              value={form.initialPurchasePrice}
+              onChange={set('initialPurchasePrice')}
+              placeholder="Cost price for this batch"
+            />
+          </div>
+        </Card>
+      )}
 
       <div className="flex justify-end gap-3">
         <Button variant="ghost" onClick={() => navigate('/inventory/products')}>Cancel</Button>
