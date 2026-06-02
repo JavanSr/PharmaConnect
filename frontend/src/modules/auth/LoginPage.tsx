@@ -14,7 +14,7 @@ import { loadMemberships } from '@/lib/pharmacySelection';
 import type { PharmacyMembership } from '@/types';
 
 const schema = z.object({
-  email: z.string().email('Enter a valid email'),
+  email: z.string().min(1, 'Enter your email or phone number'),  // accepts email or phone
   password: z.string().min(1, 'Password is required'),
 });
 type FormData = z.infer<typeof schema>;
@@ -196,12 +196,12 @@ export const LoginPage: React.FC = () => {
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <Input
-              label="Email address"
-              type="email"
-              placeholder="admin@apotekh.co.tz"
+              label="Email or phone number"
+              type="text"
+              placeholder="admin@apotekh.co.tz or +255 7XX XXX XXX"
               {...register('email')}
               error={errors.email?.message}
-              autoComplete="email"
+              autoComplete="username"
             />
             <Input
               label="Password"

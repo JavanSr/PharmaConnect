@@ -242,6 +242,20 @@ export const StockIntakePage: React.FC = () => {
   const watchedPriceMode = watch('priceMode') as PriceMode;
   const watchedPackSize = watch('packSize');
   const watchedEnteredPrice = watch('enteredPrice');
+  const watchedExpiryDate = watch('expiryDate');
+
+  // Intake expiry warning — alert when receiving stock with < 60 days to expiry
+  const intakeExpiryWarning = (() => {
+    if (!watchedExpiryDate) return null;
+    const days = Math.ceil((new Date(watchedExpiryDate).setHours(0,0,0,0) - new Date().setHours(0,0,0,0)) / 86400000);
+    if (days < 0)   return { level: 'EXPIRED',  msg: 'This batch has already expired. Do not receive expired stock.' };
+    if (days <= 1)  return { level: 'CRITICAL', msg: 'Expires tomorrow. Do not receive — only 1 day remaining.' };
+    if (days <= 7)  return { level: 'URGENT',   msg: `Expires in ${days} days. Receiving this is high risk — verify with supplier.` };
+    if (days <= 14) return { level: 'WARNING',  msg: `Expires in ${days} days. Only receive if it can be dispensed before expiry.` };
+    if (days <= 30) return { level: 'CAUTION',  msg: `Expires in ${days} days. Ensure FEFO dispensing once received.` };
+    if (days <= 60) return { level: 'INFO',     msg: `Expires in ${days} days. Check stock levels before ordering more.` };
+    return null;
+  })();
 
   // existing batch prices for the selected product (price hint)
   const { data: batchPriceData } = useQuery({
@@ -771,6 +785,27 @@ export const StockIntakePage: React.FC = () => {
             <Input label="Expiry Date" type="date" {...register('expiryDate')} error={errors.expiryDate?.message} required />
             <Input label="Quantity Received" type="number" min="1" placeholder="100" {...register('quantity')} error={errors.quantity?.message} required />
           </div>
+
+          {/* Intake expiry warning */}
+          {intakeExpiryWarning && (
+            <div className={`flex items-start gap-3 rounded-xl px-4 py-3 text-sm font-medium ${
+              intakeExpiryWarning.level === 'EXPIRED'  ? 'bg-red-950 text-red-200 border border-red-800' :
+              intakeExpiryWarning.level === 'CRITICAL' ? 'bg-red-100 text-red-800 border border-red-300' :
+              intakeExpiryWarning.level === 'URGENT'   ? 'bg-orange-100 text-orange-800 border border-orange-300' :
+              intakeExpiryWarning.level === 'WARNING'  ? 'bg-amber-50 text-amber-800 border border-amber-300' :
+              intakeExpiryWarning.level === 'CAUTION'  ? 'bg-blue-50 text-blue-800 border border-blue-200' :
+              'bg-[#EDF7F3] text-[#1A6B5C] border border-[#D6F0E8]'
+            }`}>
+              <span className="mt-0.5 shrink-0">
+                {intakeExpiryWarning.level === 'EXPIRED'  ? '⛔' :
+                 intakeExpiryWarning.level === 'CRITICAL' ? '🔴' :
+                 intakeExpiryWarning.level === 'URGENT'   ? '🟠' :
+                 intakeExpiryWarning.level === 'WARNING'  ? '🟡' :
+                 intakeExpiryWarning.level === 'CAUTION'  ? '🔵' : 'ℹ️'}
+              </span>
+              <span>{intakeExpiryWarning.msg}</span>
+            </div>
+          )}
 
           {/* Unit/pack price toggle */}
           <div className="rounded-2xl border border-[#D6F0E8] bg-[#F8FCFA] px-4 py-4 space-y-3">

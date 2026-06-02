@@ -92,7 +92,7 @@ describe('SubscriptionPage', () => {
       expect(screen.getByText('ADDO')).toBeInTheDocument();
     });
 
-    expect(screen.getByText('Tsh 20,000')).toBeInTheDocument();
+    expect(screen.getByText('Tsh 15,000')).toBeInTheDocument();
     expect(screen.getByText('Tsh 39,000')).toBeInTheDocument();
     expect(screen.getByText('Tsh 55,000')).toBeInTheDocument();
     expect(screen.getByText('Tsh 75,000')).toBeInTheDocument();

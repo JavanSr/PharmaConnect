@@ -7,7 +7,7 @@ import Image from 'next/image';
 
 const TIERS = [
   {
-    id: 'addo', name: 'ADDO', price: 20000, outlets: 1, users: 3, popular: false,
+    id: 'addo', name: 'ADDO', price: 15000, outlets: 1, users: 3, popular: false,
     desc: 'For ADDOs and small pharmacies starting with digital operations.',
     features: [
       '1 outlet · 3 users · 14-day trial',
@@ -163,7 +163,7 @@ const FAQS = [
   },
   {
     q: 'How does pricing work?',
-    a: 'Retail subscriptions start at Tsh 20,000/month for ADDOs and scale to Tsh 75,000/month for Premium. All plans include a 14-day free trial. Annual billing gives two months free — you pay for 10, get 12.',
+    a: 'Retail subscriptions start at Tsh 15,000/month for ADDOs and scale to Tsh 75,000/month for Premium. All plans include a 14-day free trial. Annual billing gives two months free — you pay for 10, get 12.',
   },
   {
     q: 'Is the drug interaction checker available on all plans?',
@@ -287,12 +287,12 @@ function Hero() {
         <div style={{ maxWidth: 620 }}>
           <h1 className="serif" style={{
             fontSize: 'clamp(42px,5vw,70px)', lineHeight: 1.05, letterSpacing: '-0.02em',
-            color: '#0D4035', margin: '0 0 24px', animation: 'fadeUp 700ms ease both 100ms',
+            color: 'white', margin: '0 0 24px', animation: 'fadeUp 700ms ease both 100ms',
           }}>
             The operating system<br />
-            <span style={{ color: '#1A6B5C' }}>for pharmacies</span>
+            <span style={{ color: '#7ECFB4' }}>for pharmacies</span>
           </h1>
-          <p style={{ fontSize: 17, lineHeight: 1.78, color: '#516965', marginBottom: 36, animation: 'fadeUp 700ms ease both 420ms' }}>
+          <p style={{ fontSize: 17, lineHeight: 1.78, color: 'rgba(255,255,255,0.85)', marginBottom: 36, animation: 'fadeUp 700ms ease both 420ms' }}>
             Tanzania&apos;s pharmacies need more than a point-of-sale system. APOTEKH gives them inventory control,
             patient safety checks, regulatory compliance, and analytics — in one platform built for how pharmacies actually work.
           </p>
@@ -306,12 +306,12 @@ function Hero() {
             </a>
             <a href="/platform" style={{
               display: 'inline-flex', alignItems: 'center', gap: 6, padding: '13px 24px',
-              borderRadius: 10, border: '1.5px solid #E2EDE8', background: 'white', color: '#0D4035', fontSize: 14, fontWeight: 600,
+              borderRadius: 10, border: '1.5px solid rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.15)', color: 'white', fontSize: 14, fontWeight: 600,
             }}>
               Explore the platform →
             </a>
           </div>
-          <p style={{ fontSize: 12, color: '#516965', opacity: 0.7, animation: 'fadeUp 600ms ease both 700ms' }}>No credit card required · Cancel anytime · Clinical Decision Support on every plan</p>
+          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', animation: 'fadeUp 600ms ease both 700ms' }}>No credit card required &nbsp;&middot;&nbsp; Cancel anytime &nbsp;&middot;&nbsp; Clinical Decision Support on every plan</p>
         </div>
       </div>
     </section>
@@ -806,8 +806,9 @@ function HowItWorks() {
 
 function OwnerRevenue() {
   return (
-    <section className="reveal" style={{ background: '#0D4035', padding: '88px 32px' }}>
-      <div style={{ maxWidth: 900, margin: '0 auto', textAlign: 'center' }}>
+    <section className="reveal" style={{ background: '#0D4035', padding: '88px 32px', position: 'relative', overflow: 'hidden' }}>
+      <Image src="/assets/photos/dispensing-counter.jpg" alt="" fill style={{ objectFit: 'cover', opacity: 0.08 }} sizes="100vw" />
+      <div style={{ position: 'relative', zIndex: 1, maxWidth: 900, margin: '0 auto', textAlign: 'center' }}>
         <p className="mono" style={{ fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 20 }}>Full visibility. Complete accountability.</p>
         <h2 className="serif" style={{ fontSize: 'clamp(32px,4.5vw,58px)', color: 'white', lineHeight: 1.05, margin: '0 0 24px' }}>
           Nothing moves<br />without you knowing.
@@ -834,10 +835,12 @@ function OwnerRevenue() {
 
 
 
+
+
 function EverythingIncluded() {
   const features = [
     { icon: '⊞', name: 'FEFO Dispensing', desc: 'First expiry-first out enforced at every sale — no manual stock decisions.' },
-    { icon: '⏱', name: 'Expiry Alerts', desc: '90, 60, 30, 7, 1-day warnings tracked automatically on every batch.' },
+    { icon: '⏱', name: 'Expiry Alerts', desc: '30, 21, 14, 7, and 1-day warnings — each with urgency level from Info to Critical — tracked automatically on every batch.' },
     { icon: '◎', name: 'Batch & Lot Tracking', desc: 'Every product tracked by batch, supplier, and date from intake to sale.' },
     { icon: '⊕', name: 'Drug Interaction Checks', desc: 'MINOR through CONTRAINDICATED screened before medicine leaves the counter.' },
     { icon: '◉', name: 'Role-Based Access', desc: 'Staff see only what they need — dispensers, cashiers, owners, and clerks all separated.' },
@@ -847,7 +850,8 @@ function EverythingIncluded() {
     { icon: '▦', name: 'Compliance Calendar', desc: 'TMDA licences, inspections, and renewals tracked with every deadline and evidence uploaded.' },
     { icon: '▣', name: 'Receipts & PDF Export', desc: 'Professional dispensing receipts and printable records generated automatically.' },
     { icon: '▩', name: 'Analytics & Reporting', desc: 'Sales trends, stock movement, and compliance summaries — one management view.' },
-    { icon: '◼', name: 'Permanent Audit Log', desc: 'Every void, edit, and override is a revision permanently recorded — tamper-proof by design.' },
+    { icon: '▤', name: 'Exportable Reports', desc: 'Dispensing, expiry, voids, payment breakdown, and stock movement — all downloadable as CSV or PDF.' },
+    { icon: '◼', name: 'Permanent Audit Log', desc: 'Every void, edit, and override permanently recorded — tamper-proof by design. Exportable as CSV or PDF.' },
   ];
   return (
     <section id="modules" className="reveal" style={{ background: '#F7FBF8', padding: '88px 32px', borderTop: '1px solid #E2EDE8' }}>
@@ -1043,6 +1047,60 @@ function TierCard({ tier, bill, wide }: { tier: AnyTier; bill: string; wide?: bo
   );
 }
 
+
+// ── TESTIMONIALS ──────────────────────────────────────────────────────────────
+
+function Testimonials() {
+  const items = [
+    {
+      quote: "Before APOTEKH I had to call my dispenser every evening to ask how much we made. Now I check from my phone before they even close the shop.",
+      name: "Pharmacy Owner",
+      location: "Arusha",
+      role: "Owner, retail pharmacy"
+    },
+    {
+      quote: "The drug interaction checker has already stopped two dangerous combinations from going out. That is not something I could do reliably on paper.",
+      name: "Pharmaceutical Technologist",
+      location: "Moshi",
+      role: "Pharmacist-in-Charge"
+    },
+    {
+      quote: "Setting up took less than an hour. My staff were dispensing through the system on the same day. I expected weeks of training.",
+      name: "ADDO Operator",
+      location: "Dodoma",
+      role: "Owner, ADDO"
+    },
+  ];
+  return (
+    <section className="reveal" style={{ background: '#0D4035', padding: '88px 32px', position: 'relative', overflow: 'hidden' }}>
+      <Image
+        src="/assets/photos/owner-trust.jpg"
+        alt="Tanzanian pharmacy owner"
+        fill
+        style={{ objectFit: 'cover', objectPosition: 'center 30%', opacity: 0.12 }}
+        sizes="100vw"
+      />
+      <div style={{ position: 'relative', zIndex: 1, maxWidth: 1280, margin: '0 auto' }}>
+        <p className="mono" style={{ fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 12 }}>From pharmacies using APOTEKH</p>
+        <h2 className="serif" style={{ fontSize: 'clamp(28px,3.5vw,44px)', color: 'white', margin: '0 0 48px', lineHeight: 1.1 }}>
+          What pharmacy owners say
+        </h2>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 24 }}>
+          {items.map((item, i) => (
+            <div key={i} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, padding: 28, backdropFilter: 'blur(8px)' }}>
+              <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.85)', lineHeight: 1.75, margin: '0 0 24px', fontStyle: 'italic' }}>&ldquo;{item.quote}&rdquo;</p>
+              <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 16 }}>
+                <p style={{ fontSize: 13, fontWeight: 600, color: '#7ECFB4', margin: 0 }}>{item.role}</p>
+                <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', margin: '4px 0 0' }}>{item.location}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function PricingSection() {
   const [bill, setBill] = useState('monthly');
   const [cat, setCat] = useState('retail');
@@ -1189,7 +1247,7 @@ function FinalCTA() {
               <div>
                 <label style={{ fontSize: 12, fontWeight: 600, color: '#0D4035', display: 'block', marginBottom: 6 }}>Plan you&apos;re interested in</label>
                 <select value={form.tier} onChange={e => setForm({ ...form, tier: e.target.value })} style={field}>
-                  <option>ADDO — Tsh 20,000/month</option>
+                  <option>ADDO — Tsh 15,000/month</option>
                   <option>BASIC — Tsh 39,000/month</option>
                   <option>STANDARD — Tsh 55,000/month</option>
                   <option>PREMIUM — Tsh 75,000/month</option>
@@ -1275,7 +1333,12 @@ export default function HomePage() {
     <div>
       <div style={{ background: '#0D4035', padding: '9px 32px', textAlign: 'center' }}>
         <p className="mono" style={{ margin: 0, fontSize: 12, letterSpacing: '0.12em', color: 'rgba(255,255,255,0.75)' }}>
-          APOTEKH &nbsp;·&nbsp; <span style={{ color: '#7ECFB4' }}>Powering Pharmacies. Protecting Patients.</span>
+          APOTEKH &nbsp;·&nbsp; <span style={{ color: '#7ECFB4' }}>Empowering Pharmacies. Protecting Patients.</span>
+        </p>
+      </div>
+      <div style={{ background: '#0D4035', padding: '9px 32px', textAlign: 'center' }}>
+        <p className="mono" style={{ margin: 0, fontSize: 12, letterSpacing: '0.12em', color: 'rgba(255,255,255,0.75)' }}>
+          APOTEKH &nbsp;·&nbsp; <span style={{ color: '#7ECFB4' }}>Empowering Pharmacies. Protecting Patients.</span>
         </p>
       </div>
       <div style={{ background: '#0D4035', padding: '9px 32px', textAlign: 'center' }}>
@@ -1293,6 +1356,7 @@ export default function HomePage() {
       <OwnerRevenue />
       <EverythingIncluded />
       <SafetyChecks />
+      <Testimonials />
       <RoleSection />
       <PricingSection />
       <FAQ />

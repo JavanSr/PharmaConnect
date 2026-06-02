@@ -132,12 +132,29 @@ async function recordLoginAuditEvent(input: {
   `));
 }
 
+// Normalise a phone identifier for DB lookup.
+// Strips spaces/dashes, ensures +255 prefix for Tanzanian numbers.
+function normalisePhoneIdentifier(raw: string): string {
+  const stripped = raw.replace(/[\s\-().]/g, '');
+  if (/^\+/.test(stripped)) return stripped;
+  if (/^0\d{9}$/.test(stripped)) return `+255${stripped.slice(1)}`;
+  if (/^255\d{9}$/.test(stripped)) return `+${stripped}`;
+  return stripped;
+}
+
 export async function loginService(email: string, password: string, preferredPharmacyId?: string) {
   const startedAt = Date.now();
   const timings: LoginTimings = {};
   const now = new Date();
-  const user = await measureLoginStep(timings, 'userLookupMs', () => withPrismaRetry(() => prisma.user.findUnique({
-      where: { email: email.toLowerCase() },
+
+  // Allow login with phone number OR email
+  const isPhone = /^[+0]?\d[\d\s\-().]{6,}$/.test(email.trim()) && !email.includes('@');
+  const lookupWhere = isPhone
+    ? { phone: normalisePhoneIdentifier(email.trim()) }
+    : { email: email.toLowerCase() };
+
+  const user = await measureLoginStep(timings, 'userLookupMs', () => withPrismaRetry(() => prisma.user.findFirst({
+      where: lookupWhere,
       include: {
         pharmacy: true,
         memberships: {

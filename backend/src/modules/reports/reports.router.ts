@@ -11,6 +11,11 @@ import {
   renderReportPdf,
   runCustomBuilder,
   streamCsv,
+  getDispensingReport,
+  getStockMovementReport,
+  getExpiryByThresholdReport,
+  getVoidsAndReturnsReport,
+  getPaymentBreakdownReport,
 } from './reports.service';
 
 function ensureFinancialReportAccess(req: AuthRequest) {
@@ -117,6 +122,59 @@ reportsRouter.get('/safety-impact', requireRole('OWNER', 'PHARMACIST_IN_CHARGE',
   } catch (error) {
     next(error);
   }
+});
+
+
+// ── Dispensing report ─────────────────────────────────────────────────────────
+reportsRouter.get('/dispensing', requireRole('OWNER', 'PHARMACIST_IN_CHARGE', 'SUPER_ADMIN'), async (req: AuthRequest, res, next) => {
+  try {
+    const { format, from, to } = z.object({ format: z.enum(['json','csv','pdf']).optional(), from: z.string().optional(), to: z.string().optional() }).parse(req.query);
+    const data = await getDispensingReport(pid(req), from, to);
+    if (format === 'csv') { res.setHeader('Content-Type','text/csv'); res.setHeader('Content-Disposition','attachment; filename="dispensing-report.csv"'); streamCsv(data.lines).pipe(res); return; }
+    if (format === 'pdf') { const pdf = await renderReportPdf('Dispensing Report', data.lines); res.setHeader('Content-Type','application/pdf'); res.send(pdf); return; }
+    res.json({ data });
+  } catch (error) { next(error); }
+});
+
+// ── Stock movement report ─────────────────────────────────────────────────────
+reportsRouter.get('/stock-movement', requireRole('OWNER', 'PHARMACIST_IN_CHARGE', 'SUPER_ADMIN'), async (req: AuthRequest, res, next) => {
+  try {
+    const { format, from, to } = z.object({ format: z.enum(['json','csv','pdf']).optional(), from: z.string().optional(), to: z.string().optional() }).parse(req.query);
+    const data = await getStockMovementReport(pid(req), from, to);
+    if (format === 'csv') { res.setHeader('Content-Type','text/csv'); res.setHeader('Content-Disposition','attachment; filename="stock-movement.csv"'); streamCsv(data.lines).pipe(res); return; }
+    if (format === 'pdf') { const pdf = await renderReportPdf('Stock Movement', data.lines); res.setHeader('Content-Type','application/pdf'); res.send(pdf); return; }
+    res.json({ data });
+  } catch (error) { next(error); }
+});
+
+// ── Expiry by threshold report ────────────────────────────────────────────────
+reportsRouter.get('/expiry', requirePermission('inventory.view_reports'), async (req: AuthRequest, res, next) => {
+  try {
+    const { format, threshold } = z.object({ format: z.enum(['json','csv','pdf']).optional(), threshold: z.coerce.number().optional() }).parse(req.query);
+    const data = await getExpiryByThresholdReport(pid(req), threshold ?? 90);
+    if (format === 'csv') { res.setHeader('Content-Type','text/csv'); res.setHeader('Content-Disposition','attachment; filename="expiry-report.csv"'); streamCsv(data.batches).pipe(res); return; }
+    if (format === 'pdf') { const pdf = await renderReportPdf('Expiry Report', data.batches); res.setHeader('Content-Type','application/pdf'); res.send(pdf); return; }
+    res.json({ data });
+  } catch (error) { next(error); }
+});
+
+// ── Voids and returns report ──────────────────────────────────────────────────
+reportsRouter.get('/voids-returns', requireRole('OWNER', 'PHARMACIST_IN_CHARGE', 'SUPER_ADMIN'), async (req: AuthRequest, res, next) => {
+  try {
+    const { format, from, to } = z.object({ format: z.enum(['json','csv','pdf']).optional(), from: z.string().optional(), to: z.string().optional() }).parse(req.query);
+    const data = await getVoidsAndReturnsReport(pid(req), from, to);
+    if (format === 'csv') { res.setHeader('Content-Type','text/csv'); res.setHeader('Content-Disposition','attachment; filename="voids-returns.csv"'); streamCsv(data.lines).pipe(res); return; }
+    if (format === 'pdf') { const pdf = await renderReportPdf('Voids & Returns', data.lines); res.setHeader('Content-Type','application/pdf'); res.send(pdf); return; }
+    res.json({ data });
+  } catch (error) { next(error); }
+});
+
+// ── Payment breakdown ─────────────────────────────────────────────────────────
+reportsRouter.get('/payment-breakdown', requireRole('OWNER', 'PHARMACIST_IN_CHARGE', 'SUPER_ADMIN'), async (req: AuthRequest, res, next) => {
+  try {
+    const { from, to } = z.object({ from: z.string().optional(), to: z.string().optional() }).parse(req.query);
+    res.json({ data: await getPaymentBreakdownReport(pid(req), from, to) });
+  } catch (error) { next(error); }
 });
 
 reportsRouter.post('/custom-builder', requireRole('OWNER', 'PHARMACIST_IN_CHARGE', 'WHOLESALE_MANAGER', 'SUPER_ADMIN'), async (req: AuthRequest, res, next) => {

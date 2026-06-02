@@ -531,3 +531,185 @@ export async function renderReportPdf(title: string, rows: Array<Record<string, 
   });
 }
 
+
+// ── Dispensing report ─────────────────────────────────────────────────────────
+export async function getDispensingReport(pharmacyId: string, dateFrom?: string, dateTo?: string) {
+  const from = dateFrom ? new Date(dateFrom) : new Date(Date.now() - 30 * 86400000);
+  const to   = dateTo   ? new Date(dateTo)   : new Date();
+
+  const [summaryRows, lineRows] = await Promise.all([
+    prisma.$queryRaw<Array<{ total_revenue: string; total_transactions: number }>>(Prisma.sql`
+      SELECT COALESCE(SUM(total_amount),0)::text AS total_revenue, COUNT(*)::int AS total_transactions
+      FROM dispensing_events
+      WHERE pharmacy_id=${pharmacyId} AND status='COMPLETED'
+        AND created_at>=${from} AND created_at<=${to}
+    `),
+    prisma.$queryRaw<Array<{ product_name: string; total_units: number; total_revenue: string; transaction_count: number }>>(Prisma.sql`
+      SELECT
+        COALESCE(item.value->>'productName', item.value->>'genericName', 'Unknown') AS product_name,
+        SUM(COALESCE((item.value->>'quantity')::int, 1))::int AS total_units,
+        COALESCE(SUM(COALESCE((item.value->>'unitPrice')::numeric,0)*COALESCE((item.value->>'quantity')::int,1)),0)::text AS total_revenue,
+        COUNT(DISTINCT de.id)::int AS transaction_count
+      FROM dispensing_events de
+      CROSS JOIN LATERAL jsonb_array_elements(de.items) AS item(value)
+      WHERE de.pharmacy_id=${pharmacyId} AND de.status='COMPLETED'
+        AND de.created_at>=${from} AND de.created_at<=${to}
+      GROUP BY 1 ORDER BY total_units DESC LIMIT 200
+    `),
+  ]);
+
+  return {
+    period: { from: from.toISOString(), to: to.toISOString() },
+    totalRevenue: asNumber(summaryRows[0]?.total_revenue),
+    totalTransactions: summaryRows[0]?.total_transactions ?? 0,
+    lines: lineRows.map(r => ({
+      productName: r.product_name,
+      totalUnits: Number(r.total_units),
+      totalRevenue: asNumber(r.total_revenue),
+      transactionCount: Number(r.transaction_count),
+    })),
+  };
+}
+
+// ── Stock movement report ─────────────────────────────────────────────────────
+export async function getStockMovementReport(pharmacyId: string, dateFrom?: string, dateTo?: string) {
+  const from = dateFrom ? new Date(dateFrom) : new Date(Date.now() - 30 * 86400000);
+  const to   = dateTo   ? new Date(dateTo)   : new Date();
+
+  const rows = await prisma.$queryRaw<Array<{
+    product_name: string; movement_type: string; quantity: number;
+    notes: string | null; created_at: Date; user_name: string | null;
+  }>>(Prisma.sql`
+    SELECT p.name AS product_name, CAST(sm.type AS TEXT) AS movement_type,
+      sm.quantity, sm.notes, sm."createdAt" AS created_at,
+      CONCAT(u."firstName",' ',u."lastName") AS user_name
+    FROM stock_movements sm
+    JOIN products p ON p.id=sm."productId"
+    LEFT JOIN users u ON u.id=sm."userId"
+    WHERE sm."pharmacyId"=${pharmacyId}
+      AND sm."createdAt">=${from} AND sm."createdAt"<=${to}
+    ORDER BY sm."createdAt" DESC LIMIT 5000
+  `);
+
+  const summary: Record<string, number> = {};
+  for (const r of rows) summary[r.movement_type] = (summary[r.movement_type] ?? 0) + Number(r.quantity);
+
+  return {
+    period: { from: from.toISOString(), to: to.toISOString() },
+    summary,
+    lines: rows.map(r => ({
+      productName: r.product_name,
+      movementType: r.movement_type,
+      quantity: Number(r.quantity),
+      notes: r.notes,
+      createdAt: r.created_at.toISOString(),
+      staffName: r.user_name,
+    })),
+  };
+}
+
+// ── Expiry by threshold report ────────────────────────────────────────────────
+// Urgency formula matches expiry-alerts.ts expiryUrgency()
+export async function getExpiryByThresholdReport(pharmacyId: string, thresholdDays = 90) {
+  const today  = startOfDay();
+  const cutoff = addDays(today, thresholdDays);
+
+  const batches = await prisma.batch.findMany({
+    where: { pharmacyId, quantityRemaining: { gt: 0 }, expiryDate: { lte: cutoff } },
+    include: { product: { select: { name: true, genericName: true } } },
+    orderBy: { expiryDate: 'asc' },
+  });
+
+  const withUrgency = batches.map(b => {
+    const days = Math.ceil((startOfDay(b.expiryDate).getTime() - today.getTime()) / 86400000);
+    let urgency = 'MONITOR';
+    if (days < 0)   urgency = 'EXPIRED';
+    else if (days <= 1)  urgency = 'CRITICAL';
+    else if (days <= 7)  urgency = 'URGENT';
+    else if (days <= 14) urgency = 'WARNING';
+    else if (days <= 21) urgency = 'CAUTION';
+    else if (days <= 30) urgency = 'INFO';
+    return {
+      productName: b.product.name,
+      genericName: b.product.genericName ?? null,
+      batchNumber: b.batchNumber,
+      quantityRemaining: b.quantityRemaining,
+      expiryDate: b.expiryDate.toISOString().slice(0, 10),
+      daysUntilExpiry: days,
+      urgency,
+    };
+  });
+
+  const byThreshold: Record<string, number> = {};
+  for (const b of withUrgency) byThreshold[b.urgency] = (byThreshold[b.urgency] ?? 0) + 1;
+
+  return { generatedAt: new Date().toISOString(), thresholdDays, byThreshold, batches: withUrgency };
+}
+
+// ── Voids and returns report ──────────────────────────────────────────────────
+export async function getVoidsAndReturnsReport(pharmacyId: string, dateFrom?: string, dateTo?: string) {
+  const from = dateFrom ? new Date(dateFrom) : new Date(Date.now() - 30 * 86400000);
+  const to   = dateTo   ? new Date(dateTo)   : new Date();
+
+  const rows = await prisma.$queryRaw<Array<{
+    reference_number: string; total_amount: string; void_reason: string | null;
+    voided_at: Date; voided_by_name: string | null;
+  }>>(Prisma.sql`
+    SELECT de.reference_number, de.total_amount::text, de.void_reason, de.voided_at,
+      CONCAT(u."firstName",' ',u."lastName") AS voided_by_name
+    FROM dispensing_events de
+    LEFT JOIN users u ON u.id=de.voided_by
+    WHERE de.pharmacy_id=${pharmacyId} AND de.status='VOIDED'
+      AND de.voided_at>=${from} AND de.voided_at<=${to}
+    ORDER BY de.voided_at DESC LIMIT 2000
+  `);
+
+  return {
+    period: { from: from.toISOString(), to: to.toISOString() },
+    totalVoided: rows.length,
+    totalValue: rows.reduce((s, r) => s + asNumber(r.total_amount), 0),
+    lines: rows.map(r => ({
+      referenceNumber: r.reference_number,
+      totalAmount: asNumber(r.total_amount),
+      voidReason: r.void_reason,
+      voidedAt: r.voided_at.toISOString(),
+      voidedBy: r.voided_by_name,
+    })),
+  };
+}
+
+// ── Payment method breakdown ──────────────────────────────────────────────────
+export async function getPaymentBreakdownReport(pharmacyId: string, dateFrom?: string, dateTo?: string) {
+  const from = dateFrom ? new Date(dateFrom) : new Date(Date.now() - 30 * 86400000);
+  const to   = dateTo   ? new Date(dateTo)   : new Date();
+
+  const rows = await prisma.$queryRaw<Array<{
+    payment_method: string; transaction_count: number; total_revenue: string; percentage: string;
+  }>>(Prisma.sql`
+    WITH totals AS (
+      SELECT COALESCE(SUM(total_amount),0) AS grand_total
+      FROM dispensing_events
+      WHERE pharmacy_id=${pharmacyId} AND status='COMPLETED'
+        AND created_at>=${from} AND created_at<=${to}
+    )
+    SELECT payment_method, COUNT(*)::int AS transaction_count,
+      COALESCE(SUM(total_amount),0)::text AS total_revenue,
+      CASE WHEN (SELECT grand_total FROM totals)>0
+        THEN ROUND(COALESCE(SUM(total_amount),0)/(SELECT grand_total FROM totals)*100,1)::text
+        ELSE '0' END AS percentage
+    FROM dispensing_events
+    WHERE pharmacy_id=${pharmacyId} AND status='COMPLETED'
+      AND created_at>=${from} AND created_at<=${to}
+    GROUP BY payment_method ORDER BY SUM(total_amount) DESC
+  `);
+
+  return {
+    period: { from: from.toISOString(), to: to.toISOString() },
+    breakdown: rows.map(r => ({
+      paymentMethod: r.payment_method,
+      transactionCount: Number(r.transaction_count),
+      totalRevenue: asNumber(r.total_revenue),
+      percentage: Number(r.percentage),
+    })),
+  };
+}

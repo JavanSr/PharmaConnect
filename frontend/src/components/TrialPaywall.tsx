@@ -16,7 +16,7 @@ const isPaymentRequestTier = (tier?: string | null): tier is PaymentRequestTier 
   Boolean(tier && TIER_OPTIONS.some((option) => option === tier));
 
 const planPriceTable: Record<PaymentRequestTier, Record<BillingCycle, number>> = {
-  ADDO: { MONTHLY: 20_000, ANNUAL: 200_000 },
+  ADDO: { MONTHLY: 15_000, ANNUAL: 150_000 },
   ESSENTIAL: { MONTHLY: 39_000, ANNUAL: 390_000 },
   ADDO_PLUS: { MONTHLY: 45_000, ANNUAL: 450_000 },
   STANDARD: { MONTHLY: 55_000, ANNUAL: 550_000 },

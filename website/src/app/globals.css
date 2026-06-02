@@ -264,3 +264,34 @@ textarea {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* ── Mobile responsive ─────────────────────────────────────────────────────── */
+
+/* Hero: single column on mobile */
+@media (max-width: 768px) {
+  .hero-grid { grid-template-columns: 1fr !important; }
+  .hero-text { max-width: 100% !important; }
+}
+
+/* Role section: stack on mobile */
+@media (max-width: 768px) {
+  .role-grid { grid-template-columns: 1fr !important; }
+}
+
+/* Three-column grids → single column on mobile */
+@media (max-width: 640px) {
+  .three-col { grid-template-columns: 1fr !important; }
+  .four-col  { grid-template-columns: 1fr 1fr !important; }
+}
+
+/* ── Hero overlay ──────────────────────────────────────────────────────────── */
+.hero-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    rgba(13, 64, 53, 0.82) 0%,
+    rgba(13, 64, 53, 0.65) 45%,
+    rgba(13, 64, 53, 0.25) 100%
+  );
+}

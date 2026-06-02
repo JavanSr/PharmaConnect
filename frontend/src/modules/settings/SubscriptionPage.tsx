@@ -25,7 +25,7 @@ import { SettingsNav } from './SettingsNav';
 const FOUNDER_WHATSAPP = '255764591374';
 
 const plans = [
-  { tier: 'ADDO', monthly: 'Tsh 20,000', annual: 'Tsh 200,000', users: '3 users', bestFor: '1 outlet · DLDM / ADDO shops', description: 'Full POS, safety, dashboard, barcode scanning, DLDM compliance, and TMDA bulletins.', features: ['1 outlet · 3 users · 14-day trial', 'Owner Dashboard + Clinical Decision Support included', 'Barcode scanning and offline-first POS'] },
+  { tier: 'ADDO', monthly: 'Tsh 15,000', annual: 'Tsh 150,000', users: '3 users', bestFor: '1 outlet · DLDM / ADDO shops', description: 'Full POS, safety, dashboard, barcode scanning, DLDM compliance, and TMDA bulletins.', features: ['1 outlet · 3 users · 14-day trial', 'Owner Dashboard + Clinical Decision Support included', 'Barcode scanning and offline-first POS'] },
   { tier: 'ESSENTIAL', monthly: 'Tsh 39,000', annual: 'Tsh 390,000', users: '5 users', bestFor: '2 outlets · Single retail pharmacies', description: 'Multi-outlet Owner Dashboard, roles & permissions, void/reissue workflow, and full pharmacy compliance tracker.', features: ['Up to 2 outlets · 5 users · 14-day trial', 'Roles & permissions · void/reissue workflow with audit trail', 'Full compliance tracker (TMDA + PC licence types)'] },
   { tier: 'ADDO_PLUS', monthly: 'Tsh 45,000', annual: 'Tsh 450,000', users: '7 users', bestFor: 'ADDO shops preparing to expand', description: 'A step above ADDO with stronger stock, reports, and team controls.', features: ['Expanded ADDO operations', 'More users and reporting controls', 'Ready for retail pharmacy upgrade'] },
   { tier: 'STANDARD', monthly: 'Tsh 55,000', annual: 'Tsh 550,000', users: '10 users', bestFor: '3 outlets · Small multi-outlet teams', description: 'Up to 3 outlets with accounting, customer history, Patient Ordering Portal, and full Knowledge Hub.', features: ['Up to 3 outlets · 10 users · 14-day trial', 'Accounting module · customer purchase history & loyalty', 'Patient Ordering Portal + Knowledge Hub full access'] },
@@ -60,7 +60,7 @@ const isPaymentRequestTier = (tier?: string | null): tier is PaymentRequestTier 
   Boolean(tier && tierOptions.some((option) => option === tier));
 
 const planPriceTable: Record<PaymentRequestTier, Record<BillingCycle, number>> = {
-  ADDO: { MONTHLY: 20_000, ANNUAL: 200_000 },
+  ADDO: { MONTHLY: 15_000, ANNUAL: 150_000 },
   ESSENTIAL: { MONTHLY: 39_000, ANNUAL: 390_000 },
   ADDO_PLUS: { MONTHLY: 45_000, ANNUAL: 450_000 },
   STANDARD: { MONTHLY: 55_000, ANNUAL: 550_000 },

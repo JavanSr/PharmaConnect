@@ -169,7 +169,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   // ── Wholesale-only nav ────────────────────────────────────────────────────
   const WHOLESALE_ALLOWED_PATHS = new Set([
-    '/wholesale', '/wholesale/orders', '/inventory', '/inventory/stock-orders',
+    '/wholesale', '/wholesale/orders', '/inventory',
     '/analytics', '/reports', '/settings', '/notifications',
   ]);
   const isWholesalePharmacy = pharmacy?.pharmacyType === 'WHOLESALE';

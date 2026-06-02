@@ -318,15 +318,15 @@ export const App: React.FC = () => (
 
         <Route element={<AuthGuard><PageErrorBoundary><Suspense fallback={<PageLoader />}><Layout /></Suspense></PageErrorBoundary></AuthGuard>}>
           <Route index element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard" element={<PageErrorBoundary><Suspense fallback={<PageLoader />}><DashboardPage /></Suspense></PageErrorBoundary>} />
-          <Route path="/analytics" element={page(<AnalyticsPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'CASHIER', 'WHOLESALE_MANAGER'])} />
+          <Route path="/dashboard" element={page(<DashboardPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'CASHIER', 'DATA_ENTRY_CLERK', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF', 'SUPER_ADMIN'])} />
+          <Route path="/analytics" element={page(<AnalyticsPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'WHOLESALE_MANAGER'])} />
           <Route path="/forecasting" element={page(<ForecastingPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'WHOLESALE_MANAGER'])} />
           <Route path="/knowledge" element={<WholesaleBlockedRoute><PageErrorBoundary><Suspense fallback={<PageLoader />}><KnowledgeFeedPage /></Suspense></PageErrorBoundary></WholesaleBlockedRoute>} />
           <Route path="/tmda-updates" element={<WholesaleBlockedRoute><PageErrorBoundary><Suspense fallback={<PageLoader />}><TmdaUpdatesPage /></Suspense></PageErrorBoundary></WholesaleBlockedRoute>} />
           <Route path="/knowledge/:slug" element={<WholesaleBlockedRoute><PageErrorBoundary><Suspense fallback={<PageLoader />}><ArticlePage /></Suspense></PageErrorBoundary></WholesaleBlockedRoute>} />
           {/* DATA_ENTRY_CLERK: stock intake + supplier management (all tiers) */}
-          <Route path="/inventory" element={page(<InventoryDashboardPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'CASHIER', 'DATA_ENTRY_CLERK', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF'])} />
-          <Route path="/inventory/products" element={page(<ProductsListPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'CASHIER', 'DATA_ENTRY_CLERK', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF'])} />
+          <Route path="/inventory" element={page(<InventoryDashboardPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'DATA_ENTRY_CLERK', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF'])} />
+          <Route path="/inventory/products" element={page(<ProductsListPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'DATA_ENTRY_CLERK', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF'])} />
           <Route path="/inventory/products/new" element={page(<ProductFormPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'WHOLESALE_MANAGER'])} />
           <Route path="/inventory/products/:id" element={page(<ProductFormPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'DATA_ENTRY_CLERK', 'WHOLESALE_MANAGER'])} />
           <Route path="/inventory/drug-master" element={page(<DrugCataloguePage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'DATA_ENTRY_CLERK', 'WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF'])} />
@@ -379,9 +379,9 @@ export const App: React.FC = () => (
           <Route path="/nhif" element={<Navigate to="/nhif-claims" replace />} />
           <Route path="/nhif/claims" element={<Navigate to="/nhif-claims" replace />} />
           <Route path="/nhif/claims/:id" element={<Navigate to="/nhif-claims" replace />} />
-          <Route path="/cpd" element={<PageErrorBoundary><Suspense fallback={<PageLoader />}><CpdDashboardPage /></Suspense></PageErrorBoundary>} />
-          <Route path="/cpd/log" element={<PageErrorBoundary><Suspense fallback={<PageLoader />}><LogActivityPage /></Suspense></PageErrorBoundary>} />
-          <Route path="/cpd/courses/:slug" element={<PageErrorBoundary><Suspense fallback={<PageLoader />}><CourseDetailPage /></Suspense></PageErrorBoundary>} />
+          <Route path="/cpd" element={page(<CpdDashboardPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER'])} />
+          <Route path="/cpd/log" element={page(<LogActivityPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER'])} />
+          <Route path="/cpd/courses/:slug" element={page(<CourseDetailPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER'])} />
           <Route path="/settings" element={<Navigate to="/settings/profile" replace />} />
           <Route path="/settings/profile" element={<PageErrorBoundary><Suspense fallback={<PageLoader />}><ProfilePage /></Suspense></PageErrorBoundary>} />
           <Route path="/settings/team" element={page(<TeamManagementPage />, ['OWNER', 'PHARMACIST_IN_CHARGE'])} />

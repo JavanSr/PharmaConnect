@@ -88,6 +88,27 @@ Errors thrown from services must carry a `.status` property; `errorHandler` midd
 
 `backend/src/jobs/*.ts` — each exports a `register*Job()` function that sets up a `node-cron` schedule. All jobs are registered at startup in `src/index.ts`. Jobs: expiry alerts, low-stock alerts, compliance alerts, trial expiry alerts, weekly digest, VFD retry, demand predictions.
 
+**Expiry alert thresholds** (`expiry-alerts.ts`): fires at 90, 60, **30, 21, 14, 7**, 3, **1** days before expiry. UI-surfaced thresholds are 30/21/14/7/1 only.
+
+Urgency formula (`expiryUrgency(days: number)`):
+- `days < 0`    → **EXPIRED**   — pull from shelf immediately
+- `days <= 1`   → **CRITICAL**  — remove if no sale expected today
+- `days <= 7`   → **URGENT**    — flag at dispensing counter
+- `days <= 14`  → **WARNING**   — escalate to supplier for return/credit
+- `days <= 21`  → **CAUTION**   — verify batch is dispensed first (FEFO)
+- `days <= 30`  → **INFO**      — begin FEFO prioritisation
+- `days > 30`   → **MONITOR**   — no action required
+
+Alert metadata includes `urgency` field matching the formula above. Stored in `AlertLog.metadata.urgency`.
+
+**Stock intake expiry gate** (`StockIntakePage.tsx`): when a dispenser enters an expiry date during stock receiving, a live warning fires if the batch expires within 60 days — using the same urgency formula. Levels and messages:
+- `< 0 days` → EXPIRED banner — do not receive
+- `≤ 1 day`  → CRITICAL — do not receive
+- `≤ 7 days` → URGENT — high risk, verify with supplier
+- `≤ 14 days` → WARNING — only receive if dispense before expiry
+- `≤ 30 days` → CAUTION — FEFO required once received
+- `≤ 60 days` → INFO — check stock levels before ordering more
+
 ### AI Agents system
 
 `backend/src/modules/agents/` — multi-agent system using the Anthropic SDK (`claude-haiku-4-5-20251001`). The orchestrator classifies incoming queries and routes to specialist agents: `clinical_safety`, `inventory_demand`, `compliance`, `business_intel`, `data_curation`. Agents extend `BaseAgent` and return structured `AgentResult` objects. Requires `ANTHROPIC_API_KEY` in `.env`.
@@ -354,7 +375,7 @@ CANNOT:
 **Retail tiers:**
 | Tier | Price | Outlets | Users | Trial |
 |------|-------|---------|-------|-------|
-| ADDO | Tsh 20,000/month | 1 | 3 | 14 days |
+| ADDO | Tsh 15,000/month | 1 | 3 | 14 days |
 | BASIC | Tsh 39,000/month | 2 | 5 | 14 days |
 | STANDARD | Tsh 55,000/month | 3 | 10 | 14 days |
 | PREMIUM | Tsh 75,000/month | 5 | 20 | 14 days |
@@ -376,6 +397,29 @@ Annual billing: 10× monthly (2 months free).
 - "APOTEKH" — platform name, never "PharmaConnect"
 
 ---
+
+
+### Reports module
+
+**Retail reports** (`/reports` — OWNER, PHARMACIST_IN_CHARGE, SUPER_ADMIN):
+
+| Report | Endpoint | Export |
+|--------|----------|--------|
+| Expiry by threshold | `GET /reports/expiry?threshold=N` | CSV, PDF |
+| Dispensing (top products, revenue) | `GET /reports/dispensing?from=&to=` | CSV, PDF |
+| Payment method breakdown | `GET /reports/payment-breakdown?from=&to=` | JSON |
+| Stock movement | `GET /reports/stock-movement?from=&to=` | CSV, PDF |
+| Voids & returns | `GET /reports/voids-returns?from=&to=` | CSV, PDF |
+| Safety impact | `GET /reports/safety-impact` | JSON |
+| Revenue summary | `GET /reports/financial/revenue?from=&to=` | CSV, PDF |
+| Inventory on-hand | `GET /reports/inventory` | CSV |
+| Peer benchmark | `GET /reports/benchmarking/peer` | JSON |
+
+**Wholesale reports** (`/b2b` — OWNER, WHOLESALE_MANAGER):
+- `/b2b/demand-insights` — revenue this 30d vs prev, order counts, top products, fulfillment rate
+- `/b2b/receivables-aging` — outstanding balances bucketed at 30/60/90+ days
+
+All retail CSV/PDF exports use `streamCsv()` and `renderReportPdf()` from `reports.service.ts`.
 
 ## Module architecture
 
@@ -589,7 +633,7 @@ Catalogues support per-tier price overrides. When a buyer from STANDARD tier vie
 3. Base price (fallback)
 
 **Tiers with pricing control:**
-- ADDO (Tsh 20,000/month)
+- ADDO (Tsh 15,000/month)
 - ESSENTIAL (Tsh 39,000/month)
 - ADDO_PLUS (Tsh 55,000/month)
 - STANDARD (Tsh 55,000/month)
@@ -827,56 +871,4 @@ These are the target standards for new code:
 - The override_log table must have a database-level trigger preventing DELETE
   from any role including superadmin. This is a permanent medical record.
 - The B2B ordering network is closed. Retail pharmacies can only order from
-  wholesale pharmacies registered on APOTEKH. Enforce at API level.
-- Uploaded files under `/uploads/*` must require authentication and pharmacy
-  ownership checks before serving, with APOTEKH Office override only for
-  `SUPER_ADMIN`.
-- Password reset tokens are one-hour, single-use tokens. After password reset,
-  clear the reset token and invalidate old refresh sessions.
-- Production releases should pass the pre-deploy check script and readiness
-  probes (`/ready` and `/api/v1/ready`) before promotion. Prefer non-destructive
-  rollback as documented in `docs/deployment-runbook.md`.
-
-## Deferred features — placeholder pages only
-
-The following must NOT be built. Render a "coming soon" placeholder only:
-
-| Feature | Dependency blocking it |
-|---------|----------------------|
-| NHIF Claims Module | NHIF Breeze API accreditation |
-| Prescription Management | PC + TMDA digital framework |
-| Clinical OTC Symptom Tool | PC written position statement |
-| Persistent Patient Data Storage | PDPC registration + MOH MOU |
-| PC-Accredited CPD | Pharmacy Council MOU |
-| Controlled Substances TMDA Reporting | TMDA notification |
-
-## GStack usage for this project
-
-Use gstack skills when helpful.
-
-Important:
-- This is an existing Codex + Claude Code project.
-- Do not rebuild from scratch.
-- Do not rewrite the whole app.
-- Work incrementally.
-- Preserve current UI, database schema, auth flow, and existing working features unless explicitly told otherwise.
-- Before editing, inspect the codebase and explain the plan.
-- For risky changes, create a small task plan first.
-- Prefer small commits.
-- After every change, explain files changed and how to test.
-
-Recommended commands:
-- /review for code review
-- /qa for testing flows
-- /cso for security review
-- /codex for creating implementation-ready Codex tasks
-- /ship for release readiness
-
----
-
-## Language
-
-- The app name is **APOTEKH** — all caps, one word.
-  Never write "Apotekh" in mixed case or "Apotek H" with a space.
-- The country is Tanzania. Use Tsh for currency, Tanzanian regions for addresses.
-- Regulatory bodies: TMDA, NHIF, PC (Pharmacy Council).
+  wholesal

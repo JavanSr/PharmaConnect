@@ -17,7 +17,8 @@ import type { AuthRequest } from '../../middleware/auth';
 export const authRouter = Router();
 
 const loginSchema = z.object({
-  email:             z.string().email(),
+  // Accepts email address or phone number (+255 / 0xxxxxxxxx)
+  email:             z.string().min(1),
   password:          z.string().min(1),
   preferredPharmacyId: z.string().uuid().optional(),
 });

@@ -15,11 +15,12 @@ interface TopBarProps {
 }
 
 export const TopBar: React.FC<TopBarProps> = ({ onMenuClick, title }) => {
+  const pharmacy = usePharmacyStore(state => state.pharmacy);
+  const isWholesalePharmacy = pharmacy?.pharmacyType === 'WHOLESALE';
   const isOnline = useConnectivityStore(state => state.isOnline);
   const isReachable = useConnectivityStore(state => state.isReachable);
   const pendingSyncCount = useConnectivityStore(state => state.pendingSyncCount);
   const memberships = usePharmacyStore(state => state.memberships);
-  const pharmacy = usePharmacyStore(state => state.pharmacy);
   const toast = useNotificationStore(state => state.toast);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -120,9 +121,15 @@ export const TopBar: React.FC<TopBarProps> = ({ onMenuClick, title }) => {
 
         {/* Quick actions */}
         <div className="hidden sm:flex items-center gap-2">
-          <Button size="sm" variant="secondary" leftIcon={<Plus size={14} />} onClick={() => navigate('/dispensing')}>
-            Dispense
-          </Button>
+          {isWholesalePharmacy ? (
+            <Button size="sm" variant="secondary" leftIcon={<Plus size={14} />} onClick={() => navigate('/wholesale/manual-order')}>
+              New Order
+            </Button>
+          ) : (
+            <Button size="sm" variant="secondary" leftIcon={<Plus size={14} />} onClick={() => navigate('/dispensing')}>
+              Dispense
+            </Button>
+          )}
           <Button size="sm" variant="ghost" leftIcon={<Plus size={14} />} onClick={() => navigate('/inventory/receive')}>
             Receive
           </Button>
