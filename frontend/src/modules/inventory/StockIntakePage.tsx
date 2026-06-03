@@ -333,7 +333,7 @@ export const StockIntakePage: React.FC = () => {
     () => (products.length > 0 ? products : cachedProducts).filter((product) => productMatchesSearch(product, trimmedSearch)),
     [cachedProducts, products, trimmedSearch],
   );
-  const shouldSearchMasterCatalog = trimmedSearch.length >= 2 && !isProductFetching && visibleProducts.length === 0;
+  const shouldSearchMasterCatalog = trimmedSearch.length >= 2;
   const { data: masterCatalogData, isFetching: isMasterFetching } = useQuery({
     queryKey: ['stock-intake-master', trimmedSearch],
     queryFn: async ({ signal }) => {

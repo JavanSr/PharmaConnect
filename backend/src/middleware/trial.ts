@@ -109,35 +109,44 @@ export function enforceTrialRestrictions(
   //   (a) status is explicitly GRACE, OR
   //   (b) status is ACTIVE but the paid subscription has lapsed
   //
-  // APOTEKH never cuts a pharmacy off completely. The owner retains access to
-  // three core areas permanently:
+  // Grace lasts a maximum of 30 days. After that the pharmacy is hard-locked.
+  // Grace start = graceActivatedAt if set, else trialEndsAt (paidUntil).
   //
-  //   1. Dispensing  — operational survival: keep serving patients
-  //   2. Inventory   — cannot dispense without knowing stock
-  //   3. Analytics   — owner sees revenue; motivates renewal
-  //
+  // During grace the owner retains access to: Dispensing, Inventory, Analytics.
   // Grace restrictions:
-  //   • Only the OWNER role may access the app. Other staff are locked out
-  //     (GRACE_SINGLE_USER_LIMIT) until the subscription is renewed.
-  //   • Even the owner is locked out of non-grace features
-  //     (GRACE_FEATURE_LOCKED) — compliance, reports, wholesale, CPD, etc.
-  //   • The frontend shows locked items in the sidebar with "Renew to unlock".
-  //   • There is no hard paywall — the owner can always keep working.
+  //   • Only OWNER may access the app (GRACE_SINGLE_USER_LIMIT).
+  //   • Owner locked out of non-grace features (GRACE_FEATURE_LOCKED).
   //
+  const GRACE_PERIOD_MS = 30 * 24 * 60 * 60 * 1000;
+
   const inGrace =
     pharmacy.status === 'GRACE' || isSubscriptionLapsed(pharmacy);
 
   if (inGrace) {
-    // Subscription exception always passes through (owner needs to renew).
     if (isSubscriptionException(req)) {
       next();
+      return;
+    }
+
+    // Enforce 30-day grace cap.
+    const graceStart: Date | null = pharmacy.graceActivatedAt
+      ? new Date(pharmacy.graceActivatedAt)
+      : pharmacy.trialEndsAt
+        ? new Date(pharmacy.trialEndsAt)
+        : null;
+
+    if (graceStart !== null && Date.now() - graceStart.getTime() > GRACE_PERIOD_MS) {
+      res.status(402).json({
+        error: 'GRACE_EXPIRED',
+        message: 'Your 30-day grace period has ended. Renew your subscription to restore access.',
+        subscribeUrl: SUBSCRIPTION_URL,
+      });
       return;
     }
 
     const isOwner =
       req.user.role === 'OWNER' || req.user.normalizedRole === 'OWNER';
 
-    // Non-owners are fully locked out.
     if (!isOwner) {
       res.status(402).json({
         error: 'GRACE_SINGLE_USER_LIMIT',
@@ -148,7 +157,6 @@ export function enforceTrialRestrictions(
       return;
     }
 
-    // Owner is locked out of non-grace features.
     if (!isGraceAllowedPath(req)) {
       res.status(402).json({
         error: 'GRACE_FEATURE_LOCKED',
@@ -159,7 +167,6 @@ export function enforceTrialRestrictions(
       return;
     }
 
-    // Owner on an allowed path — proceed with grace flag.
     req.graceMode = true;
     next();
     return;

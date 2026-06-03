@@ -273,45 +273,48 @@ function Nav() {
 
 function Hero() {
   return (
-    <section className="grid-bg" style={{ background: '#F7FBF8', padding: '88px 32px 80px', overflow: 'hidden', position: 'relative' }}>
-      <Image
-        src="/assets/photos/hero-pharmacist.jpg"
-        alt="Pharmacist helping a customer at the dispensing counter"
-        fill
-        style={{ objectFit: 'cover', objectPosition: 'right center' }}
-        priority
-        sizes="100vw"
-      />
-      <div className="hero-overlay" />
+    <section style={{
+      background: 'linear-gradient(135deg, #0D4035 0%, #1A6B5C 60%, #2A9478 100%)',
+      padding: '88px 32px 80px', overflow: 'hidden', position: 'relative',
+    }}>
+      {/* Subtle dot-grid overlay */}
+      <div style={{
+        position: 'absolute', inset: 0, opacity: 0.07,
+        backgroundImage: 'radial-gradient(circle, #7ECFB4 1px, transparent 1px)',
+        backgroundSize: '32px 32px',
+      }} />
       <div style={{ position: 'relative', zIndex: 1, maxWidth: 1280, margin: '0 auto' }}>
-        <div style={{ maxWidth: 620 }}>
+        <div style={{ maxWidth: 680 }}>
+          <p className="mono" style={{ fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#7ECFB4', marginBottom: 20, animation: 'fadeUp 700ms ease both 0ms' }}>
+            Built for Tanzania · Phase 1 Live
+          </p>
           <h1 className="serif" style={{
-            fontSize: 'clamp(42px,5vw,70px)', lineHeight: 1.05, letterSpacing: '-0.02em',
+            fontSize: 'clamp(40px,5vw,68px)', lineHeight: 1.05, letterSpacing: '-0.02em',
             color: 'white', margin: '0 0 24px', animation: 'fadeUp 700ms ease both 100ms',
           }}>
             The operating system<br />
             <span style={{ color: '#7ECFB4' }}>for pharmacies</span>
           </h1>
-          <p style={{ fontSize: 17, lineHeight: 1.78, color: 'rgba(255,255,255,0.85)', marginBottom: 36, animation: 'fadeUp 700ms ease both 420ms' }}>
+          <p style={{ fontSize: 17, lineHeight: 1.78, color: 'rgba(255,255,255,0.80)', marginBottom: 36, maxWidth: 560, animation: 'fadeUp 700ms ease both 420ms' }}>
             Tanzania&apos;s pharmacies need more than a point-of-sale system. APOTEKH gives them inventory control,
             patient safety checks, regulatory compliance, and analytics — in one platform built for how pharmacies actually work.
           </p>
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', marginBottom: 16, animation: 'fadeUp 700ms ease both 560ms' }}>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', marginBottom: 20, animation: 'fadeUp 700ms ease both 560ms' }}>
             <a href="https://app.apotekh.co.tz/register" style={{
-              display: 'inline-flex', alignItems: 'center', padding: '13px 24px',
-              borderRadius: 10, background: '#1A6B5C', color: 'white', fontSize: 14, fontWeight: 600,
-              boxShadow: '0 4px 14px rgba(26,107,92,0.25)',
+              display: 'inline-flex', alignItems: 'center', padding: '14px 28px',
+              borderRadius: 10, background: '#7ECFB4', color: '#0D4035', fontSize: 15, fontWeight: 700,
+              boxShadow: '0 4px 20px rgba(126,207,180,0.35)',
             }}>
               Start free trial — 14 days free
             </a>
             <a href="/platform" style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6, padding: '13px 24px',
-              borderRadius: 10, border: '1.5px solid rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.15)', color: 'white', fontSize: 14, fontWeight: 600,
+              display: 'inline-flex', alignItems: 'center', gap: 6, padding: '14px 28px',
+              borderRadius: 10, border: '1.5px solid rgba(255,255,255,0.3)', color: 'white', fontSize: 15, fontWeight: 600,
             }}>
               Explore the platform →
             </a>
           </div>
-          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', animation: 'fadeUp 600ms ease both 700ms' }}>No credit card required &nbsp;&middot;&nbsp; Cancel anytime &nbsp;&middot;&nbsp; Clinical Decision Support on every plan</p>
+          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', animation: 'fadeUp 600ms ease both 700ms' }}>No credit card required &nbsp;&middot;&nbsp; Cancel anytime &nbsp;&middot;&nbsp; Clinical Decision Support on every plan</p>
         </div>
       </div>
     </section>
@@ -324,9 +327,9 @@ function Marquee() {
   const t = 'Drug Interaction Checking · Expiry Monitoring · Barcode Scanning · Compliance Alerts · Inventory Management · Patient Safety · Offline-First · FEFO Enforcement · ';
   return (
     <div style={{ background: '#0D4035', padding: '12px 0', overflow: 'hidden', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-      <div className="marquee-track" style={{ display: 'flex', whiteSpace: 'nowrap' }}>
-        {[0, 1].map(i => (
-          <span key={i} style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.65)', paddingRight: 40 }}>{t}</span>
+      <div className="marquee-track" style={{ display: 'flex', whiteSpace: 'nowrap', width: 'max-content' }}>
+        {[0, 1, 2, 3].map(i => (
+          <span key={i} style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.65)', paddingRight: 64, flexShrink: 0 }}>{t}</span>
         ))}
       </div>
     </div>
@@ -1206,61 +1209,25 @@ function FAQ() {
 // ── FINAL CTA ─────────────────────────────────────────────────────────────────
 
 function FinalCTA() {
-  const [form, setForm] = useState({ name: '', email: '', pharmacy: '', tier: 'STANDARD — Tsh 55,000/month' });
-  const [sent, setSent] = useState(false);
-  const field: React.CSSProperties = { width: '100%', padding: '10px 14px', borderRadius: 8, border: '1.5px solid #E2EDE8', fontSize: 13, color: '#0D4035', fontFamily: 'inherit', background: 'white' };
   return (
     <section className="reveal" style={{ background: '#0D4035', padding: '96px 32px', color: 'white' }}>
-      <div style={{ maxWidth: 960, margin: '0 auto' }}>
-        <div style={{ textAlign: 'center', marginBottom: 48 }}>
-          <p className="mono" style={{ fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#7ECFB4', marginBottom: 16 }}>Total access</p>
-          <h2 className="serif" style={{ fontSize: 'clamp(32px,5vw,56px)', color: 'white', margin: '0 0 16px', lineHeight: 1.05 }}>Tanzania&apos;s pharmacies need this. Now.</h2>
-          <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.65)', maxWidth: 500, margin: '0 auto' }}>Get full APOTEKH access — 14-day free trial on every plan. No credit card. Running in minutes.</p>
+      <div style={{ maxWidth: 720, margin: '0 auto', textAlign: 'center' }}>
+        <p className="mono" style={{ fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#7ECFB4', marginBottom: 16 }}>Start today</p>
+        <h2 className="serif" style={{ fontSize: 'clamp(32px,5vw,52px)', color: 'white', margin: '0 0 20px', lineHeight: 1.05 }}>
+          Tanzania&apos;s pharmacies<br />deserve better tools.
+        </h2>
+        <p style={{ fontSize: 17, color: 'rgba(255,255,255,0.65)', maxWidth: 480, margin: '0 auto 40px', lineHeight: 1.7 }}>
+          14-day free trial on every plan. No credit card. No setup fee.<br />Your pharmacy running on APOTEKH in minutes.
+        </p>
+        <div style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap' }}>
+          <a href="https://app.apotekh.co.tz/register" style={{ display: 'inline-block', padding: '15px 36px', borderRadius: 10, background: '#7ECFB4', color: '#0D4035', fontSize: 15, fontWeight: 700, textDecoration: 'none', boxShadow: '0 4px 20px rgba(126,207,180,0.35)' }}>
+            Start free trial — 14 days free
+          </a>
+          <a href="mailto:support@apotekh.co.tz?subject=Wholesale%20%2F%20Enterprise%20inquiry" style={{ display: 'inline-block', padding: '15px 36px', borderRadius: 10, background: 'rgba(255,255,255,0.1)', color: 'white', fontSize: 15, fontWeight: 600, textDecoration: 'none', border: '1.5px solid rgba(255,255,255,0.2)' }}>
+            Wholesale / Enterprise →
+          </a>
         </div>
-        <div style={{ background: 'white', borderRadius: 20, padding: '40px 48px', maxWidth: 640, margin: '0 auto' }}>
-          {sent ? (
-            <div style={{ textAlign: 'center', padding: '20px 0' }}>
-              <div style={{ fontSize: 40, marginBottom: 16 }}>✓</div>
-              <h3 className="serif" style={{ fontSize: 24, color: '#0D4035', marginBottom: 8 }}>We&apos;ll be in touch</h3>
-              <p style={{ fontSize: 14, color: '#516965' }}>Thanks — we&apos;ll reach out within 24 hours to get you set up.</p>
-            </div>
-          ) : (
-            <form onSubmit={e => { e.preventDefault(); setSent(true); }} style={{ display: 'grid', gap: 16 }}>
-              <div>
-                <h3 className="serif" style={{ fontSize: 22, color: '#0D4035', marginBottom: 4 }}>Request access</h3>
-                <p style={{ fontSize: 13, color: '#516965' }}>We&apos;ll get back to you within 24 hours.</p>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: '#0D4035', display: 'block', marginBottom: 6 }}>Full name</label>
-                  <input required placeholder="Full name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} style={field} />
-                </div>
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: '#0D4035', display: 'block', marginBottom: 6 }}>Email address</label>
-                  <input required type="email" placeholder="example@email.co.tz" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} style={field} />
-                </div>
-              </div>
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: '#0D4035', display: 'block', marginBottom: 6 }}>Pharmacy name</label>
-                <input required placeholder="Pharmacy name" value={form.pharmacy} onChange={e => setForm({ ...form, pharmacy: e.target.value })} style={field} />
-              </div>
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: '#0D4035', display: 'block', marginBottom: 6 }}>Plan you&apos;re interested in</label>
-                <select value={form.tier} onChange={e => setForm({ ...form, tier: e.target.value })} style={field}>
-                  <option>ADDO — Tsh 15,000/month</option>
-                  <option>BASIC — Tsh 39,000/month</option>
-                  <option>STANDARD — Tsh 55,000/month</option>
-                  <option>PREMIUM — Tsh 75,000/month</option>
-                  <option>Wholesale / Enterprise — let&apos;s talk</option>
-                </select>
-              </div>
-              <button type="submit" style={{ padding: '13px', borderRadius: 10, background: '#1A6B5C', color: 'white', fontSize: 14, fontWeight: 700, boxShadow: '0 4px 14px rgba(26,107,92,0.3)', marginTop: 4, border: 'none', cursor: 'pointer' }}>
-                Request access →
-              </button>
-            </form>
-          )}
-        </div>
-        <p style={{ textAlign: 'center', marginTop: 24, fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>
+        <p style={{ marginTop: 32, fontSize: 12, color: 'rgba(255,255,255,0.35)' }}>
           support@apotekh.co.tz · @APOTEKH · Tanzania
         </p>
       </div>
@@ -1331,16 +1298,6 @@ export default function HomePage() {
 
   return (
     <div>
-      <div style={{ background: '#0D4035', padding: '9px 32px', textAlign: 'center' }}>
-        <p className="mono" style={{ margin: 0, fontSize: 12, letterSpacing: '0.12em', color: 'rgba(255,255,255,0.75)' }}>
-          APOTEKH &nbsp;·&nbsp; <span style={{ color: '#7ECFB4' }}>Empowering Pharmacies. Protecting Patients.</span>
-        </p>
-      </div>
-      <div style={{ background: '#0D4035', padding: '9px 32px', textAlign: 'center' }}>
-        <p className="mono" style={{ margin: 0, fontSize: 12, letterSpacing: '0.12em', color: 'rgba(255,255,255,0.75)' }}>
-          APOTEKH &nbsp;·&nbsp; <span style={{ color: '#7ECFB4' }}>Empowering Pharmacies. Protecting Patients.</span>
-        </p>
-      </div>
       <div style={{ background: '#0D4035', padding: '9px 32px', textAlign: 'center' }}>
         <p className="mono" style={{ margin: 0, fontSize: 12, letterSpacing: '0.12em', color: 'rgba(255,255,255,0.75)' }}>
           APOTEKH &nbsp;·&nbsp; <span style={{ color: '#7ECFB4' }}>Empowering Pharmacies. Protecting Patients.</span>
