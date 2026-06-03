@@ -36,6 +36,7 @@ type ProductOption = {
   tmdaRegistrationNumber?: string | null;
   manufacturer?: string | null;
   therapeuticCategory?: string | null;
+  drugMasterId?: string | null;
 };
 
 type MasterCatalogOption = {
@@ -697,65 +698,46 @@ export const StockIntakePage: React.FC = () => {
             </div>
           )}
 
-          {/* Local product results */}
-          {!selectedProduct && trimmedSearch.length > 0 && (isProductFetching || visibleProducts.length > 0 || productsData) && (
+          {/* Unified search results — no section headers */}
+          {!selectedProduct && trimmedSearch.length > 0 && (
             <div className="border border-[#D6F0E8] rounded-xl overflow-hidden">
-              <div className="bg-[#F8FCFA] px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-[#64748B]">
-                Your products
-              </div>
-              {isProductFetching && visibleProducts.length === 0 && (
-                <div className="px-4 py-3 text-sm text-[#64748B]">Searching...</div>
+              {(isProductFetching || isMasterFetching) && visibleProducts.length === 0 && visibleMasterProducts.length === 0 && (
+                <div className="px-4 py-3 text-sm text-[#64748B]">Searching…</div>
               )}
               {visibleProducts.map(p => (
-                  <button key={p.id} type="button" onClick={() => selectProduct(p)}
-                    className="w-full text-left px-4 py-2.5 hover:bg-[#EDF7F3] border-b border-[#D6F0E8] last:border-0">
-                    <p className="text-sm font-medium text-[#0D4035]">{productName(p)}</p>
-                    <p className="text-xs text-[#64748B]">
-                      {[p.brandName && `Brand: ${p.brandName}`, p.genericName && `Generic: ${p.genericName}`, p.dosageForm, p.strength].filter(Boolean).join(' | ')}
-                    </p>
-                  </button>
-                ))}
-              {productsData && visibleProducts.length === 0 && !isProductFetching && (
-                <div className="px-4 py-3 text-sm text-[#64748B]">No local product match</div>
-              )}
-            </div>
-          )}
-
-          {/* Master catalog results */}
-          {!selectedProduct && trimmedSearch.length > 0 && (visibleMasterProducts.length > 0 || masterCatalogData || isMasterFetching) && (
-            <div className="border border-[#D6F0E8] rounded-xl overflow-hidden">
-              <div className="flex items-center justify-between gap-3 bg-[#F8FCFA] px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-[#64748B]">
-                <span>Master catalog</span>
-                {isMasterFetching && <span className="text-[#1A6B5C]">Loading…</span>}
-              </div>
-              {visibleMasterProducts.map(cp => (
-                <div key={cp.id} className="flex items-center justify-between gap-3 px-4 py-3 border-b border-[#D6F0E8] last:border-0">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-sm font-medium text-[#0D4035]">{cp.productName}</p>
-                      <Badge variant={catalogStatusVariant(cp.verificationStatus)} size="sm">{catalogStatusLabel(cp.verificationStatus)}</Badge>
-                    </div>
-                    <p className="text-xs text-[#64748B]">
-                      {[cp.brandName && `Brand: ${cp.brandName}`, cp.genericName && `Generic: ${cp.genericName}`, cp.dosageForm, cp.strength, cp.manufacturer].filter(Boolean).join(' | ')}
-                    </p>
-                  </div>
-                  <Button type="button" size="sm" variant="secondary"
-                    loading={createCatalogMutation.isPending && selectedCatalogProduct?.id === cp.id}
-                    onClick={() => { setSelectedCatalogProduct(cp); createCatalogMutation.mutate(cp); }}>
-                    Use
-                  </Button>
-                </div>
+                <button key={p.id} type="button" onClick={() => selectProduct(p)}
+                  className="w-full text-left px-4 py-2.5 hover:bg-[#EDF7F3] border-b border-[#D6F0E8] last:border-0">
+                  <p className="text-sm font-medium text-[#0D4035]">{productName(p)}</p>
+                  <p className="text-xs text-[#64748B]">
+                    {[p.brandName && `Brand: ${p.brandName}`, p.genericName && `Generic: ${p.genericName}`, p.dosageForm, p.strength].filter(Boolean).join(' | ')}
+                  </p>
+                </button>
               ))}
-            </div>
-          )}
-
-          {/* No results */}
-          {!selectedProduct && trimmedSearch.length > 0 && productsData && masterCatalogData && visibleProducts.length === 0 && visibleMasterProducts.length === 0 && !isProductFetching && !isMasterFetching && (
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
-              <p className="text-sm font-medium text-[#92400E]">No match found.</p>
-              <Link to="/inventory/products/new" className="mt-2 block text-xs font-medium text-[#1A6B5C] hover:underline">
-                Create product manually →
-              </Link>
+              {visibleMasterProducts
+                .filter(cp => !visibleProducts.some(p => p.drugMasterId === cp.id))
+                .map(cp => (
+                  <div key={cp.id} className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-[#D6F0E8] last:border-0 hover:bg-[#EDF7F3]">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-[#0D4035]">{cp.genericName}{cp.strength ? ` ${cp.strength}` : ''}{cp.dosageForm ? ` · ${cp.dosageForm}` : ''}</p>
+                      <p className="text-xs text-[#64748B]">
+                        {[cp.brandName, cp.manufacturer].filter(Boolean).join(' · ')}
+                      </p>
+                    </div>
+                    <Button type="button" size="sm" variant="secondary"
+                      loading={createCatalogMutation.isPending && selectedCatalogProduct?.id === cp.id}
+                      onClick={() => { setSelectedCatalogProduct(cp); createCatalogMutation.mutate(cp); }}>
+                      Use
+                    </Button>
+                  </div>
+                ))}
+              {!isProductFetching && !isMasterFetching && visibleProducts.length === 0 && visibleMasterProducts.length === 0 && (productsData || masterCatalogData) && (
+                <div className="px-4 py-3">
+                  <p className="text-sm text-[#92400E]">No match found.</p>
+                  <Link to="/inventory/products/new" className="mt-1 block text-xs font-medium text-[#1A6B5C] hover:underline">
+                    Add product manually →
+                  </Link>
+                </div>
+              )}
             </div>
           )}
 
