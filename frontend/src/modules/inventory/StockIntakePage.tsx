@@ -227,6 +227,7 @@ export const StockIntakePage: React.FC = () => {
   // product search
   const [productSearch, setProductSearch] = useState('');
   const debouncedProductSearch = useDebounce(productSearch, 300);
+  const debouncedMasterSearch = useDebounce(productSearch, 600);
   const [selectedProduct, setSelectedProduct] = useState<ProductOption | null>(null);
   const [selectedCatalogProduct, setSelectedCatalogProduct] = useState<MasterCatalogOption | null>(null);
   const [showScanner, setShowScanner] = useState(false);
@@ -336,12 +337,12 @@ export const StockIntakePage: React.FC = () => {
   );
   const shouldSearchMasterCatalog = trimmedSearch.length >= 2;
   const { data: masterCatalogData, isFetching: isMasterFetching } = useQuery({
-    queryKey: ['stock-intake-master', trimmedSearch],
+    queryKey: ['stock-intake-master', debouncedMasterSearch.trim()],
     queryFn: async ({ signal }) => {
-      if (!trimmedSearch) return null;
+      if (!debouncedMasterSearch.trim()) return null;
       try {
         return await api.get('/inventory/drug-master', {
-          params: { q: trimmedSearch, limit: 8 },
+          params: { q: debouncedMasterSearch.trim(), limit: 8 },
           signal,
           timeout: 2500,
         }).then(r => r.data);
@@ -486,7 +487,7 @@ export const StockIntakePage: React.FC = () => {
           batchNumber: line.batchNumber,
           expiryDate: line.expiryDate,
           quantityRemaining: line.quantity,
-          purchasePrice: line.unitPrice,
+          purchasePrice: line.unitPrice > 0 ? line.unitPrice : undefined,
           sellingPrice: line.sellingPrice || undefined,
           supplierId: sessionSupplierId || undefined,
         };
