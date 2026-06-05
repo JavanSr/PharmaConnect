@@ -148,7 +148,7 @@ export const LoginPage: React.FC = () => {
             }
             setMemberships(offlineSnapshot.memberships);
             setDeviceSelectedPharmacyId(offlineSnapshot.deviceSelectedPharmacyId);
-            navigate(user?.role === 'SUPER_ADMIN' ? '/founder' : '/dashboard');
+            navigate(offlineSnapshot.user?.role === 'SUPER_ADMIN' ? '/founder' : '/dashboard');
             return;
           }
         } catch {
