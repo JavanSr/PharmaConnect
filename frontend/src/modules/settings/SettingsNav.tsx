@@ -11,6 +11,7 @@ type SettingsNavItem = {
 const ITEMS: SettingsNavItem[] = [
   { label: 'Profile', path: '/settings/profile' },
   { label: 'Team', path: '/settings/team', roles: ['OWNER', 'PHARMACIST_IN_CHARGE', 'SUPER_ADMIN'] },
+  { label: 'My Locations', path: '/settings/my-locations', roles: ['OWNER', 'SUPER_ADMIN'] },
   { label: 'Subscription', path: '/settings/subscription', roles: ['OWNER', 'SUPER_ADMIN'] },
   { label: 'Features', path: '/settings/features', roles: ['OWNER', 'SUPER_ADMIN'] },
   { label: 'Data Review', path: '/settings/data-review', roles: ['OWNER', 'PHARMACIST_IN_CHARGE', 'SUPER_ADMIN'] },

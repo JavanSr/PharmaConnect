@@ -112,6 +112,7 @@ const SubscriptionPage = lazy(() => import('@/modules/settings/SubscriptionPage'
 const DataReviewPage = lazy(() => import('@/modules/settings/DataReviewPage').then(m => ({ default: m.DataReviewPage })));
 const SourceUpdatesPage = lazy(() => import('@/modules/settings/SourceUpdatesPage').then(m => ({ default: m.SourceUpdatesPage })));
 const FeaturesPage = lazy(() => import('@/modules/settings/FeaturesPage').then(m => ({ default: m.FeaturesPage })));
+const MyOutletsPage = lazy(() => import('@/modules/settings/MyOutletsPage').then(m => ({ default: m.MyOutletsPage })));
 const FounderDashboardPage = lazy(() => import('@/modules/founder/FounderDashboardPage').then(m => ({ default: m.FounderDashboardPage })));
 const AdminShell = lazy(() => import('@/modules/admin/AdminShell').then(m => ({ default: m.AdminShell })));
 const AdminAuthGuard = lazy(() => import('@/modules/admin/AdminAuthGuard').then(m => ({ default: m.AdminAuthGuard })));
@@ -389,6 +390,7 @@ export const App: React.FC = () => (
           <Route path="/settings/data-review" element={page(<DataReviewPage />, ['OWNER', 'PHARMACIST_IN_CHARGE'])} />
           <Route path="/settings/source-updates" element={page(<SourceUpdatesPage />, ['OWNER', 'PHARMACIST_IN_CHARGE'])} />
           <Route path="/settings/features" element={page(<FeaturesPage />, ['OWNER', 'PHARMACIST_IN_CHARGE'])} />
+          <Route path="/settings/my-locations" element={page(<MyOutletsPage />, ['OWNER'])} />
           <Route path="/founder" element={page(<FounderDashboardPage />, ['SUPER_ADMIN'])} />
         </Route>
 
@@ -403,10 +405,10 @@ export const App: React.FC = () => (
             <Route path="/superadmin/messages" element={<Suspense fallback={<PageLoader />}><AdminMessagesPage /></Suspense>} />
           </Route>
         </Route>
-
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </BrowserRouter>
-  </QueryClientProvider>
+    </QueryClientProvider>
   </ErrorBoundary>
 );
+
+export default App;

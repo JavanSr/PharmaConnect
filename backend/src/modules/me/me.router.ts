@@ -1,10 +1,11 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { authenticate, type AuthRequest } from '../../middleware/auth';
+import { authenticate, requireRole, type AuthRequest } from '../../middleware/auth';
 import { prisma } from '../../lib/prisma';
 import { withPrismaRetry } from '../../lib/prisma-retry';
 import { issueAuthTokens, listAccessiblePharmacies } from '../auth/pharmacy-membership.service';
 import { trackFeatureTelemetry } from '../telemetry/feature-telemetry.service';
+import { sendFounderNotification } from '../../lib/email';
 
 export const meRouter = Router();
 meRouter.use(authenticate);
@@ -110,3 +111,164 @@ meRouter.post('/pharmacies/:id/select', async (req: AuthRequest, res, next) => {
     next(error);
   }
 });
+
+// ── Add new outlet (OWNER only) ───────────────────────────────────────────────
+//
+// An existing owner creates a new ADDO or Retail pharmacy under their account.
+// Checks whether adding one more outlet exceeds the owner's current tier limit.
+// If it does, returns a 402 with the required upgrade tier so the UI can prompt.
+// The new pharmacy starts a fresh 14-day trial. No new user account needed.
+
+const TRIAL_DAYS = 14;
+
+// Outlet limits per subscription tier (mirrors CLAUDE.md)
+const OUTLET_LIMITS: Record<string, number> = {
+  ADDO:       1,
+  ESSENTIAL:  2,
+  ADDO_PLUS:  2,
+  STANDARD:   3,
+  PREMIUM:    5,
+  ENTERPRISE: 999,
+};
+
+// What tier to suggest when the current one is full
+const TIER_UPGRADE: Record<string, string> = {
+  ADDO:      'ESSENTIAL',
+  ESSENTIAL: 'STANDARD',
+  ADDO_PLUS: 'STANDARD',
+  STANDARD:  'PREMIUM',
+  PREMIUM:   'ENTERPRISE',
+};
+
+const TIER_PRICES: Record<string, number> = {
+  ADDO: 15_000, ESSENTIAL: 39_000, ADDO_PLUS: 45_000,
+  STANDARD: 55_000, PREMIUM: 75_000, ENTERPRISE: 0,
+};
+
+const addOutletSchema = z.object({
+  name:          z.string().trim().min(2, 'Name is required'),
+  pharmacyType:  z.enum(['ADDO', 'RETAIL']),  // no hybrid, no wholesale
+  region:        z.string().trim().min(1, 'Region is required'),
+  address:       z.string().trim().min(2, 'Address is required'),
+  licenceNumber: z.string().trim().optional(),
+});
+
+meRouter.post(
+  '/pharmacies/add-outlet',
+  requireRole('OWNER'),
+  async (req: AuthRequest, res, next) => {
+    try {
+      const data   = addOutletSchema.parse(req.body);
+      const userId = req.user!.userId;
+
+      // ── Tier limit check ────────────────────────────────────────────────────
+      // Count active pharmacies this owner belongs to as OWNER
+      const currentOutletCount = await prisma.pharmacyMembership.count({
+        where: {
+          userId,
+          role:   'OWNER',
+          active: true,
+          pharmacy: { isActive: true },
+        },
+      });
+
+      // Use the currently selected pharmacy's tier as the account tier
+      const currentTier = req.user!.pharmacy?.subscriptionTier ?? 'ADDO';
+      const limit       = OUTLET_LIMITS[currentTier] ?? 1;
+
+      if (currentOutletCount >= limit) {
+        const upgradeTo    = TIER_UPGRADE[currentTier];
+        const upgradePrice = upgradeTo ? TIER_PRICES[upgradeTo] ?? 0 : 0;
+        res.status(402).json({
+          error:          'OUTLET_LIMIT_REACHED',
+          message:        `Your ${currentTier} plan covers up to ${limit} location${limit === 1 ? '' : 's'}. Upgrade to add more.`,
+          currentTier,
+          currentCount:   currentOutletCount,
+          limit,
+          upgradeTo:      upgradeTo ?? null,
+          upgradePrice,
+        });
+        return;
+      }
+
+      // ── Create the pharmacy ─────────────────────────────────────────────────
+      // The new outlet shares the owner's existing trial end date so all locations
+      // expire together. If the owner's trial has already ended (they're ACTIVE),
+      // the new location joins their account immediately with no trial.
+      const ownerPharmacy = await prisma.pharmacyMembership.findFirst({
+        where: { userId, role: 'OWNER', active: true },
+        orderBy: { createdAt: 'asc' }, // oldest = primary pharmacy
+        select: {
+          pharmacy: {
+            select: { status: true, trialActive: true, trialEndsAt: true, subscriptionTier: true },
+          },
+        },
+      });
+
+      const primaryPharmacy  = ownerPharmacy?.pharmacy;
+      const trialStartsAt    = new Date();
+      const isOwnerInTrial   = primaryPharmacy?.trialActive && primaryPharmacy?.status === 'TRIAL';
+      // Share the same trial expiry as the primary pharmacy, or fall back to a fresh 14 days
+      const trialEndsAt      = isOwnerInTrial && primaryPharmacy?.trialEndsAt
+        ? primaryPharmacy.trialEndsAt
+        : new Date(trialStartsAt.getTime() + TRIAL_DAYS * 24 * 60 * 60 * 1000);
+      const newStatus        = isOwnerInTrial ? 'TRIAL' : 'ACTIVE';
+      const newTrialActive   = isOwnerInTrial;
+
+      const savedType     = data.pharmacyType as 'ADDO' | 'RETAIL';
+      const tier          = data.pharmacyType === 'ADDO' ? 'ADDO' : 'ESSENTIAL';
+      const licenceNumber = data.licenceNumber?.trim() || `PENDING-${Date.now()}`;
+
+      const result = await withPrismaRetry(() => prisma.$transaction(async (tx) => {
+        const pharmacy = await tx.pharmacy.create({
+          data: {
+            name:             data.name,
+            licenceNumber,
+            address:          data.address,
+            region:           data.region,
+            pharmacyType:     savedType,
+            subscriptionTier: tier as any,
+            status:           newStatus,
+            trialActive:      newTrialActive,
+            trialStartsAt,
+            trialEndsAt,
+            isActive:         true,
+          },
+        });
+        await tx.pharmacyMembership.create({
+          data: {
+            userId,
+            pharmacyId: pharmacy.id,
+            role:       'OWNER',
+            active:     true,
+            validFrom:  new Date(),
+            createdBy:  userId,
+          },
+        });
+        return pharmacy;
+      }));
+
+      sendFounderNotification({
+        pharmacyName: result.name,
+        ownerName:    req.user!.email,
+        ownerEmail:   req.user!.email,
+        region:       result.region,
+        pharmacyType: result.pharmacyType,
+        tier:         result.subscriptionTier,
+      }).catch(() => {});
+
+      res.status(201).json({
+        data: {
+          id:           result.id,
+          name:         result.name,
+          pharmacyType: result.pharmacyType,
+          region:       result.region,
+          status:       result.status,
+          trialEndsAt:  result.trialEndsAt,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
