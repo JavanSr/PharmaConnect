@@ -44,6 +44,7 @@ export async function runExpiryAlerts(): Promise<{ queued: number }> {
         select: {
           id: true,
           name: true,
+          brandName: true,
         },
       },
       pharmacy: {
@@ -82,7 +83,7 @@ export async function runExpiryAlerts(): Promise<{ queued: number }> {
         status: 'QUEUED',
         metadata: {
           productId: batch.productId,
-          productName: batch.product.name,
+          productName: batch.product.brandName || batch.product.name,
           batchNumber: batch.batchNumber,
           quantityRemaining: batch.quantityRemaining,
           expiryDate: batch.expiryDate.toISOString(),

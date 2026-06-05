@@ -1,6 +1,6 @@
 import React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Building2, Users, Pill, Package, ShieldAlert, CheckCircle, Clock, LayoutDashboard, ClipboardList, ShieldCheck, Wallet, XCircle } from 'lucide-react';
+import { Building2, Users, Pill, Package, ShieldAlert, CheckCircle, Clock, LayoutDashboard, ClipboardList, ShieldCheck, Wallet, XCircle, TrendingUp, BarChart2, AlertCircle, MapPin, Zap } from 'lucide-react';
 import { differenceInCalendarDays } from 'date-fns';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -83,7 +83,17 @@ type SubscriptionPaymentRequest = {
   };
 };
 
-type Tab = 'overview' | 'registrations' | 'payments';
+type GrowthData = {
+  mrr: { total: number; byTier: Record<string, number>; arr: number; paidCount: number };
+  mrrMovement: { newMrr: number; expansionMrr: number; contractionMrr: number; churnedMrr: number };
+  quickRatio: number | null;
+  trials: { active: number; expiringSoon: Array<{ id: string; name: string; tier: string; trialEndsAt: string | null; daysLeft: number | null }>; conversionRate: number; convertedEver: number; newThisMonth: number; avgDaysToConvert: number | null };
+  churn: { graceCount: number; gracePharmacies: Array<{ id: string; name: string; tier: string; graceSince: string | null }>; darkCount: number; darkPharmacies: Array<{ id: string; name: string; tier: string }>; churnRateThisMonth: number; churnRateLastMonth: number };
+  activation: { newLast30Days: number; stockWithin3Days: number; activationRate: number; dispensingRate: number; stuckCount: number };
+  geography: Array<{ region: string; count: number }>;
+};
+
+type Tab = 'overview' | 'growth' | 'registrations' | 'payments';
 
 const TIERS = ['ADDO', 'ESSENTIAL', 'STANDARD', 'PREMIUM', 'WHOLESALE', 'ENTERPRISE'] as const;
 
@@ -114,6 +124,13 @@ export const FounderDashboardPage: React.FC = () => {
     queryFn: () => api.get('/founder/subscription-payments', { params: { status: 'PENDING' } }).then(r => r.data),
     staleTime: 30_000,
     enabled: tab === 'payments',
+  });
+
+  const growthQuery = useQuery<{ data: GrowthData }>({
+    queryKey: ['founder-growth'],
+    queryFn: () => api.get('/founder/growth').then(r => r.data),
+    staleTime: 60_000,
+    enabled: tab === 'growth',
   });
 
   const stats = statsQuery.data?.data;
@@ -219,6 +236,7 @@ export const FounderDashboardPage: React.FC = () => {
       <div className="flex gap-1 bg-[#EDF7F3] rounded-xl p-1 w-fit">
         {([
           ['overview', <LayoutDashboard size={14} />, 'Overview'],
+          ['growth', <TrendingUp size={14} />, 'Growth'],
           ['registrations', <ClipboardList size={14} />, 'Registrations'],
           ['payments', <Wallet size={14} />, 'Payments'],
         ] as const).map(([id, icon, label]) => (
@@ -321,6 +339,196 @@ export const FounderDashboardPage: React.FC = () => {
             </Card>
           </>
         )
+      )}
+
+
+      {/* ── Growth tab ── */}
+      {tab === 'growth' && (
+        growthQuery.isLoading ? (
+          <div className="flex items-center justify-center h-64 text-[#64748B]">Loading growth metrics…</div>
+        ) : (() => {
+          const g = growthQuery.data?.data;
+          if (!g) return <div className="text-[#64748B] p-8">No data available.</div>;
+          const fmt = (n: number) => n.toLocaleString('en-TZ');
+          const fmtTzs = (n: number) => n >= 1_000_000 ? `Tsh ${(n / 1_000_000).toFixed(1)}M` : n >= 1_000 ? `Tsh ${(n / 1_000).toFixed(0)}K` : `Tsh ${n.toLocaleString()}`;
+          const TIER_COLORS: Record<string, string> = { ADDO: '#64748B', ESSENTIAL: '#2A9478', ADDO_PLUS: '#16A085', BASIC: '#2A9478', STANDARD: '#1A6B5C', PREMIUM: '#0D4035', WHOLESALE: '#E8A020', ENTERPRISE: '#082B23' };
+          const qr = g.quickRatio;
+          const qrLabel = qr === null ? '∞' : qr.toFixed(2);
+          const qrColor = qr === null || qr >= 4 ? '#16A34A' : qr >= 2 ? '#D97706' : '#DC2626';
+          const qrSub = qr === null ? 'No churn this week' : qr >= 4 ? 'Healthy growth' : qr >= 2 ? 'Moderate' : 'At risk';
+          const churnImproved = g.churn.churnRateThisMonth <= g.churn.churnRateLastMonth;
+          return (
+            <div className="space-y-6">
+
+              {/* ── Hero KPIs ── */}
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                {[
+                  { label: 'MRR', value: fmtTzs(g.mrr.total), sub: `${g.mrr.paidCount} paid accounts`, icon: <TrendingUp size={16} className="text-[#1A6B5C]" />, color: undefined },
+                  { label: 'ARR', value: fmtTzs(g.mrr.arr), sub: 'annualised run rate', icon: <BarChart2 size={16} className="text-[#1A6B5C]" />, color: undefined },
+                  { label: 'Quick Ratio', value: qrLabel, sub: qrSub, icon: <Zap size={16} />, color: qrColor },
+                  { label: 'Trial → Paid', value: `${g.trials.conversionRate}%`, sub: `${g.trials.convertedEver} converted`, icon: <Zap size={16} className="text-[#E8A020]" />, color: g.trials.conversionRate >= 30 ? '#16A34A' : g.trials.conversionRate >= 15 ? '#D97706' : '#DC2626' },
+                  { label: 'Avg Days to Convert', value: g.trials.avgDaysToConvert !== null ? `${g.trials.avgDaysToConvert}d` : '—', sub: 'trial → first payment', icon: <AlertCircle size={16} className="text-[#64748B]" />, color: undefined },
+                ].map(({ label, value, sub, icon, color }) => (
+                  <Card key={label}>
+                    <div className="flex items-start justify-between gap-1">
+                      <div>
+                        <p className="text-xs text-[#64748B] mb-1">{label}</p>
+                        <p className="text-lg font-bold text-[#0D4035]" style={color ? { color } : undefined}>{value}</p>
+                        <p className="text-xs text-[#94A3B8] mt-0.5">{sub}</p>
+                      </div>
+                      {icon}
+                    </div>
+                  </Card>
+                ))}
+              </div>
+
+              {/* ── MRR Movement (WoW) ── */}
+              <Card header={<span className="text-sm font-semibold text-[#0D4035]">MRR Movement — this week</span>}>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {[
+                    { label: 'New MRR', value: g.mrrMovement.newMrr, sub: 'first-time activations', border: 'border-l-4 border-green-400 bg-green-50', text: 'text-green-700' },
+                    { label: 'Expansion MRR', value: g.mrrMovement.expansionMrr, sub: 'tier upgrades', border: 'border-l-4 border-teal-400 bg-teal-50', text: 'text-teal-700' },
+                    { label: 'Contraction MRR', value: g.mrrMovement.contractionMrr, sub: 'tier downgrades', border: g.mrrMovement.contractionMrr > 0 ? 'border-l-4 border-orange-400 bg-orange-50' : 'border-l-4 border-gray-200 bg-gray-50', text: g.mrrMovement.contractionMrr > 0 ? 'text-orange-700' : 'text-gray-500' },
+                    { label: 'Churned MRR', value: g.mrrMovement.churnedMrr, sub: 'entered grace', border: g.mrrMovement.churnedMrr > 0 ? 'border-l-4 border-red-400 bg-red-50' : 'border-l-4 border-gray-200 bg-gray-50', text: g.mrrMovement.churnedMrr > 0 ? 'text-red-700' : 'text-gray-500' },
+                  ].map(({ label, value, sub, border, text }) => (
+                    <div key={label} className={`rounded-lg p-3 ${border}`}>
+                      <p className="text-xs text-[#64748B] mb-1">{label}</p>
+                      <p className={`text-base font-bold ${text}`}>{fmtTzs(value)}</p>
+                      <p className="text-xs text-[#94A3B8] mt-0.5">{sub}</p>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+
+              {/* ── MRR by tier ── */}
+              <Card header={<span className="text-sm font-semibold text-[#0D4035]">MRR by tier</span>}>
+                <div className="space-y-2">
+                  {Object.entries(g.mrr.byTier).sort((a, b) => b[1] - a[1]).map(([tier, amount]) => {
+                    const pct = g.mrr.total > 0 ? Math.round((amount / g.mrr.total) * 100) : 0;
+                    return (
+                      <div key={tier} className="flex items-center gap-3">
+                        <span className="text-xs font-semibold w-20 text-[#0D4035]">{tier}</span>
+                        <div className="flex-1 bg-[#EDF7F3] rounded-full h-2">
+                          <div className="h-2 rounded-full" style={{ width: `${pct}%`, background: TIER_COLORS[tier] ?? '#1A6B5C' }} />
+                        </div>
+                        <span className="text-xs text-[#0D4035] font-medium w-24 text-right">Tsh {fmt(amount)}</span>
+                        <span className="text-xs text-[#64748B] w-8">{pct}%</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </Card>
+
+              {/* ── Trial pipeline + Churn rate ── */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Trials expiring soon */}
+                <Card header={
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-semibold text-[#0D4035]">Trials expiring in 7 days</span>
+                    <Badge variant={g.trials.expiringSoon.length > 0 ? 'warning' : 'success'} size="sm">{g.trials.expiringSoon.length}</Badge>
+                  </div>
+                }>
+                  {g.trials.expiringSoon.length === 0 ? (
+                    <p className="text-sm text-[#64748B]">None expiring this week.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {g.trials.expiringSoon.map(p => (
+                        <div key={p.id} className="flex items-center justify-between text-sm">
+                          <span className="text-[#0D4035] font-medium truncate">{p.name}</span>
+                          <span className={`text-xs font-semibold ml-2 shrink-0 ${(p.daysLeft ?? 99) <= 2 ? 'text-red-600' : 'text-amber-600'}`}>{p.daysLeft}d left</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </Card>
+
+                {/* Churn rate MoM */}
+                <Card header={<span className="text-sm font-semibold text-[#0D4035]">Churn Rate — Month on Month</span>}>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className={`rounded-lg p-3 ${churnImproved ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+                      <p className="text-xs text-[#64748B] mb-1">This month</p>
+                      <p className={`text-xl font-bold ${churnImproved ? 'text-green-700' : 'text-red-700'}`}>{g.churn.churnRateThisMonth.toFixed(1)}%</p>
+                      <p className="text-xs mt-0.5" style={{ color: churnImproved ? '#16A34A' : '#DC2626' }}>{churnImproved ? '↓ Better' : '↑ Worse'}</p>
+                    </div>
+                    <div className="rounded-lg p-3 bg-[#F8FAFC] border border-[#E2E8F0]">
+                      <p className="text-xs text-[#64748B] mb-1">Last month</p>
+                      <p className="text-xl font-bold text-[#64748B]">{g.churn.churnRateLastMonth.toFixed(1)}%</p>
+                      <p className="text-xs text-[#94A3B8] mt-0.5">baseline</p>
+                    </div>
+                  </div>
+                </Card>
+              </div>
+
+              {/* ── At-risk + Activation ── */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Grace / dark pharmacies */}
+                <Card header={
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-semibold text-[#0D4035]">At-risk accounts</span>
+                    <Badge variant={g.churn.graceCount + g.churn.darkCount > 0 ? 'warning' : 'success'} size="sm">
+                      {g.churn.graceCount + g.churn.darkCount}
+                    </Badge>
+                  </div>
+                }>
+                  {g.churn.graceCount === 0 && g.churn.darkCount === 0 ? (
+                    <p className="text-sm text-[#64748B]">No at-risk accounts.</p>
+                  ) : (
+                    <div className="space-y-1">
+                      {g.churn.graceCount > 0 && <p className="text-xs text-amber-700 font-semibold">{g.churn.graceCount} in grace period</p>}
+                      {g.churn.gracePharmacies.map(p => (
+                        <div key={p.id} className="text-xs text-[#64748B] pl-2">· {p.name} ({p.tier})</div>
+                      ))}
+                      {g.churn.darkCount > 0 && <p className="text-xs text-red-600 font-semibold mt-2">{g.churn.darkCount} paid — no activity 14d</p>}
+                      {g.churn.darkPharmacies.map(p => (
+                        <div key={p.id} className="text-xs text-[#64748B] pl-2">· {p.name} ({p.tier})</div>
+                      ))}
+                    </div>
+                  )}
+                </Card>
+
+                {/* Activation health */}
+                <Card header={<span className="text-sm font-semibold text-[#0D4035]">Activation — new pharmacies (30d)</span>}>
+                  <div className="space-y-3">
+                    {[
+                      { label: 'Signed up', value: g.activation.newLast30Days, color: '#1A6B5C' },
+                      { label: 'Received stock within 3 days', value: g.activation.stockWithin3Days, pct: g.activation.activationRate, color: '#2A9478' },
+                      { label: 'Completed first dispensing', value: Math.round(g.activation.newLast30Days * g.activation.dispensingRate / 100), pct: g.activation.dispensingRate, color: '#0D4035' },
+                      { label: 'Stuck at setup', value: g.activation.stuckCount, color: '#DC2626' },
+                    ].map(({ label, value, pct, color }) => (
+                      <div key={label} className="flex items-center justify-between text-sm">
+                        <span className="text-[#64748B]">{label}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold" style={{ color }}>{value}</span>
+                          {pct !== undefined && <span className="text-xs text-[#64748B]">({pct}%)</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              </div>
+
+              {/* ── Geography ── */}
+              <Card header={<span className="text-sm font-semibold text-[#0D4035]">Pharmacies by region</span>}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2">
+                  {g.geography.slice(0, 12).map(({ region, count }) => {
+                    const total = g.geography.reduce((s, r) => s + r.count, 0);
+                    const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+                    return (
+                      <div key={region} className="flex items-center gap-3">
+                        <MapPin size={12} className="text-[#64748B] shrink-0" />
+                        <span className="text-xs text-[#0D4035] w-28 truncate">{region}</span>
+                        <div className="flex-1 bg-[#EDF7F3] rounded-full h-1.5">
+                          <div className="h-1.5 rounded-full bg-[#1A6B5C]" style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className="text-xs font-semibold text-[#0D4035] w-6 text-right">{count}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </Card>
+            </div>
+          );
+        })()
       )}
 
       {/* ── Registrations tab ── */}
@@ -474,6 +682,89 @@ export const FounderDashboardPage: React.FC = () => {
           </div>
         }>
           {paymentsQuery.isLoading ? (
+            <div className="flex items-center justify-center py-10">
+              <div className="w-6 h-6 border-4 border-[#1A6B5C] border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : paymentRequests.length === 0 ? (
+            <div className="px-5 py-8 text-center text-sm text-[#64748B]">No pending payment requests.</div>
+          ) : (
+            <div className="divide-y divide-[#D6F0E8]">
+              {paymentRequests.map((request) => {
+                const isCurrent = reviewPaymentMutation.isPending && reviewPaymentMutation.variables?.id === request.id;
+                return (
+                  <div key={request.id} className="px-5 py-4">
+                    <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm font-semibold text-[#0D4035]">{request.pharmacy.name}</p>
+                          <Badge variant="info" size="sm">{request.requestedTier}</Badge>
+                          <Badge variant="muted" size="sm">{request.billingCycle}</Badge>
+                        </div>
+                        <p className="mt-1 text-xs text-[#64748B]">
+                          {request.pharmacy.region} · current {request.pharmacy.subscriptionTier} · {request.pharmacy.status}
+                        </p>
+                        <p className="mt-2 text-sm text-[#0D4035]">
+                          Tsh {Number(request.amount).toLocaleString()} via {request.paymentMethod}
+                        </p>
+                        <p className="mt-1 text-xs text-[#64748B]">
+                          Ref {request.transactionRef} · submitted {new Date(request.createdAt).toLocaleString()}
+                        </p>
+                        <p className="mt-1 text-xs text-[#64748B]">
+                          Requested by {request.requester.firstName} {request.requester.lastName} · {request.requester.email}
+                          {request.payerPhone ? ` · payer ${request.payerPhone}` : ''}
+                        </p>
+                        {request.note && <p className="mt-2 text-xs text-[#475569]">{request.note}</p>}
+                      </div>
+                      <div className="flex shrink-0 flex-wrap gap-2">
+                        <Button
+                          size="sm"
+                          leftIcon={<CheckCircle size={14} />}
+                          loading={isCurrent && reviewPaymentMutation.variables?.status === 'CONFIRMED'}
+                          disabled={reviewPaymentMutation.isPending}
+                          onClick={() => reviewPaymentMutation.mutate({ id: request.id, status: 'CONFIRMED' })}
+                        >
+                          Confirm
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="danger"
+                          leftIcon={<XCircle size={14} />}
+                          loading={isCurrent && reviewPaymentMutation.variables?.status === 'REJECTED'}
+                          disabled={reviewPaymentMutation.isPending}
+                          onClick={() => {
+                            if (window.confirm('Reject this payment request?')) {
+                              reviewPaymentMutation.mutate({ id: request.id, status: 'REJECTED' });
+                            }
+                          }}
+                        >
+                          Reject
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+      )}
+    </div>
+  );
+};
+
+const StatCard: React.FC<{ label: string; value: number; icon: React.ReactNode }> = ({ label, value, icon }) => (
+  <div className="bg-white rounded-2xl border border-[#D6F0E8] p-5">
+    <div className="flex items-start justify-between">
+      <div>
+        <p className="text-sm text-[#64748B] mb-1">{label}</p>
+        <p className="text-2xl font-bold text-[#0D4035]">{value.toLocaleString()}</p>
+      </div>
+      <div className="w-10 h-10 rounded-xl bg-[#D6F0E8] flex items-center justify-center shrink-0">
+        {icon}
+      </div>
+    </div>
+  </div>
+);
             <div className="flex items-center justify-center py-10">
               <div className="w-6 h-6 border-4 border-[#1A6B5C] border-t-transparent rounded-full animate-spin" />
             </div>

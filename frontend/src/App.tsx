@@ -30,8 +30,8 @@ const queryClient = new QueryClient({
         if (code === 'OFFLINE_QUEUED' || code === 'ERR_NETWORK') return false;
         return failureCount < 1;
       },
-      staleTime: 60_000,
-      refetchOnWindowFocus: false,
+      staleTime: 30_000,
+      refetchOnWindowFocus: true,
     },
     mutations: {
       // Same reasoning — don't pause mutations; api.ts interceptor queues them

@@ -500,7 +500,7 @@ export const DispensingScreen: React.FC = () => {
         queuedOffline: true,
         lines: cartItems.map((item) => ({
           productId: item.product.id,
-          productName: item.product.genericName || item.product.name,
+          productName: item.product.brandName || item.product.name,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
           totalAmount: item.lineTotal,

@@ -107,7 +107,7 @@ export const LoginPage: React.FC = () => {
           memberships,
           deviceSelectedPharmacyId: onlyMembership?.pharmacyId ?? deviceSelectedPharmacyId,
         });
-        navigate('/dashboard');
+        navigate(user?.role === 'SUPER_ADMIN' ? '/founder' : '/dashboard');
         return;
       }
 
@@ -122,7 +122,7 @@ export const LoginPage: React.FC = () => {
           memberships,
           deviceSelectedPharmacyId: selectedMembership.pharmacyId,
         });
-        navigate('/dashboard');
+        navigate(user?.role === 'SUPER_ADMIN' ? '/founder' : '/dashboard');
         return;
       }
 
@@ -148,7 +148,7 @@ export const LoginPage: React.FC = () => {
             }
             setMemberships(offlineSnapshot.memberships);
             setDeviceSelectedPharmacyId(offlineSnapshot.deviceSelectedPharmacyId);
-            navigate('/dashboard');
+            navigate(user?.role === 'SUPER_ADMIN' ? '/founder' : '/dashboard');
             return;
           }
         } catch {

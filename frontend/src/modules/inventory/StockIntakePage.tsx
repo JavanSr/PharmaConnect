@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useMemo, useState } from 'react';
+import React, { Suspense, lazy, useMemo, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -223,6 +223,7 @@ export const StockIntakePage: React.FC = () => {
 
   // cart
   const [cart, setCart] = useState<CartLine[]>([]);
+  const batchFormRef = useRef<HTMLDivElement>(null);
 
   // product search
   const [productSearch, setProductSearch] = useState('');
@@ -397,6 +398,7 @@ export const StockIntakePage: React.FC = () => {
     setSelectedCatalogProduct(cp ?? null);
     setProductSearch(productName(p));
     setValue('batchNumber', autoBatchNumber(p), { shouldDirty: false, shouldValidate: true });
+    setTimeout(() => batchFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
   };
 
   const clearProductSearch = () => {
@@ -540,6 +542,11 @@ export const StockIntakePage: React.FC = () => {
       }
       setCart([]);
       clearProductSearch();
+      // Invalidate product/stock caches so dispensing screen shows updated quantities immediately
+      void qc.invalidateQueries({ queryKey: ['products'] });
+      void qc.invalidateQueries({ queryKey: ['dispensing-products'] });
+      void qc.invalidateQueries({ queryKey: ['dashboard-stock'] });
+      void qc.invalidateQueries({ queryKey: ['dashboard-summary'] });
     },
     onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to receive stock'),
   });
@@ -755,6 +762,7 @@ export const StockIntakePage: React.FC = () => {
         </div>
 
         {/* Batch + pricing form */}
+        <div ref={batchFormRef} />
         <form onSubmit={handleSubmit(onAddLine)} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
@@ -941,3 +949,5 @@ export const StockIntakePage: React.FC = () => {
     </div>
   );
 };
+
+export default StockIntakePage;

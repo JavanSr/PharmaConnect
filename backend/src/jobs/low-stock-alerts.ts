@@ -41,7 +41,7 @@ export async function runLowStockAlerts(): Promise<{ queued: number }> {
         recipient: pharmacy.name,
         status: 'QUEUED',
         metadata: {
-          productName: product.name,
+          productName: (product as any).brandName || product.name,
           currentStock: product.currentStock ?? 0,
           reorderLevel: product.reorderLevel,
           shortage: product.shortage,
@@ -66,4 +66,5 @@ export function registerLowStockAlertsJob(): ScheduledTask {
   }, {
     timezone: 'Africa/Nairobi',
   });
+
 }
