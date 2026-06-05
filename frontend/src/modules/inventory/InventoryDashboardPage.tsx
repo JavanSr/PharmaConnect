@@ -36,9 +36,9 @@ const getProductStock = (product: any) => {
 export const InventoryDashboardPage: React.FC = () => {
   const pharmacy = usePharmacyStore((state) => state.pharmacy);
   const { data: summaryData } = useQuery({ queryKey: ['inventory-dashboard-summary'], queryFn: () => api.get('/inventory/reports/dashboard-summary').then(r => r.data) });
-  const { data: stockData } = useQuery({ queryKey: ['stock-on-hand'], queryFn: () => api.get('/inventory/reports/stock-on-hand').then(r => r.data), staleTime: 15_000, refetchInterval: 20_000 });
+  const { data: stockData } = useQuery({ queryKey: ['stock-on-hand'], queryFn: () => api.get('/inventory/reports/stock-on-hand').then(r => r.data), staleTime: 60_000, refetchInterval: 120_000 });
   const { data: expiryData } = useQuery({ queryKey: ['expiry-30'], queryFn: () => api.get('/inventory/reports/expiry?days=30').then(r => r.data) });
-  const { data: lowStockData } = useQuery({ queryKey: ['low-stock'], queryFn: () => api.get('/inventory/reports/low-stock').then(r => r.data), staleTime: 15_000, refetchInterval: 20_000 });
+  const { data: lowStockData } = useQuery({ queryKey: ['low-stock'], queryFn: () => api.get('/inventory/reports/low-stock').then(r => r.data), staleTime: 60_000, refetchInterval: 120_000 });
   const isEnterprise = pharmacy?.subscriptionTier === 'ENTERPRISE';
 
   const summary: DashboardSummary | undefined = summaryData?.data;
