@@ -265,8 +265,8 @@ export async function flushOfflineWrites(): Promise<FlushResult> {
           conflicts += 1;
         } else {
           synced += 1;
-          await removeInventoryDeltasForSource(queuedWrite.entityId);
         }
+        await removeInventoryDeltasForSource(queuedWrite.entityId);
         await removeOfflineWrite(queuedWrite.id);
         continue;
       }
