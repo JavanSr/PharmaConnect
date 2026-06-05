@@ -31,6 +31,7 @@ import {
   LEGACY_DISPENSING_PAYMENT_METHODS,
   type DispensingPaymentMethodOption,
 } from '@/modules/settings/paymentMethodConfig';
+import { useDebounce } from '@/hooks/useDebounce';
 import { useAuthStore } from '@/stores/authStore';
 import {
   normalizePatientPhone,
@@ -215,7 +216,7 @@ export const DispensingScreen: React.FC = () => {
     overrideDraft?: { reason: string; pic_pin: string };
   }>({ review: null, requiresOverride: false });
 
-  const immediateDrugSearch = drugSearch.trim();
+  const immediateDrugSearch = useDebounce(drugSearch.trim(), 300);
   const [cachedMedicineProducts, setCachedMedicineProducts] = useState<Product[]>([]);
   const cartTotal = useMemo(
     () => cartItems.reduce((sum, item) => sum + (item.unitPrice ?? 0) * item.quantity, 0),
