@@ -298,7 +298,7 @@ export const DispensingScreen: React.FC = () => {
           .get('/inventory/products/suggestions', {
             params: { search: immediateDrugSearch, limit: 12 },
             signal,
-            timeout: 2500,
+            timeout: 8000,
           })
           .then((r) => r.data);
         if (Array.isArray(response.data)) {
