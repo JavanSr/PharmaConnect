@@ -151,9 +151,12 @@ export async function sendFounderNotification(opts: {
     <a href="${APP_URL}/admin" class="btn">Open Admin Dashboard</a>
   `);
 
+  const recipients = FOUNDER_EMAIL !== SUPPORT_EMAIL
+    ? [SUPPORT_EMAIL, FOUNDER_EMAIL]
+    : [SUPPORT_EMAIL];
   await sendEmail({
     from: FROM,
-    to: SUPPORT_EMAIL,
+    to: recipients,
     subject: `New registration: ${opts.pharmacyName} (${opts.region})`,
     html,
   });
