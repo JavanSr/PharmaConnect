@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { authenticate, requireRole, type AuthRequest } from '../../middleware/auth';
 import { prisma } from '../../lib/prisma';
@@ -145,12 +146,18 @@ const TIER_PRICES: Record<string, number> = {
   STANDARD: 55_000, PREMIUM: 75_000, ENTERPRISE: 0,
 };
 
+const ADDO_OUTLET_PRICE = 15_000;
+
 const addOutletSchema = z.object({
-  name:          z.string().trim().min(2, 'Name is required'),
-  pharmacyType:  z.enum(['ADDO', 'RETAIL']),  // no hybrid, no wholesale
-  region:        z.string().trim().min(1, 'Region is required'),
-  address:       z.string().trim().min(2, 'Address is required'),
-  licenceNumber: z.string().trim().optional(),
+  name:           z.string().trim().min(2, 'Name is required'),
+  pharmacyType:   z.enum(['ADDO', 'RETAIL']),  // no hybrid, no wholesale
+  region:         z.string().trim().min(1, 'Region is required'),
+  address:        z.string().trim().min(2, 'Address is required'),
+  licenceNumber:  z.string().trim().optional(),
+  // Payment fields — required only for ADDO addon outlets
+  paymentMethod:  z.string().trim().max(80).optional(),
+  transactionRef: z.string().trim().max(120).optional(),
+  payerPhone:     z.string().trim().max(40).optional().or(z.literal('')),
 });
 
 meRouter.post(
@@ -162,13 +169,13 @@ meRouter.post(
       const userId = req.user!.userId;
 
       // ── Tier limit check ────────────────────────────────────────────────────
-      // Count active pharmacies this owner belongs to as OWNER
+      // Count active pharmacies this owner belongs to as OWNER (includes SUSPENDED)
       const currentOutletCount = await prisma.pharmacyMembership.count({
         where: {
           userId,
           role:   'OWNER',
           active: true,
-          pharmacy: { isActive: true },
+          pharmacy: { OR: [{ isActive: true }, { status: 'SUSPENDED' }] },
         },
       });
 
@@ -176,6 +183,100 @@ meRouter.post(
       const currentTier = req.user!.pharmacy?.subscriptionTier ?? 'ADDO';
       const limit       = OUTLET_LIMITS[currentTier] ?? 1;
 
+      // ── ADDO per-outlet addon path ──────────────────────────────────────────
+      // ADDO owners at their 1-outlet limit can add more ADDOs at Tsh 15,000/month
+      // each instead of upgrading tiers. Each new outlet is created SUSPENDED and
+      // requires a confirmed payment to become active.
+      if (currentTier === 'ADDO' && currentOutletCount >= limit) {
+        if (data.pharmacyType !== 'ADDO') {
+          const upgradeTo    = TIER_UPGRADE[currentTier];
+          const upgradePrice = upgradeTo ? TIER_PRICES[upgradeTo] ?? 0 : 0;
+          res.status(402).json({
+            error:        'OUTLET_LIMIT_REACHED',
+            message:      'Adding a Retail Pharmacy requires upgrading your plan.',
+            currentTier,
+            currentCount: currentOutletCount,
+            limit,
+            upgradeTo:    upgradeTo ?? null,
+            upgradePrice,
+          });
+          return;
+        }
+        if (!data.paymentMethod || !data.transactionRef) {
+          res.status(400).json({
+            error:   'PAYMENT_DETAILS_REQUIRED',
+            message: 'Provide M-Pesa or bank transfer details to add another ADDO.',
+          });
+          return;
+        }
+
+        const licenceNumber = data.licenceNumber?.trim() || `PENDING-${Date.now()}`;
+        const result = await withPrismaRetry(() => prisma.$transaction(async (tx) => {
+          const pharmacy = await tx.pharmacy.create({
+            data: {
+              name:             data.name,
+              licenceNumber,
+              address:          data.address,
+              region:           data.region,
+              pharmacyType:     'ADDO',
+              subscriptionTier: 'ADDO',
+              status:           'SUSPENDED',
+              trialActive:      false,
+              trialStartsAt:    new Date(),
+              trialEndsAt:      new Date(),
+              isActive:         false,
+            },
+          });
+          await tx.pharmacyMembership.create({
+            data: {
+              userId,
+              pharmacyId: pharmacy.id,
+              role:       'OWNER',
+              active:     true,
+              validFrom:  new Date(),
+              createdBy:  userId,
+            },
+          });
+          const paymentRequest = await tx.subscriptionPaymentRequest.create({
+            data: {
+              pharmacyId:     pharmacy.id,
+              requestedBy:    userId,
+              requestedTier:  'ADDO',
+              billingCycle:   'MONTHLY',
+              amount:         new Prisma.Decimal(ADDO_OUTLET_PRICE),
+              paymentMethod:  data.paymentMethod!,
+              transactionRef: data.transactionRef!,
+              payerPhone:     data.payerPhone || null,
+              note:           `Additional ADDO outlet: ${data.name}`,
+            },
+          });
+          return { pharmacy, paymentRequest };
+        }));
+
+        sendFounderNotification({
+          pharmacyName: result.pharmacy.name,
+          ownerName:    req.user!.email,
+          ownerEmail:   req.user!.email,
+          region:       result.pharmacy.region,
+          pharmacyType: result.pharmacy.pharmacyType,
+          tier:         result.pharmacy.subscriptionTier,
+        }).catch(() => {});
+
+        res.status(201).json({
+          data: {
+            id:               result.pharmacy.id,
+            name:             result.pharmacy.name,
+            pharmacyType:     result.pharmacy.pharmacyType,
+            region:           result.pharmacy.region,
+            status:           result.pharmacy.status,
+            pendingPayment:   true,
+            paymentRequestId: result.paymentRequest.id,
+          },
+        });
+        return;
+      }
+
+      // ── Standard tier limit block ────────────────────────────────────────────
       if (currentOutletCount >= limit) {
         const upgradeTo    = TIER_UPGRADE[currentTier];
         const upgradePrice = upgradeTo ? TIER_PRICES[upgradeTo] ?? 0 : 0;
