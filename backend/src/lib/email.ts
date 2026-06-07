@@ -4,6 +4,7 @@ let resend: Resend | null = null;
 
 const FROM = process.env.EMAIL_FROM ?? process.env.RESEND_FROM_EMAIL ?? 'APOTEKH <noreply@apotekh.co.tz>';
 const SUPPORT_EMAIL = 'support@apotekh.co.tz';
+const FOUNDER_EMAIL = process.env.FOUNDER_EMAIL ?? SUPPORT_EMAIL;
 const APP_URL = process.env.FRONTEND_URL ?? 'https://apotekh.co.tz';
 
 function getResendClient() {
@@ -154,6 +155,29 @@ export async function sendFounderNotification(opts: {
     from: FROM,
     to: SUPPORT_EMAIL,
     subject: `New registration: ${opts.pharmacyName} (${opts.region})`,
+    html,
+  });
+}
+
+export async function sendFounderNewPharmacyAlert(opts: {
+  pharmacyName: string;
+  userName: string;
+  userEmail: string;
+}) {
+  const html = baseLayout(`
+    <p><strong>New pharmacy just verified and activated their account.</strong></p>
+    <div class="info-box">
+      <p><strong>Pharmacy:</strong> ${opts.pharmacyName}</p>
+      <p style="margin-top:6px;"><strong>Owner:</strong> ${opts.userName}</p>
+      <p style="margin-top:6px;"><strong>Email:</strong> ${opts.userEmail}</p>
+    </div>
+    <a href="${APP_URL}/founder" class="btn">Open Founder Dashboard</a>
+  `);
+
+  await sendEmail({
+    from: FROM,
+    to: FOUNDER_EMAIL,
+    subject: `New pharmacy activated: ${opts.pharmacyName}`,
     html,
   });
 }

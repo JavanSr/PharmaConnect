@@ -6,7 +6,7 @@ import { withPrismaRetry } from '../../lib/prisma-retry';
 import { verifyRefresh } from '../../lib/jwt';
 import { normalizeRole, type KnownRole } from '../../types/roles';
 import { issueAuthTokens, resolveActiveMembership } from './pharmacy-membership.service';
-import { sendPasswordResetEmail, sendVerificationEmail, sendWelcomeEmail, sendFounderNotification } from '../../lib/email';
+import { sendPasswordResetEmail, sendVerificationEmail, sendWelcomeEmail, sendFounderNotification, sendFounderNewPharmacyAlert } from '../../lib/email';
 
 function hashToken(token: string): string {
   return crypto.createHash('sha256').update(token).digest('hex');
@@ -415,6 +415,11 @@ export async function verifyEmailService(token: string) {
         region: user.pharmacy.region,
         tier: user.pharmacy.subscriptionTier,
       }).catch(err => console.error('[verify] welcome email failed:', err));
+      sendFounderNewPharmacyAlert({
+        pharmacyName: user.pharmacy.name,
+        userName: `${user.firstName} ${user.lastName}`,
+        userEmail: user.email,
+      }).catch(err => console.error('[verify] founder alert failed:', err));
     }
   }
 

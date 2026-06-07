@@ -187,7 +187,16 @@ meRouter.post(
       // ADDO owners at their 1-outlet limit can add more ADDOs at Tsh 15,000/month
       // each instead of upgrading tiers. Each new outlet is created SUSPENDED and
       // requires a confirmed payment to become active.
-      if (currentTier === 'ADDO' && currentOutletCount >= limit) {
+      // Exception: owners still in their trial add outlets normally (shared trial,
+      // no payment required until trial ends).
+      const primaryForAddo = await prisma.pharmacyMembership.findFirst({
+        where: { userId, role: 'OWNER', active: true },
+        orderBy: { createdAt: 'asc' },
+        select: { pharmacy: { select: { trialActive: true, status: true } } },
+      });
+      const ownerInTrial = primaryForAddo?.pharmacy?.trialActive && primaryForAddo?.pharmacy?.status === 'TRIAL';
+
+      if (currentTier === 'ADDO' && currentOutletCount >= limit && !ownerInTrial) {
         if (data.pharmacyType !== 'ADDO') {
           const upgradeTo    = TIER_UPGRADE[currentTier];
           const upgradePrice = upgradeTo ? TIER_PRICES[upgradeTo] ?? 0 : 0;
