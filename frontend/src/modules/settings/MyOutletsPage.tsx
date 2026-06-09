@@ -312,13 +312,17 @@ export const MyOutletsPage: React.FC = () => {
 
               <Input
                 label="Licence number (optional)"
-                placeholder="TFDA/ADDO/2025/…"
+                placeholder="Licence number"
                 {...addonForm.register('licenceNumber')}
                 error={addonForm.formState.errors.licenceNumber?.message}
               />
 
               <div className="border-t border-[#D6F0E8] pt-4 space-y-3">
-                <p className="text-xs font-semibold text-[#0D4035]">Payment details — Tsh {ADDO_OUTLET_PRICE.toLocaleString()}</p>
+                <p className="text-xs font-semibold text-[#0D4035]">Payment — Tsh {ADDO_OUTLET_PRICE.toLocaleString()}</p>
+                <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-xs text-amber-800 space-y-1">
+                  <p className="font-semibold">Step 1 — Send the payment first</p>
+                  <p>Send Tsh {ADDO_OUTLET_PRICE.toLocaleString()} to APOTEKH via M-Pesa, Tigo Pesa, Airtel Money, or bank transfer. Once you receive the confirmation SMS, come back here and enter the code below.</p>
+                </div>
 
                 <Select
                   label="Payment method"
@@ -334,8 +338,8 @@ export const MyOutletsPage: React.FC = () => {
                 />
 
                 <Input
-                  label="Transaction reference"
-                  placeholder="M-Pesa confirmation code or bank ref"
+                  label="Confirmation code (from payment SMS)"
+                  placeholder="e.g. SB12345678"
                   {...addonForm.register('transactionRef')}
                   error={addonForm.formState.errors.transactionRef?.message}
                   required
@@ -399,7 +403,7 @@ export const MyOutletsPage: React.FC = () => {
 
               <Input
                 label="Licence number (optional — can be added later)"
-                placeholder="TFDA/ADDO/2025/…"
+                placeholder="Licence number"
                 {...standardForm.register('licenceNumber')}
                 error={standardForm.formState.errors.licenceNumber?.message}
               />
