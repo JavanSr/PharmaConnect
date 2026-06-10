@@ -189,12 +189,9 @@ meRouter.post(
       // requires a confirmed payment to become active.
       // Exception: owners still in their trial add outlets normally (shared trial,
       // no payment required until trial ends).
-      const primaryForAddo = await prisma.pharmacyMembership.findFirst({
-        where: { userId, role: 'OWNER', active: true },
-        orderBy: { createdAt: 'asc' },
-        select: { pharmacy: { select: { trialActive: true, status: true } } },
-      });
-      const ownerInTrial = primaryForAddo?.pharmacy?.trialActive && primaryForAddo?.pharmacy?.status === 'TRIAL';
+      // Use the currently selected pharmacy's trial status — not the oldest membership,
+      // which may belong to a different pharmacy with an already-expired trial.
+      const ownerInTrial = !!(req.user!.pharmacy?.trialActive && req.user!.pharmacy?.status === 'TRIAL');
 
       if (currentTier === 'ADDO' && currentOutletCount >= limit && !ownerInTrial) {
         if (data.pharmacyType !== 'ADDO') {
