@@ -466,7 +466,7 @@ async function syncUnverifiedProductReviewQueue(
       entityId: product.id,
       pharmacyId,
       status: 'PENDING_REVIEW',
-      reviewerType: 'PIC_OVERRIDE',
+      reviewerType: 'TMDA_REFERENCE',
       currentPayload: payload,
       proposedPayload: payload,
       notes:
