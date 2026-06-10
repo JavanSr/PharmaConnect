@@ -172,6 +172,7 @@ export const DispensingScreen: React.FC = () => {
   const pharmacy = usePharmacyStore((state) => state.pharmacy);
   const user = useAuthStore((state) => state.user);
   const weightInputRef = useRef<HTMLInputElement>(null);
+  const prefetchedProductRef = useRef<{ product: Product; fetchedAt: number; productId: string } | null>(null);
   const pharmacyPatientProfiles = useDispensingPatientStore(
     (state) => state.profilesByPharmacy[pharmacy?.id ?? 'default'] ?? [],
   );
@@ -582,16 +583,23 @@ export const DispensingScreen: React.FC = () => {
     }
 
     let latestSelectedDrug = drug;
-    try {
-      const response = await api.get(`/inventory/products/${drug.id}`);
-      if (response.data?.data && !Array.isArray(response.data.data)) {
-        latestSelectedDrug = await applyInventoryDeltaToProduct(response.data.data as Product);
-        setSelectedDrug(latestSelectedDrug);
+    const prefetch = prefetchedProductRef.current;
+    const PREFETCH_TTL = 30_000;
+    if (prefetch && prefetch.productId === drug.id && Date.now() - prefetch.fetchedAt < PREFETCH_TTL) {
+      latestSelectedDrug = prefetch.product;
+      setSelectedDrug(latestSelectedDrug);
+    } else {
+      try {
+        const response = await api.get(`/inventory/products/${drug.id}`);
+        if (response.data?.data && !Array.isArray(response.data.data)) {
+          latestSelectedDrug = await applyInventoryDeltaToProduct(response.data.data as Product);
+          setSelectedDrug(latestSelectedDrug);
+        }
+      } catch {
+        const fromCache = !navigator.onLine ? await getCachedProductById(drug.id) : null;
+        latestSelectedDrug = await applyInventoryDeltaToProduct(fromCache ?? latestSelectedDrug);
+        if (fromCache && !drugOverride) setSelectedDrug(latestSelectedDrug);
       }
-    } catch {
-      const fromCache = !navigator.onLine ? await getCachedProductById(drug.id) : null;
-      latestSelectedDrug = await applyInventoryDeltaToProduct(fromCache ?? latestSelectedDrug);
-      if (fromCache && !drugOverride) setSelectedDrug(latestSelectedDrug);
     }
 
     if (!latestSelectedDrug.sellingPrice) {
@@ -1168,6 +1176,16 @@ export const DispensingScreen: React.FC = () => {
                           setSelectedDrug(product);
                           setDrugSearch('');
                           setShowDrugDropdown(false);
+                          prefetchedProductRef.current = null;
+                          api.get(`/inventory/products/${product.id}`)
+                            .then(async (r) => {
+                              if (r.data?.data && !Array.isArray(r.data.data)) {
+                                const fresh = await applyInventoryDeltaToProduct(r.data.data as Product);
+                                prefetchedProductRef.current = { product: fresh, fetchedAt: Date.now(), productId: product.id };
+                                setSelectedDrug(fresh);
+                              }
+                            })
+                            .catch(() => {});
                         }}
                         className="block w-full border-b border-[#D6F0E8] px-4 py-3 text-left last:border-b-0 hover:bg-[#EDF7F3]"
                       >
