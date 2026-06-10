@@ -1168,7 +1168,6 @@ export const DispensingScreen: React.FC = () => {
                           setSelectedDrug(product);
                           setDrugSearch('');
                           setShowDrugDropdown(false);
-                          void addToCart(product, 1);
                         }}
                         className="block w-full border-b border-[#D6F0E8] px-4 py-3 text-left last:border-b-0 hover:bg-[#EDF7F3]"
                       >
