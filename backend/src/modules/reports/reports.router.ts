@@ -16,6 +16,8 @@ import {
   getExpiryByThresholdReport,
   getVoidsAndReturnsReport,
   getPaymentBreakdownReport,
+  getSalesReport,
+  getProfitReport,
 } from './reports.service';
 
 function ensureFinancialReportAccess(req: AuthRequest) {
@@ -177,6 +179,57 @@ reportsRouter.get('/payment-breakdown', requireRole('OWNER', 'PHARMACIST_IN_CHAR
   } catch (error) { next(error); }
 });
 
+// ── Sales Report ─────────────────────────────────────────────────────────────
+// Roles: OWNER, PHARMACIST_IN_CHARGE. All retail tiers.
+reportsRouter.get('/sales', requireRole('OWNER', 'PHARMACIST_IN_CHARGE', 'SUPER_ADMIN'), async (req: AuthRequest, res, next) => {
+  try {
+    const { from, to, groupBy } = z.object({
+      from:    z.string().optional(),
+      to:      z.string().optional(),
+      groupBy: z.enum(['day', 'week', 'month']).optional(),
+    }).parse(req.query);
+    res.json({ data: await getSalesReport(pid(req), from, to, groupBy ?? 'day') });
+  } catch (error) { next(error); }
+});
+
+// ── Profit & Margin Report ────────────────────────────────────────────────────
+// Roles: OWNER only. Tiers: STANDARD, PREMIUM, ENTERPRISE.
+// STANDARD gets summary + time-series only. PREMIUM+ also gets per-product tables.
+reportsRouter.get('/profit', requireRole('OWNER', 'SUPER_ADMIN'), async (req: AuthRequest, res, next) => {
+  try {
+    const tier = req.user?.pharmacy?.subscriptionTier as string | undefined;
+    const isSuperAdmin = req.user!.normalizedRole === 'SUPER_ADMIN';
+    const ALLOWED_TIERS = ['STANDARD', 'PREMIUM', 'ENTERPRISE'];
+    if (!isSuperAdmin && (!tier || !ALLOWED_TIERS.includes(tier))) {
+      res.status(403).json({ error: 'Forbidden: Profit report requires STANDARD tier or above.' });
+      return;
+    }
+
+    const { from, to } = z.object({
+      from: z.string().optional(),
+      to:   z.string().optional(),
+    }).parse(req.query);
+
+    const report = await getProfitReport(pid(req), from, to);
+
+    // STANDARD tier: strip per-product tables (PREMIUM+ only)
+    const isPerProductTier = isSuperAdmin || tier === 'PREMIUM' || tier === 'ENTERPRISE';
+    if (!isPerProductTier) {
+      res.json({
+        data: {
+          ...report,
+          topProductsByProfit: null,
+          bottomProductsByMargin: null,
+          perProductLocked: true,
+        },
+      });
+      return;
+    }
+
+    res.json({ data: report });
+  } catch (error) { next(error); }
+});
+
 reportsRouter.post('/custom-builder', requireRole('OWNER', 'PHARMACIST_IN_CHARGE', 'WHOLESALE_MANAGER', 'SUPER_ADMIN'), async (req: AuthRequest, res, next) => {
   try {
     ensureFinancialReportAccess(req);
@@ -195,6 +248,6 @@ reportsRouter.post('/custom-builder', requireRole('OWNER', 'PHARMACIST_IN_CHARGE
       data: await runCustomBuilder(pid(req), payload.dimension as any, payload.metric as any),
     });
   } catch (error) {
-    next(error);
-  }
+    next(error)  }
 });
+;

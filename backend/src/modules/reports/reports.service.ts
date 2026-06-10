@@ -678,6 +678,280 @@ export async function getVoidsAndReturnsReport(pharmacyId: string, dateFrom?: st
   };
 }
 
+// ── Sales Report (date-range, comparison, time-series) ───────────────────────
+export async function getSalesReport(
+  pharmacyId: string,
+  dateFrom?: string,
+  dateTo?: string,
+  groupBy: 'day' | 'week' | 'month' = 'day',
+) {
+  const to   = dateTo   ? new Date(dateTo)   : new Date();
+  const from = dateFrom ? new Date(dateFrom) : new Date(Date.now() - 30 * 86400000);
+  const rangeMs = to.getTime() - from.getTime();
+  const prevTo   = new Date(from.getTime() - 1);
+  const prevFrom = new Date(from.getTime() - rangeMs);
+  const truncUnit = groupBy === 'month' ? 'month' : groupBy === 'week' ? 'week' : 'day';
+
+  const [summaryRows, prevSummaryRows, timeSeriesRows, topProductRows, paymentRows] = await Promise.all([
+    prisma.$queryRaw<Array<{ total_revenue: string; transaction_count: number; items_sold: number }>>(Prisma.sql`
+      SELECT
+        COALESCE(SUM(total_amount), 0)::text AS total_revenue,
+        COUNT(*)::int AS transaction_count,
+        COALESCE(SUM(jsonb_array_length(items)), 0)::int AS items_sold
+      FROM dispensing_events
+      WHERE pharmacy_id = ${pharmacyId} AND status = 'COMPLETED'
+        AND created_at >= ${from} AND created_at <= ${to}
+    `),
+    prisma.$queryRaw<Array<{ total_revenue: string; transaction_count: number }>>(Prisma.sql`
+      SELECT
+        COALESCE(SUM(total_amount), 0)::text AS total_revenue,
+        COUNT(*)::int AS transaction_count
+      FROM dispensing_events
+      WHERE pharmacy_id = ${pharmacyId} AND status = 'COMPLETED'
+        AND created_at >= ${prevFrom} AND created_at <= ${prevTo}
+    `),
+    prisma.$queryRaw<Array<{ period: Date; revenue: string; transaction_count: number }>>(Prisma.sql`
+      SELECT
+        DATE_TRUNC(${truncUnit}, created_at) AS period,
+        COALESCE(SUM(total_amount), 0)::text AS revenue,
+        COUNT(*)::int AS transaction_count
+      FROM dispensing_events
+      WHERE pharmacy_id = ${pharmacyId} AND status = 'COMPLETED'
+        AND created_at >= ${from} AND created_at <= ${to}
+      GROUP BY 1 ORDER BY 1 ASC
+    `),
+    prisma.$queryRaw<Array<{ product_name: string; total_units: number; total_revenue: string }>>(Prisma.sql`
+      SELECT
+        COALESCE(item.value->>'productName', item.value->>'genericName', 'Unknown') AS product_name,
+        SUM(COALESCE((item.value->>'quantity')::int, 1))::int AS total_units,
+        COALESCE(SUM(
+          COALESCE((item.value->>'unitPrice')::numeric, 0) * COALESCE((item.value->>'quantity')::int, 1)
+        ), 0)::text AS total_revenue
+      FROM dispensing_events de
+      CROSS JOIN LATERAL jsonb_array_elements(de.items) AS item(value)
+      WHERE de.pharmacy_id = ${pharmacyId} AND de.status = 'COMPLETED'
+        AND de.created_at >= ${from} AND de.created_at <= ${to}
+      GROUP BY 1 ORDER BY SUM(COALESCE((item.value->>'quantity')::int, 1)) DESC LIMIT 10
+    `),
+    prisma.$queryRaw<Array<{ payment_method: string; transaction_count: number; total_revenue: string }>>(Prisma.sql`
+      SELECT
+        payment_method,
+        COUNT(*)::int AS transaction_count,
+        COALESCE(SUM(total_amount), 0)::text AS total_revenue
+      FROM dispensing_events
+      WHERE pharmacy_id = ${pharmacyId} AND status = 'COMPLETED'
+        AND created_at >= ${from} AND created_at <= ${to}
+      GROUP BY payment_method ORDER BY SUM(total_amount) DESC
+    `),
+  ]);
+
+  const curRevenue = asNumber(summaryRows[0]?.total_revenue);
+  const prevRevenue = asNumber(prevSummaryRows[0]?.total_revenue);
+  const curTxns    = summaryRows[0]?.transaction_count ?? 0;
+  const prevTxns   = prevSummaryRows[0]?.transaction_count ?? 0;
+
+  return {
+    period: { from: from.toISOString(), to: to.toISOString() },
+    summary: {
+      totalRevenue: curRevenue,
+      totalSales: curTxns,
+      itemsSold: summaryRows[0]?.items_sold ?? 0,
+      avgBasket: curTxns > 0 ? Math.round(curRevenue / curTxns) : 0,
+    },
+    comparison: {
+      prevRevenue,
+      prevSales: prevTxns,
+      revenueDeltaPct: prevRevenue > 0 ? Math.round((curRevenue - prevRevenue) / prevRevenue * 100) : null,
+      salesDeltaPct:   prevTxns   > 0 ? Math.round((curTxns   - prevTxns)   / prevTxns   * 100) : null,
+    },
+    timeSeries: timeSeriesRows.map(r => ({
+      period: r.period.toISOString().slice(0, 10),
+      revenue: asNumber(r.revenue),
+      transactionCount: Number(r.transaction_count),
+    })),
+    topProducts: topProductRows.map(r => ({
+      productName: r.product_name,
+      totalUnits: Number(r.total_units),
+      totalRevenue: asNumber(r.total_revenue),
+    })),
+    paymentBreakdown: paymentRows.map(r => ({
+      paymentMethod: r.payment_method,
+      transactionCount: Number(r.transaction_count),
+      totalRevenue: asNumber(r.total_revenue),
+    })),
+  };
+}
+
+// ── Profit & Margin Report (STANDARD+, OWNER only) ────────────────────────────
+export async function getProfitReport(pharmacyId: string, dateFrom?: string, dateTo?: string) {
+  const to   = dateTo   ? new Date(dateTo)   : new Date();
+  const from = dateFrom ? new Date(dateFrom) : new Date(Date.now() - 30 * 86400000);
+  const rangeMs = to.getTime() - from.getTime();
+  const prevTo   = new Date(from.getTime() - 1);
+  const prevFrom = new Date(from.getTime() - rangeMs);
+
+  type SummaryRow = { total_revenue: string; total_cogs: string; lines_missing_cost: number };
+  type PrevRow    = { total_revenue: string; total_cogs: string };
+  type TsRow      = { period: Date; revenue: string; cogs: string };
+  type ProductRow = { product_name: string; revenue: string; cogs: string; units: number };
+
+  const itemRevCogs = Prisma.sql`
+    COALESCE((item.value->>'unitPrice')::numeric, 0) * COALESCE((item.value->>'quantity')::int, 1) AS item_rev,
+    COALESCE(b."purchasePrice", 0) * COALESCE((item.value->>'quantity')::int, 1) AS item_cogs
+  `;
+  void itemRevCogs; // not used directly — expressions inlined below for clarity
+
+  const [summaryRows, prevRows, tsRows, topRows, lowRows] = await Promise.all([
+    prisma.$queryRaw<SummaryRow[]>(Prisma.sql`
+      SELECT
+        COALESCE(SUM(
+          COALESCE((item.value->>'unitPrice')::numeric,0)*COALESCE((item.value->>'quantity')::int,1)
+        ),0)::text AS total_revenue,
+        COALESCE(SUM(
+          COALESCE(b."purchasePrice",0)*COALESCE((item.value->>'quantity')::int,1)
+        ),0)::text AS total_cogs,
+        COUNT(CASE WHEN b."purchasePrice" IS NULL THEN 1 END)::int AS lines_missing_cost
+      FROM dispensing_events de
+      CROSS JOIN LATERAL jsonb_array_elements(de.items) AS item(value)
+      LEFT JOIN batches b ON b.id = (item.value->>'batchId')::uuid
+      WHERE de.pharmacy_id=${pharmacyId} AND de.status='COMPLETED'
+        AND de.created_at>=${from} AND de.created_at<=${to}
+    `),
+    prisma.$queryRaw<PrevRow[]>(Prisma.sql`
+      SELECT
+        COALESCE(SUM(
+          COALESCE((item.value->>'unitPrice')::numeric,0)*COALESCE((item.value->>'quantity')::int,1)
+        ),0)::text AS total_revenue,
+        COALESCE(SUM(
+          COALESCE(b."purchasePrice",0)*COALESCE((item.value->>'quantity')::int,1)
+        ),0)::text AS total_cogs
+      FROM dispensing_events de
+      CROSS JOIN LATERAL jsonb_array_elements(de.items) AS item(value)
+      LEFT JOIN batches b ON b.id = (item.value->>'batchId')::uuid
+      WHERE de.pharmacy_id=${pharmacyId} AND de.status='COMPLETED'
+        AND de.created_at>=${prevFrom} AND de.created_at<=${prevTo}
+    `),
+    prisma.$queryRaw<TsRow[]>(Prisma.sql`
+      SELECT
+        DATE_TRUNC('day', de.created_at) AS period,
+        COALESCE(SUM(
+          COALESCE((item.value->>'unitPrice')::numeric,0)*COALESCE((item.value->>'quantity')::int,1)
+        ),0)::text AS revenue,
+        COALESCE(SUM(
+          COALESCE(b."purchasePrice",0)*COALESCE((item.value->>'quantity')::int,1)
+        ),0)::text AS cogs
+      FROM dispensing_events de
+      CROSS JOIN LATERAL jsonb_array_elements(de.items) AS item(value)
+      LEFT JOIN batches b ON b.id = (item.value->>'batchId')::uuid
+      WHERE de.pharmacy_id=${pharmacyId} AND de.status='COMPLETED'
+        AND de.created_at>=${from} AND de.created_at<=${to}
+      GROUP BY 1 ORDER BY 1 ASC
+    `),
+    prisma.$queryRaw<ProductRow[]>(Prisma.sql`
+      SELECT
+        COALESCE(item.value->>'productName', item.value->>'genericName','Unknown') AS product_name,
+        COALESCE(SUM(
+          COALESCE((item.value->>'unitPrice')::numeric,0)*COALESCE((item.value->>'quantity')::int,1)
+        ),0)::text AS revenue,
+        COALESCE(SUM(
+          COALESCE(b."purchasePrice",0)*COALESCE((item.value->>'quantity')::int,1)
+        ),0)::text AS cogs,
+        SUM(COALESCE((item.value->>'quantity')::int,1))::int AS units
+      FROM dispensing_events de
+      CROSS JOIN LATERAL jsonb_array_elements(de.items) AS item(value)
+      LEFT JOIN batches b ON b.id = (item.value->>'batchId')::uuid
+      WHERE de.pharmacy_id=${pharmacyId} AND de.status='COMPLETED'
+        AND de.created_at>=${from} AND de.created_at<=${to}
+      GROUP BY 1
+      ORDER BY (SUM(COALESCE((item.value->>'unitPrice')::numeric,0)*COALESCE((item.value->>'quantity')::int,1))
+               - SUM(COALESCE(b."purchasePrice",0)*COALESCE((item.value->>'quantity')::int,1))) DESC NULLS LAST
+      LIMIT 10
+    `),
+    prisma.$queryRaw<ProductRow[]>(Prisma.sql`
+      SELECT
+        COALESCE(item.value->>'productName', item.value->>'genericName','Unknown') AS product_name,
+        COALESCE(SUM(
+          COALESCE((item.value->>'unitPrice')::numeric,0)*COALESCE((item.value->>'quantity')::int,1)
+        ),0)::text AS revenue,
+        COALESCE(SUM(
+          COALESCE(b."purchasePrice",0)*COALESCE((item.value->>'quantity')::int,1)
+        ),0)::text AS cogs,
+        SUM(COALESCE((item.value->>'quantity')::int,1))::int AS units
+      FROM dispensing_events de
+      CROSS JOIN LATERAL jsonb_array_elements(de.items) AS item(value)
+      LEFT JOIN batches b ON b.id = (item.value->>'batchId')::uuid
+      WHERE de.pharmacy_id=${pharmacyId} AND de.status='COMPLETED'
+        AND de.created_at>=${from} AND de.created_at<=${to}
+        AND b."purchasePrice" IS NOT NULL
+      GROUP BY 1
+      HAVING SUM(COALESCE((item.value->>'unitPrice')::numeric,0)*COALESCE((item.value->>'quantity')::int,1)) > 0
+      ORDER BY (
+        SUM(COALESCE((item.value->>'unitPrice')::numeric,0)*COALESCE((item.value->>'quantity')::int,1))
+        - SUM(COALESCE(b."purchasePrice",0)*COALESCE((item.value->>'quantity')::int,1))
+      ) / SUM(COALESCE((item.value->>'unitPrice')::numeric,0)*COALESCE((item.value->>'quantity')::int,1)) ASC
+      LIMIT 10
+    `),
+  ]);
+
+  const curRev    = asNumber(summaryRows[0]?.total_revenue);
+  const curCogs   = asNumber(summaryRows[0]?.total_cogs);
+  const curProfit = curRev - curCogs;
+  const curMargin = curRev > 0 ? (curProfit / curRev) * 100 : 0;
+
+  const prevRev    = asNumber(prevRows[0]?.total_revenue);
+  const prevCogs   = asNumber(prevRows[0]?.total_cogs);
+  const prevProfit = prevRev - prevCogs;
+  const prevMargin = prevRev > 0 ? (prevProfit / prevRev) * 100 : 0;
+
+  function mapProduct(r: ProductRow) {
+    const rev    = asNumber(r.revenue);
+    const cogs   = asNumber(r.cogs);
+    const profit = rev - cogs;
+    const margin = rev > 0 ? (profit / rev) * 100 : 0;
+    return {
+      productName: r.product_name,
+      totalUnits: Number(r.units),
+      revenue: rev,
+      cogs,
+      grossProfit: profit,
+      marginPct: Math.round(margin * 10) / 10,
+    };
+  }
+
+  return {
+    period: { from: from.toISOString(), to: to.toISOString() },
+    linesWithMissingCost: summaryRows[0]?.lines_missing_cost ?? 0,
+    summary: {
+      revenue: curRev,
+      cogs: curCogs,
+      grossProfit: curProfit,
+      marginPct: Math.round(curMargin * 10) / 10,
+    },
+    comparison: {
+      prevRevenue: prevRev,
+      prevCogs,
+      prevGrossProfit: prevProfit,
+      prevMarginPct: Math.round(prevMargin * 10) / 10,
+      // Always in percentage points — NOT relative %
+      marginDeltaPpts: Math.round((curMargin - prevMargin) * 10) / 10,
+    },
+    timeSeries: tsRows.map(r => {
+      const rev    = asNumber(r.revenue);
+      const cogs   = asNumber(r.cogs);
+      const profit = rev - cogs;
+      return {
+        period: r.period.toISOString().slice(0, 10),
+        revenue: rev,
+        cogs,
+        grossProfit: profit,
+        marginPct: rev > 0 ? Math.round((profit / rev) * 1000) / 10 : 0,
+      };
+    }),
+    topProductsByProfit: topRows.map(mapProduct),
+    bottomProductsByMargin: lowRows.map(mapProduct),
+  };
+}
+
 // ── Payment method breakdown ──────────────────────────────────────────────────
 export async function getPaymentBreakdownReport(pharmacyId: string, dateFrom?: string, dateTo?: string) {
   const from = dateFrom ? new Date(dateFrom) : new Date(Date.now() - 30 * 86400000);
