@@ -106,6 +106,9 @@ inventoryRouter.get('/products', requirePermission('inventory.view_products'), a
         sku: z.string().optional(),
         page: z.coerce.number().optional(),
         limit: z.coerce.number().optional(),
+        storageCondition: z.string().optional(),
+        sortBy: z.string().optional(),
+        lowStock: z.coerce.boolean().optional(),
       })
       .parse(req.query);
     res.json(await svc.listProducts(pid(req), params));

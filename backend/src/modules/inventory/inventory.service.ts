@@ -772,9 +772,9 @@ function parseCsv(csv: string): Array<Record<string, string>> {
 
 export async function listProducts(
   pharmacyId: string,
-  params: { search?: string; barcode?: string; sku?: string; page?: number; limit?: number; isActive?: boolean },
+  params: { search?: string; barcode?: string; sku?: string; page?: number; limit?: number; isActive?: boolean; storageCondition?: string; sortBy?: string; lowStock?: boolean },
 ) {
-  const { search, barcode, sku, page = 1, limit = 50, isActive = true } = params;
+  const { search, barcode, sku, page = 1, limit = 50, isActive = true, storageCondition, sortBy, lowStock } = params;
   const skip = (page - 1) * limit;
 
   if ((barcode || sku) && !search) {
@@ -847,11 +847,18 @@ export async function listProducts(
     };
   }
 
+  const orderBy: Prisma.ProductOrderByWithRelationInput =
+    sortBy === 'name'      ? { name: 'asc' } :
+    sortBy === 'stock-low' ? { name: 'asc' } :  // sorted in memory after stock compute
+    sortBy === 'created'   ? { createdAt: 'desc' } :
+    { createdAt: 'asc' }; // chronological / expiry-first sorted in memory
+
   const where: Prisma.ProductWhereInput = {
     pharmacyId,
     isActive,
     ...(barcode ? { barcode } : {}),
     ...(sku ? { sku } : {}),
+    ...(storageCondition ? { storageCondition } : {}),
     ...(search
       ? {
           OR: [
@@ -859,6 +866,7 @@ export async function listProducts(
             { genericName: { contains: search, mode: 'insensitive' } },
             { barcode: { contains: search, mode: 'insensitive' } },
             { sku: { contains: search, mode: 'insensitive' } },
+            { batches: { some: { batchNumber: { contains: search, mode: 'insensitive' } } } },
           ],
         }
       : {}),
@@ -867,9 +875,9 @@ export async function listProducts(
   const [products, total] = await withPrismaRetry(() => Promise.all([
     prisma.product.findMany({
       where,
-      skip,
-      take: limit,
-      orderBy: { name: 'asc' },
+      skip: lowStock ? 0 : skip,      // fetch all when filtering by low stock (pagination applied in memory)
+      take: lowStock ? undefined : limit,
+      orderBy,
       include: productInclude(),
     }),
     prisma.product.count({ where }),
@@ -894,17 +902,34 @@ export async function listProducts(
     pendingReviewEntries.map((entry) => [entry.entityId, { status: entry.status }]),
   );
 
-  const verifiedProducts = enrichProductsWithVerification(products, pendingReviewByEntityId).map((product) => ({
+  let verifiedProducts = enrichProductsWithVerification(products, pendingReviewByEntityId).map((product) => ({
     ...product,
     currentStock: product.batches.reduce((sum, batch) => sum + batch.quantityRemaining, 0),
     nextExpiringBatch: product.batches[0] ?? null,
   }));
+
+  if (lowStock) {
+    verifiedProducts = verifiedProducts.filter((p) => (p.currentStock ?? 0) <= p.reorderLevel);
+  }
+
   const enriched = await enrichProductsWithAwarClass(verifiedProducts);
-  const collapsed = search ? collapseProductSearchResults(enriched) : sortProductsByStockAndRecency(enriched);
-  const resultTotal = search ? collapsed.length : total;
+
+  let sorted: typeof enriched;
+  if (search) {
+    sorted = collapseProductSearchResults(enriched);
+  } else if (sortBy === 'stock-low') {
+    sorted = [...enriched].sort((a, b) => (a.currentStock ?? 0) - (b.currentStock ?? 0));
+  } else if (sortBy === 'name') {
+    sorted = enriched; // already ordered by name in DB query
+  } else {
+    sorted = sortProductsByStockAndRecency(enriched);
+  }
+
+  const resultTotal = (search || lowStock) ? sorted.length : total;
+  const pagedData = lowStock ? sorted.slice(skip, skip + limit) : sorted;
 
   return {
-    data: collapsed,
+    data: pagedData,
     total: resultTotal,
     page,
     limit,
