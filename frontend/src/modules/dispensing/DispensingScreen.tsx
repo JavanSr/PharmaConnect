@@ -6,6 +6,7 @@ import {
   CheckCircle,
   ChevronDown,
   ChevronUp,
+  Info,
   MessageCircle,
   Pill,
   Plus,
@@ -190,6 +191,7 @@ export const DispensingScreen: React.FC = () => {
   const [quantityRaw, setQuantityRaw] = useState('1');
   const quantity = Math.max(1, parseInt(quantityRaw, 10) || 1);
   const [cartItems, setCartItems] = useState<DispensingCartItem[]>([]);
+  const [expandedInfo, setExpandedInfo] = useState<Set<string>>(new Set());
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CASH');
   const [paymentRef, setPaymentRef] = useState('');
   const [prescriptionPhoto, setPrescriptionPhoto] = useState<File | null>(null);
@@ -1306,15 +1308,33 @@ export const DispensingScreen: React.FC = () => {
                   const isHintExpanded = expandedHints.has(item.id);
                   const topAlertText = itemAlerts[0]?.text ?? '';
 
+                  const isInfoExpanded = expandedInfo.has(item.id);
+                  const p = item.product;
+
                   return (
                     <div key={item.id} className="px-5 py-3">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
                             <p className="flex items-center gap-2 text-sm font-bold text-[#0D4035]">
-                              <AwarDot awarClass={item.product.awarClass} />
-                              {item.product.genericName || item.product.name}
+                              <AwarDot awarClass={p.awarClass} />
+                              {p.genericName || p.name}
                             </p>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExpandedInfo((prev) => {
+                                  const next = new Set(prev);
+                                  if (next.has(item.id)) next.delete(item.id);
+                                  else next.add(item.id);
+                                  return next;
+                                })
+                              }
+                              className="inline-flex h-4 w-4 items-center justify-center rounded-full text-[#1A6B5C] hover:text-[#0D4035]"
+                              title="Medicine info"
+                            >
+                              <Info size={13} />
+                            </button>
                             {(isModerate || isMinor) && (
                               <button
                                 type="button"
@@ -1337,6 +1357,17 @@ export const DispensingScreen: React.FC = () => {
                               </button>
                             )}
                           </div>
+                          {isInfoExpanded && (
+                            <div className="mt-2 rounded-lg bg-[#EDF7F3] px-3 py-2 text-xs text-[#374151] space-y-0.5">
+                              {p.brandName && <p><span className="font-medium text-[#0D4035]">Brand:</span> {p.brandName}</p>}
+                              {p.strength && <p><span className="font-medium text-[#0D4035]">Strength:</span> {p.strength}</p>}
+                              {p.dosageForm && <p><span className="font-medium text-[#0D4035]">Form:</span> {p.dosageForm.charAt(0) + p.dosageForm.slice(1).toLowerCase()}</p>}
+                              {p.therapeuticCategory && <p><span className="font-medium text-[#0D4035]">Category:</span> {p.therapeuticCategory}</p>}
+                              {p.awarClass && <p><span className="font-medium text-[#0D4035]">AWaRe:</span> {p.awarClass}</p>}
+                              {p.tmda && <p><span className="font-medium text-[#0D4035]">TMDA:</span> {p.tmda}</p>}
+                              <p><span className="font-medium text-[#0D4035]">Stock:</span> {p.currentStock ?? 0} units</p>
+                            </div>
+                          )}
                           {isHintExpanded && topAlertText && (
                             <p className={`mt-0.5 text-xs ${isModerate ? 'text-[#92400E]' : 'text-[#475569]'}`}>
                               {topAlertText}
