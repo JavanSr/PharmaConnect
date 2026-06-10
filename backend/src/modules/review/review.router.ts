@@ -17,7 +17,7 @@ reviewRouter.get('/', async (req: AuthRequest, res, next) => {
       .object({
         status: z.enum(['DRAFT', 'IMPORTED', 'PENDING_REVIEW', 'APPROVED', 'REJECTED', 'RETIRED']).optional(),
         entityType: z.string().trim().optional(),
-        reviewerType: z.enum(['PLATFORM_PHARMACIST', 'PIC_OVERRIDE', 'TMDA_REFERENCE']).optional(),
+        reviewerType: z.enum(['PLATFORM_PHARMACIST', 'TMDA_REFERENCE']).optional(),
         page: z.coerce.number().optional(),
         limit: z.coerce.number().optional(),
       })
@@ -42,7 +42,7 @@ reviewRouter.patch('/:id', async (req: AuthRequest, res, next) => {
     const payload = z
       .object({
         status: z.enum(['PENDING_REVIEW', 'APPROVED', 'REJECTED', 'RETIRED']),
-        reviewerType: z.enum(['PLATFORM_PHARMACIST', 'PIC_OVERRIDE', 'TMDA_REFERENCE']).optional(),
+        reviewerType: z.enum(['PLATFORM_PHARMACIST', 'TMDA_REFERENCE']).optional(),
         notes: z.string().trim().max(4000).optional(),
         proposedPayload: z.unknown().optional(),
       })

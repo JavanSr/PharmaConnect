@@ -454,7 +454,7 @@ async function syncUnverifiedProductReviewQueue(
         proposedPayload: payload,
         notes:
           'Manual pharmacy product entry without a linked master-catalog record. Review for future catalog matching.',
-        reviewerType: 'PIC_OVERRIDE',
+        reviewerType: 'TMDA_REFERENCE',
       },
     });
     return;

@@ -216,7 +216,7 @@ export async function updateReviewQueueEntry(viewer: ReviewQueueViewer, id: stri
 
     const reviewerType = canReviewPlatformQueue(viewer)
       ? input.reviewerType ?? ReviewerType.PLATFORM_PHARMACIST
-      : ReviewerType.PIC_OVERRIDE;
+      : ReviewerType.TMDA_REFERENCE;
 
     if (!canReviewPlatformQueue(viewer) && existing.pharmacyId !== viewer.pharmacyId) {
       throw Object.assign(new Error('Review queue entry is outside your pharmacy scope'), {
