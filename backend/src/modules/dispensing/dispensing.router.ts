@@ -8,7 +8,7 @@ import { z } from 'zod';
 import { authenticate, requireRole, type AuthRequest } from '../../middleware/auth';
 import { hasPermission, requirePermission } from '../../middleware/permissions';
 import { enforceTrialRestrictions } from '../../middleware/trial';
-import { picPinLimiter, verifyPicPinForPharmacy } from '../../middleware/pic-pin';
+import { picPinLimiter } from '../../middleware/pic-pin';
 import { prisma } from '../../lib/prisma';
 import { resolveFefoBatch } from '../inventory/inventory.service';
 import { recordAnonymousSafetyEvents, sessionReview } from '../patient-safety/patient-safety.service';
@@ -476,11 +476,6 @@ async function completeDispensingCheckout(input: {
 
   if (safetyContext) {
     review = await sessionReview(safetyContext);
-    if (review.requiresPicPin) {
-      if (!payload.override?.reason || !payload.override.pic_pin) {
-        throw Object.assign(new Error('PIC override required'), { status: 403, code: 'PIC_OVERRIDE_REQUIRED', review });
-      }
-    }
   }
 
   const referenceNumber = localSessionId
@@ -554,19 +549,6 @@ async function completeDispensingCheckout(input: {
   const totalAmount = Number((subtotalAmount - discountAmount).toFixed(2));
   if (totalAmount < 0) {
     throw Object.assign(new Error('Discount cannot exceed subtotal'), { status: 400, code: 'DISCOUNT_EXCEEDS_SUBTOTAL' });
-  }
-
-  let verifiedPicUser: Awaited<ReturnType<typeof verifyPicPinForPharmacy>> = null;
-  if (review?.requiresPicPin && payload.override) {
-    verifiedPicUser = await verifyPicPinForPharmacy({
-      pharmacyId,
-      picPin: payload.override.pic_pin,
-      picUserId: payload.override.pic_user_id,
-    });
-
-    if (!verifiedPicUser) {
-      throw Object.assign(new Error('PIC PIN invalid'), { status: 403, code: 'PIC_PIN_INVALID' });
-    }
   }
 
   const checkoutResult = await prisma.$transaction(async (tx) => {
@@ -710,27 +692,27 @@ async function completeDispensingCheckout(input: {
     };
   });
 
-  if (review?.requiresPicPin && payload.override) {
-    const criticalInteraction = review.interactions.find((item) => item.requiresPicPin);
-    const criticalContraindication = review.contraindications.find((item) => item.requiresPicPin);
+  if (payload.override && review?.interactions.some((item) => item.requiresPicPin || item.severity === 'HIGH') || review?.contraindications.some((item) => item.requiresPicPin || item.severity === 'HIGH')) {
+    const criticalInteraction = review?.interactions.find((item) => item.requiresPicPin || item.severity === 'HIGH');
+    const criticalContraindication = review?.contraindications.find((item) => item.requiresPicPin || item.severity === 'HIGH');
 
-    await prisma.overrideLog.create({
-      data: {
-        pharmacyId,
-        userId: currentUserId,
-        picUserId: verifiedPicUser!.userId,
-        alertType: criticalContraindication ? 'CONTRAINDICATION' : 'INTERACTION',
-        reason: payload.override.reason,
-        interactionId: criticalInteraction?.id,
-        contraindicationId: criticalContraindication?.id,
-        payload: {
-          referenceNumber,
-          dispensingEventId: checkoutResult.event.id,
-          review,
-          localSessionId,
-        } as Prisma.JsonObject,
-      },
-    });
+      await prisma.overrideLog.create({
+        data: {
+          pharmacyId,
+          userId: currentUserId,
+          picUserId: payload.override!.pic_user_id || currentUserId,
+          alertType: criticalContraindication ? 'CONTRAINDICATION' : 'INTERACTION',
+          reason: payload.override!.reason,
+          interactionId: criticalInteraction?.id,
+          contraindicationId: criticalContraindication?.id,
+          payload: {
+            referenceNumber,
+            dispensingEventId: checkoutResult.event.id,
+            review,
+            localSessionId,
+          } as Prisma.JsonObject,
+        },
+      });
   }
 
   await persistAnonymousSafetyEvents({
@@ -741,7 +723,7 @@ async function completeDispensingCheckout(input: {
     review,
     context: safetyContext,
     source: input.source === 'OFFLINE_SYNC' ? 'OFFLINE_SYNC' : 'DISPENSING_CHECKOUT',
-    overrideEntered: Boolean(review?.requiresPicPin && payload.override),
+    overrideEntered: Boolean(payload.override),
   });
 
   await prisma.$executeRaw(Prisma.sql`
@@ -840,12 +822,6 @@ dispensingRouter.post('/checkout', requirePermission('dispensing.access'), uploa
 
     if (safetyContext) {
       review = await sessionReview(safetyContext);
-      if (review.requiresPicPin) {
-        if (!payload.override?.reason || !payload.override.pic_pin) {
-          res.status(403).json({ error: 'PIC_OVERRIDE_REQUIRED', review });
-          return;
-        }
-      }
     }
 
     const referenceNumber = `RX-${Date.now().toString(36).toUpperCase()}`;
@@ -896,20 +872,6 @@ dispensingRouter.post('/checkout', requirePermission('dispensing.access'), uploa
     if (totalAmount < 0) {
       res.status(400).json({ error: 'Discount cannot exceed subtotal' });
       return;
-    }
-
-    let verifiedPicUser: Awaited<ReturnType<typeof verifyPicPinForPharmacy>> = null;
-    if (review?.requiresPicPin && payload.override) {
-      verifiedPicUser = await verifyPicPinForPharmacy({
-        pharmacyId,
-        picPin: payload.override.pic_pin,
-        picUserId: payload.override.pic_user_id,
-      });
-
-      if (!verifiedPicUser) {
-        res.status(403).json({ error: 'PIC_PIN_INVALID' });
-        return;
-      }
     }
 
     const prescriptionPhotoPath = prescriptionPhoto
@@ -1027,17 +989,17 @@ dispensingRouter.post('/checkout', requirePermission('dispensing.access'), uploa
       `);
     }
 
-    if (review?.requiresPicPin && payload.override) {
-      const criticalInteraction = review.interactions.find((item) => item.requiresPicPin);
-      const criticalContraindication = review.contraindications.find((item) => item.requiresPicPin);
+    if (payload.override && review?.interactions.some((item) => item.requiresPicPin || item.severity === 'HIGH') || review?.contraindications.some((item) => item.requiresPicPin || item.severity === 'HIGH')) {
+      const criticalInteraction = review.interactions.find((item) => item.requiresPicPin || item.severity === 'HIGH');
+      const criticalContraindication = review.contraindications.find((item) => item.requiresPicPin || item.severity === 'HIGH');
 
       await prisma.overrideLog.create({
         data: {
           pharmacyId,
           userId: currentUserId,
-          picUserId: verifiedPicUser!.userId,
+          picUserId: payload.override!.pic_user_id || currentUserId,
           alertType: criticalContraindication ? 'CONTRAINDICATION' : 'INTERACTION',
-          reason: payload.override.reason,
+          reason: payload.override!.reason,
           interactionId: criticalInteraction?.id,
           contraindicationId: criticalContraindication?.id,
           payload: {
@@ -1046,8 +1008,8 @@ dispensingRouter.post('/checkout', requirePermission('dispensing.access'), uploa
             review,
           } as Prisma.JsonObject,
         },
-    });
-  }
+      });
+    }
 
   await persistAnonymousSafetyEvents({
     pharmacyId,
@@ -1057,7 +1019,7 @@ dispensingRouter.post('/checkout', requirePermission('dispensing.access'), uploa
     review,
     context: safetyContext,
     source: 'DISPENSING_CHECKOUT',
-    overrideEntered: Boolean(review?.requiresPicPin && payload.override),
+    overrideEntered: Boolean(payload.override),
   });
 
   await prisma.$executeRaw(Prisma.sql`

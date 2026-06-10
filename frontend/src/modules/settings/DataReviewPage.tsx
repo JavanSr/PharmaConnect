@@ -30,7 +30,6 @@ const REVIEW_ACTION_OPTIONS = [
 
 const REVIEWER_TYPE_OPTIONS = [
   { value: 'PLATFORM_PHARMACIST', label: 'Platform pharmacist' },
-  { value: 'PIC_OVERRIDE', label: 'PIC override' },
   { value: 'TMDA_REFERENCE', label: 'TMDA reference' },
 ];
 
@@ -45,7 +44,6 @@ const statusVariant: Record<ReviewQueueStatus, 'warning' | 'success' | 'danger' 
 
 const reviewerTypeLabel: Record<ReviewerType, string> = {
   PLATFORM_PHARMACIST: 'Platform pharmacist',
-  PIC_OVERRIDE: 'PIC override',
   TMDA_REFERENCE: 'TMDA reference',
 };
 
@@ -74,7 +72,7 @@ export const DataReviewPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState('');
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
   const [reviewStatus, setReviewStatus] = useState<ReviewQueueStatus>('PENDING_REVIEW');
-  const [reviewerType, setReviewerType] = useState<ReviewerType>(canPlatformReview ? 'PLATFORM_PHARMACIST' : 'PIC_OVERRIDE');
+  const [reviewerType, setReviewerType] = useState<ReviewerType>(canPlatformReview ? 'PLATFORM_PHARMACIST' : 'TMDA_REFERENCE');
   const [notes, setNotes] = useState('');
   const [proposedPayloadText, setProposedPayloadText] = useState('{}');
 
@@ -120,7 +118,7 @@ export const DataReviewPage: React.FC = () => {
     }
 
     setReviewStatus(selectedEntry.status);
-    setReviewerType(selectedEntry.reviewerType ?? (canPlatformReview ? 'PLATFORM_PHARMACIST' : 'PIC_OVERRIDE'));
+    setReviewerType(selectedEntry.reviewerType ?? (canPlatformReview ? 'PLATFORM_PHARMACIST' : 'TMDA_REFERENCE'));
     setNotes(selectedEntry.notes ?? '');
     setProposedPayloadText(formatJson(selectedEntry.proposedPayload));
   }, [canPlatformReview, selectedEntry?.id]);
@@ -136,7 +134,7 @@ export const DataReviewPage: React.FC = () => {
 
       return api.patch(`/review-queue/${selectedEntryId}`, {
         status: reviewStatus,
-        reviewerType: canPlatformReview ? reviewerType : 'PIC_OVERRIDE',
+        reviewerType: canPlatformReview ? reviewerType : 'TMDA_REFERENCE',
         notes: notes.trim() || undefined,
         proposedPayload,
       });
@@ -234,7 +232,7 @@ export const DataReviewPage: React.FC = () => {
                     return;
                   }
                   setReviewStatus(selectedEntry.status);
-                  setReviewerType(selectedEntry.reviewerType ?? (canPlatformReview ? 'PLATFORM_PHARMACIST' : 'PIC_OVERRIDE'));
+                  setReviewerType(selectedEntry.reviewerType ?? (canPlatformReview ? 'PLATFORM_PHARMACIST' : 'TMDA_REFERENCE'));
                   setNotes(selectedEntry.notes ?? '');
                   setProposedPayloadText(formatJson(selectedEntry.proposedPayload));
                 }}
@@ -293,7 +291,7 @@ export const DataReviewPage: React.FC = () => {
                   label="Reviewer type"
                   value={reviewerType}
                   onChange={(event) => setReviewerType(event.target.value as ReviewerType)}
-                  options={canPlatformReview ? REVIEWER_TYPE_OPTIONS : REVIEWER_TYPE_OPTIONS.filter((option) => option.value === 'PIC_OVERRIDE')}
+                  options={canPlatformReview ? REVIEWER_TYPE_OPTIONS : REVIEWER_TYPE_OPTIONS.filter((option) => option.value === 'TMDA_REFERENCE')}
                   disabled={!canPlatformReview}
                 />
                 <div className="rounded-2xl border border-[#D6F0E8] bg-[#F8FCFA] p-4">

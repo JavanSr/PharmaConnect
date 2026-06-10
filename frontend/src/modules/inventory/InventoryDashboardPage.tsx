@@ -1,13 +1,14 @@
 import React, { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Package, AlertTriangle, Clock, Plus, ArrowRight } from 'lucide-react';
+import { Package, AlertTriangle, Clock, Plus, ArrowRight, AlertCircle } from 'lucide-react';
 import { differenceInDays } from 'date-fns';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { api } from '@/lib/api';
 import { usePharmacyStore } from '@/stores/pharmacyStore';
+import { useAuth } from '@/hooks/useAuth';
 
 type DashboardSummary = {
   totalProducts?: number;
@@ -35,16 +36,25 @@ const getProductStock = (product: any) => {
 
 export const InventoryDashboardPage: React.FC = () => {
   const pharmacy = usePharmacyStore((state) => state.pharmacy);
+  const { user } = useAuth();
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+  
   const { data: summaryData } = useQuery({ queryKey: ['inventory-dashboard-summary'], queryFn: () => api.get('/inventory/reports/dashboard-summary').then(r => r.data) });
   const { data: stockData } = useQuery({ queryKey: ['stock-on-hand'], queryFn: () => api.get('/inventory/reports/stock-on-hand').then(r => r.data), staleTime: 60_000, refetchInterval: 120_000 });
   const { data: expiryData } = useQuery({ queryKey: ['expiry-30'], queryFn: () => api.get('/inventory/reports/expiry?days=30').then(r => r.data) });
   const { data: lowStockData } = useQuery({ queryKey: ['low-stock'], queryFn: () => api.get('/inventory/reports/low-stock').then(r => r.data), staleTime: 60_000, refetchInterval: 120_000 });
+  const { data: conflictsData } = useQuery({ queryKey: ['inventory-conflicts-count'], queryFn: () => api.get('/inventory/conflicts').then(r => r.data), staleTime: 30_000 });
   const isEnterprise = pharmacy?.subscriptionTier === 'ENTERPRISE';
 
   const summary: DashboardSummary | undefined = summaryData?.data;
   const products = useMemo(() => stockData?.data || [], [stockData?.data]);
   const expiryBatches = useMemo(() => expiryData?.data || [], [expiryData?.data]);
   const lowStock = useMemo(() => lowStockData?.data || [], [lowStockData?.data]);
+  const conflictsCount = useMemo(() => {
+    const conflicts = conflictsData?.data;
+    if (!Array.isArray(conflicts)) return 0;
+    return conflicts.length;
+  }, [conflictsData?.data]);
   const totalUnits = useMemo(
     () => products.reduce((s: number, p: any) => s + getProductStock(p), 0),
     [products]
@@ -67,9 +77,15 @@ export const InventoryDashboardPage: React.FC = () => {
           <Link to="/inventory/receive"><Button leftIcon={<Plus size={16} />}>Receive Stock</Button></Link>
           <Link to="/inventory/adjust"><Button variant="secondary">Adjust Stock</Button></Link>
           <Link to="/inventory/products"><Button variant="secondary">Products / CSV</Button></Link>
-          <Link to="/inventory/drug-master"><Button variant="secondary">Drug Catalogue</Button></Link>
-          <Link to="/inventory/batches"><Button variant="secondary">Batches</Button></Link>
-          <Link to="/inventory/conflicts"><Button variant="secondary">Conflicts</Button></Link>
+          {isSuperAdmin && <Link to="/inventory/drug-master"><Button variant="secondary">Drug Catalogue</Button></Link>}
+          {conflictsCount > 0 && (
+            <Link to="/inventory/conflicts">
+              <Button variant="secondary" className="relative">
+                Conflicts
+                <Badge variant="danger" size="sm" className="absolute -top-2 -right-2">{conflictsCount}</Badge>
+              </Button>
+            </Link>
+          )}
         </div>
       </div>
 

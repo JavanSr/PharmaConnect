@@ -363,6 +363,7 @@ export interface Product {
   isActive: boolean;
   currentStock?: number;
   nextExpiringBatch?: Batch | null;
+  batches?: Batch[];
   createdAt: string;
 }
 
@@ -397,7 +398,7 @@ export type ReviewQueueStatus =
   | 'REJECTED'
   | 'RETIRED';
 
-export type ReviewerType = 'PLATFORM_PHARMACIST' | 'PIC_OVERRIDE' | 'TMDA_REFERENCE';
+export type ReviewerType = 'PLATFORM_PHARMACIST' | 'TMDA_REFERENCE';
 
 export interface ReviewSourceDocumentSummary {
   id: string;

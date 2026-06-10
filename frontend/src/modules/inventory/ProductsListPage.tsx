@@ -1,15 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, Plus, AlertTriangle, Thermometer, Snowflake, Wind, Upload, Download, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Plus, AlertTriangle, Thermometer, Snowflake, Wind, Upload, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
+import { Select } from '@/components/ui/Select';
 import { api } from '@/lib/api';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useNotificationStore } from '@/stores/notificationStore';
-import type { Product } from '@/types';
+import type { Product, Batch } from '@/types';
 
 const STORAGE_ICON: Record<string, React.ReactNode> = {
   AMBIENT: <Wind size={13} className="text-[#64748B]" />,
@@ -44,140 +45,169 @@ type ProductsResponse = {
 
 const PAGE_SIZE = 50;
 
-const CSV_TEMPLATE_COLUMNS = [
-  'name',
-  'genericName',
-  'brandName',
-  'sku',
-  'barcode',
-  'dosageForm',
-  'strength',
-  'unitOfMeasure',
-  'reorderLevel',
-  'sellingPrice',
-  'tmdaRegistrationNumber',
-  'coldChainRequired',
-  'storageCondition',
-  'manufacturer',
-];
-
-const CSV_TEMPLATE_SAMPLE = [
-  'Paracetamol 500mg Tablet',
-  'Paracetamol',
-  '',
-  'PCM-500',
-  '',
-  'TABLET',
-  '500mg',
-  'Tablets',
-  '20',
-  '200',
-  '',
-  'false',
-  'AMBIENT',
-  '',
-];
-
-function downloadCsvTemplate() {
-  const csv = `${CSV_TEMPLATE_COLUMNS.join(',')}\n${CSV_TEMPLATE_SAMPLE.join(',')}\n`;
-  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = 'pharmaconnect-products-template.csv';
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-}
-
-const ProductsListRow = React.memo(function ProductsListRow({
+const ProductsListRow = function ProductsListRow({
   product,
   onOpenProduct,
 }: ProductsListRowProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
   const stock = product.currentStock ?? 0;
   const isLow = stock <= product.reorderLevel;
   const isOut = stock === 0;
   const storageCondition = product.storageCondition || 'AMBIENT';
+  const batches = product.batches || [];
+  const hasBatches = batches.length > 0;
 
   return (
-    <tr
-      className="hover:bg-[#EDF7F3] cursor-pointer"
-      onClick={() => onOpenProduct(product.id)}
-    >
-      <td className="px-4 py-3">
-        <p className="text-sm font-medium text-[#0D4035]">{product.genericName || product.name}</p>
-        <div className="flex flex-wrap items-center gap-2 mt-1">
-          {product.brandName && <p className="text-xs text-[#64748B]">{product.brandName}</p>}
-          <span
-            className={`inline-flex text-[11px] px-2 py-0.5 rounded-full font-medium ${
-              product.verificationStatus === 'MASTER_CATALOG_MATCHED'
-                ? 'bg-[#D6F0E8] text-[#1A6B5C]'
-                : 'bg-amber-50 text-[#B45309]'
-            }`}
-          >
-            {product.verificationStatus === 'MASTER_CATALOG_MATCHED' ? 'Catalog matched' : 'Unverified'}
-          </span>
-          {product.pendingReview && (
-            <span className="inline-flex text-[11px] px-2 py-0.5 rounded-full font-medium bg-[#FEF3C7] text-[#92400E]">
-              Review queued
-            </span>
+    <>
+      <tr className="hover:bg-[#EDF7F3]">
+        <td className="px-4 py-3 w-[2%]">
+          {hasBatches && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsExpanded(!isExpanded);
+              }}
+              className="p-1 hover:bg-[#D6F0E8] rounded transition-colors"
+              title={isExpanded ? 'Collapse batches' : 'Expand batches'}
+            >
+              <ChevronDown
+                size={16}
+                className={`text-[#1A6B5C] transition-transform ${isExpanded ? '' : '-rotate-90'}`}
+              />
+            </button>
           )}
-        </div>
-      </td>
-
-      <td className="px-4 py-3">
-        {product.sku && <p className="text-xs font-mono text-[#0D4035]">{product.sku}</p>}
-        {product.barcode && <p className="text-xs font-mono text-[#64748B]">{product.barcode}</p>}
-        {!product.sku && !product.barcode && <span className="text-xs text-[#D6F0E8]">-</span>}
-      </td>
-
-      <td className="px-4 py-3 text-sm text-[#64748B] whitespace-nowrap">
-        {product.dosageForm && <span>{product.dosageForm}</span>}
-        {product.strength && <span className="ml-1 font-medium text-[#0D4035]">{product.strength}</span>}
-      </td>
-
-      <td className="px-4 py-3 text-sm text-[#0D4035] whitespace-nowrap">
-        {product.sellingPrice != null
-          ? `Tsh ${Number(product.sellingPrice).toLocaleString()}`
-          : <span className="text-[#D6F0E8]">-</span>}
-      </td>
-
-      <td className="px-4 py-3">
-        <span className={`text-sm font-bold ${isOut ? 'text-[#DC2626]' : isLow ? 'text-[#D97706]' : 'text-[#0D4035]'}`}>
-          {stock.toLocaleString()}
-        </span>
-        <span className="text-xs text-[#64748B] ml-1">{product.unitOfMeasure}</span>
-      </td>
-
-      <td className="px-4 py-3 text-sm text-[#64748B]">{product.reorderLevel}</td>
-
-      <td className="px-4 py-3">
-        <div className="flex items-center gap-1.5">
-          {STORAGE_ICON[storageCondition] ?? null}
-          <span className="text-xs text-[#64748B]">
-            {STORAGE_LABEL[storageCondition] ?? storageCondition}
-          </span>
-          {(product.coldChainRequired || product.isColdChain) && (
-            <span className="text-xs px-1.5 py-0.5 bg-[#EDE9FE] text-[#6D28D9] rounded-full font-medium">CC</span>
-          )}
-        </div>
-      </td>
-
-      <td className="px-4 py-3 text-xs font-mono text-[#64748B]">
-        {product.tmdaRegistrationNumber || <span className="text-[#D6F0E8]">-</span>}
-      </td>
-
-      <td className="px-4 py-3">
-        <Badge
-          variant={isOut ? 'danger' : isLow ? 'warning' : 'success'}
-          size="sm"
+        </td>
+        <td
+          className="px-4 py-3 cursor-pointer"
+          onClick={() => onOpenProduct(product.id)}
         >
-          {isOut ? 'OUT' : isLow ? 'LOW' : 'OK'}
-        </Badge>
-      </td>
-    </tr>
+          <p className="text-sm font-medium text-[#0D4035]">{product.genericName || product.name}</p>
+          <div className="flex flex-wrap items-center gap-2 mt-1">
+            {product.brandName && <p className="text-xs text-[#64748B]">{product.brandName}</p>}
+            <span
+              className={`inline-flex text-[11px] px-2 py-0.5 rounded-full font-medium ${
+                product.verificationStatus === 'MASTER_CATALOG_MATCHED'
+                  ? 'bg-[#D6F0E8] text-[#1A6B5C]'
+                  : 'bg-amber-50 text-[#B45309]'
+              }`}
+            >
+              {product.verificationStatus === 'MASTER_CATALOG_MATCHED' ? 'Catalog matched' : 'Unverified'}
+            </span>
+            {product.pendingReview && (
+              <span className="inline-flex text-[11px] px-2 py-0.5 rounded-full font-medium bg-[#FEF3C7] text-[#92400E]">
+                Review queued
+              </span>
+            )}
+          </div>
+        </td>
+
+        <td className="px-4 py-3" onClick={() => onOpenProduct(product.id)}>
+          {product.sku && <p className="text-xs font-mono text-[#0D4035]">{product.sku}</p>}
+          {product.barcode && <p className="text-xs font-mono text-[#64748B]">{product.barcode}</p>}
+          {!product.sku && !product.barcode && <span className="text-xs text-[#D6F0E8]">-</span>}
+        </td>
+
+        <td className="px-4 py-3 text-sm text-[#64748B] whitespace-nowrap" onClick={() => onOpenProduct(product.id)}>
+          {product.dosageForm && <span>{product.dosageForm}</span>}
+          {product.strength && <span className="ml-1 font-medium text-[#0D4035]">{product.strength}</span>}
+        </td>
+
+        <td className="px-4 py-3 text-sm text-[#0D4035] whitespace-nowrap" onClick={() => onOpenProduct(product.id)}>
+          {product.sellingPrice != null
+            ? `Tsh ${Number(product.sellingPrice).toLocaleString()}`
+            : <span className="text-[#D6F0E8]">-</span>}
+        </td>
+
+        <td className="px-4 py-3" onClick={() => onOpenProduct(product.id)}>
+          <span className={`text-sm font-bold ${isOut ? 'text-[#DC2626]' : isLow ? 'text-[#D97706]' : 'text-[#0D4035]'}`}>
+            {stock.toLocaleString()}
+          </span>
+          <span className="text-xs text-[#64748B] ml-1">{product.unitOfMeasure}</span>
+        </td>
+
+        <td className="px-4 py-3 text-sm text-[#64748B]" onClick={() => onOpenProduct(product.id)}>{product.reorderLevel}</td>
+
+        <td className="px-4 py-3" onClick={() => onOpenProduct(product.id)}>
+          <div className="flex items-center gap-1.5">
+            {STORAGE_ICON[storageCondition] ?? null}
+            <span className="text-xs text-[#64748B]">
+              {STORAGE_LABEL[storageCondition] ?? storageCondition}
+            </span>
+            {(product.coldChainRequired || product.isColdChain) && (
+              <span className="text-xs px-1.5 py-0.5 bg-[#EDE9FE] text-[#6D28D9] rounded-full font-medium">CC</span>
+            )}
+          </div>
+        </td>
+
+        <td className="px-4 py-3 text-xs font-mono text-[#64748B]" onClick={() => onOpenProduct(product.id)}>
+          {product.tmdaRegistrationNumber || <span className="text-[#D6F0E8]">-</span>}
+        </td>
+
+        <td className="px-4 py-3" onClick={() => onOpenProduct(product.id)}>
+          <Badge
+            variant={isOut ? 'danger' : isLow ? 'warning' : 'success'}
+            size="sm"
+          >
+            {isOut ? 'OUT' : isLow ? 'LOW' : 'OK'}
+          </Badge>
+        </td>
+      </tr>
+
+      {isExpanded && hasBatches && (
+        <tr className="bg-[#F8FDFB]">
+          <td colSpan={11} className="px-4 py-0">
+            <div className="py-3 space-y-2 border-l-2 border-[#D6F0E8] ml-2 pl-4">
+              <p className="text-xs font-semibold text-[#64748B] uppercase tracking-wide">Batch Details</p>
+              {batches.map((batch: Batch, idx: number) => {
+                const expiryDate = batch.expiryDate ? new Date(batch.expiryDate) : null;
+                const today = new Date();
+                const daysUntilExpiry = expiryDate ? Math.ceil((expiryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)) : null;
+                const isExpired = daysUntilExpiry !== null && daysUntilExpiry < 0;
+                const isUrgent = daysUntilExpiry !== null && daysUntilExpiry <= 7 && daysUntilExpiry >= 0;
+
+                return (
+                  <div
+                    key={batch.id || idx}
+                    className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs border ${
+                      isExpired
+                        ? 'bg-red-50 border-red-100'
+                        : isUrgent
+                        ? 'bg-amber-50 border-amber-100'
+                        : 'bg-white border-[#D6F0E8]'
+                    }`}
+                  >
+                    <div className="flex-1">
+                      <p className="font-mono font-medium text-[#0D4035]">{batch.batchNumber || 'No batch #'}</p>
+                      <p className="text-[#64748B] mt-0.5">
+                        Qty: <span className="font-medium">{(batch.quantityRemaining || 0).toLocaleString()} {product.unitOfMeasure}</span>
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      {expiryDate && (
+                        <p className={`font-medium ${isExpired ? 'text-red-700' : isUrgent ? 'text-amber-700' : 'text-[#64748B]'}`}>
+                          {expiryDate.toLocaleDateString('en-GB')}
+                        </p>
+                      )}
+                      {daysUntilExpiry !== null && (
+                        <p className={`text-[10px] mt-0.5 ${isExpired ? 'text-red-600' : isUrgent ? 'text-amber-600' : 'text-[#64748B]'}`}>
+                          {isExpired
+                            ? `Expired ${Math.abs(daysUntilExpiry)}d ago`
+                            : isUrgent
+                            ? `${daysUntilExpiry}d left`
+                            : `${daysUntilExpiry}d`}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
   );
-});
+};
 
 export const ProductsListPage: React.FC = () => {
   const navigate = useNavigate();
@@ -186,14 +216,23 @@ export const ProductsListPage: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState('');
   const [lowStockOnly, setLowStockOnly] = useState(false);
+  const [storageFilter, setStorageFilter] = useState('');
+  const [sortBy, setSortBy] = useState('chronological');
   const [page, setPage] = useState(1);
   const [csvErrors, setCsvErrors] = useState<CsvImportError[]>([]);
   const debouncedSearch = useDebounce(search, 300);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['products', debouncedSearch, lowStockOnly, page],
+    queryKey: ['products', debouncedSearch, lowStockOnly, storageFilter, sortBy, page],
     queryFn: () => api.get('/inventory/products', {
-      params: { search: debouncedSearch || undefined, lowStock: lowStockOnly || undefined, page, limit: PAGE_SIZE },
+      params: { 
+        search: debouncedSearch || undefined, 
+        lowStock: lowStockOnly || undefined,
+        storageCondition: storageFilter || undefined,
+        sortBy: sortBy || undefined,
+        page, 
+        limit: PAGE_SIZE 
+      },
     }).then(r => r.data as ProductsResponse),
   });
 
@@ -211,7 +250,7 @@ export const ProductsListPage: React.FC = () => {
 
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, lowStockOnly]);
+  }, [debouncedSearch, lowStockOnly, storageFilter, sortBy]);
 
   useEffect(() => {
     if (totalPages > 0 && page > totalPages) {
@@ -268,13 +307,6 @@ export const ProductsListPage: React.FC = () => {
         <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="secondary"
-            leftIcon={<Download size={16} />}
-            onClick={downloadCsvTemplate}
-          >
-            CSV Template
-          </Button>
-          <Button
-            variant="secondary"
             leftIcon={<Upload size={16} />}
             loading={csvImportMutation.isPending}
             onClick={() => fileInputRef.current?.click()}
@@ -295,25 +327,51 @@ export const ProductsListPage: React.FC = () => {
       </div>
 
       <Card>
-        <div className="flex flex-col sm:flex-row gap-3">
-          <Input
-            placeholder="Search by name, generic name, barcode, SKU..."
-            value={search}
-            onChange={handleSearchChange}
-            leftIcon={<Search size={16} />}
-            className="flex-1"
-          />
-          <button
-            onClick={handleLowStockToggle}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium border transition-colors ${
-              lowStockOnly
-                ? 'bg-amber-50 text-[#D97706] border-amber-200'
-                : 'bg-white text-[#64748B] border-[#D6F0E8] hover:bg-[#EDF7F3]'
-            }`}
-          >
-            <AlertTriangle size={15} />
-            Low Stock Only
-          </button>
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Input
+              placeholder="Search by name, generic name, barcode, SKU, batch number..."
+              value={search}
+              onChange={handleSearchChange}
+              leftIcon={<Search size={16} />}
+              className="flex-1"
+            />
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2 flex-wrap">
+            <button
+              onClick={handleLowStockToggle}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium border transition-colors ${
+                lowStockOnly
+                  ? 'bg-amber-50 text-[#D97706] border-amber-200'
+                  : 'bg-white text-[#64748B] border-[#D6F0E8] hover:bg-[#EDF7F3]'
+              }`}
+            >
+              <AlertTriangle size={15} />
+              Low Stock Only
+            </button>
+            
+            <select
+              value={storageFilter}
+              onChange={(e) => setStorageFilter(e.target.value)}
+              className="px-3 py-2 rounded-xl text-sm border border-[#D6F0E8] bg-white text-[#0D4035] hover:bg-[#EDF7F3] transition-colors"
+            >
+              <option value="">All Storage</option>
+              <option value="AMBIENT">Ambient</option>
+              <option value="REFRIGERATED">Refrigerated</option>
+              <option value="FROZEN">Frozen</option>
+            </select>
+
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="px-3 py-2 rounded-xl text-sm border border-[#D6F0E8] bg-white text-[#0D4035] hover:bg-[#EDF7F3] transition-colors"
+            >
+              <option value="chronological">Sort: Expiry (Soonest)</option>
+              <option value="name">Sort: Name A-Z</option>
+              <option value="stock-low">Sort: Stock (Low First)</option>
+              <option value="created">Sort: Added (Newest)</option>
+            </select>
+          </div>
         </div>
         {csvErrors.length > 0 && (
           <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
@@ -342,6 +400,9 @@ export const ProductsListPage: React.FC = () => {
             <table className="w-full min-w-[900px]">
               <thead>
                 <tr className="border-b border-[#D6F0E8]">
+                  <th className="px-2 py-3 w-[2%]">
+                    <span className="text-xs font-semibold text-[#64748B]"></span>
+                  </th>
                   {[
                     'Generic / Brand Name',
                     'SKU / Barcode',

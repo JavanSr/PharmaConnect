@@ -222,7 +222,6 @@ enum AliasType {
 
 enum ReviewerType {
   PLATFORM_PHARMACIST
-  PIC_OVERRIDE
   TMDA_REFERENCE
 }
 
