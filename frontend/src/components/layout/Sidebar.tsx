@@ -4,7 +4,7 @@ import {
   LayoutDashboard, BookOpen, Package, Shield, Pill,
   Lock, ChevronLeft, ChevronRight, Settings, LogOut, BarChart3,
   AlertTriangle, ClipboardList, Users,
-  Building2, X, ShieldAlert, Telescope, PackagePlus
+  Building2, X, ShieldAlert, Telescope, PackagePlus, ExternalLink
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { usePharmacyStore } from '@/stores/pharmacyStore';
@@ -205,6 +205,73 @@ export const Sidebar: React.FC<SidebarProps> = ({
     return true;
   });
 
+
+  // ── Founder sidebar (SUPER_ADMIN only) ────────────────────────────────────
+  const FounderSidebarContent = () => (
+    <div className="flex h-full min-h-0 flex-col">
+      {/* Logo */}
+      <div className={`flex items-center gap-3 px-4 py-5 border-b border-[#1a3328] ${collapsed ? 'justify-center' : ''}`}>
+        <img
+          src="/assets/logo/apotekh-mark-dark.svg"
+          alt="APOTEKH"
+          className="w-9 h-9 shrink-0"
+        />
+        {!collapsed && (
+          <div className="min-w-0">
+            <p className="text-sm font-bold leading-tight">
+              <span className="text-[#7ECFB4]">APOTEK</span>
+              <span className="text-[#7ECFB4] opacity-60">H</span>
+            </p>
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-[#4B7B6A]">
+              Platform Admin
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Single CTA */}
+      <div className="flex-1 flex flex-col items-center justify-center px-3 gap-4">
+        <a
+          href="/superadmin"
+          className="flex items-center gap-2.5 w-full rounded-xl px-4 py-3 bg-[#1A6B5C] text-white text-sm font-semibold hover:bg-[#145748] transition-colors"
+        >
+          <Telescope size={16} className="shrink-0" />
+          {!collapsed && <span className="flex-1">Platform Admin</span>}
+          {!collapsed && <ExternalLink size={13} className="opacity-60" />}
+        </a>
+        {!collapsed && (
+          <p className="text-center text-[11px] text-[#4B7B6A] leading-relaxed px-2">
+            You are logged in as APOTEKH founder. Your workspace is the Platform Admin panel.
+          </p>
+        )}
+      </div>
+
+      {/* Footer */}
+      <div className="border-t border-[#1a3328] p-3 space-y-1">
+        <div className={`flex items-center gap-3 px-3 py-2 ${collapsed ? 'justify-center' : ''}`}>
+          <div className="w-8 h-8 rounded-full bg-[#1A6B5C] text-white flex items-center justify-center text-xs font-bold shrink-0">
+            {user?.firstName?.[0]}{user?.lastName?.[0]}
+          </div>
+          {!collapsed && (
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-[#7ECFB4] truncate">
+                {user?.firstName} {user?.lastName}
+              </p>
+              <p className="text-[10px] text-[#4B7B6A] font-semibold uppercase tracking-wider">Founder</p>
+            </div>
+          )}
+          <button
+            onClick={handleLogout}
+            title="Log out"
+            className="p-1.5 rounded-full text-[#4B7B6A] hover:text-[#7ECFB4] hover:bg-[#1a3328] transition-colors shrink-0"
+          >
+            <LogOut size={16} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   const SidebarContent = () => (
     <div className="flex h-full min-h-0 flex-col">
       {/* Logo */}
@@ -308,7 +375,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Mobile sidebar */}
       <div
-        className={`fixed inset-y-0 left-0 z-50 h-screen w-64 bg-surface-container-lowest border-r border-outline-variant/30 transform transition-transform duration-300 lg:hidden ${
+        className={`fixed inset-y-0 left-0 z-50 h-screen w-64 border-r transform transition-transform duration-300 lg:hidden ${
+          user?.role === 'SUPER_ADMIN'
+            ? 'bg-[#0f1f18] border-[#1a3328]'
+            : 'bg-surface-container-lowest border-outline-variant/30'
+        } ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -320,16 +391,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <X size={18} className="text-on-surface-variant" />
           </button>
         </div>
-        <SidebarContent />
+        {user?.role === 'SUPER_ADMIN' ? <FounderSidebarContent /> : <SidebarContent />}
       </div>
 
       {/* Desktop sidebar */}
       <div
-        className={`relative hidden lg:flex h-screen min-h-0 flex-col bg-surface-container-lowest border-r border-outline-variant/30 transition-all duration-300 ${
+        className={`relative hidden lg:flex h-screen min-h-0 flex-col border-r transition-all duration-300 ${
+          user?.role === 'SUPER_ADMIN'
+            ? 'bg-[#0f1f18] border-[#1a3328]'
+            : 'bg-surface-container-lowest border-outline-variant/30'
+        } ${
           collapsed ? 'w-16' : 'w-64'
         }`}
       >
-        <SidebarContent />
+        {user?.role === 'SUPER_ADMIN' ? <FounderSidebarContent /> : <SidebarContent />}
         <button
           onClick={onToggleCollapse}
           className="absolute top-16 -right-3 w-6 h-6 bg-surface-container-lowest border border-outline-variant/30 rounded-full flex items-center justify-center shadow-sm hover:bg-surface-container-high z-10"

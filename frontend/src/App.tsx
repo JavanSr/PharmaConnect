@@ -391,7 +391,7 @@ export const App: React.FC = () => (
           <Route path="/settings/source-updates" element={page(<SourceUpdatesPage />, ['OWNER', 'PHARMACIST_IN_CHARGE'])} />
           <Route path="/settings/features" element={page(<FeaturesPage />, ['OWNER', 'PHARMACIST_IN_CHARGE'])} />
           <Route path="/settings/my-locations" element={page(<MyOutletsPage />, ['OWNER'])} />
-          <Route path="/founder" element={page(<FounderDashboardPage />, ['SUPER_ADMIN'])} />
+          <Route path="/founder" element={<Navigate to="/superadmin/founder" replace />} />
         </Route>
 
         {/* ── Super-admin panel — completely separate layout ─────────────────── */}
@@ -403,6 +403,7 @@ export const App: React.FC = () => (
             <Route path="/superadmin/audit" element={<Suspense fallback={<PageLoader />}><AdminAuditPage /></Suspense>} />
             <Route path="/superadmin/feature-flags" element={<Suspense fallback={<PageLoader />}><AdminFeatureFlagsPage /></Suspense>} />
             <Route path="/superadmin/messages" element={<Suspense fallback={<PageLoader />}><AdminMessagesPage /></Suspense>} />
+            <Route path="/superadmin/founder" element={<Suspense fallback={<PageLoader />}><FounderDashboardPage /></Suspense>} />
           </Route>
         </Route>
       </Routes>

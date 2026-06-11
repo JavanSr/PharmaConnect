@@ -2,7 +2,7 @@ import React from 'react';
 import { NavLink, useNavigate, Outlet } from 'react-router-dom';
 import {
   LayoutDashboard, Building2, ClipboardList,
-  ToggleLeft, MessageSquare, LogOut,
+  ToggleLeft, MessageSquare, LogOut, Telescope,
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { usePharmacyStore } from '@/stores/pharmacyStore';
@@ -10,6 +10,7 @@ import { api } from '@/lib/api';
 
 const NAV_ITEMS = [
   { label: 'Dashboard',     path: '/superadmin',              icon: <LayoutDashboard size={16} />, end: true },
+  { label: 'Founder Hub',   path: '/superadmin/founder',      icon: <Telescope size={16} /> },
   { label: 'Pharmacies',    path: '/superadmin/pharmacies',   icon: <Building2 size={16} /> },
   { label: 'Audit Log',     path: '/superadmin/audit',        icon: <ClipboardList size={16} /> },
   { label: 'Feature Flags', path: '/superadmin/feature-flags', icon: <ToggleLeft size={16} /> },

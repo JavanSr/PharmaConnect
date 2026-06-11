@@ -4,6 +4,8 @@ import type { AuthRequest } from '../../middleware/auth';
 import { requirePermission } from '../../middleware/permissions';
 import * as svc from './stock-order.service';
 import * as exportSvc from './stock-order-export.service';
+import * as portalSvc from './supplier-portal.service';
+import { prisma } from '../../lib/prisma';
 
 const editableRoles = new Set(['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'WHOLESALE_MANAGER', 'SUPER_ADMIN']);
 const receiverRoles = new Set(['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER', 'SUPER_ADMIN']);
@@ -151,7 +153,41 @@ stockOrderRouter.delete('/:id/items/:itemId', async (req: AuthRequest, res, next
 
 stockOrderRouter.post('/:id/submit', async (req: AuthRequest, res, next) => {
   try {
-    res.json({ data: await svc.submitStockOrder(pid(req), req.params.id) });
+    const { supplierName, supplierPhone, supplierEmail } = z.object({
+      supplierName:  z.string().trim().optional(),
+      supplierPhone: z.string().trim().optional(),
+      supplierEmail: z.string().email().optional().or(z.literal('')),
+    }).parse(req.body);
+
+    const order = await svc.submitStockOrder(pid(req), req.params.id);
+
+    // If the pharmacy provided a supplier contact for portal notification, generate the token
+    let portalLink: string | null = null;
+    let portalToken: string | null = null;
+    if (supplierName || supplierPhone) {
+      const pharmacy = await prisma.pharmacy.findUnique({
+        where: { id: pid(req) },
+        select: { name: true },
+      });
+      const portal = await portalSvc.generatePortalToken({
+        stockOrderId:  order.id,
+        pharmacyId:    pid(req),
+        pharmacyName:  pharmacy?.name ?? 'APOTEKH Pharmacy',
+        supplierName:  supplierName ?? supplierPhone ?? 'Supplier',
+        supplierPhone: supplierPhone,
+        supplierEmail: supplierEmail || undefined,
+      });
+      const { link } = portalSvc.buildWhatsAppLink(
+        portal.token,
+        order.orderNumber,
+        pharmacy?.name ?? 'APOTEKH Pharmacy',
+        supplierPhone,
+      );
+      portalLink  = link;
+      portalToken = portal.token;
+    }
+
+    res.json({ data: { ...order, portalLink, portalToken } });
   } catch (e) {
     next(e);
   }
@@ -181,12 +217,10 @@ stockOrderRouter.post('/:id/cancel', async (req: AuthRequest, res, next) => {
 });
 
 // GET /stock-orders/:id/export/text
-// Export order as plain text file
 stockOrderRouter.get('/:id/export/text', async (req: AuthRequest, res, next) => {
   try {
     const data = await exportSvc.getOrderExportData(pid(req), req.params.id);
     const text = exportSvc.generatePlainTextOrder(data);
-
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${data.orderNumber}.txt"`);
     res.send(text);
@@ -196,13 +230,11 @@ stockOrderRouter.get('/:id/export/text', async (req: AuthRequest, res, next) => 
 });
 
 // GET /stock-orders/:id/export/whatsapp
-// Get WhatsApp share link and text
 stockOrderRouter.get('/:id/export/whatsapp', async (req: AuthRequest, res, next) => {
   try {
     const data = await exportSvc.getOrderExportData(pid(req), req.params.id);
     const shareText = exportSvc.generateWhatsAppShareText(data);
     const shareLink = exportSvc.generateWhatsAppShareLink(data);
-
     res.json({
       data: {
         orderNumber: data.orderNumber,

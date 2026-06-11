@@ -40,6 +40,7 @@ import { subscriptionRouter } from './modules/subscription/subscription.router';
 import { catalogueImportRouter } from './modules/catalogue-import/catalogue-import.router';
 import { sourceSyncRouter } from './modules/source-sync/source-sync.router';
 import { agentsRouter } from './modules/agents/agents.router';
+import { supplierPortalRouter } from './modules/inventory/supplier-portal.router';
 import { registerExpiryAlertsJob } from './jobs/expiry-alerts';
 import { registerLowStockAlertsJob } from './jobs/low-stock-alerts';
 import { registerComplianceAlertsJob, registerComplianceHealthJob } from './jobs/compliance-alerts';
@@ -320,6 +321,9 @@ app.use(`${v1}/subscription-payments`, subscriptionRouter);
 app.use(`${v1}/catalogue-import`,  catalogueImportRouter);
 app.use(`${v1}/source-sync`,       sourceSyncRouter);
 app.use(`${v1}/agents`,            authenticate, agentsRouter);
+
+// ── Supplier Portal (public, no auth — short URL for WhatsApp links) ──────────
+app.use('/supplier-portal', supplierPortalRouter);
 
 // ── Error handling ────────────────────────────────────────────────────────────
 app.use(notFound);

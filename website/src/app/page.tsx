@@ -814,7 +814,7 @@ function OwnerRevenue() {
         <p style={{ fontSize: 17, color: 'rgba(255,255,255,0.65)', lineHeight: 1.7, maxWidth: 620, margin: '0 auto 48px' }}>
           Every sale, every void, every stock adjustment posts to your Owner Dashboard the moment it happens. You do not wait for a report. You do not ask the counter team. Every shilling is accounted for — before anyone tells you.
         </p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 1, background: 'rgba(255,255,255,0.08)', borderRadius: 16, overflow: 'hidden' }}>
+        <div className="mob-stack" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 1, background: 'rgba(255,255,255,0.08)', borderRadius: 16, overflow: 'hidden' }}>
           {[
             { val: 'Live', label: 'Revenue posted to your dashboard the moment a sale completes' },
             { val: "Locked", label: "Dispensers see their own screen — not the daily takings" },
@@ -1191,10 +1191,10 @@ function FinalCTA() {
           14-day free trial on every plan. No credit card. No setup fee.<br />Your pharmacy running on APOTEKH in minutes.
         </p>
         <div style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap' }}>
-          <a href="https://app.apotekh.co.tz/register" className="cta-primary" style={{ background: '#7ECFB4', color: '#0D4035', padding: '15px 36px', boxShadow: '0 4px 20px rgba(126,207,180,0.35)', fontSize: 15 }}>
+          <a href="https://app.apotekh.co.tz/register" className="cta-primary" style={{ background: 'white', color: '#0D4035', padding: '15px 36px', boxShadow: '0 4px 24px rgba(0,0,0,0.25)', fontSize: 15 }}>
             Start free trial — 14 days free
           </a>
-          <a href="mailto:support@apotekh.co.tz?subject=Wholesale%20%2F%20Enterprise%20inquiry" className="cta-outline" style={{ padding: '14px 36px' }}>
+          <a href="mailto:support@apotekh.co.tz?subject=Wholesale%20%2F%20Enterprise%20inquiry" className="cta-outline" style={{ padding: '14px 36px', borderColor: 'rgba(255,255,255,0.55)', color: 'rgba(255,255,255,0.9)' }}>
             Wholesale / Enterprise →
           </a>
         </div>
@@ -1268,9 +1268,9 @@ export default function HomePage() {
   }, []);
 
   return (
-    <div>
-      <div style={{ background: '#0D4035', padding: '9px 32px', textAlign: 'center' }}>
-        <p className="mono" style={{ margin: 0, fontSize: 12, letterSpacing: '0.12em', color: 'rgba(255,255,255,0.75)' }}>
+    <div style={{ overflowX: 'hidden' }}>
+      <div style={{ background: '#0D4035', padding: '9px 16px', textAlign: 'center' }}>
+        <p className="mono" style={{ margin: 0, fontSize: 11, letterSpacing: '0.10em', color: 'rgba(255,255,255,0.75)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           APOTEKH &nbsp;·&nbsp; <span style={{ color: '#7ECFB4' }}>Powering Pharmacies. Protecting Patients.</span>
         </p>
       </div>

@@ -286,6 +286,7 @@ model Pharmacy {
   coldChainLogs              ColdChainLog[]
   adverseReactionReports     AdverseReactionReport[]
   stockOrders                StockOrder[]
+  supplierPortalTokens       SupplierPortalToken[]
   memberships                PharmacyMembership[]
   aiCounsellingCache         AiCounsellingCache[]
   featureTelemetry           FeatureTelemetry[]
@@ -688,9 +689,10 @@ model StockOrder {
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
-  pharmacy      Pharmacy         @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
-  createdByUser User             @relation("StockOrderCreatedBy", fields: [createdBy], references: [id], onDelete: Restrict)
+  pharmacy      Pharmacy             @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  createdByUser User                 @relation("StockOrderCreatedBy", fields: [createdBy], references: [id], onDelete: Restrict)
   items         StockOrderItem[]
+  supplierPortalToken SupplierPortalToken?
 
   @@unique([pharmacyId, orderNumber], map: "stock_orders_pharmacy_order_number_key")
   @@index([pharmacyId, status], map: "stock_orders_pharmacy_status_idx")
@@ -715,9 +717,10 @@ model StockOrderItem {
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
-  stockOrder StockOrder @relation(fields: [stockOrderId], references: [id], onDelete: Cascade)
-  product    Product?   @relation(fields: [productId], references: [id], onDelete: SetNull)
-  supplier   Supplier?  @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  stockOrder           StockOrder              @relation(fields: [stockOrderId], references: [id], onDelete: Cascade)
+  product              Product?                @relation(fields: [productId], references: [id], onDelete: SetNull)
+  supplier             Supplier?               @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  supplierPortalLineItems SupplierPortalLineItem[]
 
   @@index([stockOrderId], map: "stock_order_items_order_idx")
   @@index([productId], map: "stock_order_items_product_idx")
@@ -1732,4 +1735,62 @@ model Article {
   cpdActivities CpdActivity[]
 
   @@map("articles")
+}
+
+// -- Supplier Portal (Tier 2 wholesaler tokenized confirmation) ----------------
+
+enum SupplierPortalStatus {
+  PENDING
+  VIEWED
+  CONFIRMED
+  PARTIALLY_CONFIRMED
+  REJECTED
+  EXPIRED
+}
+
+model SupplierPortalToken {
+  id            String               @id @default(uuid())
+  token         String               @unique @default(uuid())
+  stockOrderId  String               @unique @map("stock_order_id")
+  pharmacyId    String               @map("pharmacy_id")
+  pharmacyName  String               @map("pharmacy_name")
+  supplierName  String               @map("supplier_name")
+  supplierPhone String?              @map("supplier_phone")
+  supplierEmail String?              @map("supplier_email")
+  status        SupplierPortalStatus @default(PENDING)
+  supplierNotes String?              @map("supplier_notes")
+  deliveryDate  DateTime?            @map("delivery_date")
+  viewedAt      DateTime?            @map("viewed_at")
+  respondedAt   DateTime?            @map("responded_at")
+  expiresAt     DateTime             @map("expires_at")
+  createdAt     DateTime             @default(now()) @map("created_at")
+  updatedAt     DateTime             @updatedAt @map("updated_at")
+
+  stockOrder StockOrder               @relation(fields: [stockOrderId], references: [id], onDelete: Cascade)
+  pharmacy   Pharmacy                 @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  lineItems  SupplierPortalLineItem[]
+
+  @@map("supplier_portal_tokens")
+}
+
+model SupplierPortalLineItem {
+  id                String   @id @default(uuid())
+  tokenId           String   @map("token_id")
+  stockOrderItemId  String   @map("stock_order_item_id")
+  productName       String   @map("product_name")
+  genericName       String?  @map("generic_name")
+  strength          String?
+  dosageForm        String?  @map("dosage_form")
+  quantityRequested Int      @map("quantity_requested")
+  quantityConfirmed Int?     @map("quantity_confirmed")
+  unitPrice         Decimal? @map("unit_price") @db.Decimal(12, 2)
+  available         Boolean  @default(true)
+  notes             String?
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  token          SupplierPortalToken @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+  stockOrderItem StockOrderItem      @relation(fields: [stockOrderItemId], references: [id], onDelete: Cascade)
+
+  @@map("supplier_portal_line_items")
 }
