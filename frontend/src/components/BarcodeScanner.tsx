@@ -83,6 +83,8 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onDetected, onCl
 
   useEffect(() => {
     let cancelled = false;
+    const video = videoRef.current;
+    if (!video) return;
 
     const start = async () => {
       if (!navigator.mediaDevices?.getUserMedia) {
@@ -90,38 +92,28 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onDetected, onCl
         return;
       }
 
-      // ── Acquire camera stream ──────────────────────────────────────────────
-      let stream: MediaStream;
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: { ideal: 'environment' }, // back camera preferred
-            width:      { ideal: 1280 },
-            height:     { ideal: 720 },
-          },
-        });
-      } catch {
-        if (!cancelled) setError('Camera permission denied — use the input below.');
-        return;
-      }
-
-      if (cancelled) { stream.getTracks().forEach(t => t.stop()); return; }
-      streamRef.current = stream;
-
-      const video = videoRef.current;
-      if (!video) return;
-      video.srcObject = stream;
-      await video.play().catch(() => {});
-      if (cancelled) return;
-
-      // ── Native BarcodeDetector path (fast) ────────────────────────────────
+      // ── Native BarcodeDetector path (fast — Chrome Android, Edge) ─────────
       if (hasNativeDetector()) {
         setUsingNative(true);
 
-        let supportedFormats = NATIVE_FORMATS;
+        let stream: MediaStream;
         try {
-          supportedFormats = await BarcodeDetector.getSupportedFormats();
-        } catch { /* use defaults */ }
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+          });
+        } catch {
+          if (!cancelled) setError('Camera permission denied — use the input below.');
+          return;
+        }
+
+        if (cancelled) { stream.getTracks().forEach(t => t.stop()); return; }
+        streamRef.current = stream;
+        video.srcObject = stream;
+        await video.play().catch(() => {});
+        if (cancelled) return;
+
+        let supportedFormats = NATIVE_FORMATS;
+        try { supportedFormats = await BarcodeDetector.getSupportedFormats(); } catch { /* use defaults */ }
 
         const detector = new BarcodeDetector({
           formats: NATIVE_FORMATS.filter(f => supportedFormats.includes(f)),
@@ -137,32 +129,45 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onDetected, onCl
           } catch { /* frame not ready — skip */ }
           rafRef.current = requestAnimationFrame(() => { void tick(); });
         };
-
         rafRef.current = requestAnimationFrame(() => { void tick(); });
         return;
       }
 
-      // ── ZXing fallback path ───────────────────────────────────────────────
+      // ── ZXing fallback (iOS Safari, Firefox, older browsers) ─────────────
+      // decodeFromConstraints lets ZXing own the stream lifecycle entirely —
+      // avoids the double-srcObject conflict of passing a pre-acquired stream.
       try {
         const reader = await loadZXing();
         if (cancelled) return;
 
         const { NotFoundException } = await import('@zxing/library');
 
-        const controls = await reader.decodeFromStream(
-          stream,
+        const controls = await reader.decodeFromConstraints(
+          {
+            video: {
+              facingMode: { ideal: 'environment' },
+              width:      { ideal: 1280 },
+              height:     { ideal: 720 },
+            },
+          },
           video,
           async (result, err) => {
             if (cancelled) return;
             if (result) { await fireDetected(result.getText()); return; }
+            // NotFoundException fires on every frame with no barcode — not an error
             if (err && !(err instanceof NotFoundException)) {
-              setError(err.message || 'Could not read barcode.');
+              console.warn('[BarcodeScanner]', err);
             }
           },
         );
 
+        // Capture ZXing-owned stream so cleanup can stop tracks
+        if (video.srcObject instanceof MediaStream) {
+          streamRef.current = video.srcObject;
+        }
         zxingStopRef.current = () => controls.stop();
-      } catch {
+      } catch (e) {
+        console.error('[BarcodeScanner init]', e);
         if (!cancelled) setError('Scanner unavailable — use the input below.');
       }
     };
@@ -232,8 +237,7 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onDetected, onCl
           value={keyInput}
           onChange={e => setKeyInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="USB scanner or type barcode · press Enter"
-          className="w-full rounded-xl border border-[#D6F0E8] bg-white py-2.5 pl-9 pr-4 text-sm text-[#0D4035] placeholder-[#94A3B8] outline-none focus:border-[#1A6B5C] focus:ring-1 focus:ring-[#1A6B5C]"
+          placeholder="USB scanner or type barcode - press Enter"
           autoComplete="off"
         />
       </div>

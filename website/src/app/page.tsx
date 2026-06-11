@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Image from 'next/image';
 
 // ── DATA ──────────────────────────────────────────────────────────────────────
 
@@ -239,7 +238,7 @@ function Nav() {
             ))}
           </nav>
           <div className="nav-desktop-links" style={{ gap: 10, alignItems: 'center' }}>
-            <a href="https://app.apotekh.co.tz" style={{ padding: '8px 18px', fontSize: 13, fontWeight: 500, color: '#0D4035', opacity: 0.7 }}>Sign in</a>
+            <a href="https://app.apotekh.co.tz/login" style={{ padding: '8px 18px', fontSize: 13, fontWeight: 500, color: '#0D4035', opacity: 0.7 }}>Sign in</a>
             <a href="https://app.apotekh.co.tz/register" style={{ padding: '8px 18px', borderRadius: 8, background: '#0D4035', color: 'white', fontSize: 13, fontWeight: 600 }}>Start free trial</a>
           </div>
           <button className="nav-hamburger" onClick={() => setMobileOpen(true)}
@@ -260,7 +259,7 @@ function Nav() {
             ))}
           </nav>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingTop: 28 }}>
-            <a href="https://app.apotekh.co.tz" style={{ display: 'block', textAlign: 'center', padding: '13px', borderRadius: 10, border: '1.5px solid #E2EDE8', color: '#0D4035', fontSize: 15, fontWeight: 600 }}>Sign in</a>
+            <a href="https://app.apotekh.co.tz/login" style={{ display: 'block', textAlign: 'center', padding: '13px', borderRadius: 10, border: '1.5px solid #E2EDE8', color: '#0D4035', fontSize: 15, fontWeight: 600 }}>Sign in</a>
             <a href="https://app.apotekh.co.tz/register" style={{ display: 'block', textAlign: 'center', padding: '13px', borderRadius: 10, background: '#1A6B5C', color: 'white', fontSize: 15, fontWeight: 600 }}>Start free trial</a>
           </div>
         </div>
@@ -651,7 +650,7 @@ function CallatTheTill() {
           </div>
           <p style={{ fontSize: 16, lineHeight: 1.8, color: '#516965' }}>Every screen is built for the speed of a real pharmacy day. Big buttons, fast keyboard paths, large legible numbers — and quiet, sensible defaults so new staff are productive in an hour, not a week.</p>
         </div>
-        <div className="mob-stack" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 20 }}>
+        <div className="three-col" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 20 }}>
 
           {/* Dispensing POS */}
           <div style={{ border: '1px solid #E2EDE8', borderRadius: 16, overflow: 'hidden', background: 'white' }}>
@@ -809,8 +808,8 @@ function HowItWorks() {
 
 function OwnerRevenue() {
   return (
-    <section className="reveal" style={{ background: '#0D4035', padding: '88px 32px', position: 'relative', overflow: 'hidden' }}>
-      <Image src="/assets/photos/dispensing-counter.jpg" alt="" fill style={{ objectFit: 'cover', opacity: 0.08 }} sizes="100vw" />
+    <section className="reveal" style={{ background: 'linear-gradient(135deg, #0D4035 0%, #082B23 100%)', padding: '88px 32px', position: 'relative', overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', inset: 0, opacity: 0.04, backgroundImage: 'radial-gradient(circle, #7ECFB4 1px, transparent 1px)', backgroundSize: '28px 28px' }} />
       <div style={{ position: 'relative', zIndex: 1, maxWidth: 900, margin: '0 auto', textAlign: 'center' }}>
         <p className="mono" style={{ fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 20 }}>Full visibility. Complete accountability.</p>
         <h2 className="serif" style={{ fontSize: 'clamp(32px,4.5vw,58px)', color: 'white', lineHeight: 1.05, margin: '0 0 24px' }}>
@@ -861,7 +860,7 @@ function EverythingIncluded() {
       <div style={{ maxWidth: 1280, margin: '0 auto' }}>
         <h2 className="serif" style={{ fontSize: 'clamp(28px,3.5vw,44px)', color: '#0D4035', margin: '0 0 8px', lineHeight: 1.1 }}>Everything included</h2>
         <p style={{ fontSize: 15, color: '#516965', marginBottom: 48 }}>No add-ons. No separate tools. Every capability ships with your plan.</p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16 }}>
+        <div className="four-col" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16 }}>
           {features.map(({ icon, name, desc }) => (
             <div key={name} className="card-stagger" style={{ background: 'white', border: '1px solid #E2EDE8', borderRadius: 12, padding: 20 }}>
               <span style={{ fontSize: 20, display: 'block', marginBottom: 10, color: '#1A6B5C' }}>{icon}</span>
@@ -975,36 +974,17 @@ function RoleSection() {
               ))}
             </div>
           </div>
-          <div style={{ borderRadius: 16, overflow: 'hidden', position: 'relative', minHeight: 220 }}>
-            {tab === 0 && (
-              <Image
-                src="/assets/photos/owner-dashboard.jpg"
-                alt="Pharmacy owner reviewing analytics on a tablet"
-                fill
-                style={{ objectFit: 'cover', objectPosition: 'center top' }}
-                sizes="(max-width: 900px) 100vw, 40vw"
-              />
-            )}
-            {tab === 1 && (
-              <Image
-                src="/assets/photos/inventory-stock.jpg"
-                alt="Pharmacist-in-charge conducting clinical review"
-                fill
-                style={{ objectFit: 'cover', objectPosition: 'center' }}
-                sizes="(max-width: 900px) 100vw, 40vw"
-              />
-            )}
-            {tab === 2 && (
-              <Image
-                src="/assets/photos/team-staff.jpg"
-                alt="Counter staff assisting a customer at the dispensing counter"
-                fill
-                style={{ objectFit: 'cover', objectPosition: 'center' }}
-                sizes="(max-width: 900px) 100vw, 40vw"
-              />
-            )}
-            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(13,64,53,0.85) 0%, rgba(13,64,53,0.2) 60%, transparent 100%)' }} />
-            <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: 24 }}>
+          <div style={{
+            borderRadius: 16, overflow: 'hidden', position: 'relative', minHeight: 220,
+            background: tab === 0
+              ? 'linear-gradient(135deg, #0D4035 0%, #1A6B5C 100%)'
+              : tab === 1
+              ? 'linear-gradient(135deg, #082B23 0%, #0D4035 100%)'
+              : 'linear-gradient(135deg, #145748 0%, #2A9478 100%)',
+            display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', padding: 28,
+          }}>
+            <div style={{ position: 'absolute', inset: 0, opacity: 0.05, backgroundImage: 'radial-gradient(circle, #7ECFB4 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
+            <div style={{ position: 'relative', zIndex: 1 }}>
               <p className="mono" style={{ fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.5)', marginBottom: 10 }}>{r.stat.eye}</p>
               <p className="serif" style={{ fontSize: 42, color: 'white', lineHeight: 1.05, marginBottom: 8, whiteSpace: 'pre-line' }}>{r.stat.val}</p>
               <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', lineHeight: 1.6 }}>{r.stat.sub}</p>
@@ -1075,26 +1055,19 @@ function Testimonials() {
     },
   ];
   return (
-    <section className="reveal" style={{ background: '#0D4035', padding: '88px 32px', position: 'relative', overflow: 'hidden' }}>
-      <Image
-        src="/assets/photos/owner-trust.jpg"
-        alt="Tanzanian pharmacy owner"
-        fill
-        style={{ objectFit: 'cover', objectPosition: 'center 30%', opacity: 0.12 }}
-        sizes="100vw"
-      />
-      <div style={{ position: 'relative', zIndex: 1, maxWidth: 1280, margin: '0 auto' }}>
-        <p className="mono" style={{ fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 12 }}>From pharmacies using APOTEKH</p>
-        <h2 className="serif" style={{ fontSize: 'clamp(28px,3.5vw,44px)', color: 'white', margin: '0 0 48px', lineHeight: 1.1 }}>
+    <section className="reveal" style={{ background: '#F7FBF8', padding: '88px 32px', borderTop: '1px solid #E2EDE8' }}>
+      <div style={{ maxWidth: 1280, margin: '0 auto' }}>
+        <p className="mono" style={{ fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#1A6B5C', marginBottom: 12 }}>From pharmacies using APOTEKH</p>
+        <h2 className="serif" style={{ fontSize: 'clamp(28px,3.5vw,44px)', color: '#0D4035', margin: '0 0 48px', lineHeight: 1.1 }}>
           What pharmacy owners say
         </h2>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 24 }}>
+        <div className="three-col" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 24 }}>
           {items.map((item, i) => (
-            <div key={i} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, padding: 28, backdropFilter: 'blur(8px)' }}>
-              <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.85)', lineHeight: 1.75, margin: '0 0 24px', fontStyle: 'italic' }}>&ldquo;{item.quote}&rdquo;</p>
-              <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 16 }}>
-                <p style={{ fontSize: 13, fontWeight: 600, color: '#7ECFB4', margin: 0 }}>{item.role}</p>
-                <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', margin: '4px 0 0' }}>{item.location}</p>
+            <div key={i} style={{ background: 'white', border: '1px solid #E2EDE8', borderRadius: 16, padding: 28 }}>
+              <p style={{ fontSize: 15, color: '#516965', lineHeight: 1.75, margin: '0 0 24px', fontStyle: 'italic' }}>&ldquo;{item.quote}&rdquo;</p>
+              <div style={{ borderTop: '1px solid #E2EDE8', paddingTop: 16 }}>
+                <p style={{ fontSize: 13, fontWeight: 600, color: '#1A6B5C', margin: 0 }}>{item.role}</p>
+                <p style={{ fontSize: 12, color: '#516965', margin: '4px 0 0' }}>{item.location}</p>
               </div>
             </div>
           ))}
@@ -1300,7 +1273,7 @@ export default function HomePage() {
     <div>
       <div style={{ background: '#0D4035', padding: '9px 32px', textAlign: 'center' }}>
         <p className="mono" style={{ margin: 0, fontSize: 12, letterSpacing: '0.12em', color: 'rgba(255,255,255,0.75)' }}>
-          APOTEKH &nbsp;·&nbsp; <span style={{ color: '#7ECFB4' }}>Empowering Pharmacies. Protecting Patients.</span>
+          APOTEKH &nbsp;·&nbsp; <span style={{ color: '#7ECFB4' }}>Powering Pharmacies. Protecting Patients.</span>
         </p>
       </div>
       <Nav />

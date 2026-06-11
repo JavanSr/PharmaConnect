@@ -278,7 +278,10 @@ textarea {
   .role-grid { grid-template-columns: 1fr !important; }
 }
 
-/* Three-column grids → single column on mobile */
+/* Grid responsiveness */
+@media (max-width: 900px) {
+  .three-col { grid-template-columns: 1fr 1fr !important; }
+}
 @media (max-width: 640px) {
   .three-col { grid-template-columns: 1fr !important; }
   .four-col  { grid-template-columns: 1fr 1fr !important; }
