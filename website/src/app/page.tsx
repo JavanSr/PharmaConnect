@@ -238,8 +238,8 @@ function Nav() {
             ))}
           </nav>
           <div className="nav-desktop-links" style={{ gap: 10, alignItems: 'center' }}>
-            <a href="https://app.apotekh.co.tz/login" style={{ padding: '8px 18px', fontSize: 13, fontWeight: 500, color: '#0D4035', opacity: 0.7 }}>Sign in</a>
-            <a href="https://app.apotekh.co.tz/register" style={{ padding: '8px 18px', borderRadius: 8, background: '#0D4035', color: 'white', fontSize: 13, fontWeight: 600 }}>Start free trial</a>
+            <a href="https://app.apotekh.co.tz/login" style={{ padding: '10px 18px', fontSize: 13, fontWeight: 500, color: '#0D4035', opacity: 0.7, minHeight: 44, display: 'inline-flex', alignItems: 'center' }}>Sign in</a>
+            <a href="https://app.apotekh.co.tz/register" style={{ padding: '10px 20px', borderRadius: 8, background: '#1A6B5C', color: 'white', fontSize: 13, fontWeight: 600, minHeight: 44, display: 'inline-flex', alignItems: 'center' }}>Start free trial</a>
           </div>
           <button className="nav-hamburger" onClick={() => setMobileOpen(true)}
             style={{ background: 'none', border: '1px solid #E2EDE8', borderRadius: 8, width: 40, height: 40, cursor: 'pointer', color: '#0D4035', fontSize: 18 }}>
@@ -299,17 +299,13 @@ function Hero() {
             patient safety checks, regulatory compliance, and analytics — in one platform built for how pharmacies actually work.
           </p>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', marginBottom: 20, animation: 'fadeUp 700ms ease both 560ms' }}>
-            <a href="https://app.apotekh.co.tz/register" style={{
-              display: 'inline-flex', alignItems: 'center', padding: '14px 28px',
-              borderRadius: 10, background: '#7ECFB4', color: '#0D4035', fontSize: 15, fontWeight: 700,
-              boxShadow: '0 4px 20px rgba(126,207,180,0.35)',
+            <a href="https://app.apotekh.co.tz/register" className="cta-primary" style={{
+              background: '#7ECFB4', color: '#0D4035',
+              boxShadow: '0 4px 20px rgba(126,207,180,0.35)', fontSize: 15,
             }}>
               Start free trial — 14 days free
             </a>
-            <a href="/platform" style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6, padding: '14px 28px',
-              borderRadius: 10, border: '1.5px solid rgba(255,255,255,0.3)', color: 'white', fontSize: 15, fontWeight: 600,
-            }}>
+            <a href="/platform" className="cta-outline">
               Explore the platform →
             </a>
           </div>
@@ -1019,9 +1015,11 @@ function TierCard({ tier, bill, wide }: { tier: AnyTier; bill: string; wide?: bo
       {'outlets' in tier && tier.outlets && <p style={{ fontSize: 12, color: '#516965', marginBottom: 6 }}>{tier.outlets} outlet{tier.outlets > 1 ? 's' : ''} · {tier.users} users</p>}
       <p style={{ fontSize: 12, color: '#516965', lineHeight: 1.65, marginBottom: 18, minHeight: 44 }}>{tier.desc}</p>
       <a href="https://app.apotekh.co.tz/register" style={{
-        display: 'block', textAlign: 'center', padding: '10px', borderRadius: 8, marginBottom: 20,
-        background: tier.popular ? '#1A6B5C' : 'transparent', border: tier.popular ? 'none' : '1px solid #E2EDE8',
-        color: tier.popular ? 'white' : '#0D4035', fontSize: 13, fontWeight: 600,
+        display: 'block', textAlign: 'center', padding: '13px 16px', borderRadius: 8, marginBottom: 20,
+        background: tier.popular ? '#1A6B5C' : 'white',
+        border: tier.popular ? 'none' : '2px solid #1A6B5C',
+        color: tier.popular ? 'white' : '#1A6B5C',
+        fontSize: 14, fontWeight: 700, minHeight: 44,
       }}>Start free trial</a>
       <ul style={{ listStyle: 'none', display: 'grid', gap: 9 }}>
         {tier.features.map(f => <li key={f} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 12, color: '#0D4035' }}><Check />{f}</li>)}
@@ -1193,10 +1191,10 @@ function FinalCTA() {
           14-day free trial on every plan. No credit card. No setup fee.<br />Your pharmacy running on APOTEKH in minutes.
         </p>
         <div style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap' }}>
-          <a href="https://app.apotekh.co.tz/register" style={{ display: 'inline-block', padding: '15px 36px', borderRadius: 10, background: '#7ECFB4', color: '#0D4035', fontSize: 15, fontWeight: 700, textDecoration: 'none', boxShadow: '0 4px 20px rgba(126,207,180,0.35)' }}>
+          <a href="https://app.apotekh.co.tz/register" className="cta-primary" style={{ background: '#7ECFB4', color: '#0D4035', padding: '15px 36px', boxShadow: '0 4px 20px rgba(126,207,180,0.35)', fontSize: 15 }}>
             Start free trial — 14 days free
           </a>
-          <a href="mailto:support@apotekh.co.tz?subject=Wholesale%20%2F%20Enterprise%20inquiry" style={{ display: 'inline-block', padding: '15px 36px', borderRadius: 10, background: 'rgba(255,255,255,0.1)', color: 'white', fontSize: 15, fontWeight: 600, textDecoration: 'none', border: '1.5px solid rgba(255,255,255,0.2)' }}>
+          <a href="mailto:support@apotekh.co.tz?subject=Wholesale%20%2F%20Enterprise%20inquiry" className="cta-outline" style={{ padding: '14px 36px' }}>
             Wholesale / Enterprise →
           </a>
         </div>

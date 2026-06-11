@@ -287,6 +287,45 @@ textarea {
   .four-col  { grid-template-columns: 1fr 1fr !important; }
 }
 
+/* ── CTA button system ─────────────────────────────────────────────────────── */
+/* All <a> tags used as buttons get pointer cursor and no underline */
+a[href] { text-decoration: none; }
+
+/* Primary green CTA — used across all sections */
+.cta-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 13px 28px;
+  border-radius: 10px;
+  background: #1A6B5C;
+  color: white;
+  font-size: 15px;
+  font-weight: 700;
+  transition: background 150ms, transform 80ms;
+  cursor: pointer;
+}
+.cta-primary:hover  { background: #145748; }
+.cta-primary:active { transform: scale(0.98); }
+
+/* Outlined secondary CTA */
+.cta-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 12px 28px;
+  border-radius: 10px;
+  border: 2px solid rgba(255,255,255,0.35);
+  color: white;
+  font-size: 15px;
+  font-weight: 600;
+  transition: border-color 150ms, background 150ms;
+  cursor: pointer;
+}
+.cta-outline:hover { border-color: rgba(255,255,255,0.65); background: rgba(255,255,255,0.05); }
+
 /* ── Hero overlay ──────────────────────────────────────────────────────────── */
 .hero-overlay {
   position: absolute;
