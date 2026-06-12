@@ -84,6 +84,25 @@ Each feature lives in `backend/src/modules/<name>/`. The standard files are:
 
 Errors thrown from services must carry a `.status` property; `errorHandler` middleware reads it for the HTTP response code.
 
+### Middleware
+
+`backend/src/middleware/` -- applied at router or route level.
+
+- `auth.ts` -- JWT authentication (`authenticate` middleware). Extracts `req.user` from Bearer token. `requireRole(...roles)` enforces exact role membership.
+- `tier.ts` -- `requireTier(required: SupportedTier)` -- returns 403 with `{ error: 'TIER_INSUFFICIENT', current, required, upgradeUrl }` when pharmacy subscription tier is below required. SUPER_ADMIN bypasses all tier checks.
+- `trial.ts` -- `enforceTrialRestrictions` -- enforces trial expiry and subscription lapse. A pharmacy enters **grace mode** when its paid subscription lapses (status `GRACE`, or status `ACTIVE` with `trialEndsAt` in the past). Grace lasts up to 30 days. During grace, only these API prefixes remain accessible: `/dispensing`, `/inventory`, `/analytics`, `/patient-safety`, `/settings`, `/notifications`. All other routes return `GRACE_FEATURE_LOCKED`. After 30 days the pharmacy is hard-locked. The owner retains access to the subscription page throughout.
+- `permissions.ts` -- `requirePermission(key)` -- granular permission checks beyond role. Full permission key list:
+  - `inventory.view_products`, `inventory.manage_products`, `inventory.manage_stock`, `inventory.view_reports`
+  - `dispensing.access`, `dispensing.apply_discount`, `dispensing.void_sale`, `dispensing.override_major_alert`
+  - `compliance.view`, `compliance.manage`
+  - `knowledge.view`, `knowledge.manage`
+  - `analytics.view_dashboard`, `analytics.view_financial_reports`
+  - `settings.manage_subscription`, `settings.manage_team`
+  - `wholesale.view_dashboard`, `wholesale.view_catalogue_read_only`, `wholesale.manage_catalogue`, `wholesale.pick_order`, `wholesale.confirm_delivery`, `wholesale.set_credit_limits`, `wholesale.view_financial_reports`
+- `requireWholesaleAccess.ts` -- compound check: passes only if `role === 'WHOLESALE_MANAGER'` OR `(role === 'OWNER' AND subscriptionTier === 'WHOLESALE')`.
+- `pic-pin.ts` -- PIC PIN verification for high-severity overrides. Rate-limited to 5 attempts per 15 minutes per pharmacy.
+- `errorHandler.ts` -- catches thrown errors with `.status` property and returns `{ error: message }` with the correct HTTP code.
+
 ### Background jobs
 
 `backend/src/jobs/*.ts` — each exports a `register*Job()` function that sets up a `node-cron` schedule. All jobs are registered at startup in `src/index.ts`. Jobs: expiry alerts, low-stock alerts, compliance alerts, trial expiry alerts, weekly digest, VFD retry, demand predictions.
@@ -108,6 +127,112 @@ Alert metadata includes `urgency` field matching the formula above. Stored in `A
 - `≤ 14 days` → WARNING — only receive if dispense before expiry
 - `≤ 30 days` → CAUTION — FEFO required once received
 - `≤ 60 days` → INFO — check stock levels before ordering more
+
+### Admin module
+
+`backend/src/modules/admin/` -- mounts at `/api/v1/admin`. All routes require `SUPER_ADMIN`.
+
+- `GET /admin/dashboard/metrics` -- platform-wide totals: pharmacies, active pharmacies, users, dispensings, tier breakdown.
+- `GET /admin/dashboard/at-risk` -- pharmacies flagged as at-risk (trial expiring, grace mode, low activity).
+- `GET /admin/pharmacies` -- paginated pharmacy list with search, tier, status, region filters.
+- `GET /admin/pharmacies/export-csv` -- full pharmacy list as CSV (owner name, email, phone, last login, onboarded at, activity health).
+- `GET /admin/pharmacies/:id` -- single pharmacy detail.
+- `PATCH /admin/pharmacies/:id/tier` -- change subscription tier.
+- `PATCH /admin/pharmacies/:id/status` -- change status (ACTIVE, SUSPENDED, GRACE, TRIAL, etc).
+- `PATCH /admin/pharmacies/:id/expiry` -- extend trial/subscription expiry date.
+- `PATCH /admin/pharmacies/:id/notes` -- add internal admin notes.
+- `POST /admin/pharmacies/:id/payments` -- record a manual payment (M-Pesa/bank) and activate/extend subscription.
+- `GET /admin/pharmacies/:id/payments` -- payment history for a pharmacy.
+- `GET /admin/pharmacies/:id/usage` -- feature usage stats for a pharmacy.
+- `POST /admin/pharmacies/:id/impersonate` -- issue a short-lived impersonation token so SUPER_ADMIN can view a pharmacy as the owner. Frontend shows `ImpersonationBanner` during the session.
+- `POST /admin/pharmacies/:id/reset-pin/:userId` -- reset a user's PIC PIN.
+- `GET /admin/audit` -- platform audit log (all admin actions, with filtering).
+- `GET /admin/audit/export` -- audit log as CSV.
+- `GET /admin/feature-flags` -- all per-pharmacy feature flag overrides.
+- `PATCH /admin/feature-flags/:pharmacyId/:featureKey` -- toggle a feature flag for a specific pharmacy.
+- `POST /admin/feature-flags/reset/:pharmacyId` -- reset all feature flags for a pharmacy to defaults.
+- `GET /admin/feature-flags/global` -- global feature flags (platform-wide).
+- `PATCH /admin/feature-flags/global/:featureKey` -- toggle a global feature flag.
+- `POST /admin/messages/send` -- broadcast a message to pharmacy owners.
+- `GET /admin/messages` -- list sent messages.
+
+**Impersonation flow:** SUPER_ADMIN clicks "View as Owner" on a pharmacy detail page. Backend issues a token scoped to that pharmacy. Frontend stores impersonation context in `authStore.impersonationInfo`. `ImpersonationBanner` appears at the top of every page during the session. The impersonated session has the same permissions as the pharmacy OWNER. All writes during impersonation are tagged with the actual SUPER_ADMIN identity in audit logs.
+
+### Source Sync module
+
+`backend/src/modules/source-sync/` -- mounts at `/api/v1/source-sync`. SUPER_ADMIN only.
+
+Monitors upstream data sources (TMDA master catalogue, safety rules) for changes. Probes source URLs, computes content fingerprints, and enqueues changes into the Review Queue when a source has drifted from the last known state.
+
+- `GET /source-sync/runs` -- list past sync run results.
+- `POST /source-sync/runs` -- trigger a manual source sync check.
+
+Changes discovered by source sync appear in the Review Queue for a platform pharmacist to approve before they update the live catalogue.
+
+### Review Queue module
+
+`backend/src/modules/review/` -- mounts at `/api/v1/review-queue`. Roles: OWNER, PHARMACIST_IN_CHARGE, SUPER_ADMIN.
+
+The Review Queue holds drug catalogue entries and safety rules that were imported (from CSV, PDF, or source sync) but have not yet been validated by a platform pharmacist or confirmed against TMDA reference data.
+
+Entry statuses: `DRAFT`, `IMPORTED`, `PENDING_REVIEW`, `APPROVED`, `REJECTED`, `RETIRED`.
+Reviewer types: `PLATFORM_PHARMACIST`, `TMDA_REFERENCE`.
+
+- `GET /review-queue` -- list entries with filters (status, entityType, reviewerType).
+- `GET /review-queue/:id` -- single entry detail.
+- `PATCH /review-queue/:id` -- update status or add reviewer notes.
+
+### Forecasting module
+
+`backend/src/modules/forecasting/` -- mounts at `/api/v1/forecasting`. Requires `analytics.view_dashboard` permission. Trial restrictions enforced.
+
+- `GET /forecasting/stockout` -- PREMIUM tier. Stockout risk forecast: products with projected runout within the lead time window, based on consumption velocity over a configurable lookback period (7-180 days). Returns ranked list with days-until-stockout, velocity, and reorder suggestion.
+- `GET /forecasting/dead-stock` -- PREMIUM tier. Dead stock scoring: products with low velocity and high on-hand quantity. Scores products for clearance or return.
+- `GET /forecasting/seasonality` -- PREMIUM tier. Seasonal demand time series for selected products.
+- `GET /forecasting/regional-stub` -- Regional forecast stub (placeholder for Phase 2 network-level forecasting).
+
+Feature usage is tracked via `trackFeatureTelemetry()` on each forecasting request.
+
+### Catalogue Import module
+
+`backend/src/modules/catalogue-import/` -- mounts at `/api/v1/catalogue-import`. Roles: OWNER, PHARMACIST_IN_CHARGE, DISPENSER, SUPER_ADMIN.
+
+AI-powered PDF catalogue ingestion. SUPER_ADMIN or staff uploads a supplier PDF price list; the Anthropic claude-haiku model extracts product names, generics, strengths, dosage forms, and unit prices into structured JSON. Results are returned for review before import.
+
+- `POST /catalogue-import/extract` -- upload PDF (max 20 MB), returns extracted product rows. Requires `ANTHROPIC_API_KEY`. Returns 503 if key not configured.
+
+### Feature Telemetry
+
+`backend/src/modules/telemetry/feature-telemetry.service.ts`
+
+Lightweight usage tracking. `trackFeatureTelemetry({ pharmacyId, userId, featureKey, eventType })` writes a row to the `feature_telemetry` table. Event types: `ACTIVATED` (first use), `USED` (subsequent). Used by Forecasting, AI Agents, and other premium features. Data surfaces in the admin pharmacy usage view.
+
+### Waitlist module
+
+`backend/src/modules/waitlist/` -- mounts at `/api/v1/waitlist`. No authentication required (public endpoint).
+
+Captures pre-registration interest from the marketing website before a pharmacy completes full signup.
+
+### Me module
+
+`backend/src/modules/me/` -- mounts at `/api/v1/me`. Returns the authenticated user's own profile, linked pharmacies, and active session context. Used by the frontend on app load to hydrate `authStore` and `pharmacyStore`.
+
+### Notifications module
+
+`backend/src/modules/notifications/` -- mounts at `/api/v1/notifications`.
+
+- `GET /notifications` -- list in-app notifications for the authenticated user (paginated, with unread count).
+- `PATCH /notifications/read-all` -- mark all notifications as read.
+- `PATCH /notifications/:id/read` -- mark a single notification as read.
+- Notification preferences endpoint for opt-in/out per notification type.
+
+### Daily Close
+
+`GET /api/v1/dispensing/daily-close` (also aliased as `/close-day`) -- generates the end-of-day summary: total revenue, transaction count, payment method breakdown (cash, mobile money, insurance), voids, and returns. A daily close record is saved so the summary is consistent even if viewed after midnight. Accessible to OWNER, PHARMACIST_IN_CHARGE, DISPENSER.
+
+### Controlled Drugs Register
+
+`GET /api/v1/dispensing/controlled-register` -- lists all dispensed items where the drug class is CONTROLLED or NARCOTIC. Required for regulatory inspection. Accessible to OWNER, PHARMACIST_IN_CHARGE, SUPER_ADMIN.
 
 ### AI Agents system
 
@@ -549,6 +674,78 @@ Metro Pharma Distribution,Paracetamol 500mg Tablets,3500,Paracetamol,500mg,TABLE
 
 ---
 
+## Supplier Portal (Tier 2 Wholesaler Integration)
+
+### Overview
+
+The Supplier Portal is a tokenized, server-rendered order-confirmation page that a non-APOTEKH wholesaler can open in any browser -- no account required. When a pharmacy submits a stock order and provides a supplier phone number, APOTEKH generates a unique 14-day token and returns a WhatsApp-ready link. The wholesaler taps the link, confirms quantities and prices for each line item, and the pharmacy receives an in-app notification.
+
+This is Tier 2 of the three-tier wholesaler model:
+- **Tier 1**: Wholesaler is an APOTEKH subscriber -- orders handled fully in-app.
+- **Tier 2**: Wholesaler has no APOTEKH account -- tokenized portal (this feature).
+- **Tier 3**: Wholesaler has an ERP/API -- direct integration (Phase 2).
+
+### Architecture
+
+**Backend files:**
+- `backend/src/modules/inventory/supplier-portal.router.ts` -- public Express router (no auth middleware), mounts at `/supplier-portal`
+- `backend/src/modules/inventory/supplier-portal.service.ts` -- token generation, portal retrieval, confirm/reject logic, in-app notification
+- `backend/src/modules/inventory/supplier-portal.html.ts` -- pure HTML/CSS/vanilla-JS server-rendered template (no React, no build step, works on basic Android browsers)
+
+**Schema models** (in `backend/prisma/schema.prisma`):
+- `SupplierPortalToken` -- one token per stock order (unique constraint), 14-day expiry, tracks PENDING / VIEWED / CONFIRMED / PARTIALLY_CONFIRMED / REJECTED / EXPIRED
+- `SupplierPortalLineItem` -- one row per stock order item, stores quantityConfirmed, unitPrice, available flag, notes
+- `SupplierPortalStatus` -- Prisma enum
+
+**Pending user action after schema change:**
+```bash
+npx prisma migrate dev --name supplier_portal
+npx prisma generate
+```
+Until `prisma generate` runs, `supplier-portal.service.ts` uses `(prisma as any)` for the two new models. Remove the cast after regeneration.
+
+### API Routes (public -- no auth)
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET`  | `/supplier-portal/:token` | Serve HTML portal page |
+| `POST` | `/supplier-portal/:token/confirm` | Supplier confirms order |
+| `POST` | `/supplier-portal/:token/reject` | Supplier rejects order |
+
+**Token generation** is triggered by `POST /api/v1/stock-orders/:id/submit` when `supplierName` or `supplierPhone` is included in the request body. The submit endpoint now accepts:
+```json
+{ "supplierName": "...", "supplierPhone": "255...", "supplierEmail": "..." }
+```
+And returns:
+```json
+{ "data": { ...order, "portalLink": "https://wa.me/...", "portalToken": "uuid" } }
+```
+
+### Notification on response
+
+When the supplier confirms or rejects, the service writes to `prisma.notification` (NOT `alertLog`) with:
+- `type: 'SUPPLIER_PORTAL_RESPONSE'`
+- `title`: "[Supplier name] confirmed/rejected your order"
+- `body`: summary with optional supplier note
+- `metadata`: includes `stockOrderId`, `supplierPortalTokenId`, `status`, `deliveryDate`
+
+**Never use `alertLog` for portal notifications.** `AlertLog` is for outbound SMS/email delivery tracking (has `channel`, `referenceType`, `status` fields). `Notification` is the correct in-app inbox model.
+
+### WhatsApp link format
+
+```
+wa.me/{phone}?text=*APOTEKH Purchase Order -- {orderNumber}*%0AFrom: {pharmacyName}%0A%0APlease review and confirm this order:%0A{portalUrl}%0A%0AThe link is valid for 14 days. No account needed.
+```
+
+`BACKEND_URL` env variable controls the portal base URL. Falls back to `RAILWAY_STATIC_URL` then `https://api.apotekh.co.tz`.
+
+### Idempotency
+
+`generatePortalToken()` is idempotent -- if a token already exists for a stock order, it returns the existing one. Resubmitting the same order does not create a duplicate token.
+
+
+---
+
 ## Wholesale System
 
 ### Overview
@@ -808,6 +1005,33 @@ These are the target standards for new code:
 
 **Lazy-loaded components:**
 - `BarcodeScanner`, `DoseCalculator`, `PatientSafetyPanel` in DispensingScreen loaded via `lazy(() => import(...).then(m => ({ default: m.ComponentName })))`
+
+**Frontend pages inventory (all under `frontend/src/modules/`):**
+
+- `admin/AdminShell.tsx` -- dark-theme admin layout for SUPER_ADMIN. Nav: Dashboard, Founder Hub, Pharmacies, Audit Log, Feature Flags, Messages.
+- `admin/AdminDashboardPage.tsx` -- platform metrics dashboard.
+- `admin/AdminPharmaciesPage.tsx` -- searchable/filterable pharmacy list.
+- `admin/AdminPharmacyDetailPage.tsx` -- single pharmacy drill-down: tier, status, expiry, notes, usage, payments, impersonate button.
+- `admin/AdminAuditPage.tsx` -- platform audit log viewer.
+- `admin/AdminFeatureFlagsPage.tsx` -- per-pharmacy and global feature flag toggles.
+- `admin/AdminMessagesPage.tsx` -- broadcast message composer.
+- `admin/ImpersonationBanner.tsx` -- orange top-bar shown when SUPER_ADMIN is viewing as an owner. Shows pharmacy name and provides exit link.
+- `analytics/ForecastingPage.tsx` -- PREMIUM forecasting: stockout risk, dead stock, seasonality charts.
+- `dispensing/DailyClose.tsx` -- end-of-day summary with payment breakdown and close-day confirmation.
+- `dispensing/ControlledDrugsRegisterPage.tsx` -- CONTROLLED/NARCOTIC dispensing log for regulatory inspection.
+- `dispensing/DispensingReturnsPage.tsx` -- void and return history with filters.
+- `dispensing/PatientSafetyAlertsPage.tsx` -- log of all safety alerts fired during dispensing sessions.
+- `inventory/CatalogueImportPage.tsx` -- PDF supplier catalogue upload; shows AI-extracted rows for review before import.
+- `inventory/MedicinePriceComparisonPage.tsx` -- standalone price comparison page across all catalogued suppliers.
+- `inventory/WholesalerDiscoveryPage.tsx` -- find and filter APOTEKH-network wholesalers.
+- `inventory/WholesalerCataloguePage.tsx` -- browse a specific wholesaler's catalogue with tier pricing.
+- `inventory/WholesalerCSVUploadPage.tsx` -- SUPER_ADMIN CSV upload for supplier catalogues.
+- `knowledge/CertificateVerifyPage.tsx` -- public page to verify a CPD completion certificate by code.
+- `knowledge/UnsubscribePage.tsx` -- email unsubscribe landing page (public, no auth).
+- `settings/DataReviewPage.tsx` -- review queue UI for imported catalogue entries.
+- `settings/FeaturesPage.tsx` -- per-pharmacy feature opt-in/opt-out controls.
+- `settings/SourceUpdatesPage.tsx` -- SUPER_ADMIN: source sync history and manual trigger.
+- `deferred/` -- pages shown for features not yet available: `NhifClaimsPage`, `PatientRecordsPage`, `ControlledSubstancesPage`, `PrescriptionManagementPage`, `AccreditedCpdPage`, `PharmacovigilancePage`, `SymptomCheckerPage`. All render a `DeferredFeaturePage` placeholder explaining why the feature is not yet live.
 - Wrapped in `<Suspense fallback={<Spinner />}>` for smooth progressive rendering
 - Reduces main bundle size; components load on-demand when dispensing flow needs them
 
@@ -872,3 +1096,8 @@ These are the target standards for new code:
   from any role including superadmin. This is a permanent medical record.
 - The B2B ordering network is closed. Retail pharmacies can only order from
   wholesal
+
+- SUPER_ADMIN login now routes to `/superadmin` (the dark admin shell), NOT `/founder`. The `/founder` route redirects to `/superadmin/founder`. Do not revert this. The FounderDashboardPage (payment queue, registrations, overrides) is accessible at `/superadmin/founder` inside the AdminShell. The AdminShell sidebar includes "Founder Hub" as the second nav item.
+- When SUPER_ADMIN is in the pharmacy layout (e.g. directly navigating to `/dashboard`), the `Sidebar` component renders a dark `FounderSidebarContent` that shows "Platform Admin" identity and a direct link back to `/superadmin`. No pharmacy nav items are shown to SUPER_ADMIN in the pharmacy sidebar.
+- The three-tier wholesaler model: Tier 1 (APOTEKH subscriber, in-app), Tier 2 (tokenized supplier portal, no account), Tier 3 (API/ERP, Phase 2). The portal is already built for Tier 2. Do not conflate Tier 1 and Tier 2 flows.
+- `Notification` model is the in-app notification inbox (`type`, `title`, `body`, `metadata`, `isRead`). `AlertLog` is the outbound notification delivery log (`alertType`, `channel`, `referenceId`, `referenceType`, `status`). Never use `AlertLog` for in-app notifications.

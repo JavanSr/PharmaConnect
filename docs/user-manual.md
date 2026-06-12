@@ -116,6 +116,8 @@ Trial behavior:
 - If a trial ends, access is paused except for allowed subscription and read-only exceptions.
 - Owners and super admins can open subscription options and contact the founder for renewal or upgrade.
 
+![Trial confirmed page](screenshots/02-trial-confirmed.png)
+
 ### Choosing a subscription tier
 
 Where to find it: `Settings > Subscription`
@@ -141,7 +143,7 @@ Current pricing:
 
 | Plan | Monthly price | Annual price | Included scale |
 |---|---:|---:|---|
-| ADDO | Tsh 20,000 | Tsh 200,000 | 1 outlet, 3 users |
+| ADDO | Tsh 15,000 | Tsh 150,000 | 1 outlet, 3 users |
 | BASIC | Tsh 39,000 | Tsh 390,000 | 2 outlets, 5 users |
 | STANDARD | Tsh 55,000 | Tsh 550,000 | 3 outlets, 10 users |
 | PREMIUM | Tsh 75,000 | Tsh 750,000 | 5 outlets, 20 users |
@@ -239,7 +241,7 @@ The main sidebar includes these active and visible sections depending on role:
 - `Wholesale`
 - `Orders`
 - `Reports`
-- `Attendance`
+- `Staff Activity`
 - `Sync Conflicts`
 - `Founder`
 - `Settings`
@@ -355,6 +357,13 @@ Product fields include:
 - Reorder Level
 - Minimum Stock
 
+Product list filters:
+
+- Search by name, generic name, barcode, batch number, or SKU.
+- Filter by Storage Condition: `Ambient`, `Refrigerated`, `Frozen`.
+- Sort by name, stock level, or reorder urgency.
+- Toggle `Low Stock Only` to show only items at or below their reorder level.
+
 Typical scenario:
 
 1. Open `Inventory > Products`.
@@ -362,6 +371,8 @@ Typical scenario:
 3. Open an existing item or click `Add Product`.
 4. Fill required product details.
 5. Save, then receive stock batches for that product.
+
+![Products list with filters](screenshots/05-products-list.png)
 
 ![Add Product form](screenshots/06-add-product.png)
 
@@ -480,11 +491,14 @@ Typical scenario:
 3. Search or scan the product.
 4. Select a local product or create one from master catalogue.
 5. Enter batch number, expiry date, quantity, purchase price, and optional selling price.
-6. Add to cart.
-7. Repeat for other products.
-8. Click `Receive all`.
+6. If the batch expiry is within 60 days, a live expiry gate warning fires — review urgency level before proceeding.
+7. Add to cart.
+8. Repeat for other products.
+9. Click `Receive all`.
 
-![Receive Stock](screenshots/08-receive-stock.png)
+![Receive Stock — intake form](screenshots/08-receive-stock.png)
+
+![Receive Stock — barcode scanner](screenshots/08b-barcode-scanner.png)
 
 Offline behavior:
 
@@ -552,18 +566,95 @@ Who uses it: `OWNER`, `PHARMACIST_IN_CHARGE`, `DISPENSER`, `WHOLESALE_MANAGER`, 
 
 What it does:
 
-Order Preparation helps teams create stock orders from low-stock suggestions or manual product search. Orders can be drafts, submitted, partially received, received, or cancelled.
+Order Preparation is the full stock-ordering workflow -- from identifying what to buy, through getting supplier confirmation, to receiving goods. Orders progress through: Draft, Submitted, Partially Received, Received, Cancelled.
 
-Typical scenario:
+#### Building an order
 
 1. Open `Order Preparation`.
-2. Click `New Order`.
-3. Search inventory or add low-stock suggestions.
-4. Enter quantity, expected unit cost, supplier, notes, expected delivery, and order notes.
-5. Save draft or submit order.
-6. When stock arrives, open the order and receive items with batch number, expiry date, quantity received, unit cost, and selling price.
+2. Click `New Order`. Give the order a name and optional notes.
+3. Add items by searching your inventory or accepting low-stock suggestions.
+
+Each line item shows:
+
+- **Current stock badge** -- the quantity on hand right now, so you order the right amount without switching screens.
+- **Urgency colouring** -- lines turn red (critically low / out of stock), amber (low), yellow (getting low), or green (adequate). The colour updates as you edit quantities.
+- **Running cost totals** -- the order subtotal updates instantly as you adjust quantities or unit costs. No mental arithmetic required.
+
+#### Inline supplier price comparison
+
+Before finalising quantities, click **Compare Prices** on any line item. A panel slides in showing all catalogued suppliers that carry that product, sorted by unit price. The cheapest option gets a "Cheapest" badge. Supplier contact details (phone, email) are shown so you can reach them directly via WhatsApp or call if needed.
+
+This eliminates the need to leave the order screen to check what Shelys or Metro are charging.
+
+#### Duplicate detection
+
+If you add a product that is already on the current order (e.g. searched twice), the system warns you and highlights the existing line so you can update it rather than create a duplicate entry.
+
+#### Submitting with supplier details
+
+When you are ready to submit:
+
+1. Click **Submit Order**.
+2. The confirmation modal shows the full order summary.
+3. Optionally enter **Supplier Name**, **Supplier Phone**, and **Supplier Email** in the supplier fields.
+4. Click **Confirm & Submit**.
+
+If you provided a supplier phone number, APOTEKH generates a tokenized supplier portal link and opens a pre-filled WhatsApp message to the supplier automatically. The supplier receives the link, opens it in any browser (no account needed), and confirms or adjusts quantities and prices.
+
+#### Export options
+
+After an order is saved or submitted, two export options are available:
+
+- **Export as Text** -- a plain-text order summary you can copy and paste into any message or document.
+- **Send via WhatsApp** -- opens WhatsApp with a pre-formatted message containing the order number, pharmacy name, line items, and the portal link (if a supplier portal was generated).
+
+#### Receiving stock
+
+When goods arrive, open the submitted order and click **Receive Items**. For each line: enter batch number, expiry date, quantity received, actual unit cost, and selling price. APOTEKH runs the expiry gate check -- if a batch expires within 60 days, a live warning fires with urgency level (CRITICAL, URGENT, WARNING, CAUTION, or INFO). Batches expiring before they could be sold should not be received.
 
 ![Order Preparation](screenshots/11-order-preparation.png)
+
+---
+
+### Tokenized Supplier Portal
+
+Where to find it: Link sent via WhatsApp by APOTEKH when a stock order is submitted with a supplier phone number. No APOTEKH account required.
+
+Who uses it: Supplier / wholesaler staff (external to APOTEKH)
+
+What it does:
+
+The Supplier Portal allows a wholesaler who does not have an APOTEKH account to receive, review, and confirm (or reject) a purchase order directly from a link in WhatsApp -- using any browser on any device.
+
+#### How it works (pharmacy side)
+
+1. When submitting a stock order, enter the supplier's phone number in the confirmation modal.
+2. APOTEKH generates a unique 14-day link and opens a pre-filled WhatsApp message.
+3. Send the WhatsApp message. The supplier receives it with no further action needed from you.
+4. Once the supplier responds, you receive an in-app notification: "[Supplier Name] confirmed your order" or "[Supplier Name] rejected your order."
+5. Open the notification to see confirmed quantities, unit prices, any notes, and the estimated delivery date.
+
+#### How it works (supplier side)
+
+The supplier taps the link in WhatsApp and sees a simple webpage showing:
+
+- Your pharmacy name and order number
+- Each product with the quantity you requested
+- Input fields to enter the quantity they can supply, unit price, and a note per line
+- An overall supplier note field and estimated delivery date
+- A **Confirm Order** or **Reject Order** button
+
+The supplier does not create an account or log in. The link is valid for 14 days and can only be used once to confirm or reject. If the supplier can only supply some items, they enter a lower quantity -- this records as a partial confirmation.
+
+#### Portal status tracking
+
+Each order portal moves through states: PENDING (link sent, not yet opened), VIEWED (opened), CONFIRMED, PARTIALLY_CONFIRMED, REJECTED, or EXPIRED (link past 14 days).
+
+This is Tier 2 of the three-tier wholesaler integration model: Tier 1 is a wholesaler already on APOTEKH (in-app orders); Tier 2 is this tokenized portal; Tier 3 is direct API/ERP integration (Phase 2).
+
+![Supplier portal — supplier confirmation view](screenshots/27-supplier-portal.png)
+
+![Order Preparation — portal status on submitted order](screenshots/28-order-portal-status.png)
 
 ### Sync Conflicts
 
@@ -606,17 +697,19 @@ The Dispensing screen is the main point-of-sale workflow. It combines patient co
    - Renal impairment
    - Hepatic impairment
 4. Search medicine by product name, generic name, barcode, or SKU.
-5. Select the medicine and review stock.
-6. Enter quantity.
-7. Add counselling notes if needed.
-8. Click `Add to basket`.
-9. Review patient safety alerts.
-10. If a PIC override is required, enter override reason and PIC PIN.
+5. Select the medicine from the suggestion list — the app pre-fetches product details in the background.
+6. Enter quantity in the quantity dialog, then click `Add to basket`.
+7. To view medicine details (brand, strength, form, AWaRe flag, stock level), click the **i** button on any basket item.
+8. Add counselling notes if needed.
+9. Review patient safety alerts shown in the safety panel. Alerts are grouped into High, Moderate, and Informational.
+10. If a safety alert fires, review it and acknowledge to proceed. No PIN is required — the dispenser proceeds at their own professional risk. The override is logged automatically under the dispenser's name.
 11. Select payment method.
-12. Enter payment reference if the method requires it.
+12. Enter payment reference if the method requires it (e.g. M-Pesa transaction code).
 13. Attach a prescription photo if needed and online.
 14. Click `Complete dispensing`.
 15. Download or review the receipt.
+
+![Dispensing — basket with medicine info panel](screenshots/12b-dispensing-info-panel.png)
 
 Current payment methods include:
 
@@ -740,42 +833,32 @@ Availability:
 - Available to all retail pharmacy tiers: `ADDO`, `BASIC`, `STANDARD`, `PREMIUM`, and `ENTERPRISE`. Clinical Decision Support is never tier-gated.
 - Not shown for wholesale-only roles (`WHOLESALE`), as wholesale does not include retail dispensing.
 
-![Safety Alerts](screenshots/13-safety-alerts.png)
+![Patient safety panel — summary counts and alert list](screenshots/12c-dispensing-safety-panel.png)
 
 ### Severity levels
 
 The app summarizes alert severity as:
 
-- High alerts
-- Moderate alerts
-- Informational alerts
+- **High** — drug-drug interactions classified MAJOR or SEVERE, or contraindications that are absolute. Shown as full alert strips with red border and background.
+- **Moderate** — interactions or precautions that are significant but not absolute. Shown as condensed rows with amber styling.
+- **Informational** — counselling prompts, NCD hints, dose reminders, AWaRe flags. Shown as text only.
 
-Interaction and contraindication data can require a PIC PIN when the risk is high enough.
+### Clinical override model
 
-### PIC override
+APOTEKH uses a **dispenser-proceeds-at-own-risk** model. No PIN is required to proceed past a safety alert at any severity level.
 
-Who can authorize: PIC users with a valid PIC PIN, including `PHARMACIST_IN_CHARGE`, `OWNER`, or `SUPER_ADMIN` with configured PIN.
+How it works:
 
-What it does:
+1. When a drug interaction, contraindication, or AWaRe RESERVE alert fires, the safety panel shows a clear warning.
+2. The dispenser reviews the alert details and makes a professional decision.
+3. To proceed, they acknowledge the alert and continue to checkout.
+4. The override is logged automatically against the dispenser's account: who, which drug, what alert level, what time.
 
-If a major safety alert requires override, checkout is blocked until the user enters:
-
-- Override reason
-- PIC PIN
-
-The backend rate-limits PIC PIN attempts. Current limit is 5 attempts per 15 minutes per pharmacy/user context.
-
-The override is stored in an immutable override log with:
-
-- Alert type
-- Reason
-- Dispenser/user
-- PIC user
-- Timestamp
+The override log is immutable — it cannot be deleted by any role, including SUPER_ADMIN. This is by design: the warning is the protection; the log is the accountability.
 
 Where to review: `Safety Alerts`
 
-![Safety Alert History](screenshots/13-safety-alerts.png)
+![Safety panel — interaction alert with override log](screenshots/13-safety-alerts.png)
 
 ### Contraindication checks
 
@@ -1506,7 +1589,7 @@ Current pricing:
 
 | Plan | Monthly price | Annual price | Included scale |
 |---|---:|---:|---|
-| ADDO | Tsh 20,000 | Tsh 200,000 | 1 outlet, 3 users |
+| ADDO | Tsh 15,000 | Tsh 150,000 | 1 outlet, 3 users |
 | BASIC | Tsh 39,000 | Tsh 390,000 | 2 outlets, 5 users |
 | STANDARD | Tsh 55,000 | Tsh 550,000 | 3 outlets, 10 users |
 | PREMIUM | Tsh 75,000 | Tsh 750,000 | 5 outlets, 20 users |
@@ -1554,28 +1637,28 @@ Current flow:
 3. APOTEKH confirms the selected current plan or enterprise quote.
 4. Team updates subscription status/tier.
 
-### Founder controls
+### Platform Admin shell (SUPER_ADMIN)
 
-Where to find it: `Founder`
+Where to find it: Automatically on login as `SUPER_ADMIN`. Direct URL: `/superadmin`.
 
-Who uses it: `SUPER_ADMIN`
+Who uses it: `SUPER_ADMIN` only
 
 What it does:
 
-Founder Dashboard provides platform-level oversight for registrations, trials, suspensions, owner verification, subscription tiers, platform activity, and recent safety overrides.
+The Platform Admin shell is a separate dark-themed administration environment that is entirely distinct from the pharmacy-side UI. When the founder logs in, they land at `/superadmin` -- not inside any pharmacy layout. The sidebar shows "Platform Admin" identity with no pharmacy-specific navigation.
 
-Founder controls include:
+The admin shell navigation includes:
 
-- Total pharmacies
-- Active pharmacies
-- Total users
-- Total dispensings
-- Subscription tier breakdown
-- Platform activity
-- Recent PIC override activity
-- Trial extension controls
-- Suspend/reactivate registration controls
-- Verify owner controls
+- **Dashboard** (`/superadmin`) -- platform-level metrics: total pharmacies, active pharmacies, total users, total dispensings, subscription tier breakdown, platform activity.
+- **Founder Hub** (`/superadmin/founder`) -- payment queue (pending M-Pesa/bank confirmations), new pharmacy registrations, trial extension controls, suspend/reactivate controls, owner verification, and recent PIC override activity.
+- **Pharmacies** (`/superadmin/pharmacies`) -- full list of all registered pharmacies with drill-down to individual pharmacy data.
+- **Audit Log** (`/superadmin/audit`) -- platform-wide audit trail of all sensitive actions.
+- **Feature Flags** (`/superadmin/feature-flags`) -- enable or disable experimental features per pharmacy or globally.
+- **Messages** (`/superadmin/messages`) -- broadcast messages to pharmacy owners.
+
+The old `/founder` URL redirects automatically to `/superadmin/founder`. Any link or bookmark using `/founder` continues to work.
+
+If the SUPER_ADMIN navigates directly into a pharmacy route (e.g. `/dashboard`), the sidebar switches to a dark "Platform Admin" identity view with a single button back to `/superadmin`. No pharmacy navigation items are shown.
 
 ![Founder Dashboard](screenshots/25-founder-dashboard.png)
 
@@ -1633,7 +1716,7 @@ Yes. Users can have multiple pharmacy memberships and switch the active outlet. 
 
 ### What should sales staff say about pricing?
 
-Use the current pricing matrix: ADDO Tsh 20,000/month, BASIC Tsh 39,000/month, STANDARD Tsh 55,000/month, PREMIUM Tsh 75,000/month, WHOLESALE Tsh 100,000/month, and ENTERPRISE custom. Annual billing is 10x monthly pricing.
+Use the current pricing matrix: ADDO Tsh 15,000/month, BASIC Tsh 39,000/month, STANDARD Tsh 55,000/month, PREMIUM Tsh 75,000/month, WHOLESALE Tsh 100,000/month, and ENTERPRISE custom. Annual billing is 10x monthly pricing.
 
 ### What makes APOTEKH Tanzania-specific?
 
@@ -1648,45 +1731,73 @@ APOTEKH is deeper than a generic POS. It combines regulated pharmacy operations,
 ## Appendix A: Quick Demo Script for Sales
 
 1. Start at the public website and explain the product promise.
-2. Log in and show the Dashboard.
-3. Open Inventory and show low stock, expiry, products, and batches.
-4. Open Receive Stock and demonstrate barcode scanner/manual barcode entry.
-5. Open Dispensing, add a product, show patient safety panel and payment flow.
-6. Show Safety Alerts and Controlled Register.
-7. Open Compliance and generate or review inspection checklist.
-8. Open Analytics and Forecasting.
-9. Open Wholesale dashboard for B2B depth.
-10. Open Knowledge Hub and CPD Tracker.
-11. Open Settings for team, subscription, and payment method configuration.
-12. Mention offline mode and show top bar sync status.
-13. For investor demos, finish with Founder Dashboard and the public Investors page.
+2. Log in and show the Dashboard — Today's Revenue card, Low Stock, and Expiry Countdown.
+3. Open Inventory: show products list with low-stock filter, expiry dashboard, and batch manager.
+4. Open Receive Stock: demonstrate camera barcode scanner and the live expiry gate warning when entering a near-expiry batch.
+5. Open Order Preparation: create an order, show urgency colouring and cost totals, click Compare Prices on a line item to show inline supplier price comparison, then submit with a supplier phone number to generate the WhatsApp supplier portal link.
+6. Open Dispensing: search a medicine, select it from suggestions (note instant pre-fetch), add to basket, click the **i** button on a basket item to show the medicine info panel.
+7. Add a second medicine that interacts with the first — show the safety panel firing a High alert, acknowledge it, and proceed to checkout.
+8. Show Safety Alerts page with the override log entry just created.
+9. Show Controlled Register.
+10. Open Compliance and generate or review inspection checklist.
+11. Open Analytics and Forecasting.
+12. Open Wholesale dashboard for B2B depth — catalogue, orders, receivables aging.
+13. Open Knowledge Hub and Staff Activity (OWNER/PIC view).
+14. Open Settings for team, subscription, and payment method configuration.
+15. Mention offline mode and show top bar sync status.
+16. For investor demos, finish with Platform Admin shell at `/superadmin` — Founder Hub, payment queue, platform metrics.
 
 ## Appendix B: Screenshot Checklist
 
-- [Screenshot: Public website homepage hero]
-- [Screenshot: Registration page]
-- [Screenshot: Trial confirmation page]
-- [Screenshot: Dashboard]
-- [Screenshot: Inventory dashboard]
-- [Screenshot: Products list]
-- [Screenshot: Add Product form]
-- [Screenshot: Drug Catalogue]
-- [Screenshot: Receive Stock with barcode scanner]
-- [Screenshot: Batch Manager]
-- [Screenshot: Stock Adjustment Approval]
-- [Screenshot: Order Preparation]
-- [Screenshot: Dispensing screen]
-- [Screenshot: Patient safety panel with PIC override]
-- [Screenshot: Safety Alert History]
-- [Screenshot: Controlled Register]
-- [Screenshot: Compliance Tracker]
-- [Screenshot: TMDA Inspection Checklist]
-- [Screenshot: Staff Credentials]
-- [Screenshot: Analytics]
-- [Screenshot: Forecasting]
-- [Screenshot: Wholesale Dashboard]
-- [Screenshot: Knowledge Hub]
-- [Screenshot: CPD Tracker]
-- [Screenshot: Team Management]
-- [Screenshot: Subscription page]
-- [Screenshot: Founder Dashboard]
+**Getting started**
+- `01-login.png` — Login / registration page
+- `02-trial-confirmed.png` — 14-day trial confirmation screen with feature list
+
+**Inventory**
+- `04-inventory-dashboard.png` — Inventory dashboard (Total SKUs, Low Stock, Expiring cards)
+- `05-products-list.png` — Products list with storage/low-stock filters applied
+- `06-add-product.png` — Add Product form (all fields visible)
+- `07-drug-catalogue.png` — Drug Catalogue search results
+- `08-receive-stock.png` — Receive Stock — intake cart with expiry gate warning
+- `08b-barcode-scanner.png` — Receive Stock — camera barcode scanner active
+- `09-batch-manager.png` — Batch Manager with expiry and quantity columns
+- `10-stock-adjustment.png` — Stock Adjustment — dispenser suggestion pending approval
+- `11-order-preparation.png` — Order Preparation — order draft with urgency colouring and cost total
+- `27-supplier-portal.png` — Supplier Portal — external confirmation page as seen by supplier
+- `28-order-portal-status.png` — Order Preparation — submitted order showing portal status badge
+
+**Dashboard**
+- `03-dashboard.png` — Main dashboard with Today's Revenue, Low Stock, and Expiry widgets
+
+**Dispensing**
+- `12-dispensing.png` — Dispensing screen — medicine search and basket
+- `12b-dispensing-info-panel.png` — Dispensing — basket item expanded with medicine info panel (i button)
+- `12c-dispensing-safety-panel.png` — Dispensing — patient safety panel with High alert and override acknowledgement
+
+**Clinical safety**
+- `13-safety-alerts.png` — Safety Alerts history page — override log entries
+- `14-controlled-register.png` — Controlled Register — controlled drug dispensing lines
+
+**Compliance**
+- `15-compliance.png` — Compliance Tracker dashboard with Health Score
+- `16-inspection-checklist.png` — TMDA Inspection Checklist — items with status and readiness score
+- `17-staff-credentials.png` — Staff Credentials — credential list with expiry dates
+
+**Analytics & reports**
+- `18-analytics.png` — Analytics — stock value, dispensing counts, expiry risk
+- `19-forecasting.png` — Forecasting workspace — stockout forecast table
+- `26-reports.png` — Reports — revenue summary and payment breakdown
+
+**Wholesale**
+- `20-wholesale-dashboard.png` — Wholesale Dashboard — catalogue, orders, receivables cards
+
+**Knowledge & CPD**
+- `21-knowledge-hub.png` — Knowledge Hub — article list with category filter
+- `22-cpd-tracker.png` — CPD Tracker — Coming Soon placeholder
+
+**Team & settings**
+- `23-team-management.png` — Team Management — member list and invite form
+- `24-subscription.png` — Subscription page — current tier, trial countdown, payment methods
+
+**Founder / admin**
+- `25-founder-dashboard.png` — Platform Admin shell — Founder Hub with payment queue

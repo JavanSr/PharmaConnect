@@ -533,3 +533,62 @@ settingsRouter.patch('/team/:id/deactivate', requireRole('OWNER', 'SUPER_ADMIN')
     next(e);
   }
 });
+
+// ─── Onboarding ───────────────────────────────────────────────────────────────
+//
+// Tracks whether the OWNER has completed first-time setup (team + optional
+// product/compliance steps). Uses PharmacySetting key 'onboarding_completed'
+// so no schema migration is needed. OWNER-only; SUPER_ADMIN is exempt.
+
+settingsRouter.get('/onboarding/status', requireRole('OWNER'), async (req: AuthRequest, res, next) => {
+  try {
+    const pharmacyId = pid(req);
+
+    const [setting, teamCount] = await Promise.all([
+      prisma.pharmacySetting.findUnique({
+        where: { pharmacyId_key: { pharmacyId, key: 'onboarding_completed' } },
+        select: { value: true },
+      }),
+      prisma.pharmacyMembership.count({
+        where: {
+          pharmacyId,
+          active: true,
+          role: { not: 'OWNER' },
+        },
+      }),
+    ]);
+
+    const completed = setting !== null;
+    res.json({
+      data: {
+        completed,
+        teamMembersAdded: teamCount,
+        completedAt: completed ? (setting!.value as { completedAt?: string }).completedAt ?? null : null,
+      },
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+settingsRouter.post('/onboarding/complete', requireRole('OWNER'), async (req: AuthRequest, res, next) => {
+  try {
+    const pharmacyId = pid(req);
+    const userId = uid(req);
+
+    await prisma.pharmacySetting.upsert({
+      where: { pharmacyId_key: { pharmacyId, key: 'onboarding_completed' } },
+      update: { value: { completedAt: new Date().toISOString() } },
+      create: {
+        pharmacyId,
+        key: 'onboarding_completed',
+        value: { completedAt: new Date().toISOString() },
+        createdBy: userId,
+      },
+    });
+
+    res.json({ data: { completed: true } });
+  } catch (e) {
+    next(e);
+  }
+});

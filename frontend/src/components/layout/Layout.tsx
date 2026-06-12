@@ -10,6 +10,7 @@ import { TrialBanner } from '@/components/TrialBanner';
 import { TrialPaywall } from '@/components/TrialPaywall';
 import { GraceAccessBanner } from '@/components/GraceAccessBanner';
 import { SystemStatusWindow } from '@/components/SystemStatusWindow';
+import { OnboardingWizard } from '@/components/OnboardingWizard';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { ToastContainer } from '@/components/ui/Toast';
@@ -61,10 +62,27 @@ export const Layout: React.FC = () => {
   const setMemberships = usePharmacyStore((state) => state.setMemberships);
   const [forceTrialExpired, setForceTrialExpired] = React.useState(false);
   const [forceGraceAccess, setForceGraceAccess] = React.useState(false);
+  const [onboardingDismissed, setOnboardingDismissed] = React.useState(false);
 
   const title = routeTitles[location.pathname] || '';
   const user = useAuthStore((state) => state.user);
   const isFounderAccount = user?.role === 'SUPER_ADMIN';
+  const isOwner = user?.role === 'OWNER';
+
+  // Onboarding wizard: shown once to OWNER until they complete or skip it.
+  // Uses PharmacySetting key 'onboarding_completed' so it persists across logins.
+  const onboardingQuery = useQuery({
+    queryKey: ['onboarding-status', pharmacy?.id],
+    queryFn: () => api.get('/settings/onboarding/status').then((r) => r.data.data),
+    enabled: isOwner && !!pharmacy?.id && !onboardingDismissed,
+    staleTime: Infinity,
+    retry: false,
+  });
+  const showOnboarding =
+    isOwner &&
+    !onboardingDismissed &&
+    onboardingQuery.isSuccess &&
+    onboardingQuery.data?.completed === false;
   const subscriptionQuery = useQuery({
     queryKey: ['layout-subscription-status'],
     queryFn: () => api.get('/settings/subscription').then((response) => response.data),
@@ -184,10 +202,13 @@ export const Layout: React.FC = () => {
   }
 
   // Grace mode: never block, but show a persistent banner.
-  // The full app renders normally — only the banner differs.
+  // The full app renders normally - only the banner differs.
 
   return (
     <div className="flex h-screen bg-background text-on-surface overflow-hidden print:block print:h-auto print:overflow-visible print:bg-white">
+      {showOnboarding && (
+        <OnboardingWizard onComplete={() => setOnboardingDismissed(true)} />
+      )}
       <div className="relative print:hidden">
         <Sidebar
           isOpen={sidebarOpen}
