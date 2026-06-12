@@ -99,10 +99,10 @@ const TABS = [
   {
     id: 'compliance', label: 'Compliance',
     headline: 'Every deadline visible before it becomes a crisis',
-    body: 'TMDA licences, PC registrations, and inspection dates — tracked with colour-coded status, early reminders, and evidence upload in one place.',
+    body: 'TMDA licences, PC registrations, and inspection dates — tracked with clear status labels, early reminders, and evidence upload in one place.',
     items: [
       'TMDA and Pharmacy Council licence tracking built in',
-      'Colour-coded status: green, amber, red, overdue',
+      'Clear status labels for valid, attention-needed, and overdue items',
       'Configurable reminders before every deadline',
       'Evidence attachment and non-editable audit trail',
       'EFDMS integration runs silently in the background',
@@ -376,13 +376,13 @@ function TabPanel({ id }: { id: string }) {
     <div style={wrap}>
       {hdr('Inventory')}
       <div style={{ background: 'white', borderRadius: 12, border: '1px solid #E2EDE8', overflow: 'hidden' }}>
-        <div style={{ padding: '8px 14px', borderBottom: '1px solid #E2EDE8', background: 'rgba(217,119,6,0.06)' }}>
-          <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#D97706', margin: 0 }}>Expiry alerts — next 30 days</p>
+        <div style={{ padding: '8px 14px', borderBottom: '1px solid #E2EDE8', background: '#EDF7F3' }}>
+          <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#1A6B5C', margin: 0 }}>Expiry alerts — next 30 days</p>
         </div>
         {[{ n: 'Amoxicillin Batch 241', d: '3 days', w: true }, { n: 'Ibuprofen Batch 189', d: '8 days', w: true }, { n: 'ORS WHO Batch 202', d: '20 days', w: false }].map(({ n, d, w }, i) => (
           <div key={n} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 14px', borderBottom: i < 2 ? '1px solid #E2EDE8' : 'none', fontSize: 12 }}>
             <span style={{ color: '#0D4035' }}>{n}</span>
-            <span style={{ fontSize: 11, fontWeight: 600, color: w ? '#D97706' : '#516965' }}>{d}</span>
+            <span style={{ fontSize: 11, fontWeight: 600, color: w ? '#1A6B5C' : '#516965' }}>{d}</span>
           </div>
         ))}
       </div>
@@ -393,7 +393,7 @@ function TabPanel({ id }: { id: string }) {
             <span style={{ fontSize: 11, color: '#0D4035' }}>{name}</span>
             <span style={{ fontSize: 10, color: '#516965' }}>{stock}</span>
           </div>
-          <div style={{ height: 5, borderRadius: 999, background: '#EDF7F3' }}><div style={{ height: '100%', borderRadius: 999, width: `${pct}%`, background: low ? '#D97706' : '#1A6B5C' }} /></div>
+          <div style={{ height: 5, borderRadius: 999, background: '#EDF7F3' }}><div style={{ height: '100%', borderRadius: 999, width: `${pct}%`, background: low ? '#7ECFB4' : '#1A6B5C' }} /></div>
         </div>
       ))}
     </div>
@@ -402,11 +402,11 @@ function TabPanel({ id }: { id: string }) {
   if (id === 'safety') return (
     <div style={wrap}>
       {hdr('Patient Safety')}
-      <div style={{ background: '#FFF7ED', border: '1.5px solid #FCA869', borderRadius: 12, padding: '12px 14px' }}>
-        <p className="mono" style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', color: '#9A3412', margin: '0 0 4px' }}>MAJOR INTERACTION</p>
-        <p style={{ fontSize: 12, fontWeight: 600, color: '#9A3412', margin: '0 0 4px' }}>Ibuprofen 400mg + Warfarin 5mg</p>
-        <p style={{ fontSize: 11, color: '#9A3412', margin: '0 0 10px', opacity: 0.8 }}>Increased bleeding risk — PIC override required</p>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', borderRadius: 8, background: 'white', border: '1px solid #FCA869' }}>
+      <div style={{ background: '#EDF7F3', border: '1.5px solid #1A6B5C', borderRadius: 12, padding: '12px 14px' }}>
+        <p className="mono" style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', color: '#0D4035', margin: '0 0 4px' }}>MAJOR INTERACTION</p>
+        <p style={{ fontSize: 12, fontWeight: 600, color: '#0D4035', margin: '0 0 4px' }}>Ibuprofen 400mg + Warfarin 5mg</p>
+        <p style={{ fontSize: 11, color: '#1A6B5C', margin: '0 0 10px', opacity: 0.85 }}>Increased bleeding risk — acknowledge and proceed with logged justification</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', borderRadius: 8, background: 'white', border: '1px solid #AFDFD3' }}>
           <span style={{ fontSize: 10, color: '#516965', fontWeight: 500 }}>→ Alternative:</span>
           <span style={{ fontSize: 11, fontWeight: 700, color: '#1A6B5C' }}>Paracetamol 500mg — therapeutically equivalent</span>
         </div>
@@ -432,12 +432,12 @@ function TabPanel({ id }: { id: string }) {
         {[{ m: 'Jan' }, { m: 'Feb' }, { m: 'Mar', d: 'r' }, { m: 'Apr', d: 'r' }, { m: 'May', cur: true }, { m: 'Jun', d: 'a' }, { m: 'Jul' }, { m: 'Aug' }, { m: 'Sep', d: 'r' }, { m: 'Oct' }, { m: 'Nov', d: 'r' }, { m: 'Dec' }].map(({ m, d, cur }) => (
           <div key={m} style={{ textAlign: 'center', padding: '4px 2px', borderRadius: 5, background: cur ? '#D6F0E8' : 'transparent' }}>
             <p style={{ fontSize: 9, fontWeight: cur ? 700 : 400, color: cur ? '#145748' : '#516965', margin: 0 }}>{m}</p>
-            {d ? <div style={{ width: 4, height: 4, borderRadius: '50%', margin: '2px auto 0', background: d === 'r' ? '#EF4444' : '#D97706' }} /> : <div style={{ height: 6 }} />}
+            {d ? <div style={{ width: 4, height: 4, borderRadius: '50%', margin: '2px auto 0', background: d === 'r' ? '#1A6B5C' : '#7ECFB4' }} /> : <div style={{ height: 6 }} />}
           </div>
         ))}
       </div>
       <div style={{ background: 'white', borderRadius: 12, border: '1px solid #E2EDE8', overflow: 'hidden' }}>
-        {[{ c: '#1A6B5C', l: 'TMDA Premises Licence', d: 'Mar 2027' }, { c: '#D97706', l: 'Annual fire inspection', d: '18 days' }, { c: '#EF4444', l: 'Refrigerator log', d: 'Today' }, { c: '#1A6B5C', l: 'PC Registration', d: 'Jun 2026' }].map(({ c, l, d }, i) => (
+        {[{ c: '#1A6B5C', l: 'TMDA Premises Licence', d: 'Mar 2027' }, { c: '#7ECFB4', l: 'Annual fire inspection', d: '18 days' }, { c: '#145748', l: 'Refrigerator log', d: 'Today' }, { c: '#1A6B5C', l: 'PC Registration', d: 'Jun 2026' }].map(({ c, l, d }, i) => (
           <div key={l} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 14px', borderBottom: i < 3 ? '1px solid #E2EDE8' : 'none', fontSize: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><div style={{ width: 7, height: 7, borderRadius: '50%', background: c, flexShrink: 0 }} /><span style={{ color: '#0D4035' }}>{l}</span></div>
             <span style={{ color: '#516965', fontSize: 11 }}>{d}</span>
@@ -568,7 +568,7 @@ function DashboardScreens() {
                   { l: 'SALES TODAY', v: 'Tsh 412,500', b: '+18%', bc: '#1A6B5C' },
                   { l: 'ITEMS DISPENSED', v: '142', b: '+9', bc: '#1A6B5C' },
                   { l: 'COMPLIANCE', v: 'All clear', b: '3/3 branches', bc: '#1A6B5C' },
-                  { l: 'EXPIRING ≤30D', v: '4 batches', b: 'Review', bc: '#D97706' },
+                  { l: 'EXPIRING ≤30D', v: '4 batches', b: 'Review', bc: '#1A6B5C' },
                 ].map(({ l, v, b, bc }) => (
                   <div key={l} style={{ border: '1px solid #E2EDE8', borderRadius: 10, padding: '12px 14px' }}>
                     <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#516965', margin: '0 0 6px' }}>{l}</p>
@@ -608,9 +608,9 @@ function DashboardScreens() {
                   </div>
                   {[
                     { t: '14:02', who: 'Asha M.', act: 'Dispensed Amoxicillin 500mg × 21', tag: 'NHIF', tBg: 'rgba(26,107,92,0.1)', tC: '#1A6B5C' },
-                    { t: '14:01', who: 'System', act: 'Re-order: Paracetamol 500mg below par', tag: 'Stock', tBg: 'rgba(217,119,6,0.1)', tC: '#D97706' },
+                    { t: '14:01', who: 'System', act: 'Re-order: Paracetamol 500mg below par', tag: 'Stock', tBg: 'rgba(26,107,92,0.1)', tC: '#1A6B5C' },
                     { t: '14:01', who: 'Juma K.', act: 'Closed cash drawer · Tsh 412,500', tag: 'Daily', tBg: 'rgba(81,105,101,0.1)', tC: '#516965' },
-                    { t: '13:58', who: 'Asha M.', act: 'Logged ADR for Diclofenac suspension', tag: 'PV', tBg: 'rgba(124,58,237,0.1)', tC: '#7C3AED' },
+                    { t: '13:58', who: 'Asha M.', act: 'Logged ADR for Diclofenac suspension', tag: 'PV', tBg: 'rgba(126,207,180,0.16)', tC: '#145748' },
                   ].map(({ t, who, act, tag, tBg, tC }, i) => (
                     <div key={i} style={{ display: 'flex', gap: 8, padding: '9px 14px', borderBottom: i < 3 ? '1px solid #E2EDE8' : 'none', alignItems: 'flex-start' }}>
                       <span style={{ fontSize: 9, color: '#516965', flexShrink: 0, marginTop: 1 }}>{t}</span>
@@ -710,13 +710,13 @@ function CallatTheTill() {
                       <span style={{ fontSize: 10, color: '#516965' }}>{stock}/{par}</span>
                     </div>
                     <div style={{ height: 5, borderRadius: 999, background: '#EDF7F3', overflow: 'hidden' }}>
-                      <div style={{ height: '100%', borderRadius: 999, width: `${Math.min(pct, 100)}%`, background: warn ? '#D97706' : '#1A6B5C' }} />
+                      <div style={{ height: '100%', borderRadius: 999, width: `${Math.min(pct, 100)}%`, background: warn ? '#7ECFB4' : '#1A6B5C' }} />
                     </div>
                   </div>
                 );
               })}
-              <div style={{ marginTop: 14, padding: '8px 12px', borderRadius: 8, background: '#FEF3C7', border: '1px solid #FDE68A' }}>
-                <p style={{ fontSize: 11, color: '#92400E', margin: 0 }}>2 SKUs below par. <span style={{ fontWeight: 600, cursor: 'pointer', textDecoration: 'underline' }}>Build a wholesaler order in one click.</span></p>
+              <div style={{ marginTop: 14, padding: '8px 12px', borderRadius: 8, background: '#EDF7F3', border: '1px solid #AFDFD3' }}>
+                <p style={{ fontSize: 11, color: '#145748', margin: 0 }}>2 SKUs below par. <span style={{ fontWeight: 600, cursor: 'pointer', textDecoration: 'underline' }}>Build a wholesaler order in one click.</span></p>
               </div>
             </div>
           </div>
@@ -742,15 +742,15 @@ function CallatTheTill() {
                 ].map(({ m, dot, cur }) => (
                   <div key={m} style={{ textAlign: 'center', padding: '5px 2px', borderRadius: 6, background: cur ? '#D6F0E8' : 'transparent' }}>
                     <p style={{ fontSize: 9, fontWeight: cur ? 700 : 400, color: cur ? '#145748' : '#516965', margin: 0 }}>{m}</p>
-                    {dot ? <div style={{ width: 5, height: 5, borderRadius: '50%', margin: '3px auto 0', background: dot === 'r' ? '#EF4444' : '#D97706' }} /> : <div style={{ height: 8 }} />}
+                    {dot ? <div style={{ width: 5, height: 5, borderRadius: '50%', margin: '3px auto 0', background: dot === 'r' ? '#1A6B5C' : '#7ECFB4' }} /> : <div style={{ height: 8 }} />}
                   </div>
                 ))}
               </div>
               <div style={{ display: 'grid', gap: 12 }}>
                 {[
                   { c: '#1A6B5C', l: 'TMDA Premises Licence', d: 'Mar 2027' },
-                  { c: '#D97706', l: 'Annual fire inspection', d: '18 days' },
-                  { c: '#EF4444', l: 'Refrigerator log', d: 'Today' },
+                  { c: '#7ECFB4', l: 'Annual fire inspection', d: '18 days' },
+                  { c: '#145748', l: 'Refrigerator log', d: 'Today' },
                 ].map(({ c, l, d }) => (
                   <div key={l} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -780,11 +780,11 @@ function HowItWorks() {
         <div className="mob-stack" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 48 }}>
           {[
             { n: 1, c: '#1A6B5C', title: 'Set up your pharmacy', body: 'Register, load your products from the catalogue or by scanning, and build your team. Most pharmacies are running within the same day — no training workshop required.' },
-            { n: 2, c: '#D97706', title: 'Work smarter at the counter', body: 'Dispensing, drug interaction checks, and stock updates happen in one controlled flow. Scan a product, confirm safety, complete the sale. No separate tools, no double entry.' },
+            { n: 2, c: '#1A6B5C', title: 'Work smarter at the counter', body: 'Dispensing, drug interaction checks, and stock updates happen in one controlled flow. Scan a product, confirm safety, complete the sale. No separate tools, no double entry.' },
             { n: 3, c: '#2A9478', title: 'Manage from anywhere', body: 'Compliance deadlines, inventory levels, and sales performance update in real-time. See everything across your branches from a phone or laptop — in Dodoma or wherever you are.' },
           ].map(({ n, c, title, body }) => (
             <div key={n}>
-              <div style={{ width: 40, height: 40, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20, background: n === 1 ? '#EDF7F3' : n === 2 ? '#FEF3C7' : '#EDF7F3' }}>
+              <div style={{ width: 40, height: 40, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20, background: n === 1 ? '#EDF7F3' : n === 2 ? '#D6F0E8' : '#EDF7F3' }}>
                 <span style={{ fontSize: 15, fontWeight: 800, color: c }}>{n}</span>
               </div>
               <h3 style={{ fontSize: 17, fontWeight: 700, color: '#0D4035', margin: '0 0 10px' }}>{title}</h3>
@@ -896,10 +896,10 @@ function SafetyChecks() {
         </div>
         <div style={{ display: 'grid', gap: 12 }}>
           {[
-            { level: 'MINOR', desc: 'Counselling recommended', bg: '#ECFDF5', border: '#6EE7B7', text: '#065F46', badge: null },
-            { level: 'MODERATE', desc: 'Pharmacist review required', bg: '#FFFBEB', border: '#FCD34D', text: '#92400E', badge: null },
-            { level: 'MAJOR', desc: 'Pharmacist PIC required', bg: '#FFF7ED', border: '#FCA869', text: '#9A3412', badge: 'PIC required' },
-            { level: 'CONTRAINDICATED', desc: 'Dispensing blocked', bg: '#FEF2F2', border: '#FCA5A5', text: '#7F1D1D', badge: 'PIC required' },
+            { level: 'MINOR', desc: 'Counselling recommended', bg: '#F7FBF8', border: '#D6F0E8', text: '#0D4035', badge: null },
+            { level: 'MODERATE', desc: 'Review and counsel before proceeding', bg: '#EDF7F3', border: '#AFDFD3', text: '#145748', badge: null },
+            { level: 'MAJOR', desc: 'Acknowledge risk and log justification', bg: '#EDF7F3', border: '#1A6B5C', text: '#0D4035', badge: 'Logged override' },
+            { level: 'CONTRAINDICATED', desc: 'Acknowledge highest severity and log justification', bg: '#F7FBF8', border: '#1A6B5C', text: '#0D4035', badge: 'Logged override' },
           ].map(({ level, desc, bg, border, text, badge }) => (
             <div key={level} style={{ background: bg, border: `1.5px solid ${border}`, borderRadius: 12, padding: '18px 22px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>

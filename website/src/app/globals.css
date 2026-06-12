@@ -17,7 +17,6 @@
   --color-primary-mid: #2a9478;
   --color-primary-light: #d6f0e8;
   --color-primary-lightest: #edf7f3;
-  --color-amber: #d97706;
   --color-ink: #0d4035;
   --color-surface: #edf7f3;
   --logo-gradient-start: #2a9478;
@@ -35,8 +34,6 @@
   --paper: #f7fbf8;
   --ink: #0d4035;
   --muted: #516965;
-  --amber: #e8913a;
-  --amber-soft: #f6c58a;
   --line: #e2ede8;
 }
 
@@ -127,8 +124,8 @@ textarea {
 .reveal.in { opacity: 1; transform: none; }
 
 .tape {
-  background: linear-gradient(180deg, var(--amber-soft), #f0b272);
-  color: #5a330d;
+  background: linear-gradient(180deg, #d6f0e8, #afdfd3);
+  color: #0d4035;
   font-weight: 600;
 }
 
