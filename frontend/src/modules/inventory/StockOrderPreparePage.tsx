@@ -195,9 +195,9 @@ export const StockOrderPreparePage: React.FC = () => {
   const productsLoading = inventoryFetching || catalogueFetching;
   const productsError = inventoryError && catalogueError && !productsLoading;
 
-  const suggestions = suggestionsData ?? [];
-  const inventoryProducts: Product[] = productData?.data ?? [];
-  const catalogueEntries: DrugMasterEntry[] = catalogueData?.data ?? [];
+  const suggestions: LowStockSuggestion[] = Array.isArray(suggestionsData) ? suggestionsData : [];
+  const inventoryProducts: Product[] = Array.isArray(productData?.data) ? (productData as { data: Product[] }).data : [];
+  const catalogueEntries: DrugMasterEntry[] = Array.isArray(catalogueData?.data) ? (catalogueData as { data: DrugMasterEntry[] }).data : [];
 
   const inventoryGenericNames = new Set(
     inventoryProducts.map((p) => p.genericName?.toLowerCase().trim()).filter(Boolean) as string[],
@@ -210,7 +210,7 @@ export const StockOrderPreparePage: React.FC = () => {
     ...newCatalogueEntries.map((e): SearchResult => ({ source: 'catalogue', entry: e })),
   ];
 
-  const suppliers = supplierData ?? [];
+  const suppliers: Supplier[] = Array.isArray(supplierData) ? supplierData : [];
   const supplierOptions = [
     { value: '', label: 'No supplier assigned' },
     ...suppliers.map((s) => ({ value: s.id, label: s.name })),
@@ -247,7 +247,7 @@ export const StockOrderPreparePage: React.FC = () => {
 
   useEffect(() => {
     if (!orderData) return;
-    setItems((orderData.items ?? []) as EditableItem[]);
+    setItems(Array.isArray(orderData.items) ? (orderData.items as EditableItem[]) : []);
     setNotes(orderData.notes ?? '');
   }, [orderData]);
 
@@ -257,7 +257,8 @@ export const StockOrderPreparePage: React.FC = () => {
     setFetchingPrices((prev) => new Set(prev).add(productName));
     try {
       const r = await api.get('/suppliers/price-comparison', { params: { productName } });
-      const options: PriceOption[] = (r.data.data ?? []).sort(
+      const rawPrices = r.data.data;
+      const options: PriceOption[] = (Array.isArray(rawPrices) ? rawPrices : []).sort(
         (a: PriceOption, b: PriceOption) => a.unitPrice - b.unitPrice,
       );
       setPriceMap((prev) => new Map(prev).set(productName, options));
@@ -289,7 +290,7 @@ export const StockOrderPreparePage: React.FC = () => {
       api.post('/stock-orders', { notes: notes || undefined, items: payload.items }).then((r) => r.data.data as StockOrder),
     onSuccess: (order) => {
       setOrderId(order.id);
-      setItems((order.items ?? []) as EditableItem[]);
+      setItems(Array.isArray(order.items) ? (order.items as EditableItem[]) : []);
       queryClient.invalidateQueries({ queryKey: ['stock-orders'] });
       navigate(`/inventory/stock-orders/${order.id}/edit`, { replace: true });
       setSavedState('saved');
@@ -301,7 +302,7 @@ export const StockOrderPreparePage: React.FC = () => {
     mutationFn: (payload: OrderItemPayload) =>
       api.post(`/stock-orders/${orderId}/items`, payload).then((r) => r.data.data as StockOrder),
     onSuccess: (order) => {
-      setItems((order.items ?? []) as EditableItem[]);
+      setItems(Array.isArray(order.items) ? (order.items as EditableItem[]) : []);
       queryClient.invalidateQueries({ queryKey: ['stock-order', orderId] });
       setSavedState('saved');
     },
@@ -312,7 +313,7 @@ export const StockOrderPreparePage: React.FC = () => {
     mutationFn: ({ itemId, data }: { itemId: string; data: Partial<OrderItemPayload> }) =>
       api.patch(`/stock-orders/${orderId}/items/${itemId}`, data).then((r) => r.data.data as StockOrder),
     onSuccess: (order) => {
-      setItems((order.items ?? []) as EditableItem[]);
+      setItems(Array.isArray(order.items) ? (order.items as EditableItem[]) : []);
       setSavedState('saved');
     },
     onError: (e: any) => toast.error(e.response?.data?.error ?? 'Failed to save item'),
@@ -322,7 +323,7 @@ export const StockOrderPreparePage: React.FC = () => {
     mutationFn: (itemId: string) =>
       api.delete(`/stock-orders/${orderId}/items/${itemId}`).then((r) => r.data.data as StockOrder),
     onSuccess: (order) => {
-      setItems((order.items ?? []) as EditableItem[]);
+      setItems(Array.isArray(order.items) ? (order.items as EditableItem[]) : []);
       setSavedState('saved');
     },
     onError: (e: any) => toast.error(e.response?.data?.error ?? 'Failed to remove item'),
