@@ -14,7 +14,7 @@
  * Optional env vars:
  *   FOUNDER_PASSWORD  — set to capture /superadmin screenshots
  *   SCREENSHOT_BASE_URL — default http://127.0.0.1:4173
- *   BACKEND_URL         — default http://localhost:3000
+ *   BACKEND_URL         — default http://localhost:5174
  *
  * Prerequisites:
  *   - Backend running: cd backend && npm run dev

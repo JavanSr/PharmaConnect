@@ -25,7 +25,7 @@ const outputDir = path.join(rootDir, 'docs', 'screenshots');
 const tempDir = path.join(rootDir, 'tmp', 'screenshots-capture');
 
 const BASE_URL = process.env.SCREENSHOT_BASE_URL ?? 'http://127.0.0.1:4173';
-const BACKEND_URL = process.env.BACKEND_URL ?? 'http://localhost:3000';
+const BACKEND_URL = process.env.BACKEND_URL ?? 'http://localhost:5174';
 
 const requireFromFrontend = createRequire(path.join(frontendDir, 'package.json'));
 const { chromium } = requireFromFrontend('@playwright/test');
