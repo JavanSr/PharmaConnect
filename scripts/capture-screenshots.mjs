@@ -279,8 +279,8 @@ const TARGETS = [
 // ─── Login helper ─────────────────────────────────────────────────────────────
 
 async function login(page, email, password) {
-  await page.goto(`${BASE_URL}/login`, { waitUntil: 'domcontentloaded' });
-  await page.waitForSelector('input[type="email"]', { timeout: 15000 });
+  await page.goto(`${BASE_URL}/login`, { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForSelector('input[type="email"]', { timeout: 30000 });
 
   await page.fill('input[type="email"]', email);
   await page.fill('input[type="password"]', password);
@@ -402,7 +402,7 @@ async function captureSession(browser, targets, account, password) {
     }
   }
 
-  await context.close();
+  await context.close().catch(() => {});
   return { succeeded, failed };
 }
 
@@ -413,13 +413,17 @@ async function main() {
   console.log('  APOTEKH Screenshot Capture');
   console.log('━'.repeat(60));
 
-  // Check backend — any response (even 401/404) means the server is up
+  // Backend must be running — real login requires it
   const backendUp = await fetch(BACKEND_URL, { signal: AbortSignal.timeout(2000) })
     .then(() => true).catch(() => false);
   if (!backendUp) {
-    console.warn(`\n⚠ Backend not detected at ${BACKEND_URL}.`);
-    console.warn('  Make sure the backend is running: cd backend && npm run dev\n');
+    console.error(`\n❌ Backend is not running at ${BACKEND_URL}.`);
+    console.error('  Start it first in a separate terminal:');
+    console.error('    cd backend && npm run dev');
+    console.error('  Then re-run this script.\n');
+    process.exit(1);
   }
+  console.log(`  ✓ Backend detected at ${BACKEND_URL}`);
 
   await fs.rm(tempDir, { recursive: true, force: true });
   await fs.mkdir(tempDir, { recursive: true });
