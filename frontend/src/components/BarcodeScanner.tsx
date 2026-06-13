@@ -239,6 +239,7 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onDetected, onCl
           onKeyDown={handleKeyDown}
           placeholder="USB scanner or type barcode - press Enter"
           autoComplete="off"
+          className="block w-full rounded-xl border border-[#D6F0E8] bg-white py-2.5 pl-10 pr-4 text-sm text-[#0D4035] transition-colors placeholder:text-[#94A3B8] focus:border-[#1A6B5C] focus:outline-none focus:ring-1 focus:ring-[#1A6B5C]"
         />
       </div>
     </div>

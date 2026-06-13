@@ -799,42 +799,6 @@ function HowItWorks() {
 
 // ── EVERYTHING INCLUDED ───────────────────────────────────────────────────────
 
-
-// ── OWNER REVENUE SECTION ─────────────────────────────────────────────────────
-
-function OwnerRevenue() {
-  return (
-    <section className="reveal" style={{ background: 'linear-gradient(135deg, #0D4035 0%, #082B23 100%)', padding: '88px 32px', position: 'relative', overflow: 'hidden' }}>
-      <div style={{ position: 'absolute', inset: 0, opacity: 0.04, backgroundImage: 'radial-gradient(circle, #7ECFB4 1px, transparent 1px)', backgroundSize: '28px 28px' }} />
-      <div style={{ position: 'relative', zIndex: 1, maxWidth: 900, margin: '0 auto', textAlign: 'center' }}>
-        <p className="mono" style={{ fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 20 }}>Full visibility. Complete accountability.</p>
-        <h2 className="serif" style={{ fontSize: 'clamp(32px,4.5vw,58px)', color: 'white', lineHeight: 1.05, margin: '0 0 24px' }}>
-          Nothing moves<br />without you knowing.
-        </h2>
-        <p style={{ fontSize: 17, color: 'rgba(255,255,255,0.65)', lineHeight: 1.7, maxWidth: 620, margin: '0 auto 48px' }}>
-          Every sale, every void, every stock adjustment posts to your Owner Dashboard the moment it happens. You do not wait for a report. You do not ask the counter team. Every shilling is accounted for — before anyone tells you.
-        </p>
-        <div className="mob-stack" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 1, background: 'rgba(255,255,255,0.08)', borderRadius: 16, overflow: 'hidden' }}>
-          {[
-            { val: 'Live', label: 'Revenue posted to your dashboard the moment a sale completes' },
-            { val: "Locked", label: "Dispensers see their own screen — not the daily takings" },
-            { val: 'Permanent', label: 'Every void and edit is logged — no transaction disappears quietly' },
-          ].map(({ val, label }) => (
-            <div key={val} style={{ padding: '32px 24px', background: 'rgba(255,255,255,0.04)' }}>
-              <p className="serif" style={{ fontSize: 38, color: '#7ECFB4', margin: '0 0 10px' }}>{val}</p>
-              <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, margin: 0 }}>{label}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-
-
-
-
 function EverythingIncluded() {
   const features = [
     { icon: '⊞', name: 'FEFO Dispensing', desc: 'First expiry-first out enforced at every sale — no manual stock decisions.' },
@@ -862,6 +826,37 @@ function EverythingIncluded() {
               <span style={{ fontSize: 20, display: 'block', marginBottom: 10, color: '#1A6B5C' }}>{icon}</span>
               <p style={{ fontSize: 13, fontWeight: 700, color: '#0D4035', margin: '0 0 6px' }}>{name}</p>
               <p style={{ fontSize: 12, color: '#516965', lineHeight: 1.65, margin: 0 }}>{desc}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ── OWNER REVENUE SECTION ─────────────────────────────────────────────────────
+
+function OwnerRevenue() {
+  return (
+    <section className="reveal" style={{ background: 'linear-gradient(135deg, #0D4035 0%, #082B23 100%)', padding: '88px 32px', position: 'relative', overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', inset: 0, opacity: 0.04, backgroundImage: 'radial-gradient(circle, #7ECFB4 1px, transparent 1px)', backgroundSize: '28px 28px' }} />
+      <div style={{ position: 'relative', zIndex: 1, maxWidth: 900, margin: '0 auto', textAlign: 'center' }}>
+        <p className="mono" style={{ fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 20 }}>Full visibility. Complete accountability.</p>
+        <h2 className="serif" style={{ fontSize: 'clamp(32px,4.5vw,58px)', color: 'white', lineHeight: 1.05, margin: '0 0 24px' }}>
+          Nothing moves<br />without you knowing.
+        </h2>
+        <p style={{ fontSize: 17, color: 'rgba(255,255,255,0.65)', lineHeight: 1.7, maxWidth: 620, margin: '0 auto 48px' }}>
+          Every sale, every void, every stock adjustment posts to your Owner Dashboard the moment it happens. You do not wait for a report. You do not ask the counter team. Every shilling is accounted for — before anyone tells you.
+        </p>
+        <div className="mob-stack" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 1, background: 'rgba(255,255,255,0.08)', borderRadius: 16, overflow: 'hidden' }}>
+          {[
+            { val: 'Live', label: 'Revenue posted to your dashboard the moment a sale completes' },
+            { val: "Locked", label: "Dispensers see their own screen — not the daily takings" },
+            { val: 'Permanent', label: 'Every void and edit is logged — no transaction disappears quietly' },
+          ].map(({ val, label }) => (
+            <div key={val} style={{ padding: '32px 24px', background: 'rgba(255,255,255,0.04)' }}>
+              <p className="serif" style={{ fontSize: 38, color: '#7ECFB4', margin: '0 0 10px' }}>{val}</p>
+              <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, margin: 0 }}>{label}</p>
             </div>
           ))}
         </div>
