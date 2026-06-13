@@ -334,10 +334,10 @@ async function ensureFrontendServer() {
   if (await isServerUp(`${BASE_URL}/login`)) return null;
 
   console.log('  Starting Vite dev server...');
-  const cmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-  const child = spawn(cmd, ['run', 'dev', '--', '--host', '127.0.0.1', '--port', '4173'], {
+  const child = spawn('npm', ['run', 'dev', '--', '--host', '127.0.0.1', '--port', '4173'], {
     cwd: frontendDir,
     stdio: ['ignore', 'pipe', 'pipe'],
+    shell: true,
     windowsHide: true,
   });
   child.stdout.on('data', d => process.stdout.write(d));
@@ -413,9 +413,9 @@ async function main() {
   console.log('  APOTEKH Screenshot Capture');
   console.log('━'.repeat(60));
 
-  // Check backend
-  const backendUp = await isServerUp(`${BACKEND_URL}/api/v1/health`).catch(() => false)
-    || await isServerUp(`${BACKEND_URL}/api/v1/me`).catch(() => false);
+  // Check backend — any response (even 401/404) means the server is up
+  const backendUp = await fetch(BACKEND_URL, { signal: AbortSignal.timeout(2000) })
+    .then(() => true).catch(() => false);
   if (!backendUp) {
     console.warn(`\n⚠ Backend not detected at ${BACKEND_URL}.`);
     console.warn('  Make sure the backend is running: cd backend && npm run dev\n');
