@@ -279,11 +279,12 @@ const TARGETS = [
 // ─── Login helper ─────────────────────────────────────────────────────────────
 
 async function login(page, email, password) {
-  await page.goto(`${BASE_URL}/login`, { waitUntil: 'networkidle', timeout: 30000 });
-  await page.waitForSelector('input[type="email"]', { timeout: 30000 });
+  await page.goto(`${BASE_URL}/login`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  // Email field is type="text" with autocomplete="username" (accepts email or phone)
+  await page.waitForSelector('input[autocomplete="username"]', { timeout: 30000 });
 
-  await page.fill('input[type="email"]', email);
-  await page.fill('input[type="password"]', password);
+  await page.fill('input[autocomplete="username"]', email);
+  await page.fill('input[autocomplete="current-password"]', password);
   await page.click('button[type="submit"]');
 
   // Wait for redirect away from /login
@@ -291,9 +292,8 @@ async function login(page, email, password) {
     () => !window.location.pathname.startsWith('/login'),
     { timeout: 20000 }
   ).catch(async () => {
-    // Check for error message
-    const errorText = await page.locator('[role="alert"], .text-red-500, .text-danger').first().textContent({ timeout: 2000 }).catch(() => '');
-    throw new Error(`Login failed for ${email}: ${errorText || 'still on login page'}`);
+    const errorText = await page.locator('div[class*="error"], div[class*="text-on-error"]').first().textContent({ timeout: 2000 }).catch(() => '');
+    throw new Error(`Login failed for ${email}: ${errorText || 'still on login page after 20s'}`);
   });
 }
 
@@ -331,7 +331,10 @@ async function waitForServer(url, timeoutMs = 120000) {
 }
 
 async function ensureFrontendServer() {
-  if (await isServerUp(`${BASE_URL}/login`)) return null;
+  if (await isServerUp(`${BASE_URL}/login`)) {
+    console.log(`  ✓ Frontend already running at ${BASE_URL}`);
+    return null;
+  }
 
   console.log('  Starting Vite dev server...');
   const child = spawn('npm', ['run', 'dev', '--', '--host', '127.0.0.1', '--port', '4173'], {
@@ -339,6 +342,7 @@ async function ensureFrontendServer() {
     stdio: ['ignore', 'pipe', 'pipe'],
     shell: true,
     windowsHide: true,
+    env: { ...process.env, VITE_PROXY_TARGET: BACKEND_URL },
   });
   child.stdout.on('data', d => process.stdout.write(d));
   child.stderr.on('data', d => process.stderr.write(d));
