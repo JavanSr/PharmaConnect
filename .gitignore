@@ -86,3 +86,7 @@ tmp/
 ~$*.docx
 ~$*.xlsx
 ~$*.pptx
+
+# Obsidian vault config (created when docs/ is opened in Obsidian)
+.obsidian/
+docs/Untitled.md
