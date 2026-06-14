@@ -1,5 +1,7 @@
 # APOTEKH User Manual
 
+_Last updated: 13 June 2026_
+
 Cloud-based, offline-first Pharmacy Management System and digital health ecosystem for Tanzanian retail pharmacies, ADDOs, wholesale distributors, pharmacy owners, and healthcare partners.
 
 Audience:
@@ -31,7 +33,7 @@ APOTEKH is an offline-first pharmacy operating system for Tanzania that connects
 - Tanzania context: TMDA registration fields, NEMLIT and MSD catalogue references, AWaRe antibiotic flags, NHIF and ADR workflows on the roadmap.
 - Growth platform: analytics, forecasting preview, B2B wholesale workflows, Knowledge Hub, CPD tracking, and founder controls.
 
-![APOTEKH Dashboard](screenshots/03-dashboard.png)
+![APOTEKH Dashboard](screenshots/03-owner-dashboard.png)
 
 ### Who uses APOTEKH?
 
@@ -222,28 +224,28 @@ Typical scenario:
 3. They open Inventory or Receive Stock directly from the dashboard.
 4. They review recent stock movements and today's dispensing activity.
 
-![Dashboard](screenshots/03-dashboard.png)
+![Dashboard](screenshots/03-owner-dashboard.png)
 
 ### Sidebar navigation
 
 The main sidebar includes these active and visible sections depending on role:
 
 - `Dashboard`
-- `Knowledge Hub`
-- `TMDA Updates`
+- `Dispensing`
 - `Inventory`
+- `Receive Stock`
 - `Order Preparation`
 - `Compliance`
 - `Analytics`
-- `Dispensing`
+- `Reports`
 - `Safety Alerts`
 - `Controlled Register`
+- `Knowledge Hub`
+- `TMDA Updates`
 - `Wholesale`
 - `Orders`
-- `Reports`
 - `Staff Activity`
 - `Sync Conflicts`
-- `Founder`
 - `Settings`
 
 Coming Soon sidebar items include:
@@ -271,7 +273,7 @@ The top bar includes:
 - Quick actions: `Dispense` and `Receive`
 - Notification bell
 
-![Top bar — Synced status](screenshots/03-dashboard.png)
+![Top bar — Synced status](screenshots/03-owner-dashboard.png)
 
 ### Role-based views
 
@@ -319,7 +321,7 @@ Dashboard cards show:
 - Low Stock Items
 - Expiring Soon
 
-![Inventory dashboard](screenshots/04-inventory-dashboard.png)
+![Inventory dashboard](screenshots/05-products-list.png)
 
 ### Product catalogue
 
@@ -457,7 +459,7 @@ Typical scenario:
 3. Review quantity remaining and expiry status.
 4. Use `Expiry Dashboard` to prioritize batches expiring soon.
 
-![Batch Manager](screenshots/09-batch-manager.png)
+![Expiry and Batch Tracker](screenshots/08-expiry-tracker.png)
 
 ### Stock intake
 
@@ -490,13 +492,13 @@ Typical scenario:
 2. Select supplier for the receipt, if known.
 3. Search or scan the product.
 4. Select a local product or create one from master catalogue.
-5. Enter batch number, expiry date, quantity, purchase price, and optional selling price.
+5. Enter batch number, expiry date, quantity, purchase price, and optional selling price. A live profit margin indicator appears below the selling price field — colour-coded green (good margin), amber (low or unusually high), or red (selling below cost).
 6. If the batch expiry is within 60 days, a live expiry gate warning fires — review urgency level before proceeding.
-7. Add to cart.
+7. Add to cart. The intake cart sits in a side panel to the right of the form, so all queued items remain visible without scrolling.
 8. Repeat for other products.
-9. Click `Receive all`.
+9. Click `Receive all` in the cart panel.
 
-![Receive Stock — intake form](screenshots/08-receive-stock.png)
+![Receive Stock — intake form](screenshots/07-stock-intake.png)
 
 ![Receive Stock — barcode scanner](screenshots/08b-barcode-scanner.png)
 
@@ -556,7 +558,7 @@ Expiry views help staff identify batches expiring soon. Dashboard and analytics 
 
 Backend jobs include expiry alert generation, low-stock alerts, compliance alerts, and weekly digest jobs.
 
-![Expiry Dashboard](screenshots/04-inventory-dashboard.png)
+![Expiry Dashboard](screenshots/08-expiry-tracker.png)
 
 ### Order Preparation
 
@@ -612,7 +614,7 @@ After an order is saved or submitted, two export options are available:
 
 When goods arrive, open the submitted order and click **Receive Items**. For each line: enter batch number, expiry date, quantity received, actual unit cost, and selling price. APOTEKH runs the expiry gate check -- if a batch expires within 60 days, a live warning fires with urgency level (CRITICAL, URGENT, WARNING, CAUTION, or INFO). Batches expiring before they could be sold should not be received.
 
-![Order Preparation](screenshots/11-order-preparation.png)
+![Order Preparation](screenshots/19-stock-orders.png)
 
 ---
 
@@ -680,7 +682,7 @@ What it does:
 
 The Dispensing screen is the main point-of-sale workflow. It combines patient context, medicine search, safety checks, basket management, payment method selection, optional prescription photo, discount controls, and receipt output.
 
-![Dispensing screen](screenshots/12-dispensing.png)
+![Dispensing screen](screenshots/09-dispensing.png)
 
 ### Step-by-step dispensing flow
 
@@ -696,8 +698,8 @@ The Dispensing screen is the main point-of-sale workflow. It combines patient co
    - Breastfeeding
    - Renal impairment
    - Hepatic impairment
-4. Search medicine by product name, generic name, barcode, or SKU.
-5. Select the medicine from the suggestion list — the app pre-fetches product details in the background.
+4. Search medicine by product name, generic name, barcode, or SKU. Only medicines with stock on hand appear in search results.
+5. Select the medicine from the suggestion list. The patient safety panel opens automatically — fill in any relevant clinical flags (pregnant, breastfeeding, renal/hepatic impairment, known allergies, diagnoses) before proceeding.
 6. Enter quantity in the quantity dialog, then click `Add to basket`.
 7. To view medicine details (brand, strength, form, AWaRe flag, stock level), click the **i** button on any basket item.
 8. Add counselling notes if needed.
@@ -753,7 +755,7 @@ What happens when the device reconnects:
 3. If a conflict is detected, the transaction is marked for review and visible through conflict workflows where applicable.
 4. The pending sync count decreases.
 
-![Top bar — sync status](screenshots/03-dashboard.png)
+![Top bar — sync status](screenshots/03-owner-dashboard.png)
 
 ### Payment methods
 
@@ -776,7 +778,7 @@ Typical scenario:
 
 Who can apply: `OWNER`, `PHARMACIST_IN_CHARGE`, `SUPER_ADMIN`
 
-Discount controls appear in the basket and payment area only for permitted roles. If a discount is entered, a discount reason is required.
+Discount controls appear in the basket and payment area only for permitted roles. Discount is selected from a preset percentage dropdown (5%, 10%, 15%, 20%, 25%, 50%) or entered as a custom Tsh amount. The Tsh amount is calculated automatically from the subtotal when a preset percentage is chosen. A reason is required and selected from a dropdown (Staff discount, Loyalty customer, Near expiry, Damaged packaging, Promotion, Manual override, Other).
 
 ### Daily close and shift reports
 
@@ -858,7 +860,7 @@ The override log is immutable — it cannot be deleted by any role, including SU
 
 Where to review: `Safety Alerts`
 
-![Safety panel — interaction alert with override log](screenshots/13-safety-alerts.png)
+![Safety panel — interaction alert with override log](screenshots/14-safety-alerts.png)
 
 ### Contraindication checks
 
@@ -905,7 +907,7 @@ The dose calculator is off by default and can be enabled when needed. It support
 
 If a pediatric patient is detected without weight, the calculator prompts staff to add weight before using dose support.
 
-![Dispensing — Dose calculator](screenshots/12-dispensing.png)
+![Dispensing — Dose calculator](screenshots/09-dispensing.png)
 
 ### AWaRe antibiotic flags
 
@@ -940,7 +942,7 @@ The Controlled Register is generated from completed dispensing events. It highli
 - Timestamp
 - Payment method
 
-![Controlled Register](screenshots/14-controlled-register.png)
+![Controlled Register](screenshots/13-controlled-register.png)
 
 ---
 
@@ -986,7 +988,7 @@ During checkout, staff can attach a prescription photo using the device camera o
 
 Backend support stores prescription metadata linked to pharmacy, optional patient, dispensing event, reference number, photo path, and creator.
 
-![Dispensing basket](screenshots/12-dispensing.png)
+![Dispensing basket](screenshots/09-dispensing.png)
 
 ### NHIF claims
 
@@ -1164,29 +1166,40 @@ Widgets include:
 - Storage Conditions
 - Multi-outlet Compare for Enterprise where available
 
-![Analytics](screenshots/18-analytics.png)
+![Analytics](screenshots/04-analytics.png)
 
 ### Reports
 
 Where to find it: `Reports`
 
-Who uses it: owners, PICs, cashiers, wholesale managers, super admins.
+Who uses it: `OWNER`, `PHARMACIST_IN_CHARGE`, `CASHIER`, `WHOLESALE_MANAGER`, `SUPER_ADMIN`
 
 What it does:
 
-Reports focuses on financial and management reporting.
+Reports is a tabbed reporting workspace covering sales, profitability, inventory, safety, and compliance. All tabs with date ranges support CSV and PDF export where available.
 
-Current report cards include:
+Wholesale pharmacies see a separate wholesale-specific view with demand insights and receivables aging instead of the retail tabs.
 
-- Revenue
-- Transactions
-- Cohort size
-- Peer Benchmark
-- Custom Builder Snapshot
+**Retail report tabs:**
 
-Peer benchmarking may show a message when data is not available yet.
+| Tab | Who can see it | What it shows |
+|---|---|---|
+| Sales | OWNER, PIC, SUPER_ADMIN | Revenue, sales count, items sold, average basket, time-series bar chart, top products by volume, payment method breakdown. Period presets: Today, Last 7d, Last 30d, Last 90d, This year, Custom. |
+| Profit | OWNER, SUPER_ADMIN | Gross profit, COGS, margin %, period-over-period comparison. Chart toggles between profit waterfall and margin % trend. Per-product breakdown (top profit products and lowest-margin products) unlocks at PREMIUM. Requires STANDARD or above — returns a tier-gate prompt on lower tiers. |
+| Expiry | All permitted roles | Batches expiring within a selected threshold (1d, 7d, 14d, 21d, 30d, 90d), urgency-coded (CRITICAL → MONITOR). Export CSV or PDF. |
+| Dispensing | All permitted roles | Top products by revenue with bar chart and table. Total revenue and transaction count for the selected period. Export CSV or PDF. |
+| Payments | All permitted roles | Revenue split by payment method (Cash, M-Pesa, Tigo Pesa, etc.) as pie chart and list with transaction counts. |
+| Stock movement | All permitted roles | All stock movements (RECEIVED, DISPENSED, ADJUSTED, DAMAGED, EXPIRED_REMOVED) for the period with staff attribution. Export CSV or PDF. |
+| Voids & returns | All permitted roles | Voided transactions with amount, reason, staff member, and date. Export CSV or PDF. |
+| Safety | All permitted roles | Total alerts, overrides, allergy flags, and contraindicated events for the last 30 days. |
 
-![Reports](screenshots/26-reports.png)
+**Wholesale report view:**
+- Revenue and order counts: last 30 days vs previous 30 days
+- Fulfillment rate
+- Top 10 products by revenue (bar chart)
+- Receivables aging by bucket
+
+![Reports](screenshots/17-reports.png)
 
 ### Forecasting
 
@@ -1216,7 +1229,7 @@ Typical scenario:
 3. Review stockout forecast by current stock, average daily demand, lead time, estimated stockout date, and at-risk value.
 4. For Premium/Enterprise, review seasonality and dead-stock ranking.
 
-![Forecasting](screenshots/19-forecasting.png)
+![Forecasting](screenshots/23-forecasting.png)
 
 ### Feature telemetry
 
@@ -1252,7 +1265,7 @@ Dashboard cards include:
 - EFDMS invoice queue
 - Credit controls
 
-![Wholesale Dashboard](screenshots/20-wholesale-dashboard.png)
+![Wholesale Dashboard](screenshots/25-wholesale-dashboard.png)
 
 ### Wholesale orders
 
@@ -1351,7 +1364,7 @@ Typical scenario:
 5. Review bulletins or publications.
 6. Subscribe to weekly digest.
 
-![Knowledge Hub](screenshots/21-knowledge-hub.png)
+![Knowledge Hub](screenshots/16-knowledge-hub.png)
 
 ### TMDA Updates
 
@@ -1436,7 +1449,7 @@ Typical scenario:
 4. Share temporary password securely with the new staff member.
 5. Staff member is prompted to change password on first login.
 
-![Team Management](screenshots/23-team-management.png)
+![Team Management](screenshots/20-settings-team.png)
 
 ### PIC PIN
 
@@ -1481,7 +1494,7 @@ What it does:
 
 Owners configure mobile money methods for dispensing. Cash always remains enabled.
 
-![Subscription settings](screenshots/24-subscription.png)
+![Subscription settings](screenshots/21-settings-subscription.png)
 
 ---
 
@@ -1680,7 +1693,7 @@ No. Prescription photos require online checkout because the image file must uplo
 
 ### Does APOTEKH choose the clinical decision for the pharmacist?
 
-No. APOTEKH surfaces alerts, counselling prompts, and safety context. The pharmacist or PIC remains responsible for the professional decision. High-risk overrides require a reason and PIC PIN.
+No. APOTEKH surfaces alerts, counselling prompts, and safety context. The pharmacist or PIC remains responsible for the professional decision. The dispenser acknowledges the alert and proceeds at their own professional risk — no PIC PIN is required at any severity level. The override is logged automatically under the dispenser's name and cannot be deleted.
 
 ### What is the difference between Products and Drug Catalogue?
 

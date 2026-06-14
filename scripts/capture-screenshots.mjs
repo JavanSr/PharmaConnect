@@ -109,12 +109,63 @@ const TARGETS = [
     waitText: 'Expiry',
   },
 
+  // ── Inventory: barcode scanner modal ─────────────────────────────────────────
+  {
+    file: '08b-barcode-scanner.png',
+    path: '/inventory/stock-intake',
+    account: 'owner',
+    waitText: 'Stock Intake',
+    action: async (page) => {
+      // Open barcode scanner — try the Scan button or barcode icon
+      const scanBtn = page.getByRole('button', { name: /scan/i }).first();
+      if (await scanBtn.count()) {
+        await scanBtn.click();
+        await page.waitForTimeout(600);
+      }
+    },
+  },
+
   // ── Dispensing: screen (owner) ────────────────────────────────────────────────
   {
     file: '09-dispensing.png',
     path: '/dispensing',
     account: 'owner',
     waitText: 'Medicine',
+  },
+
+  // ── Dispensing: info panel (click Info on a product) ─────────────────────────
+  {
+    file: '12b-dispensing-info-panel.png',
+    path: '/dispensing',
+    account: 'owner',
+    waitText: 'Medicine',
+    action: async (page) => {
+      // Type a medicine name to get a suggestion, then click the Info button
+      const medicineInput = page.getByPlaceholder(/medicine|search|drug/i).first();
+      if (await medicineInput.count()) {
+        await medicineInput.fill('Paracetamol');
+        await page.waitForTimeout(800);
+        const infoBtn = page.getByRole('button', { name: /info/i }).first();
+        if (await infoBtn.count()) await infoBtn.click();
+        await page.waitForTimeout(600);
+      }
+    },
+  },
+
+  // ── Dispensing: safety panel (patient flags) ──────────────────────────────────
+  {
+    file: '12c-dispensing-safety-panel.png',
+    path: '/dispensing',
+    account: 'owner',
+    waitText: 'Medicine',
+    action: async (page) => {
+      // Open safety/patient checks panel
+      const safetyBtn = page.getByRole('button', { name: /safety|patient|check/i }).first();
+      if (await safetyBtn.count()) {
+        await safetyBtn.click();
+        await page.waitForTimeout(600);
+      }
+    },
   },
 
   // ── Dispensing: screen (dispenser role) ──────────────────────────────────────
@@ -253,9 +304,22 @@ const TARGETS = [
     waitText: ['Order', 'Status'],
   },
 
-  // ── Supplier portal (static page — no login needed) ──────────────────────────
-  // Captured from the backend directly (server-rendered HTML)
-  // Note: this cannot be captured via Playwright + Vite since it's a pure backend route
+  // ── Supplier portal (server-rendered HTML from backend, not Vite) ────────────
+  // Uses a demo token fetched via authenticated API call; skipped if none found.
+  {
+    file: '27-supplier-portal.png',
+    path: '__SUPPLIER_PORTAL__', // handled specially in captureSession
+    account: 'owner',
+    waitText: ['Order', 'Confirm', 'supplier', 'portal'],
+    supplierPortal: true,
+  },
+  {
+    file: '28-order-portal-status.png',
+    path: '__SUPPLIER_PORTAL__',
+    account: 'owner',
+    waitText: ['Status', 'Confirmed', 'Pending', 'Order'],
+    supplierPortal: true,
+  },
 
   // ── Super admin dashboard ─────────────────────────────────────────────────────
   // Only captured if FOUNDER_PASSWORD env var is set
@@ -295,6 +359,15 @@ async function login(page, email, password) {
     const errorText = await page.locator('div[class*="error"], div[class*="text-on-error"]').first().textContent({ timeout: 2000 }).catch(() => '');
     throw new Error(`Login failed for ${email}: ${errorText || 'still on login page after 20s'}`);
   });
+
+  // Return the access token from Zustand localStorage for API calls
+  const token = await page.evaluate(() => {
+    try {
+      const raw = localStorage.getItem('pc-auth');
+      return raw ? JSON.parse(raw)?.state?.accessToken ?? null : null;
+    } catch { return null; }
+  });
+  return token;
 }
 
 async function waitForContent(page, waitText) {
@@ -372,14 +445,16 @@ async function captureSession(browser, targets, account, password) {
   });
 
   const page = await context.newPage();
+  let authHeaders = {};
 
   if (account) {
     try {
-      await login(page, account.email, password ?? account.password);
+      const token = await login(page, account.email, password ?? account.password);
+      if (token) authHeaders = { Authorization: `Bearer ${token}` };
       console.log(`  Logged in as ${account.label}`);
     } catch (e) {
       console.error(`  ❌ Login failed for ${account.label}: ${e.message}`);
-      await context.close();
+      await context.close().catch(() => {});
       return { succeeded: [], failed: targets.map(t => t.file) };
     }
   }
@@ -389,7 +464,23 @@ async function captureSession(browser, targets, account, password) {
 
   for (const target of targets) {
     try {
-      await page.goto(`${BASE_URL}${target.path}`, { waitUntil: 'domcontentloaded', timeout: 20000 });
+      let url = `${BASE_URL}${target.path}`;
+
+      if (target.supplierPortal) {
+        // Supplier portal is server-rendered at BACKEND_URL/supplier-portal/:token
+        // Uses a fixed demo token seeded by seed-demo-data.ts
+        const DEMO_PORTAL_TOKEN = 'deadbeef-dead-beef-dead-beefdeadbeef';
+        const check = await fetch(`${BACKEND_URL}/supplier-portal/${DEMO_PORTAL_TOKEN}`)
+          .then(r => r.status).catch(() => 0);
+        if (check === 0 || check === 404) {
+          console.log(`  ⓘ Skipping ${target.file} — demo portal token not found (run seed first)`);
+          failed.push(target.file);
+          continue;
+        }
+        url = `${BACKEND_URL}/supplier-portal/${DEMO_PORTAL_TOKEN}`;
+      }
+
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
       await waitForContent(page, target.waitText);
 
       if (target.action) {

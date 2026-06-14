@@ -594,6 +594,48 @@ async function main() {
 
   console.log('✓ 2 stock orders created');
 
+  // ── Step 6b: Seed supplier portal token for SO-2026-001 ─────────────────────
+  // A known fixed token so the screenshot capture can use it directly.
+  const DEMO_PORTAL_TOKEN = 'deadbeef-dead-beef-dead-beefdeadbeef';
+  const portalExpiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+
+  const order1Items = await prisma.stockOrderItem.findMany({ where: { stockOrderId: order1Id } });
+
+  await (prisma as any).supplierPortalToken.upsert({
+    where: { token: DEMO_PORTAL_TOKEN },
+    update: { expiresAt: portalExpiresAt, status: 'PENDING' },
+    create: {
+      token: DEMO_PORTAL_TOKEN,
+      stockOrderId: order1Id,
+      pharmacyId: amani.id,
+      pharmacyName: 'Amani Pharmacy',
+      supplierName: 'Shelys Pharma Ltd',
+      supplierPhone: '255744000000',
+      status: 'PENDING',
+      expiresAt: portalExpiresAt,
+    },
+  });
+
+  const existingPortal = await (prisma as any).supplierPortalToken.findUnique({
+    where: { token: DEMO_PORTAL_TOKEN },
+    select: { id: true, lineItems: { select: { id: true } } },
+  });
+
+  if (existingPortal && existingPortal.lineItems.length === 0 && order1Items.length > 0) {
+    await (prisma as any).supplierPortalLineItem.createMany({
+      data: order1Items.slice(0, 4).map((item: { id: string; productName: string; genericName: string | null; quantityOrdered: number }) => ({
+        tokenId: existingPortal.id,
+        stockOrderItemId: item.id,
+        productName: item.productName,
+        genericName: item.genericName ?? null,
+        quantityRequested: item.quantityOrdered,
+        available: true,
+      })),
+    });
+  }
+
+  console.log(`✓ Supplier portal token seeded: ${DEMO_PORTAL_TOKEN}`);
+
   // ── Step 7: Seed notifications ───────────────────────────────────────────────
   console.log('\n🔔 Seeding notifications...');
 

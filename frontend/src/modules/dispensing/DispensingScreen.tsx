@@ -196,6 +196,7 @@ export const DispensingScreen: React.FC = () => {
   const [paymentRef, setPaymentRef] = useState('');
   const [prescriptionPhoto, setPrescriptionPhoto] = useState<File | null>(null);
   const [discountAmount, setDiscountAmount] = useState('');
+  const [discountType, setDiscountType] = useState<'none' | '5' | '10' | '15' | '20' | '25' | '50' | 'custom'>('none');
   const [discountReason, setDiscountReason] = useState('');
   const [receipt, setReceipt] = useState<DispensingReceipt | null>(null);
   const [receiptContact, setReceiptContact] = useState<{ name: string; phone: string }>({ name: WALK_IN_LABEL, phone: '' });
@@ -357,7 +358,10 @@ export const DispensingScreen: React.FC = () => {
     }
   }, [productResults]);
   const visibleProducts = useMemo(
-    () => (products.length > 0 ? products : cachedMedicineProducts).filter((product) => productMatchesSearch(product, immediateDrugSearch)),
+    () =>
+      (products.length > 0 ? products : cachedMedicineProducts)
+        .filter((product) => productMatchesSearch(product, immediateDrugSearch))
+        .filter((product) => (product.currentStock ?? 0) > 0),
     [cachedMedicineProducts, immediateDrugSearch, products],
   );
   const serverPaymentMethods = (paymentMethodsQuery.data?.data?.methods ?? []) as DispensingPaymentMethodOption[];
@@ -547,6 +551,9 @@ export const DispensingScreen: React.FC = () => {
       setCartItems([]);
       setPaymentRef('');
       setPrescriptionPhoto(null);
+      setDiscountAmount('');
+      setDiscountType('none');
+      setDiscountReason('');
       setDiscountAmount('');
       setDiscountReason('');
       setSelectedDrug(null);
@@ -1092,6 +1099,41 @@ export const DispensingScreen: React.FC = () => {
                   />
                 </div>
 
+                {/* Clinical safety flags */}
+                <div className="rounded-xl border border-[#D6F0E8] bg-white px-3 py-3 space-y-3">
+                  <p className="text-xs font-semibold text-[#0D4035]">Patient safety flags</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { label: 'Pregnant', checked: pregnant, onChange: setPregnant },
+                      { label: 'Breastfeeding', checked: breastfeeding, onChange: setBreastfeeding },
+                      { label: 'Renal impairment', checked: renalImpairment, onChange: setRenalImpairment },
+                      { label: 'Hepatic impairment', checked: hepaticImpairment, onChange: setHepaticImpairment },
+                    ].map(({ label, checked, onChange }) => (
+                      <label key={label} className="flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => onChange(e.target.checked)}
+                          className="h-4 w-4 rounded border-[#AFDFD3] text-[#1A6B5C] accent-[#1A6B5C]"
+                        />
+                        <span className="text-sm text-[#374151]">{label}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <Input
+                    label="Known allergies"
+                    value={allergiesText}
+                    onChange={(event) => setAllergiesText(event.target.value)}
+                    placeholder="e.g. Penicillin, Sulfa drugs"
+                  />
+                  <Input
+                    label="Diagnoses / conditions"
+                    value={diagnosesText}
+                    onChange={(event) => setDiagnosesText(event.target.value)}
+                    placeholder="e.g. Hypertension, Type 2 Diabetes"
+                  />
+                </div>
+
                 <div className="flex gap-2">
                   <Button size="sm" variant="secondary" onClick={saveSessionShortcut}>Save shortcut</Button>
                   <Button size="sm" variant="ghost" onClick={() => setShowPatientPanel(false)}>Done</Button>
@@ -1178,6 +1220,7 @@ export const DispensingScreen: React.FC = () => {
                           setSelectedDrug(product);
                           setDrugSearch('');
                           setShowDrugDropdown(false);
+                          setShowPatientPanel(true);
                           prefetchedProductRef.current = null;
                           api.get(`/inventory/products/${product.id}`)
                             .then(async (r) => {
@@ -1400,21 +1443,66 @@ export const DispensingScreen: React.FC = () => {
               </div>
 
               {canApplyDiscount && (
-                <div className="grid gap-3 md:grid-cols-2">
-                  <Input
-                    label="Discount amount"
-                    type="number"
-                    min="0"
-                    value={discountAmount}
-                    onChange={(event) => setDiscountAmount(event.target.value)}
-                    placeholder="0"
-                  />
-                  <Input
-                    label="Discount reason"
-                    value={discountReason}
-                    onChange={(event) => setDiscountReason(event.target.value)}
-                    placeholder="Reason required if discount applied"
-                  />
+                <div className="space-y-3">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Select
+                      label="Discount"
+                      value={discountType}
+                      onChange={(event) => {
+                        const val = event.target.value as typeof discountType;
+                        setDiscountType(val);
+                        if (val === 'none') {
+                          setDiscountAmount('');
+                        } else if (val === 'custom') {
+                          setDiscountAmount('');
+                        } else {
+                          const pct = parseInt(val, 10);
+                          setDiscountAmount(String(Math.round(cartTotal * pct / 100)));
+                        }
+                      }}
+                      options={[
+                        { value: 'none',   label: 'No discount' },
+                        { value: '5',      label: '5%' },
+                        { value: '10',     label: '10%' },
+                        { value: '15',     label: '15%' },
+                        { value: '20',     label: '20%' },
+                        { value: '25',     label: '25%' },
+                        { value: '50',     label: '50%' },
+                        { value: 'custom', label: 'Custom amount' },
+                      ]}
+                    />
+                    <Select
+                      label="Discount reason"
+                      value={discountReason}
+                      onChange={(event) => setDiscountReason(event.target.value)}
+                      options={[
+                        { value: '',                  label: 'Select reason…' },
+                        { value: 'Staff discount',    label: 'Staff discount' },
+                        { value: 'Loyalty customer',  label: 'Loyalty customer' },
+                        { value: 'Near expiry',       label: 'Near expiry' },
+                        { value: 'Damaged packaging', label: 'Damaged packaging' },
+                        { value: 'Promotion',         label: 'Promotion' },
+                        { value: 'Manual override',   label: 'Manual override' },
+                        { value: 'Other',             label: 'Other' },
+                      ]}
+                    />
+                  </div>
+                  {discountType === 'custom' && (
+                    <Input
+                      label="Custom discount amount (Tsh)"
+                      type="number"
+                      min="0"
+                      value={discountAmount}
+                      onChange={(event) => setDiscountAmount(event.target.value)}
+                      placeholder="0"
+                    />
+                  )}
+                  {parsedDiscount > 0 && (
+                    <p className="text-xs text-[#1A6B5C]">
+                      Discount: {money(parsedDiscount)} off
+                      {cartTotal > 0 ? ` (${Math.round((parsedDiscount / cartTotal) * 100)}%)` : ''}
+                    </p>
+                  )}
                 </div>
               )}
 

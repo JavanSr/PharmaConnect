@@ -272,12 +272,21 @@ export const StockIntakePage: React.FC = () => {
     return batches.map((b: any) => Number(b.purchasePrice)).filter((p: number) => p > 0);
   }, [batchPriceData]);
 
+  const watchedSellingPrice = watch('sellingPrice');
+
   const currentUnitPrice = computeUnitPrice(
     Number(watchedEnteredPrice) || 0,
     watchedPriceMode as PriceMode,
     Number(watchedPackSize) || 1,
   );
   const liveHint = computePriceHint(currentUnitPrice, existingPrices);
+
+  const profitMargin = (() => {
+    const sell = Number(watchedSellingPrice) || 0;
+    if (sell <= 0 || currentUnitPrice <= 0) return null;
+    const pct = ((sell - currentUnitPrice) / currentUnitPrice) * 100;
+    return { pct: Math.round(pct * 10) / 10, sell, cost: currentUnitPrice };
+  })();
 
   // product search queries
   const { data: productsData, isFetching: isProductFetching } = useQuery({
@@ -552,7 +561,7 @@ export const StockIntakePage: React.FC = () => {
   });
 
   return (
-    <div className="space-y-5 max-w-3xl">
+    <div className="space-y-5">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-xl font-bold text-[#0D4035]">Receive Stock</h1>
@@ -564,6 +573,10 @@ export const StockIntakePage: React.FC = () => {
           <Badge variant="info">{cart.length} item{cart.length > 1 ? 's' : ''} in cart</Badge>
         )}
       </div>
+
+      {/* Two-column layout: form on left, cart pinned on right */}
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px] items-start">
+      <div className="space-y-5">
 
       {/* Session supplier — one-time selection for the whole receipt */}
       <Card>
@@ -836,13 +849,27 @@ export const StockIntakePage: React.FC = () => {
                   hint="Divide pack price by this to get unit cost"
                 />
               )}
-              <Input
-                label="Selling price per unit (Tsh)"
-                type="number" step="0.01" min="0.01" placeholder="2000.00"
-                {...register('sellingPrice')}
-                error={errors.sellingPrice?.message}
-                hint="Optional — updates product retail price"
-              />
+              <div>
+                <Input
+                  label="Selling price per unit (Tsh)"
+                  type="number" step="0.01" min="0.01" placeholder="2000.00"
+                  {...register('sellingPrice')}
+                  error={errors.sellingPrice?.message}
+                />
+                {profitMargin !== null && (
+                  <p className={`mt-1 text-xs font-medium ${
+                    profitMargin.pct < 0  ? 'text-[#DC2626]' :
+                    profitMargin.pct < 15 ? 'text-[#D97706]' :
+                    profitMargin.pct > 150 ? 'text-[#D97706]' :
+                    'text-[#1A6B5C]'
+                  }`}>
+                    Margin: {profitMargin.pct}%
+                    {profitMargin.pct < 0   ? ' — selling below cost' :
+                     profitMargin.pct < 15  ? ' — low margin' :
+                     profitMargin.pct > 150 ? ' — unusually high, verify' : ' — good'}
+                  </p>
+                )}
+              </div>
             </div>
 
             {watchedPriceMode === 'PACK' && Number(watchedPackSize) > 1 && Number(watchedEnteredPrice) > 0 && (
@@ -891,61 +918,92 @@ export const StockIntakePage: React.FC = () => {
         </form>
       </Card>
 
-      {/* ── Cart ───────────────────────────────────────────────────────────── */}
-      {cart.length > 0 && (
+      </div>{/* end left column */}
+
+      {/* ── Cart — right column ─────────────────────────────────────────────── */}
+      <div className="xl:sticky xl:top-5">
         <Card
+          padding={false}
           header={
             <div className="flex items-center justify-between gap-3">
-              <span className="text-sm font-semibold text-[#0D4035]">Intake cart ({cart.length})</span>
-              <button type="button" onClick={() => setCart([])} className="text-xs text-[#64748B] hover:text-[#DC2626]">
-                Clear cart
-              </button>
+              <div className="flex items-center gap-2">
+                <PackageCheck size={16} className="text-[#1A6B5C]" />
+                <span className="text-sm font-semibold text-[#0D4035]">
+                  Intake cart
+                </span>
+                {cart.length > 0 && (
+                  <Badge variant="info" size="sm">{cart.length}</Badge>
+                )}
+              </div>
+              {cart.length > 0 && (
+                <button type="button" onClick={() => setCart([])} className="text-xs text-[#64748B] hover:text-[#DC2626]">
+                  Clear all
+                </button>
+              )}
             </div>
           }
-          padding={false}
         >
-          <div className="divide-y divide-[#D6F0E8]">
-            {cart.map(line => (
-              <div key={line.id} className="flex items-start justify-between gap-3 px-5 py-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="text-sm font-medium text-[#0D4035]">{productName(line.product)}</p>
-                    {line.priceHint && line.priceHint.status !== 'OK' && (
-                      <Badge variant="warning" size="sm">{line.priceHint.status === 'HIGH' ? 'Price high' : 'Price low'}</Badge>
-                    )}
-                  </div>
-                  <p className="text-xs text-[#64748B] mt-0.5">
-                    Batch: {line.batchNumber} · Exp: {line.expiryDate} · Qty: {line.quantity}
-                  </p>
-                  <p className="text-xs text-[#64748B]">
-                    {line.priceMode === 'PACK'
-                      ? `Pack Tsh ${line.enteredPrice.toLocaleString()} ÷ ${line.packSize} = `
-                      : ''}
-                    Cost Tsh {line.unitPrice.toLocaleString('en-TZ', { maximumFractionDigits: 2 })}
-                    {line.sellingPrice ? ` · Sell Tsh ${line.sellingPrice.toLocaleString('en-TZ', { maximumFractionDigits: 2 })}` : ''}
-                  </p>
-                </div>
-                <button type="button" onClick={() => setCart(prev => prev.filter(l => l.id !== line.id))}
-                  className="p-1.5 text-[#64748B] hover:text-[#DC2626] hover:bg-red-50 rounded-lg transition-colors shrink-0">
-                  <Trash2 size={15} />
-                </button>
+          {cart.length === 0 ? (
+            <div className="px-5 py-10 text-center text-sm text-[#94A3B8]">
+              <Package size={28} className="mx-auto mb-2 opacity-30" />
+              No items yet. Add a product from the form.
+            </div>
+          ) : (
+            <>
+              <div className="divide-y divide-[#D6F0E8]">
+                {cart.map(line => {
+                  const margin = line.sellingPrice && line.unitPrice > 0
+                    ? Math.round(((line.sellingPrice - line.unitPrice) / line.unitPrice) * 100)
+                    : null;
+                  return (
+                    <div key={line.id} className="flex items-start justify-between gap-3 px-4 py-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-medium text-[#0D4035] truncate">{productName(line.product)}</p>
+                          {line.priceHint && line.priceHint.status !== 'OK' && (
+                            <Badge variant="warning" size="sm">{line.priceHint.status === 'HIGH' ? 'Price high' : 'Price low'}</Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-[#64748B] mt-0.5">
+                          Batch: {line.batchNumber} · Exp: {line.expiryDate} · Qty: {line.quantity}
+                        </p>
+                        <p className="text-xs text-[#64748B]">
+                          Cost Tsh {line.unitPrice.toLocaleString('en-TZ', { maximumFractionDigits: 0 })}
+                          {line.sellingPrice ? ` · Sell Tsh ${line.sellingPrice.toLocaleString('en-TZ', { maximumFractionDigits: 0 })}` : ''}
+                          {margin !== null && (
+                            <span className={`ml-1 font-medium ${margin < 0 ? 'text-[#DC2626]' : margin < 15 ? 'text-[#D97706]' : 'text-[#1A6B5C]'}`}>
+                              · {margin}% margin
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setCart(prev => prev.filter(l => l.id !== line.id))}
+                        className="p-1.5 text-[#64748B] hover:text-[#DC2626] hover:bg-red-50 rounded-lg transition-colors shrink-0"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
-            ))}
-          </div>
-
-          <div className="border-t border-[#D6F0E8] px-5 py-4">
-            <Button
-              onClick={() => receiveAllMutation.mutate(undefined)}
-              loading={receiveAllMutation.isPending}
-              leftIcon={<PackageCheck size={16} />}
-              className="w-full"
-              aria-label="Receive Stock"
-            >
-              Receive all {cart.length} item{cart.length > 1 ? 's' : ''}
-            </Button>
-          </div>
+              <div className="border-t border-[#D6F0E8] px-4 py-4">
+                <Button
+                  onClick={() => receiveAllMutation.mutate(undefined)}
+                  loading={receiveAllMutation.isPending}
+                  leftIcon={<PackageCheck size={16} />}
+                  className="w-full"
+                >
+                  Receive all {cart.length} item{cart.length > 1 ? 's' : ''}
+                </Button>
+              </div>
+            </>
+          )}
         </Card>
-      )}
+      </div>
+
+      </div>{/* end grid */}
     </div>
   );
 };
