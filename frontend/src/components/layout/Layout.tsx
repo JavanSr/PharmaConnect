@@ -69,6 +69,17 @@ export const Layout: React.FC = () => {
   const isFounderAccount = user?.role === 'SUPER_ADMIN';
   const isOwner = user?.role === 'OWNER';
 
+  // Sync onboarding dismissed state with localStorage so it survives page reloads
+  // even if the backend POST /onboarding/complete fails silently.
+  React.useEffect(() => {
+    if (!pharmacy?.id || isFounderAccount) return;
+    try {
+      if (localStorage.getItem(`onboarding_dismissed_${pharmacy.id}`) === 'true') {
+        setOnboardingDismissed(true);
+      }
+    } catch { /* storage unavailable */ }
+  }, [pharmacy?.id, isFounderAccount]);
+
   // Onboarding wizard: shown once to OWNER until they complete or skip it.
   // Uses PharmacySetting key 'onboarding_completed' so it persists across logins.
   const onboardingQuery = useQuery({
@@ -207,7 +218,12 @@ export const Layout: React.FC = () => {
   return (
     <div className="flex h-screen bg-background text-on-surface overflow-hidden print:block print:h-auto print:overflow-visible print:bg-white">
       {showOnboarding && (
-        <OnboardingWizard onComplete={() => setOnboardingDismissed(true)} />
+        <OnboardingWizard onComplete={() => {
+          if (pharmacy?.id) {
+            try { localStorage.setItem(`onboarding_dismissed_${pharmacy.id}`, 'true'); } catch { /* storage unavailable */ }
+          }
+          setOnboardingDismissed(true);
+        }} />
       )}
       <div className="relative print:hidden">
         <Sidebar
