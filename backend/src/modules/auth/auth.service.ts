@@ -223,13 +223,18 @@ export async function loginService(email: string, password: string, preferredPha
   const normalizedRole = normalizeRole(user.role);
   const rawMemberships = user.memberships;
   timings.membershipsMs = 0;
-  const membership = chooseLoginMembership(rawMemberships, preferredPharmacyId ?? user.pharmacyId);
+  // SUPER_ADMIN has no pharmacy context — their account is platform-level only.
+  const membership = normalizedRole === 'SUPER_ADMIN'
+    ? null
+    : chooseLoginMembership(rawMemberships, preferredPharmacyId ?? user.pharmacyId);
 
   if (!membership && normalizedRole !== 'SUPER_ADMIN') {
     throw Object.assign(new Error('No active pharmacy membership found'), { status: 403 });
   }
 
-  const selectedPharmacyId = membership?.pharmacyId ?? user.pharmacyId;
+  const selectedPharmacyId = normalizedRole === 'SUPER_ADMIN'
+    ? null
+    : (membership?.pharmacyId ?? user.pharmacyId);
 
   const { accessToken, refreshToken } = await measureLoginStep(timings, 'tokenIssueMs', () => issueAuthTokens({
       userId: user.id,
@@ -280,8 +285,8 @@ export async function loginService(email: string, password: string, preferredPha
     },
     accessToken,
     refreshToken,
-    pharmacy: membership?.pharmacy ?? user.pharmacy,
-    memberships,
+    pharmacy: normalizedRole === 'SUPER_ADMIN' ? null : (membership?.pharmacy ?? user.pharmacy),
+    memberships: normalizedRole === 'SUPER_ADMIN' ? [] : memberships,
   };
 }
 
@@ -552,7 +557,9 @@ export async function refreshTokenService(token: string) {
   const tokens = await issueAuthTokens({
     userId: user.id,
     role: user.role as KnownRole,
-    pharmacyId: membership?.pharmacyId ?? user.pharmacyId,
+    pharmacyId: normalizeRole(user.role) === 'SUPER_ADMIN'
+      ? null
+      : (membership?.pharmacyId ?? user.pharmacyId),
   });
 
   return tokens;

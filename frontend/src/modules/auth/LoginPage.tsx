@@ -81,7 +81,11 @@ export const LoginPage: React.FC = () => {
         : await loadMemberships();
       setMemberships(memberships);
 
-      const selectedMembership = memberships.find((membership) => membership.selected) ?? null;
+      // SUPER_ADMIN has no pharmacy context — never apply membership role/pharmacyId
+      // to their user record, which would silently downgrade them to OWNER.
+      const selectedMembership = user?.role !== 'SUPER_ADMIN'
+        ? (memberships.find((membership) => membership.selected) ?? null)
+        : null;
       if (selectedMembership) {
         setPharmacy(selectedMembership.pharmacy);
         setDeviceSelectedPharmacyId(selectedMembership.pharmacyId);
