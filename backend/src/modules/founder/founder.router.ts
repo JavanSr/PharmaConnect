@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { Prisma } from '@prisma/client';
 import { authenticate, requireRole, type AuthRequest } from '../../middleware/auth';
 import { prisma } from '../../lib/prisma';
 import { sendWelcomeEmail } from '../../lib/email';
@@ -8,6 +9,13 @@ import { activateSubscriptionFromPayment, defaultPaidUntil } from '../subscripti
 export const founderRouter = Router();
 founderRouter.use(authenticate);
 founderRouter.use(requireRole('SUPER_ADMIN'));
+
+// Seed/demo pharmacies to exclude from all founder views.
+// These are created by `npm run db:seed` and should never appear in founder analytics or registrations.
+const SEED_LICENCE_NUMBERS = ['PH-AR-2024-001'];
+const SEED_EXCLUDE_FILTER = {
+  NOT: { licenceNumber: { in: SEED_LICENCE_NUMBERS } },
+} as const;
 
 const subscriptionPaymentSelect = {
   id: true,
@@ -50,6 +58,7 @@ const subscriptionPaymentSelect = {
 founderRouter.get('/registrations', async (_req: AuthRequest, res, next) => {
   try {
     const pharmacies = await prisma.pharmacy.findMany({
+      where: SEED_EXCLUDE_FILTER,
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,
@@ -372,7 +381,7 @@ founderRouter.patch('/registrations/:pharmacyId/set-tier', async (req: AuthReque
   try {
     const { pharmacyId } = req.params;
     const { tier, paidUntil, billingCycle } = z.object({
-      tier: z.enum(['ADDO', 'ESSENTIAL', 'ADDO_PLUS', 'STANDARD', 'PREMIUM', 'WHOLESALE', 'ENTERPRISE']),
+      tier: z.enum(['ADDO', 'BASIC', 'STANDARD', 'PREMIUM', 'WHOLESALE', 'ENTERPRISE']),
       paidUntil: z.coerce.date().optional(),
       billingCycle: z.enum(['MONTHLY', 'ANNUAL']).optional(),
     }).parse(req.body);
@@ -389,7 +398,7 @@ founderRouter.patch('/registrations/:pharmacyId/set-tier', async (req: AuthReque
     const updated = await prisma.pharmacy.update({
       where: { id: pharmacyId },
       data: {
-        subscriptionTier: tier,
+        subscriptionTier: tier as import('@prisma/client').SubscriptionTier,
         status: 'ACTIVE',
         trialActive: false,
         isActive: true,
@@ -461,12 +470,13 @@ founderRouter.get('/stats', async (_req: AuthRequest, res, next) => {
       totalDispensings,
       totalBatches,
     ] = await Promise.all([
-      prisma.pharmacy.count(),
-      prisma.pharmacy.count({ where: { isActive: true } }),
-      prisma.user.count(),
-      prisma.pharmacy.groupBy({ by: ['subscriptionTier'], _count: { id: true } }),
-      prisma.pharmacy.groupBy({ by: ['status'], _count: { id: true } }),
+      prisma.pharmacy.count({ where: SEED_EXCLUDE_FILTER }),
+      prisma.pharmacy.count({ where: { isActive: true, ...SEED_EXCLUDE_FILTER } }),
+      prisma.user.count({ where: { pharmacy: SEED_EXCLUDE_FILTER } }),
+      prisma.pharmacy.groupBy({ by: ['subscriptionTier'], where: SEED_EXCLUDE_FILTER, _count: { id: true } }),
+      prisma.pharmacy.groupBy({ by: ['status'], where: SEED_EXCLUDE_FILTER, _count: { id: true } }),
       prisma.pharmacy.findMany({
+        where: SEED_EXCLUDE_FILTER,
         orderBy: { createdAt: 'desc' },
         take: 10,
         select: { id: true, name: true, region: true, subscriptionTier: true, status: true, createdAt: true },
@@ -483,7 +493,7 @@ founderRouter.get('/stats', async (_req: AuthRequest, res, next) => {
           pharmacy: { select: { name: true } },
         },
       }),
-      prisma.$queryRaw<Array<{ count: bigint }>>`SELECT COUNT(*) AS count FROM dispensing_events`,
+      prisma.$queryRaw<Array<{ count: bigint }>>`SELECT COUNT(*) AS count FROM dispensing_transactions`,
       prisma.batch.count(),
     ]);
     const dispensingCount = Number(totalDispensings[0]?.count ?? 0);
@@ -504,14 +514,187 @@ founderRouter.get('/stats', async (_req: AuthRequest, res, next) => {
   }
 });
 
+// ── /founder/analytics — platform-wide owner analytics ──────────────────────────
+founderRouter.get('/analytics', async (req: AuthRequest, res, next) => {
+  try {
+    const { days: daysParam } = z.object({
+      days: z.coerce.number().int().min(7).max(365).optional().default(30),
+    }).parse(req.query);
+
+    const now = new Date();
+    const since = new Date(now.getTime() - daysParam * 24 * 60 * 60 * 1000);
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const [
+      totals,
+      revenueByDay,
+      revenueByPaymentMethod,
+      topPharmacies,
+      topProducts,
+      overridesByType,
+      recentOverrides,
+    ] = await Promise.all([
+
+      // ── Revenue totals ─────────────────────────────────────────────────────
+      prisma.$queryRaw<Array<{
+        total_all: string; count_all: bigint;
+        total_30d: string; count_30d: bigint;
+        total_7d:  string; count_7d:  bigint;
+        total_mtd: string; count_mtd: bigint;
+      }>>(Prisma.sql`
+        SELECT
+          COALESCE(SUM(total_amount), 0)::text                                              AS total_all,
+          COUNT(*)::bigint                                                                   AS count_all,
+          COALESCE(SUM(total_amount) FILTER (WHERE created_at >= ${since}), 0)::text        AS total_30d,
+          COUNT(*) FILTER (WHERE created_at >= ${since})::bigint                            AS count_30d,
+          COALESCE(SUM(total_amount) FILTER (WHERE created_at >= ${sevenDaysAgo}), 0)::text AS total_7d,
+          COUNT(*) FILTER (WHERE created_at >= ${sevenDaysAgo})::bigint                     AS count_7d,
+          COALESCE(SUM(total_amount) FILTER (WHERE created_at >= ${monthStart}), 0)::text   AS total_mtd,
+          COUNT(*) FILTER (WHERE created_at >= ${monthStart})::bigint                       AS count_mtd
+        FROM dispensing_transactions
+        WHERE status = 'COMPLETED'
+      `).catch(() => [{ total_all: '0', count_all: 0n, total_30d: '0', count_30d: 0n, total_7d: '0', count_7d: 0n, total_mtd: '0', count_mtd: 0n }]),
+
+      // ── Revenue by day ─────────────────────────────────────────────────────
+      prisma.$queryRaw<Array<{ day: string; revenue: string; count: bigint }>>(Prisma.sql`
+        SELECT
+          TO_CHAR(DATE_TRUNC('day', created_at), 'YYYY-MM-DD') AS day,
+          COALESCE(SUM(total_amount), 0)::text                  AS revenue,
+          COUNT(*)::bigint                                       AS count
+        FROM dispensing_transactions
+        WHERE created_at >= ${since} AND status = 'COMPLETED'
+        GROUP BY day
+        ORDER BY day ASC
+      `).catch(() => []),
+
+      // ── Revenue by payment method ──────────────────────────────────────────
+      prisma.$queryRaw<Array<{ method: string; revenue: string; count: bigint }>>(Prisma.sql`
+        SELECT
+          payment_method                       AS method,
+          COALESCE(SUM(total_amount), 0)::text AS revenue,
+          COUNT(*)::bigint                     AS count
+        FROM dispensing_transactions
+        WHERE created_at >= ${since} AND status != 'VOIDED'
+        GROUP BY payment_method
+        ORDER BY SUM(total_amount) DESC
+      `).catch(() => []),
+
+      // ── Top 10 pharmacies by revenue ───────────────────────────────────────
+      prisma.$queryRaw<Array<{ pharmacy_id: string; pharmacy_name: string; tier: string; dispensing_count: bigint; revenue: string }>>(Prisma.sql`
+        SELECT
+          de.pharmacy_id,
+          p.name              AS pharmacy_name,
+          p."subscriptionTier" AS tier,
+          COUNT(*)::bigint    AS dispensing_count,
+          COALESCE(SUM(de.total_amount), 0)::text AS revenue
+        FROM dispensing_transactions de
+        JOIN pharmacies p ON p.id = de.pharmacy_id
+        WHERE de.created_at >= ${since} AND de.status = 'COMPLETED'
+        GROUP BY de.pharmacy_id, p.name, p."subscriptionTier"
+        ORDER BY SUM(de.total_amount) DESC
+        LIMIT 10
+      `).catch(() => []),
+
+      // ── Top 10 products by quantity dispensed ─────────────────────────────
+      prisma.$queryRaw<Array<{ product_name: string; total_qty: bigint; dispense_count: bigint; revenue: string }>>(Prisma.sql`
+        SELECT
+          (item->>'productName')                                                AS product_name,
+          SUM((item->>'quantity')::int)::bigint                                 AS total_qty,
+          COUNT(*)::bigint                                                       AS dispense_count,
+          COALESCE(SUM((item->>'unitPrice')::numeric * (item->>'quantity')::int), 0)::text AS revenue
+        FROM dispensing_transactions,
+             JSONB_ARRAY_ELEMENTS(items) AS item
+        WHERE created_at >= ${since} AND status = 'COMPLETED'
+          AND (item->>'productName') IS NOT NULL
+        GROUP BY product_name
+        ORDER BY total_qty DESC
+        LIMIT 10
+      `).catch(() => []),
+
+      // ── Clinical override breakdown by alert type ──────────────────────────
+      prisma.overrideLog.groupBy({
+        by: ['alertType'],
+        _count: { id: true },
+        where: { createdAt: { gte: since } },
+        orderBy: { _count: { id: 'desc' } },
+      }).catch(() => []),
+
+      // ── Most recent 10 overrides ───────────────────────────────────────────
+      prisma.overrideLog.findMany({
+        where: { createdAt: { gte: since } },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+        select: {
+          id: true, alertType: true, reason: true, createdAt: true,
+          pharmacyId: true,
+          pharmacy: { select: { name: true } },
+        },
+      }).catch(() => []),
+    ]);
+
+    const t = totals[0] ?? { total_all: '0', count_all: 0n, total_30d: '0', count_30d: 0n, total_7d: '0', count_7d: 0n, total_mtd: '0', count_mtd: 0n };
+
+    res.json({
+      data: {
+        windowDays: daysParam,
+        revenue: {
+          allTime:       { total: parseFloat(t.total_all), count: Number(t.count_all) },
+          window:        { total: parseFloat(t.total_30d), count: Number(t.count_30d) },
+          last7d:        { total: parseFloat(t.total_7d),  count: Number(t.count_7d)  },
+          monthToDate:   { total: parseFloat(t.total_mtd), count: Number(t.count_mtd) },
+        },
+        revenueByDay: revenueByDay.map(r => ({
+          day: r.day,
+          revenue: parseFloat(r.revenue),
+          count: Number(r.count),
+        })),
+        revenueByPaymentMethod: revenueByPaymentMethod.map(r => ({
+          method: r.method,
+          revenue: parseFloat(r.revenue),
+          count: Number(r.count),
+        })),
+        topPharmacies: topPharmacies.map(r => ({
+          pharmacyId: r.pharmacy_id,
+          name: r.pharmacy_name,
+          tier: r.tier,
+          dispensingCount: Number(r.dispensing_count),
+          revenue: parseFloat(r.revenue),
+        })),
+        topProducts: topProducts.map(r => ({
+          productName: r.product_name,
+          totalQty: Number(r.total_qty),
+          dispenseCount: Number(r.dispense_count),
+          revenue: parseFloat(r.revenue),
+        })),
+        clinicalOverrides: {
+          byType: overridesByType.map(r => ({ alertType: r.alertType, count: r._count.id })),
+          recent: recentOverrides.map(r => ({
+            id: r.id,
+            alertType: r.alertType,
+            reason: r.reason,
+            pharmacyId: r.pharmacyId,
+            pharmacyName: r.pharmacy?.name ?? null,
+            createdAt: r.createdAt.toISOString(),
+          })),
+        },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // ── /founder/growth — MRR, trial pipeline, churn signals, activation, geography ──
 founderRouter.get('/growth', async (_req: AuthRequest, res, next) => {
   try {
     const TIER_MRR: Record<string, number> = {
-      ADDO: 15_000, ESSENTIAL: 39_000, ADDO_PLUS: 45_000,
-      STANDARD: 55_000, PREMIUM: 75_000, WHOLESALE: 100_000, ENTERPRISE: 0,
-      // Legacy aliases
+      ADDO: 15_000,
       BASIC: 39_000,
+      STANDARD: 55_000,
+      PREMIUM: 75_000,
+      WHOLESALE: 100_000,
+      ENTERPRISE: 0,
     };
 
     const now = new Date();
@@ -571,7 +754,7 @@ founderRouter.get('/growth', async (_req: AuthRequest, res, next) => {
       prisma.pharmacy.groupBy({ by: ['region'], _count: { id: true }, orderBy: { _count: { id: 'desc' } } }),
       // Pharmacies with dispensing activity in last 14 days
       prisma.$queryRaw<Array<{ pharmacy_id: string }>>`
-        SELECT DISTINCT pharmacy_id FROM dispensing_events
+        SELECT DISTINCT pharmacy_id FROM dispensing_transactions
         WHERE created_at >= ${fourteenDaysAgo}
       `,
       // Payments confirmed this week (for WoW MRR movement)
@@ -720,7 +903,7 @@ founderRouter.get('/growth', async (_req: AuthRequest, res, next) => {
           select: { id: true },
         }),
         prisma.$queryRaw<Array<{ id: string }>>`
-          SELECT id FROM dispensing_events WHERE pharmacy_id = ${p.id} LIMIT 1
+          SELECT id FROM dispensing_transactions WHERE pharmacy_id = ${p.id} LIMIT 1
         `,
       ]);
       if (firstBatch) activatedCount++;
@@ -778,4 +961,3 @@ founderRouter.get('/growth', async (_req: AuthRequest, res, next) => {
     next(error);
   }
 });
-        

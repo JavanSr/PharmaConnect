@@ -1,15 +1,32 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 
+// Seeded demo pharmacies — excluded from all founder dashboard metrics so they
+// don't inflate real business numbers. Still visible in the pharmacies list.
+const DEMO_LICENCE_NUMBERS = ['PH-AR-2024-001', 'WH-AR-2024-001'];
+
+/** Resolves the IDs of the two seeded demo pharmacies (cached after first call). */
+let _demoCacheAt = 0;
+let _demoIds: string[] = [];
+async function getDemoPharmacyIds(): Promise<string[]> {
+  // Cache for 5 minutes — IDs never change but avoids a DB hit on every request
+  if (Date.now() - _demoCacheAt < 5 * 60_000) return _demoIds;
+  const rows = await prisma.pharmacy.findMany({
+    where: { licenceNumber: { in: DEMO_LICENCE_NUMBERS } },
+    select: { id: true },
+  });
+  _demoIds = rows.map((r) => r.id);
+  _demoCacheAt = Date.now();
+  return _demoIds;
+}
+
 const MRR_MAP: Record<string, number> = {
-  ADDO: 20_000,
-  ESSENTIAL: 39_000,
-  ADDO_PLUS: 55_000,
+  ADDO: 15_000,
+  BASIC: 39_000,
   STANDARD: 55_000,
   PREMIUM: 75_000,
   WHOLESALE: 100_000,
   ENTERPRISE: 0,
-  FREE: 0,
 };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -97,6 +114,12 @@ export async function listPharmacies(params: {
   const limit = Math.min(Math.max(params.limit ?? 25, 1), 100);
   const offset = (page - 1) * limit;
 
+  // Exclude seeded demo pharmacies from the list
+  const demoIds = await getDemoPharmacyIds();
+  const demoExcludeClause = demoIds.length > 0
+    ? Prisma.sql`AND p."id" NOT IN (${Prisma.join(demoIds)})`
+    : Prisma.empty;
+
   const searchClause = params.search
     ? Prisma.sql`AND (
         p."name" ILIKE ${'%' + params.search + '%'}
@@ -133,7 +156,7 @@ export async function listPharmacies(params: {
         p."isActive"              AS is_active,
         p."is_hybrid",
         p."hybrid_addon_active",
-        p."userLimit"             AS user_limit,
+        p."user_limit",
         p."internal_notes",
         p."createdAt"             AS created_at,
         p."updatedAt"             AS updated_at,
@@ -143,11 +166,12 @@ export async function listPharmacies(params: {
         MAX(u2."lastLogin")       AS last_login
       FROM "pharmacies" p
       LEFT JOIN "pharmacy_memberships" pm
-        ON pm."pharmacyId" = p."id" AND pm."role" = 'OWNER' AND pm."active" = TRUE
-      LEFT JOIN "users" u ON u."id" = pm."userId"
-      LEFT JOIN "pharmacy_memberships" pm2 ON pm2."pharmacyId" = p."id" AND pm2."active" = TRUE
-      LEFT JOIN "users" u2 ON u2."id" = pm2."userId"
+        ON pm."pharmacy_id" = p."id" AND pm."role" = 'OWNER' AND pm."active" = TRUE
+      LEFT JOIN "users" u ON u."id" = pm."user_id"
+      LEFT JOIN "pharmacy_memberships" pm2 ON pm2."pharmacy_id" = p."id" AND pm2."active" = TRUE
+      LEFT JOIN "users" u2 ON u2."id" = pm2."user_id"
       WHERE TRUE
+        ${demoExcludeClause}
         ${searchClause}
         ${tierClause}
         ${statusClause}
@@ -160,9 +184,10 @@ export async function listPharmacies(params: {
       SELECT COUNT(DISTINCT p."id")::bigint AS total
       FROM "pharmacies" p
       LEFT JOIN "pharmacy_memberships" pm
-        ON pm."pharmacyId" = p."id" AND pm."role" = 'OWNER' AND pm."active" = TRUE
-      LEFT JOIN "users" u ON u."id" = pm."userId"
+        ON pm."pharmacy_id" = p."id" AND pm."role" = 'OWNER' AND pm."active" = TRUE
+      LEFT JOIN "users" u ON u."id" = pm."user_id"
       WHERE TRUE
+        ${demoExcludeClause}
         ${searchClause}
         ${tierClause}
         ${statusClause}
@@ -206,12 +231,12 @@ async function getActivityHealthMap(pharmacyIds: string[]): Promise<Map<string, 
   if (!pharmacyIds.length) return new Map();
 
   const rows = await prisma.$queryRaw<Array<{ pharmacy_id: string; last_activity: Date | null }>>(Prisma.sql`
-    SELECT pm."pharmacyId" AS pharmacy_id, MAX(u."lastLogin") AS last_activity
+    SELECT pm."pharmacy_id" AS pharmacy_id, MAX(u."lastLogin") AS last_activity
     FROM "pharmacy_memberships" pm
-    JOIN "users" u ON u."id" = pm."userId"
-    WHERE pm."pharmacyId" IN (${Prisma.join(pharmacyIds)})
+    JOIN "users" u ON u."id" = pm."user_id"
+    WHERE pm."pharmacy_id" IN (${Prisma.join(pharmacyIds)})
       AND pm."active" = TRUE
-    GROUP BY pm."pharmacyId"
+    GROUP BY pm."pharmacy_id"
   `);
 
   const map = new Map<string, 'green' | 'amber' | 'red'>();
@@ -344,6 +369,20 @@ export async function setPharmacyStatus(pharmacyId: string, status: string) {
   } else if (status === 'ACTIVE') {
     data.isActive = true;
     data.trialActive = false;
+  } else if (status === 'TRIAL') {
+    data.isActive = true;
+    data.trialActive = true;
+    // If trial has already expired, reset it to 14 days from now
+    const existing = await prisma.pharmacy.findUnique({
+      where: { id: pharmacyId },
+      select: { trialEndsAt: true },
+    });
+    if (!existing?.trialEndsAt || existing.trialEndsAt < new Date()) {
+      const trialEndsAt = new Date();
+      trialEndsAt.setDate(trialEndsAt.getDate() + 14);
+      data.trialEndsAt = trialEndsAt;
+      data.trialStartsAt = new Date();
+    }
   } else if (status === 'GRACE') {
     data.isActive = true;
     data.graceActivatedAt = new Date();
@@ -487,7 +526,12 @@ export async function getPharmacyUsage(pharmacyId: string) {
 export async function getDashboardMetrics() {
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+
+  const in5Days = new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000);
+
+  // Exclude seeded demo pharmacies from all metrics
+  const demoIds = await getDemoPharmacyIds();
+  const excludeDemo = demoIds.length > 0 ? { id: { notIn: demoIds } } : {};
 
   const [
     statusBreakdown,
@@ -496,30 +540,59 @@ export async function getDashboardMetrics() {
     mrrPayments,
     txThisMonth,
     gracePharma,
+    expiringIn5Days,
   ] = await Promise.all([
-    prisma.pharmacy.groupBy({ by: ['status'], _count: { id: true } }),
+    prisma.pharmacy.groupBy({ by: ['status'], where: excludeDemo, _count: { id: true } }),
     prisma.pharmacy.groupBy({
       by: ['subscriptionTier'],
-      where: { status: 'ACTIVE' },
+      where: { status: 'ACTIVE', ...excludeDemo },
       _count: { id: true },
     }),
-    prisma.pharmacy.count({ where: { createdAt: { gte: startOfMonth } } }),
-    prisma.$queryRaw<Array<{ month: string; total: bigint }>>(Prisma.sql`
-      SELECT TO_CHAR("payment_date", 'YYYY-MM') AS month,
-             SUM("amount_tzs")::bigint AS total
-      FROM "subscription_payments"
-      WHERE "payment_date" >= ${new Date(now.getFullYear(), now.getMonth() - 5, 1)}
-      GROUP BY month
-      ORDER BY month ASC
-    `),
-    prisma.$queryRaw<Array<{ count: bigint }>>(Prisma.sql`
-      SELECT COUNT(*)::bigint AS count FROM "dispensing_events"
-      WHERE "created_at" >= ${startOfMonth}
-    `).catch(() => [{ count: 0n }]),
+    prisma.pharmacy.count({ where: { createdAt: { gte: startOfMonth }, ...excludeDemo } }),
+    // MRR trend: exclude payments from demo pharmacies
+    demoIds.length > 0
+      ? prisma.$queryRaw<Array<{ month: string; total: bigint }>>(Prisma.sql`
+          SELECT TO_CHAR("payment_date", 'YYYY-MM') AS month,
+                 SUM("amount_tzs")::bigint AS total
+          FROM "subscription_payments"
+          WHERE "payment_date" >= ${new Date(now.getFullYear(), now.getMonth() - 5, 1)}
+            AND "pharmacy_id" NOT IN (${Prisma.join(demoIds)})
+          GROUP BY month
+          ORDER BY month ASC
+        `)
+      : prisma.$queryRaw<Array<{ month: string; total: bigint }>>(Prisma.sql`
+          SELECT TO_CHAR("payment_date", 'YYYY-MM') AS month,
+                 SUM("amount_tzs")::bigint AS total
+          FROM "subscription_payments"
+          WHERE "payment_date" >= ${new Date(now.getFullYear(), now.getMonth() - 5, 1)}
+          GROUP BY month
+          ORDER BY month ASC
+        `),
+    // Transaction count: exclude demo pharmacies
+    demoIds.length > 0
+      ? prisma.$queryRaw<Array<{ count: bigint }>>(Prisma.sql`
+          SELECT COUNT(*)::bigint AS count FROM "dispensing_events"
+          WHERE "created_at" >= ${startOfMonth}
+            AND "pharmacy_id" NOT IN (${Prisma.join(demoIds)})
+        `).catch(() => [{ count: 0n }])
+      : prisma.$queryRaw<Array<{ count: bigint }>>(Prisma.sql`
+          SELECT COUNT(*)::bigint AS count FROM "dispensing_events"
+          WHERE "created_at" >= ${startOfMonth}
+        `).catch(() => [{ count: 0n }]),
     prisma.pharmacy.findMany({
-      where: { status: 'GRACE' },
+      where: { status: 'GRACE', ...excludeDemo },
       select: { id: true, name: true, region: true, subscriptionTier: true, graceActivatedAt: true },
       orderBy: { graceActivatedAt: 'asc' },
+    }),
+    prisma.pharmacy.findMany({
+      where: {
+        status: { in: ['TRIAL', 'ACTIVE'] },
+        isActive: true,
+        trialEndsAt: { gte: now, lte: in5Days },
+        ...excludeDemo,
+      },
+      select: { id: true, name: true, subscriptionTier: true, trialEndsAt: true, status: true },
+      orderBy: { trialEndsAt: 'asc' },
     }),
   ]);
 
@@ -534,6 +607,7 @@ export async function getDashboardMetrics() {
     where: {
       status: { in: ['CANCELLED', 'SUSPENDED'] },
       subscriptionUpdatedAt: { gte: startOfMonth },
+      ...excludeDemo,
     },
   });
 
@@ -545,14 +619,18 @@ export async function getDashboardMetrics() {
     churnedThisMonth,
     gracePeriodCount: gracePharma.length,
     gracePeriodPharmacies: gracePharma,
+    expiringIn5Days,
     statusBreakdown: statusMap,
     mrrTrend: mrrPayments.map((r) => ({ month: r.month, totalTzs: Number(r.total) })),
   };
 }
 
 export async function getAtRiskPharmacies() {
+  const demoIds = await getDemoPharmacyIds();
+  const excludeDemo = demoIds.length > 0 ? { id: { notIn: demoIds } } : {};
+
   const all = await prisma.pharmacy.findMany({
-    where: { isActive: true },
+    where: { isActive: true, ...excludeDemo },
     select: { id: true, name: true, subscriptionTier: true, status: true, trialEndsAt: true },
   });
 

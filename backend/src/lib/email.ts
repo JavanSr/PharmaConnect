@@ -4,7 +4,7 @@ let resend: Resend | null = null;
 
 const FROM = process.env.EMAIL_FROM ?? process.env.RESEND_FROM_EMAIL ?? 'APOTEKH <noreply@apotekh.co.tz>';
 const SUPPORT_EMAIL = 'support@apotekh.co.tz';
-const FOUNDER_EMAIL = process.env.FOUNDER_EMAIL ?? SUPPORT_EMAIL;
+const FOUNDER_EMAIL = process.env.FOUNDER_EMAIL ?? 'elihaki.yusuph@gmail.com';
 const APP_URL = process.env.FRONTEND_URL ?? 'https://apotekh.co.tz';
 
 function getResendClient() {

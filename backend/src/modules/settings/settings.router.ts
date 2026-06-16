@@ -20,6 +20,7 @@ import {
   isSubscriptionWebhookConfigured,
   subscriptionProviderName,
 } from '../subscription/subscription-payments.service';
+import { initiateAzamPayCheckout, isAzamPayConfigured, detectProvider } from '../azampay/azampay.service';
 
 export const settingsRouter = Router();
 settingsRouter.use(authenticate);
@@ -175,8 +176,10 @@ settingsRouter.post('/subscription/checkout', requireRole('OWNER', 'SUPER_ADMIN'
 
     const amount = getSubscriptionPrice(data.requestedTier, data.billingCycle);
     const reference = generateSubscriptionReference();
-    const provider = subscriptionProviderName();
-    const checkoutUrl = buildSubscriptionCheckoutUrl({
+
+    const azamPayReady = isAzamPayConfigured();
+    const provider = azamPayReady ? `AzamPay/${detectProvider(data.payerPhone)}` : subscriptionProviderName();
+    const checkoutUrl = azamPayReady ? null : buildSubscriptionCheckoutUrl({
       reference,
       amount,
       tier: data.requestedTier,
@@ -196,22 +199,56 @@ settingsRouter.post('/subscription/checkout', requireRole('OWNER', 'SUPER_ADMIN'
         provider,
         checkoutUrl,
         payerPhone: data.payerPhone,
-        note: isSubscriptionWebhookConfigured()
-          ? 'Self-service checkout awaiting provider confirmation.'
-          : 'Self-service checkout created, but provider webhook secret is not configured.',
+        note: azamPayReady
+          ? 'Self-service checkout — AzamPay STK push initiated.'
+          : isSubscriptionWebhookConfigured()
+            ? 'Self-service checkout awaiting provider confirmation.'
+            : 'Self-service checkout created, but provider webhook secret is not configured.',
       },
       select: subscriptionPaymentRequestSelect,
     });
+
+    // If AzamPay is configured, immediately trigger STK push to payer's phone
+    let stkResult: { success: boolean; message: string; transactionId: string | null } | null = null;
+    if (azamPayReady) {
+      try {
+        stkResult = await initiateAzamPayCheckout({
+          phone: data.payerPhone,
+          amount,
+          reference,
+        });
+        if (stkResult.transactionId) {
+          await prisma.subscriptionPaymentRequest.update({
+            where: { id: request.id },
+            data: { providerReference: stkResult.transactionId },
+          });
+        }
+      } catch (stkErr) {
+        console.error('[checkout] AzamPay STK push failed', stkErr);
+        stkResult = { success: false, message: 'STK push failed — contact support', transactionId: null };
+      }
+    }
+
+    const collectionPhone = (process.env.APOTEKH_PAYMENT_PHONE || '').trim() || null;
+    const stkSent = azamPayReady && (stkResult?.success ?? false);
 
     res.status(201).json({
       data: {
         request,
         provider,
-        providerReady: isSubscriptionWebhookConfigured(),
+        providerReady: azamPayReady || isSubscriptionWebhookConfigured(),
         checkoutUrl,
-        instructions: checkoutUrl
-          ? 'Open the payment link and complete payment. Access activates after provider confirmation.'
-          : 'Use the reference with your configured payment provider. Access activates after provider confirmation.',
+        collectionPhone,
+        reference,
+        amount,
+        stkSent,
+        instructions: stkSent
+          ? `A payment request has been sent to ${data.payerPhone}. Open M-PESA on your phone and enter your PIN to confirm Tsh ${amount.toLocaleString()}. Your subscription activates automatically once confirmed.`
+          : checkoutUrl
+            ? 'Open the payment link and complete payment. Access activates after provider confirmation.'
+            : collectionPhone
+              ? `Send Tsh ${amount.toLocaleString()} to ${collectionPhone} via M-PESA. Use ${reference} as the reference. Your access activates after we confirm payment.`
+              : `Send payment via M-PESA and use reference ${reference}. Contact support@apotekh.co.tz to confirm.`,
       },
     });
   } catch (e: any) {
@@ -569,6 +606,106 @@ settingsRouter.get('/onboarding/status', requireRole('OWNER'), async (req: AuthR
   } catch (e) {
     next(e);
   }
+});
+
+// ── Pharmacy Profile ──────────────────────────────────────────────────────────
+settingsRouter.get('/pharmacy-profile', requireRole('OWNER', 'SUPER_ADMIN'), async (req: AuthRequest, res, next) => {
+  try {
+    const pharmacy = await prisma.pharmacy.findUnique({
+      where: { id: pid(req) },
+      select: { id: true, name: true, licenceNumber: true, address: true, region: true },
+    });
+    if (!pharmacy) { res.status(404).json({ error: 'Pharmacy not found' }); return; }
+
+    // Pull phone + hours from PharmacySetting
+    const [phoneSetting, hoursSetting] = await Promise.all([
+      prisma.pharmacySetting.findUnique({ where: { pharmacyId_key: { pharmacyId: pid(req), key: 'pharmacy.phone' } }, select: { value: true } }),
+      prisma.pharmacySetting.findUnique({ where: { pharmacyId_key: { pharmacyId: pid(req), key: 'pharmacy.hours' } }, select: { value: true } }),
+    ]);
+
+    res.json({
+      data: {
+        ...pharmacy,
+        phone: (phoneSetting?.value as { phone?: string })?.phone ?? '',
+        hours: (hoursSetting?.value as { hours?: string })?.hours ?? '',
+      },
+    });
+  } catch (e) { next(e); }
+});
+
+settingsRouter.patch('/pharmacy-profile', requireRole('OWNER', 'SUPER_ADMIN'), async (req: AuthRequest, res, next) => {
+  try {
+    const schema = z.object({
+      address: z.string().trim().min(2).optional(),
+      region: z.string().trim().min(1).optional(),
+      licenceNumber: z.string().trim().min(1).optional(),
+      phone: z.string().trim().optional(),
+      hours: z.string().trim().optional(),
+    });
+    const data = schema.parse(req.body);
+    const pharmacyId = pid(req);
+    const userId = uid(req);
+
+    const updateData: Record<string, string> = {};
+    if (data.address) updateData.address = data.address;
+    if (data.region) updateData.region = data.region;
+    if (data.licenceNumber) updateData.licenceNumber = data.licenceNumber;
+
+    if (Object.keys(updateData).length > 0) {
+      await prisma.pharmacy.update({ where: { id: pharmacyId }, data: updateData });
+    }
+
+    if (data.phone !== undefined) {
+      await prisma.pharmacySetting.upsert({
+        where: { pharmacyId_key: { pharmacyId, key: 'pharmacy.phone' } },
+        update: { value: { phone: data.phone } },
+        create: { pharmacyId, key: 'pharmacy.phone', value: { phone: data.phone }, createdBy: userId },
+      });
+    }
+    if (data.hours !== undefined) {
+      await prisma.pharmacySetting.upsert({
+        where: { pharmacyId_key: { pharmacyId, key: 'pharmacy.hours' } },
+        update: { value: { hours: data.hours } },
+        create: { pharmacyId, key: 'pharmacy.hours', value: { hours: data.hours }, createdBy: userId },
+      });
+    }
+
+    res.json({ data: { updated: true } });
+  } catch (e) { next(e); }
+});
+
+// ── PIN management (PHARMACIST_IN_CHARGE + OWNER) ─────────────────────────────
+settingsRouter.post('/pin/set', requireRole('OWNER', 'PHARMACIST_IN_CHARGE', 'SUPER_ADMIN'), async (req: AuthRequest, res, next) => {
+  try {
+    const { pin, currentPassword } = z.object({
+      pin: z.string().length(4).regex(/^\d{4}$/, 'PIN must be 4 digits'),
+      currentPassword: z.string().min(1),
+    }).parse(req.body);
+
+    const user = await prisma.user.findUnique({ where: { id: uid(req) } });
+    if (!user) { res.status(404).json({ error: 'User not found' }); return; }
+
+    const valid = await bcrypt.compare(currentPassword, user.password);
+    if (!valid) { res.status(400).json({ error: 'Password incorrect' }); return; }
+
+    const hash = await bcrypt.hash(pin, 10);
+    await prisma.user.update({ where: { id: uid(req) }, data: { picPinHash: hash } });
+    res.json({ data: { message: 'PIN set successfully' } });
+  } catch (e) { next(e); }
+});
+
+settingsRouter.post('/pin/clear', requireRole('OWNER', 'PHARMACIST_IN_CHARGE', 'SUPER_ADMIN'), async (req: AuthRequest, res, next) => {
+  try {
+    const { currentPassword } = z.object({ currentPassword: z.string().min(1) }).parse(req.body);
+    const user = await prisma.user.findUnique({ where: { id: uid(req) } });
+    if (!user) { res.status(404).json({ error: 'User not found' }); return; }
+
+    const valid = await bcrypt.compare(currentPassword, user.password);
+    if (!valid) { res.status(400).json({ error: 'Password incorrect' }); return; }
+
+    await prisma.user.update({ where: { id: uid(req) }, data: { picPinHash: null } });
+    res.json({ data: { message: 'PIN cleared' } });
+  } catch (e) { next(e); }
 });
 
 settingsRouter.post('/onboarding/complete', requireRole('OWNER'), async (req: AuthRequest, res, next) => {

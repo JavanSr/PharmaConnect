@@ -216,6 +216,72 @@ adminRouter.post('/pharmacies/:id/reset-pin/:userId', async (req: AuthRequest, r
   } catch (e) { next(e); }
 });
 
+// ─── Membership repair ────────────────────────────────────────────────────────
+// Fixes "no pharmacy" when a user account exists but has no PharmacyMembership.
+
+adminRouter.post('/pharmacies/:id/memberships', async (req: AuthRequest, res, next) => {
+  try {
+    const { userEmail, role } = z.object({
+      userEmail: z.string().email(),
+      // PharmacyMembershipRole enum — only these exist in the schema
+      role: z.enum(['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER']),
+    }).parse(req.body);
+
+    const user = await prisma.user.findUnique({ where: { email: userEmail }, select: { id: true, email: true } });
+    if (!user) throw Object.assign(new Error(`No user found with email ${userEmail}`), { status: 404 });
+
+    // Upsert: reactivate an existing (inactive) membership, or create a new one.
+    // The unique constraint is (userId, pharmacyId) so we can't create a second row.
+    await prisma.pharmacyMembership.upsert({
+      where: { userId_pharmacyId: { userId: user.id, pharmacyId: req.params.id } } as any,
+      create: {
+        pharmacyId: req.params.id,
+        userId: user.id,
+        role: role as any,
+        active: true,
+        validFrom: new Date(),
+      },
+      update: {
+        role: role as any,
+        active: true,
+        validFrom: new Date(),
+        validUntil: null,
+      },
+    });
+
+    await writeAuditLog({
+      adminEmail: email(req), action: 'ADD_MEMBERSHIP',
+      targetPharmacyId: req.params.id,
+      details: { userEmail, role },
+      req,
+    });
+
+    res.status(201).json({ data: { linked: true, userEmail, role } });
+  } catch (e) { next(e); }
+});
+
+adminRouter.get('/pharmacies/:id/memberships', async (req: AuthRequest, res, next) => {
+  try {
+    const memberships = await prisma.pharmacyMembership.findMany({
+      where: { pharmacyId: req.params.id },
+      include: { user: { select: { email: true, firstName: true, lastName: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+    res.json({
+      data: memberships.map((m) => ({
+        id: m.id,
+        userId: m.userId,
+        email: m.user.email,
+        name: `${m.user.firstName} ${m.user.lastName}`.trim(),
+        role: m.role,
+        active: m.active,
+        validFrom: m.validFrom,
+        validUntil: m.validUntil,
+      })),
+    });
+  } catch (e) { next(e); }
+});
+
 // ─── Audit log ────────────────────────────────────────────────────────────────
 
 adminRouter.get('/audit', async (req: AuthRequest, res, next) => {

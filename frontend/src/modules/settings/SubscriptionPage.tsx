@@ -97,23 +97,6 @@ export const SubscriptionPage: React.FC = () => {
     () => normalizePaymentMethodConfig(null).methods,
   );
   const [paymentMethodsDirty, setPaymentMethodsDirty] = React.useState(false);
-  const [paymentRequestDraft, setPaymentRequestDraft] = React.useState<{
-    requestedTier: PaymentRequestTier;
-    billingCycle: BillingCycle;
-    amount: string;
-    paymentMethod: string;
-    transactionRef: string;
-    payerPhone: string;
-    note: string;
-  }>({
-    requestedTier: isPaymentRequestTier(pharmacy?.subscriptionTier) ? pharmacy.subscriptionTier : 'STANDARD',
-    billingCycle: 'MONTHLY',
-    amount: '',
-    paymentMethod: 'M-Pesa',
-    transactionRef: '',
-    payerPhone: '',
-    note: '',
-  });
   const [checkoutDraft, setCheckoutDraft] = React.useState<{
     requestedTier: PaymentRequestTier;
     billingCycle: BillingCycle;
@@ -123,6 +106,21 @@ export const SubscriptionPage: React.FC = () => {
     billingCycle: 'MONTHLY',
     payerPhone: '',
   });
+  const checkoutSectionRef = React.useRef<HTMLDivElement>(null);
+
+  const selectPlanAndScroll = (tier: PaymentRequestTier) => {
+    setCheckoutDraft(c => ({ ...c, requestedTier: tier }));
+    setTimeout(() => checkoutSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+  };
+
+  const [checkoutResult, setCheckoutResult] = React.useState<{
+    reference: string;
+    amount: number;
+    checkoutUrl: string | null;
+    collectionPhone: string | null;
+    instructions: string;
+    stkSent: boolean;
+  } | null>(null);
 
   const subscriptionQuery = useQuery({
     queryKey: ['subscription-settings'],
@@ -203,36 +201,18 @@ export const SubscriptionPage: React.FC = () => {
     },
   });
 
-  const submitPaymentRequestMutation = useMutation({
-    mutationFn: () => api.post('/settings/subscription/payment-requests', {
-      ...paymentRequestDraft,
-      amount: Number(paymentRequestDraft.amount),
-    }),
-    onSuccess: async () => {
-      toast.success('Payment request submitted for founder review');
-      setPaymentRequestDraft((current) => ({
-        ...current,
-        transactionRef: '',
-        payerPhone: '',
-        note: '',
-      }));
-      await paymentRequestsQuery.refetch();
-    },
-    onError: (error: any) => {
-      const code = error.response?.data?.error;
-      toast.error(code === 'PAYMENT_REFERENCE_ALREADY_SUBMITTED'
-        ? 'This transaction reference was already submitted.'
-        : code || 'Could not submit payment request');
-    },
-  });
-
   const createCheckoutMutation = useMutation({
     mutationFn: () => api.post('/settings/subscription/checkout', checkoutDraft).then((response) => response.data),
     onSuccess: async (response) => {
-      const checkoutUrl = response.data?.checkoutUrl || response.data?.request?.checkoutUrl;
-      toast.success(checkoutUrl
-        ? 'Checkout created. Open the payment link to complete payment.'
-        : 'Checkout reference created. Complete payment with this reference.');
+      const d = response.data ?? {};
+      setCheckoutResult({
+        reference: d.reference ?? d.request?.transactionRef ?? '',
+        amount: d.amount ?? 0,
+        checkoutUrl: d.checkoutUrl ?? null,
+        collectionPhone: d.collectionPhone ?? null,
+        instructions: d.instructions ?? '',
+        stkSent: Boolean(d.stkSent),
+      });
       await paymentRequestsQuery.refetch();
       await subscriptionQuery.refetch();
     },
@@ -281,7 +261,7 @@ export const SubscriptionPage: React.FC = () => {
           <h1 className="text-xl font-bold text-[#0D4035]">Subscription</h1>
           <SettingsNav />
           <p className="mt-1 text-sm text-[#64748B]">
-            Review your current tier and trial status{canManageSubscription ? ', then choose an upgrade path' : ''}. Payments are confirmed manually after M-Pesa or bank transfer.
+            Review your current tier and trial status{canManageSubscription ? ', then subscribe below' : ''}. Use the mobile money checkout for instant automatic activation.
           </p>
         </div>
         {subscription && (
@@ -324,26 +304,36 @@ export const SubscriptionPage: React.FC = () => {
           </div>
         )}
 
-        <div className="mt-5 rounded-2xl border border-[#D6F0E8] bg-[#F8FAFC] px-4 py-4">
-          <p className="text-sm font-semibold text-[#0D4035]">Manual payment flow</p>
-          <p className="mt-2 text-sm text-[#475569]">
-            Send payment by M-Pesa or request bank transfer details from the founder. Once payment is confirmed, access is restored within 24 hours.
-          </p>
-          <p className="mt-2 text-sm font-medium text-[#0D4035]">M-Pesa contact: +255 764 591 374</p>
-        </div>
+        {subscription?.trialActive && daysRemaining != null && daysRemaining <= 14 && (
+          <div className={`mt-5 rounded-2xl px-4 py-4 border ${daysRemaining <= 3 ? 'border-red-200 bg-red-50' : 'border-amber-200 bg-amber-50'}`}>
+            <p className={`text-sm font-semibold ${daysRemaining <= 3 ? 'text-red-800' : 'text-amber-800'}`}>
+              {daysRemaining === 0 ? 'Trial expires today' : `Trial ends in ${daysRemaining} day${daysRemaining === 1 ? '' : 's'}`}
+            </p>
+            <p className={`mt-1 text-sm ${daysRemaining <= 3 ? 'text-red-700' : 'text-amber-700'}`}>
+              Subscribe below to keep your access — activation is automatic once payment is confirmed.
+            </p>
+          </div>
+        )}
+        {!subscription?.trialActive && subscription?.status === 'GRACE' && (
+          <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-4">
+            <p className="text-sm font-semibold text-red-800">Access in grace period</p>
+            <p className="mt-1 text-sm text-red-700">Subscribe below to restore full access before the grace period ends.</p>
+          </div>
+        )}
       </Card>
 
       {canManageSubscription && (
+        <div ref={checkoutSectionRef}>
         <Card
           header={(
             <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
               <div>
-                <h2 className="text-base font-semibold text-[#0D4035]">Self-service checkout</h2>
+                <h2 className="text-base font-semibold text-[#0D4035]">Pay with mobile money</h2>
                 <p className="mt-1 text-sm text-[#64748B]">
-                  Create a payment reference, pay online or by mobile money, and access activates automatically after provider confirmation.
+                  Enter your M-Pesa number and we send an STK push. Approve on your phone — access activates automatically within seconds.
                 </p>
               </div>
-              <Badge variant="success" size="sm">Automatic activation</Badge>
+              <Badge variant="success" size="sm">Instant activation</Badge>
             </div>
           )}
         >
@@ -400,7 +390,66 @@ export const SubscriptionPage: React.FC = () => {
             </div>
           </div>
 
-          {latestCheckout && (
+          {/* Post-checkout payment instructions — shown immediately after checkout creation */}
+          {checkoutResult && (
+            <div className="mt-5 rounded-2xl border-2 border-[#1A6B5C] bg-[#EDF7F3] p-5">
+              <div className="flex items-start gap-3">
+                <CheckCircle2 size={22} className="mt-0.5 shrink-0 text-[#1A6B5C]" />
+                <div className="flex-1">
+                  {checkoutResult.stkSent ? (
+                    <>
+                      <p className="text-sm font-bold text-[#0D4035]">Check your phone now</p>
+                      <p className="mt-1 text-sm text-[#475569]">
+                        A payment request for <span className="font-semibold">{formatTsh(checkoutResult.amount)}</span> has been sent to your mobile number. Open M-PESA (or your network's app) and enter your PIN to confirm.
+                      </p>
+                      <div className="mt-3 rounded-xl border border-[#AFDFD3] bg-white px-4 py-3">
+                        <p className="text-xs uppercase tracking-wide text-[#64748B]">Reference</p>
+                        <p className="mt-0.5 font-mono text-sm font-bold text-[#0D4035]">{checkoutResult.reference}</p>
+                      </div>
+                      <p className="mt-2 text-xs text-[#64748B]">Your subscription activates automatically once the payment is confirmed — no need to do anything else.</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm font-bold text-[#0D4035]">Reference created — here is how to pay</p>
+                      <div className="mt-3 rounded-xl border border-[#AFDFD3] bg-white px-4 py-3">
+                        <p className="text-xs uppercase tracking-wide text-[#64748B]">Your payment reference</p>
+                        <p className="mt-1 font-mono text-lg font-bold tracking-wider text-[#0D4035]">{checkoutResult.reference}</p>
+                      </div>
+                      {checkoutResult.checkoutUrl ? (
+                        <a href={checkoutResult.checkoutUrl} target="_blank" rel="noreferrer" className="mt-3 block">
+                          <Button className="w-full">
+                            <ExternalLink size={15} />
+                            Open payment link
+                          </Button>
+                        </a>
+                      ) : (
+                        <div className="mt-3 space-y-1.5 text-sm text-[#0D4035]">
+                          {checkoutResult.collectionPhone ? (
+                            <>
+                              <p>1. Open M-PESA on your phone</p>
+                              <p>2. Send <span className="font-semibold">{formatTsh(checkoutResult.amount)}</span> to <span className="font-semibold">{checkoutResult.collectionPhone}</span></p>
+                              <p>3. Use <span className="font-mono font-semibold">{checkoutResult.reference}</span> as the reference / reason</p>
+                              <p>4. Your access activates once we confirm the payment</p>
+                            </>
+                          ) : (
+                            <p className="text-[#64748B]">{checkoutResult.instructions}</p>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
+                  <p className="mt-3 text-xs text-[#64748B]">
+                    Questions? WhatsApp us on{' '}
+                    <a href={`https://wa.me/${FOUNDER_WHATSAPP}`} target="_blank" rel="noreferrer" className="font-medium text-[#1A6B5C] underline underline-offset-2">
+                      +{FOUNDER_WHATSAPP}
+                    </a>
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {latestCheckout && !checkoutResult && (
             <div className={`mt-5 rounded-2xl border p-4 ${latestCheckout.status === 'REJECTED' ? 'border-red-200 bg-red-50' : 'border-[#D6F0E8] bg-white'}`}>
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
@@ -445,134 +494,7 @@ export const SubscriptionPage: React.FC = () => {
             </div>
           )}
         </Card>
-      )}
-
-      {canManageSubscription && (
-        <Card
-          header={(
-            <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <h2 className="text-base font-semibold text-[#0D4035]">Submit subscription payment</h2>
-                <p className="mt-1 text-sm text-[#64748B]">
-                  After paying by M-Pesa or bank transfer, submit the reference here for founder confirmation.
-                </p>
-              </div>
-              <Badge variant="warning" size="sm">Manual review</Badge>
-            </div>
-          )}
-        >
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            <div>
-              <label className="mb-1 block text-sm font-medium text-[#0D4035]">Requested tier</label>
-                <select
-                  value={paymentRequestDraft.requestedTier}
-                onChange={(event) => {
-                  const nextTier = event.target.value;
-                  if (isPaymentRequestTier(nextTier)) {
-                    setPaymentRequestDraft((current) => ({ ...current, requestedTier: nextTier }));
-                  }
-                }}
-                  className="h-10 w-full rounded-xl border border-[#D6F0E8] bg-white px-3 text-sm text-[#0D4035] outline-none focus:border-[#1A6B5C] focus:ring-2 focus:ring-[#1A6B5C]/20"
-                >
-                {tierOptions.map((tier) => <option key={tier} value={tier}>{tier}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-[#0D4035]">Billing cycle</label>
-                <select
-                  value={paymentRequestDraft.billingCycle}
-                onChange={(event) => setPaymentRequestDraft((current) => ({
-                  ...current,
-                  billingCycle: event.target.value === 'ANNUAL' ? 'ANNUAL' : 'MONTHLY',
-                }))}
-                className="h-10 w-full rounded-xl border border-[#D6F0E8] bg-white px-3 text-sm text-[#0D4035] outline-none focus:border-[#1A6B5C] focus:ring-2 focus:ring-[#1A6B5C]/20"
-              >
-                <option value="MONTHLY">Monthly</option>
-                <option value="ANNUAL">Annual</option>
-              </select>
-            </div>
-            <Input
-              label="Amount paid (Tsh)"
-              type="number"
-              min="1"
-              value={paymentRequestDraft.amount}
-              onChange={(event) => setPaymentRequestDraft((current) => ({ ...current, amount: event.target.value }))}
-              placeholder="55000"
-            />
-            <Input
-              label="Payment method"
-              value={paymentRequestDraft.paymentMethod}
-              onChange={(event) => setPaymentRequestDraft((current) => ({ ...current, paymentMethod: event.target.value }))}
-              placeholder="M-Pesa, bank transfer"
-            />
-            <Input
-              label="Transaction reference"
-              value={paymentRequestDraft.transactionRef}
-              onChange={(event) => setPaymentRequestDraft((current) => ({ ...current, transactionRef: event.target.value }))}
-              placeholder="Receipt/reference number"
-            />
-            <Input
-              label="Payer phone"
-              value={paymentRequestDraft.payerPhone}
-              onChange={(event) => setPaymentRequestDraft((current) => ({ ...current, payerPhone: event.target.value }))}
-              placeholder="+255..."
-            />
-          </div>
-          <div className="mt-4">
-            <label className="mb-1 block text-sm font-medium text-[#0D4035]">Note</label>
-            <textarea
-              value={paymentRequestDraft.note}
-              onChange={(event) => setPaymentRequestDraft((current) => ({ ...current, note: event.target.value }))}
-              rows={3}
-              className="w-full rounded-2xl border border-[#D6F0E8] px-3 py-2.5 text-sm text-[#0D4035] outline-none transition-colors focus:border-[#1A6B5C] focus:ring-2 focus:ring-[#1A6B5C]/20"
-              placeholder="Optional note for the APOTEKH team"
-            />
-          </div>
-          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-xs text-[#64748B]">Access is restored after founder confirmation.</p>
-            <Button
-              onClick={() => submitPaymentRequestMutation.mutate()}
-              loading={submitPaymentRequestMutation.isPending}
-              disabled={!paymentRequestDraft.amount || !paymentRequestDraft.transactionRef.trim()}
-            >
-              Submit payment request
-            </Button>
-          </div>
-
-          <div className="mt-6 space-y-3">
-            <p className="text-sm font-semibold text-[#0D4035]">Recent payment requests</p>
-            {paymentRequestsQuery.isLoading ? (
-              <p className="text-sm text-[#64748B]">Loading requests...</p>
-            ) : (paymentRequestsQuery.data?.data ?? []).length === 0 ? (
-              <p className="text-sm text-[#64748B]">No payment requests submitted yet.</p>
-            ) : (
-              <div className="divide-y divide-[#D6F0E8] rounded-2xl border border-[#D6F0E8]">
-                {(paymentRequestsQuery.data?.data ?? []).map((request) => (
-                  <div key={request.id} className="px-4 py-3">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-[#0D4035]">{request.requestedTier} · {request.billingCycle}</p>
-                        <p className="text-xs text-[#64748B]">{request.paymentMethod} · Ref {request.transactionRef} · Tsh {Number(request.amount).toLocaleString()}</p>
-                      </div>
-                      <Badge variant={request.status === 'CONFIRMED' ? 'success' : request.status === 'REJECTED' ? 'danger' : 'warning'} size="sm">
-                        {request.status}
-                      </Badge>
-                    </div>
-                    {request.reviewNote && <p className="mt-2 text-xs text-[#64748B]">{request.reviewNote}</p>}
-                    {request.status === 'REJECTED' && (
-                      <div className="mt-3 flex flex-col gap-2 rounded-xl border border-red-200 bg-red-50 p-3 sm:flex-row sm:items-center sm:justify-between">
-                        <p className="text-xs font-medium text-red-700">
-                          Payment failed. Check balance or approval prompt, then try again.
-                        </p>
-                        <Button size="sm" onClick={() => retryCheckout(request)}>Try again</Button>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </Card>
+        </div>
       )}
 
       <Card>
@@ -737,7 +659,7 @@ export const SubscriptionPage: React.FC = () => {
                 <div>
                   <p className="text-sm font-semibold text-[#0D4035]">{plan.tier}</p>
                   <p className="mt-1 text-xs text-[#64748B]">{plan.bestFor} | {plan.users}</p>
-                </div>
+                   </div>
                 {isCurrent ? <Badge variant="success" size="sm">Current plan</Badge> : null}
               </div>
               <p className="mt-3 text-sm text-[#475569]">{plan.description}</p>
@@ -753,11 +675,28 @@ export const SubscriptionPage: React.FC = () => {
                   </div>
                 ))}
               </div>
-              {canManageSubscription && (
+              {canManageSubscription && !isCurrent && isPaymentRequestTier(plan.tier) && (
                 <div className="mt-5 flex flex-wrap gap-3">
+                  <Button onClick={() => selectPlanAndScroll(plan.tier as PaymentRequestTier)}>
+                    Subscribe to {plan.tier}
+                  </Button>
+                  {plan.tier === 'ENTERPRISE' && (
+                    <a href={`https://wa.me/${FOUNDER_WHATSAPP}?text=${message}`} target="_blank" rel="noreferrer">
+                      <Button variant="secondary" leftIcon={<MessageCircle size={16} />}>Contact us</Button>
+                    </a>
+                  )}
+                </div>
+              )}
+              {canManageSubscription && !isCurrent && !isPaymentRequestTier(plan.tier) && (
+                <div className="mt-5">
                   <a href={`https://wa.me/${FOUNDER_WHATSAPP}?text=${message}`} target="_blank" rel="noreferrer">
                     <Button leftIcon={<MessageCircle size={16} />}>Contact us to upgrade</Button>
                   </a>
+                </div>
+              )}
+              {isCurrent && (
+                <div className="mt-5">
+                  <p className="text-sm text-[#1A6B5C] font-medium">✓ This is your current plan</p>
                 </div>
               )}
             </Card>

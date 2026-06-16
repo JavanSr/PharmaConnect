@@ -149,12 +149,16 @@ const FAQS = [
     a: 'APOTEKH runs in any modern browser on desktop, tablet, or Android phone. A dedicated Android app is in active development for faster offline use at the dispensing counter.',
   },
   {
+    q: 'What support do I get?',
+    a: 'All plans include email support at support@apotekh.co.tz with responses within 24 hours on business days. You can also reach us via WhatsApp for urgent issues. Premium and Enterprise accounts get priority response. We are based in Tanzania — we understand your context, your regulations, and your operating environment.',
+  },
+  {
     q: 'How does the QR and barcode scanner work?',
     a: 'Use any phone camera or USB barcode reader. Scan a product during stock intake to auto-fill batch details, or scan at the dispensing counter to select and verify a medicine instantly. No separate hardware purchase required.',
   },
   {
-    q: 'Is patient data stored?',
-    a: 'No patient personal data is stored. All dispensing safety checks run on an anonymous session — no names, national IDs, or patient records are saved. This is by design and by PDPC guidance.',
+    q: 'Is my data safe?',
+    a: 'Yes. Your data is encrypted in transit and at rest, stored on servers within Africa, and never shared with third parties. We follow PDPC data protection guidance for Tanzania. No patient personal data is stored — dispensing sessions are anonymous by design.',
   },
   {
     q: 'Can I manage multiple pharmacy branches?',
@@ -239,6 +243,7 @@ function Nav() {
           </nav>
           <div className="nav-desktop-links" style={{ gap: 10, alignItems: 'center' }}>
             <a href="https://app.apotekh.co.tz/login" style={{ padding: '10px 18px', fontSize: 13, fontWeight: 500, color: '#0D4035', opacity: 0.7, minHeight: 44, display: 'inline-flex', alignItems: 'center' }}>Sign in</a>
+            <a href="mailto:support@apotekh.co.tz?subject=Demo%20request" style={{ padding: '10px 18px', borderRadius: 8, border: '1.5px solid #1A6B5C', color: '#1A6B5C', fontSize: 13, fontWeight: 600, minHeight: 44, display: 'inline-flex', alignItems: 'center' }}>Book a demo</a>
             <a href="https://app.apotekh.co.tz/register" style={{ padding: '10px 20px', borderRadius: 8, background: '#1A6B5C', color: 'white', fontSize: 13, fontWeight: 600, minHeight: 44, display: 'inline-flex', alignItems: 'center' }}>Start free trial</a>
           </div>
           <button className="nav-hamburger" onClick={() => setMobileOpen(true)}
@@ -260,6 +265,7 @@ function Nav() {
           </nav>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingTop: 28 }}>
             <a href="https://app.apotekh.co.tz/login" style={{ display: 'block', textAlign: 'center', padding: '13px', borderRadius: 10, border: '1.5px solid #E2EDE8', color: '#0D4035', fontSize: 15, fontWeight: 600 }}>Sign in</a>
+            <a href="mailto:support@apotekh.co.tz?subject=Demo%20request" style={{ display: 'block', textAlign: 'center', padding: '13px', borderRadius: 10, border: '1.5px solid #1A6B5C', color: '#1A6B5C', fontSize: 15, fontWeight: 600 }}>Book a demo</a>
             <a href="https://app.apotekh.co.tz/register" style={{ display: 'block', textAlign: 'center', padding: '13px', borderRadius: 10, background: '#1A6B5C', color: 'white', fontSize: 15, fontWeight: 600 }}>Start free trial</a>
           </div>
         </div>
@@ -305,8 +311,8 @@ function Hero() {
             }}>
               Start free trial — 14 days free
             </a>
-            <a href="/platform" className="cta-outline">
-              Explore the platform →
+            <a href="mailto:support@apotekh.co.tz?subject=Demo%20request" className="cta-outline" style={{ borderColor: 'rgba(255,255,255,0.4)', color: 'rgba(255,255,255,0.9)' }}>
+              Book a demo →
             </a>
           </div>
           <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', animation: 'fadeUp 600ms ease both 700ms' }}>No credit card required &nbsp;&middot;&nbsp; Cancel anytime &nbsp;&middot;&nbsp; Clinical Decision Support on every plan</p>
@@ -319,7 +325,7 @@ function Hero() {
 // ── MARQUEE ───────────────────────────────────────────────────────────────────
 
 function Marquee() {
-  const t = 'Drug Interaction Checking · Expiry Monitoring · Barcode Scanning · Compliance Alerts · Inventory Management · Patient Safety · Offline-First · FEFO Enforcement · ';
+  const t = 'Drug Interaction Checking · Expiry Monitoring · Barcode Scanning · Compliance Alerts · Inventory Management · Patient Safety · Offline-First · FEFO Enforcement · M-Pesa Payments · Multi-Branch Dashboard · TMDA Compliance · ';
   return (
     <div style={{ background: '#0D4035', padding: '12px 0', overflow: 'hidden', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
       <div className="marquee-track" style={{ display: 'flex', whiteSpace: 'nowrap', width: 'max-content' }}>
@@ -1148,6 +1154,69 @@ function PricingSection() {
   );
 }
 
+// ── SUPPORT STRIP ────────────────────────────────────────────────────────────
+
+function SupportStrip() {
+  const items = [
+    {
+      icon: '✉',
+      title: 'Email support',
+      desc: 'support@apotekh.co.tz — we respond within 24 hours on business days.',
+    },
+    {
+      icon: '💬',
+      title: 'WhatsApp',
+      desc: 'Reach us on WhatsApp for urgent issues during business hours.',
+    },
+    {
+      icon: '🇹🇿',
+      title: 'Built in Tanzania',
+      desc: 'Our team understands TMDA, PC, Swahili, and the reality of Tanzanian pharmacies.',
+    },
+    {
+      icon: '📖',
+      title: 'Help centre',
+      desc: 'Step-by-step guides for every feature — searchable, always up to date.',
+    },
+  ];
+  return (
+    <section className="reveal" style={{ background: 'white', padding: '80px 32px', borderTop: '1px solid #E2EDE8' }}>
+      <div style={{ maxWidth: 1280, margin: '0 auto' }}>
+        <p className="mono" style={{ fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#1A6B5C', marginBottom: 12 }}>Support</p>
+        <h2 className="serif" style={{ fontSize: 'clamp(28px,3.5vw,42px)', color: '#0D4035', margin: '0 0 12px', lineHeight: 1.1 }}>
+          Help when you need it.
+        </h2>
+        <p style={{ fontSize: 15, color: '#516965', maxWidth: 500, marginBottom: 48, lineHeight: 1.7 }}>
+          PioneerRx has a dedicated support team for every pharmacy. We do too — and we are local.
+        </p>
+        <div className="four-col" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 24 }}>
+          {items.map((item) => (
+            <div key={item.title} style={{ border: '1px solid #E2EDE8', borderRadius: 16, padding: 24 }}>
+              <div style={{ fontSize: 28, marginBottom: 14 }}>{item.icon}</div>
+              <p style={{ fontSize: 14, fontWeight: 700, color: '#0D4035', margin: '0 0 8px' }}>{item.title}</p>
+              <p style={{ fontSize: 13, color: '#516965', lineHeight: 1.65, margin: 0 }}>{item.desc}</p>
+            </div>
+          ))}
+        </div>
+        <div style={{ marginTop: 40, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+          <a href="mailto:support@apotekh.co.tz?subject=Demo%20request" style={{
+            display: 'inline-flex', alignItems: 'center', gap: 8, padding: '12px 24px', borderRadius: 8,
+            background: '#1A6B5C', color: 'white', fontSize: 14, fontWeight: 600, minHeight: 44,
+          }}>
+            Book a demo
+          </a>
+          <a href="mailto:support@apotekh.co.tz" style={{
+            display: 'inline-flex', alignItems: 'center', gap: 8, padding: '12px 24px', borderRadius: 8,
+            border: '1.5px solid #E2EDE8', color: '#0D4035', fontSize: 14, fontWeight: 600, minHeight: 44,
+          }}>
+            Email us
+          </a>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 // ── FAQ ───────────────────────────────────────────────────────────────────────
 
 function FAQ() {
@@ -1189,12 +1258,15 @@ function FinalCTA() {
           <a href="https://app.apotekh.co.tz/register" className="cta-primary" style={{ background: 'white', color: '#0D4035', padding: '15px 36px', boxShadow: '0 4px 24px rgba(0,0,0,0.25)', fontSize: 15 }}>
             Start free trial — 14 days free
           </a>
-          <a href="mailto:support@apotekh.co.tz?subject=Wholesale%20%2F%20Enterprise%20inquiry" className="cta-outline" style={{ padding: '14px 36px', borderColor: 'rgba(255,255,255,0.55)', color: 'rgba(255,255,255,0.9)' }}>
-            Wholesale / Enterprise →
+          <a href="mailto:support@apotekh.co.tz?subject=Demo%20request" className="cta-outline" style={{ padding: '14px 36px', borderColor: 'rgba(255,255,255,0.55)', color: 'rgba(255,255,255,0.9)' }}>
+            Book a demo →
           </a>
         </div>
-        <p style={{ marginTop: 32, fontSize: 12, color: 'rgba(255,255,255,0.35)' }}>
-          support@apotekh.co.tz · @APOTEKH · Tanzania
+        <p style={{ marginTop: 24, fontSize: 13, color: 'rgba(255,255,255,0.45)' }}>
+          Wholesale or Enterprise? <a href="mailto:support@apotekh.co.tz?subject=Wholesale%20inquiry" style={{ color: '#7ECFB4', fontWeight: 600 }}>Contact us directly →</a>
+        </p>
+        <p style={{ marginTop: 16, fontSize: 12, color: 'rgba(255,255,255,0.28)' }}>
+          support@apotekh.co.tz &nbsp;·&nbsp; Tanzania, East Africa
         </p>
       </div>
     </section>
@@ -1211,8 +1283,19 @@ function SiteFooter() {
           <div>
             <Logo white height={26} />
             <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.55)', lineHeight: 1.75, margin: '16px 0 12px', maxWidth: 280 }}>The pharmacy-side platform for better pharmaceutical services in Tanzania.</p>
-            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)' }}>Tanzania · 2026</p>
-            <a href="mailto:support@apotekh.co.tz" style={{ display: 'block', marginTop: 8, fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>support@apotekh.co.tz</a>
+            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', marginBottom: 8 }}>Dodoma, Tanzania · East Africa · 2026</p>
+            <a href="mailto:support@apotekh.co.tz" style={{ display: 'block', fontSize: 12, color: 'rgba(255,255,255,0.5)', marginBottom: 4 }}>support@apotekh.co.tz</a>
+            <a href="https://wa.me/255000000000" style={{ display: 'block', fontSize: 12, color: 'rgba(255,255,255,0.5)', marginBottom: 16 }}>WhatsApp support</a>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <a href="https://linkedin.com/company/apotekh" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn"
+                style={{ width: 34, height: 34, borderRadius: 8, border: '1px solid rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.5)', fontSize: 14 }}
+                onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.4)', e.currentTarget.style.color = 'white')}
+                onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)', e.currentTarget.style.color = 'rgba(255,255,255,0.5)')}>in</a>
+              <a href="https://twitter.com/apotekh" target="_blank" rel="noopener noreferrer" aria-label="Twitter / X"
+                style={{ width: 34, height: 34, borderRadius: 8, border: '1px solid rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.5)', fontSize: 13, fontWeight: 700 }}
+                onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.4)', e.currentTarget.style.color = 'white')}
+                onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)', e.currentTarget.style.color = 'rgba(255,255,255,0.5)')}>𝕏</a>
+            </div>
           </div>
           {[
             { title: 'Platform', links: [['Dashboard', '/platform/dashboard'], ['Inventory', '/platform/inventory'], ['Dispensing', '/platform/dispensing'], ['Compliance', '/platform/compliance-tracker'], ['Analytics', '/platform/analytics'], ['Knowledge Hub', '/platform/knowledge-hub']] },
@@ -1282,6 +1365,7 @@ export default function HomePage() {
       <Testimonials />
       <RoleSection />
       <PricingSection />
+      <SupportStrip />
       <FAQ />
       <FinalCTA />
       <SiteFooter />

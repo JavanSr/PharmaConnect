@@ -1,9 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle, ShieldCheck } from 'lucide-react';
-import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
-import { Input } from '@/components/ui/Input';
 import { api } from '@/lib/api';
 import { InteractionAlert } from './InteractionAlert';
 import { NCDHints } from './NCDHints';
@@ -13,8 +11,6 @@ type OverrideDraft = {
   reason: string;
   pic_pin: string;
 };
-
-const HIGH_SEVERITY = new Set(['CONTRAINDICATED', 'MAJOR']);
 
 const normalizeReview = (raw: SafetyReviewResponse | null): SafetyReviewResponse | null => {
   if (!raw) return null;
@@ -26,7 +22,7 @@ const normalizeReview = (raw: SafetyReviewResponse | null): SafetyReviewResponse
   const severitySummary = raw.severitySummary ?? alerts.reduce(
     (summary, alert) => {
       const severity = alert.severity?.toUpperCase();
-      if (severity === 'HIGH' || severity === 'MAJOR' || severity === 'SEVERE') {
+      if (severity === 'HIGH' || severity === 'MAJOR' || severity === 'SEVERE' || severity === 'CONTRAINDICATED') {
         summary.high += 1;
       } else if (severity === 'MODERATE' || severity === 'MEDIUM') {
         summary.moderate += 1;
@@ -49,7 +45,7 @@ const normalizeReview = (raw: SafetyReviewResponse | null): SafetyReviewResponse
     ncdHints: raw.ncdHints ?? [],
     dosageSuggestions: raw.dosageSuggestions ?? [],
     requiredPatientInputs: raw.requiredPatientInputs ?? [],
-    requiresPicPin: raw.requiresPicPin ?? false,
+    requiresPicPin: false, // Override model: dispenser proceeds at own risk. No PIN gate.
   };
 };
 
@@ -63,8 +59,7 @@ export const PatientSafetyPanel: React.FC<{
     overrideDraft?: OverrideDraft;
   }) => void;
 }> = ({ enabled, cartItems, sessionPayload, onStatusChange }) => {
-  const [overrideReason, setOverrideReason] = useState('');
-  const [overridePin, setOverridePin] = useState('');
+  const [acknowledged, setAcknowledged] = useState(false);
 
   const requestPayload = useMemo(
     () => ({
@@ -84,100 +79,114 @@ export const PatientSafetyPanel: React.FC<{
 
   const review = normalizeReview((reviewQuery.data?.data ?? null) as SafetyReviewResponse | null);
 
-  const hasHighSeverityAlerts = Boolean(
-    review &&
-      (
-        [...review.interactions, ...review.contraindications, ...review.precautions].some(
-          (a) => HIGH_SEVERITY.has(a.severity?.toUpperCase() ?? ''),
-        ) || review.requiresPicPin
-      ),
+  const hasAnyAlerts = Boolean(
+    review && (
+      review.interactions.length > 0 ||
+      review.contraindications.length > 0 ||
+      review.precautions.length > 0
+    ),
   );
 
-  const riskSignature = useMemo(() => {
-    if (!review) return 'none';
-    return JSON.stringify({
-      interactions: review.interactions.filter((i) => i.requiresPicPin).map((i) => i.id).sort(),
-      contraindications: review.contraindications.filter((i) => i.requiresPicPin).map((i) => i.id).sort(),
-    });
-  }, [review]);
+  const hasHighSeverityAlerts = Boolean(
+    review && [...review.interactions, ...review.contraindications, ...review.precautions].some(
+      (a) => {
+        const s = a.severity?.toUpperCase() ?? '';
+        return s === 'CONTRAINDICATED' || s === 'MAJOR' || s === 'HIGH' || s === 'SEVERE';
+      },
+    ),
+  );
+
+  // Reset acknowledgment when basket composition changes
+  const alertSignature = useMemo(
+    () => JSON.stringify([
+      ...( review?.interactions ?? []).map((i) => i.id),
+      ...( review?.contraindications ?? []).map((i) => i.id),
+    ].sort()),
+    [review],
+  );
 
   useEffect(() => {
-    setOverrideReason('');
-    setOverridePin('');
-  }, [riskSignature]);
+    setAcknowledged(false);
+  }, [alertSignature]);
 
   useEffect(() => {
     if (!enabled || cartItems.length === 0) {
       onStatusChange({ review: null, requiresOverride: false });
       return;
     }
+    // Dispensing is only blocked when there are HIGH-severity alerts AND the dispenser has not acknowledged them.
+    // Per spec: no PIN required. Dispenser proceeds at own risk; override is logged.
     onStatusChange({
       review,
-      requiresOverride: Boolean(review?.requiresPicPin),
-      overrideDraft:
-        review?.requiresPicPin && overrideReason.trim() && overridePin.trim()
-          ? { reason: overrideReason.trim(), pic_pin: overridePin.trim() }
-          : undefined,
+      requiresOverride: hasHighSeverityAlerts && !acknowledged,
     });
-  }, [cartItems.length, enabled, onStatusChange, overridePin, overrideReason, review]);
+  }, [cartItems.length, enabled, onStatusChange, review, hasHighSeverityAlerts, acknowledged]);
 
   if (!enabled || cartItems.length === 0 || reviewQuery.isLoading) return null;
-  if (!reviewQuery.isError && review && !hasHighSeverityAlerts) return null;
+  // Hide panel if no alerts at all (and no error)
+  if (!reviewQuery.isError && !hasAnyAlerts && (!review?.ncdHints?.length)) return null;
 
   return (
     <Card
       header={
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <ShieldCheck size={16} className="text-[#1A6B5C]" />
-            <span className="text-sm font-semibold text-[#0D4035]">Patient safety</span>
-          </div>
-          {review?.requiresPicPin && (
-            <Badge variant="warning" size="sm">PIC override required</Badge>
+        <div className="flex items-center gap-2">
+          <ShieldCheck size={16} className="text-[#1A6B5C]" />
+          <span className="text-sm font-semibold text-[#0D4035]">Clinical safety check</span>
+          {review && (
+            <span className="ml-auto text-xs text-[#64748B]">
+              {hasHighSeverityAlerts
+                ? '⚠ High-risk — acknowledge before dispensing'
+                : review.severitySummary?.moderate
+                  ? '⚠ Moderate risk detected'
+                  : 'Review notes below'}
+            </span>
           )}
         </div>
       }
     >
       {reviewQuery.isError && (
         <div className="rounded-2xl border border-[#FECACA] bg-[#FEF2F2] px-4 py-5 text-sm text-[#991B1B]">
-          Patient safety review could not be loaded right now. Check the connection and try again before high-risk dispensing.
+          Safety review could not be loaded. Check the connection — do not skip high-risk dispensing without it.
         </div>
       )}
 
       {review && (
-        <div className="space-y-4">
-          {review.requiresPicPin && (
-            <div className="rounded-2xl border border-[#FDE68A] bg-[#FFFBEB] px-4 py-4">
-              <div className="flex items-start gap-2">
-                <AlertTriangle size={16} className="mt-0.5 text-[#D97706]" />
+        <div className="space-y-3">
+          <InteractionAlert alerts={review.interactions} />
+          <InteractionAlert alerts={review.contraindications} />
+          <InteractionAlert alerts={review.precautions} />
+          <NCDHints hints={review.ncdHints} />
+
+          {/* Acknowledge and proceed — replaces PIN gate. Override is logged per spec. */}
+          {hasHighSeverityAlerts && !acknowledged && (
+            <div className="rounded-2xl border border-[#FECACA] bg-[#FEF2F2] px-4 py-3">
+              <div className="flex items-start gap-3">
+                <AlertTriangle size={16} className="mt-0.5 shrink-0 text-[#DC2626]" />
                 <div className="flex-1">
-                  <p className="text-sm font-semibold text-[#92400E]">
-                    Dispensing is blocked until a PIC override reason and PIN are entered.
+                  <p className="text-sm font-semibold text-[#991B1B]">
+                    High-risk alert — dispenser must acknowledge before proceeding
                   </p>
-                  <div className="mt-3 grid gap-3 md:grid-cols-2">
-                    <Input
-                      label="Override reason"
-                      value={overrideReason}
-                      onChange={(e) => setOverrideReason(e.target.value)}
-                      placeholder="Clinical reason for proceeding"
-                    />
-                    <Input
-                      label="PIC PIN"
-                      type="password"
-                      value={overridePin}
-                      onChange={(e) => setOverridePin(e.target.value)}
-                      placeholder="Enter PIC PIN"
-                    />
-                  </div>
+                  <p className="mt-1 text-xs text-[#7F1D1D]">
+                    You are dispensing at your own clinical responsibility. This override will be logged against your account.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setAcknowledged(true)}
+                    className="mt-3 rounded-lg bg-[#DC2626] px-4 py-1.5 text-xs font-semibold text-white hover:bg-[#B91C1C] active:bg-[#991B1B]"
+                  >
+                    I acknowledge — proceed with dispensing
+                  </button>
                 </div>
               </div>
             </div>
           )}
 
-          <InteractionAlert title="Interaction alerts" alerts={review.interactions} />
-          <InteractionAlert title="Contraindication alerts" alerts={review.contraindications} />
-          <InteractionAlert title="Precaution alerts" alerts={review.precautions} />
-          <NCDHints hints={review.ncdHints} />
+          {hasHighSeverityAlerts && acknowledged && (
+            <div className="flex items-center gap-2 rounded-xl border border-[#D6F0E8] bg-[#EDF7F3] px-3 py-2 text-xs text-[#1A6B5C]">
+              <ShieldCheck size={13} />
+              Override acknowledged and will be logged against this session.
+            </div>
+          )}
         </div>
       )}
     </Card>

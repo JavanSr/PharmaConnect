@@ -2,7 +2,7 @@ import React from 'react';
 import { NavLink, useNavigate, Outlet } from 'react-router-dom';
 import {
   LayoutDashboard, Building2, ClipboardList,
-  ToggleLeft, MessageSquare, LogOut, Telescope,
+  ToggleLeft, MessageSquare, LogOut, Telescope, Menu, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { usePharmacyStore } from '@/stores/pharmacyStore';
@@ -23,6 +23,21 @@ export const AdminShell: React.FC = () => {
   const clearPharmacy = usePharmacyStore((s) => s.clearPharmacy);
   const navigate = useNavigate();
 
+  const [sidebarHidden, setSidebarHidden] = React.useState<boolean>(() => {
+    try { return localStorage.getItem('apotekh_admin_sidebar_hidden') === 'true'; } catch { return false; }
+  });
+  const [collapsed, setCollapsed] = React.useState<boolean>(() => {
+    try { return localStorage.getItem('apotekh_admin_sidebar_collapsed') === 'true'; } catch { return false; }
+  });
+
+  React.useEffect(() => {
+    try { localStorage.setItem('apotekh_admin_sidebar_hidden', String(sidebarHidden)); } catch {}
+  }, [sidebarHidden]);
+
+  React.useEffect(() => {
+    try { localStorage.setItem('apotekh_admin_sidebar_collapsed', String(collapsed)); } catch {}
+  }, [collapsed]);
+
   const handleLogout = async () => {
     try { await api.post('/auth/logout'); } catch {}
     clearAuth();
@@ -31,57 +46,108 @@ export const AdminShell: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#0f1f18]">
+    <div className="flex h-screen overflow-hidden bg-[#082B23]">
       {/* Sidebar */}
-      <aside className="flex w-56 shrink-0 flex-col bg-[#0f1f18] border-r border-[#1a3328]">
-        {/* Logo */}
-        <div className="flex h-14 items-center gap-2 px-4 border-b border-[#1a3328]">
-          <span className="text-sm font-bold tracking-widest text-[#7ECFB4] uppercase">APOTEKH</span>
-          <span className="rounded bg-[#B45309] px-1.5 py-0.5 text-[10px] font-bold text-white uppercase tracking-wide">
-            Admin
-          </span>
-        </div>
+      {!sidebarHidden && (
+        <aside className={`relative flex shrink-0 flex-col bg-[#082B23] border-r border-[#0D4035] transition-all duration-300 ${collapsed ? 'w-14' : 'w-56'}`}>
+          {/* Logo */}
+          <div className={`flex h-14 items-center border-b border-[#0D4035] ${collapsed ? 'justify-center px-2' : 'gap-2 px-4'}`}>
+            {collapsed ? (
+              <span className="text-sm font-bold text-[#E8A020]">A</span>
+            ) : (
+              <>
+                <span className="text-sm font-bold tracking-widest uppercase">
+                  <span className="text-[#7ECFB4]">APOTEK</span><span className="text-[#E8A020]">H</span>
+                </span>
+                <span className="rounded bg-[#B45309] px-1.5 py-0.5 text-[10px] font-bold text-white uppercase tracking-wide">
+                  Admin
+                </span>
+              </>
+            )}
+          </div>
 
-        {/* Nav */}
-        <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-0.5">
-          {NAV_ITEMS.map((item) => (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              end={item.end}
-              className={({ isActive }) =>
-                `flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                  isActive
-                    ? 'bg-[#1A6B5C] text-white'
-                    : 'text-[#7ECFB4] hover:bg-[#1a3328] hover:text-white'
-                }`
-              }
-            >
-              {item.icon}
-              {item.label}
-            </NavLink>
-          ))}
-        </nav>
+          {/* Nav */}
+          <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-0.5">
+            {NAV_ITEMS.map((item) => (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                end={item.end}
+                title={collapsed ? item.label : undefined}
+                className={({ isActive }) =>
+                  `flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                    collapsed ? 'justify-center' : ''
+                  } ${
+                    isActive
+                      ? 'bg-[#1A6B5C] text-white'
+                      : 'text-[#7ECFB4] hover:bg-[#0D4035] hover:text-white'
+                  }`
+                }
+              >
+                {item.icon}
+                {!collapsed && item.label}
+              </NavLink>
+            ))}
+          </nav>
 
-        {/* Footer */}
-        <div className="border-t border-[#1a3328] px-3 py-3 space-y-1">
-          <p className="text-xs text-[#4B7B6A] truncate">{user?.email}</p>
+          {/* Footer */}
+          {!collapsed && (
+            <div className="border-t border-[#0D4035] px-3 py-3 space-y-1">
+              <p className="text-xs text-[#2A9478] truncate">{user?.email}</p>
+              <button
+                onClick={handleLogout}
+                className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-[#7ECFB4] hover:bg-[#0D4035] hover:text-white transition-colors"
+              >
+                <LogOut size={13} />
+                Sign out
+              </button>
+            </div>
+          )}
+          {collapsed && (
+            <div className="border-t border-[#0D4035] px-2 py-3 flex justify-center">
+              <button
+                onClick={handleLogout}
+                title="Sign out"
+                className="rounded-lg p-1.5 text-[#2A9478] hover:bg-[#0D4035] hover:text-white transition-colors"
+              >
+                <LogOut size={14} />
+              </button>
+            </div>
+          )}
+
+          {/* Collapse toggle — right edge */}
           <button
-            onClick={handleLogout}
-            className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-[#7ECFB4] hover:bg-[#1a3328] hover:text-white transition-colors"
+            onClick={() => setCollapsed(c => !c)}
+            className="absolute top-16 -right-3 z-10 flex h-6 w-6 items-center justify-center rounded-full border border-[#0D4035] bg-[#082B23] shadow-sm hover:bg-[#0D4035] text-[#7ECFB4]"
+            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
-            <LogOut size={13} />
-            Sign out
+            {collapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
           </button>
-        </div>
-      </aside>
+        </aside>
+      )}
 
       {/* Main */}
-      <main className="flex-1 overflow-y-auto bg-[#f5faf8]">
-        <div className="mx-auto max-w-7xl p-6">
-          <Outlet />
-        </div>
-      </main>
+      <div className="flex flex-1 flex-col overflow-hidden bg-[#f5faf8]">
+        {/* Top bar */}
+        <header className="flex h-12 shrink-0 items-center gap-3 border-b border-[#D6F0E8] bg-white px-4">
+          <button
+            onClick={() => setSidebarHidden(h => !h)}
+            className="rounded-lg p-1.5 text-[#64748B] hover:bg-[#EDF7F3] hover:text-[#1A6B5C] transition-colors"
+            title={sidebarHidden ? 'Show sidebar' : 'Hide sidebar'}
+          >
+            <Menu size={18} />
+          </button>
+          <span className="text-xs font-semibold uppercase tracking-widest text-[#64748B]">
+            APOTEKH Platform Admin
+          </span>
+        </header>
+
+        <main className="flex-1 overflow-y-auto">
+          <div className="mx-auto max-w-7xl p-6">
+            <Outlet />
+          </div>
+        </main>
+      </div>
     </div>
   );
 };

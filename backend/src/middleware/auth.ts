@@ -31,6 +31,8 @@ export interface AuthRequest extends Request {
   picVerifiedUser?: VerifiedPicUser;
   /** Set by enforceTrialRestrictions when the pharmacy is in grace mode (subscription lapsed). */
   graceMode?: boolean;
+  /** Set by enforceTrialRestrictions during the 5-day automatic full-access buffer after trial expiry. */
+  graceWarning?: boolean;
 }
 
 const authContextCacheTtlMs = Number(

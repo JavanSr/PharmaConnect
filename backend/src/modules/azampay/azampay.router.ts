@@ -1,0 +1,178 @@
+/**
+ * AzamPay router — two endpoints:
+ *
+ *   POST /api/v1/azampay/initiate  — authenticated, called by frontend checkout
+ *   POST /api/v1/azampay/callback  — public, called by AzamPay on payment confirmation
+ */
+
+import { Router } from 'express';
+import { z } from 'zod';
+import { prisma } from '../../lib/prisma';
+import { authenticate, type AuthRequest } from '../../middleware/auth';
+import { activateSubscriptionFromPayment } from '../subscription/subscription-payments.service';
+import {
+  initiateAzamPayCheckout,
+  isAzamPayConfigured,
+} from './azampay.service';
+
+export const azamPayRouter = Router();
+
+// ── POST /azampay/initiate ────────────────────────────────────────────────────
+// Called by the frontend when user clicks "Pay via mobile money".
+// Looks up the pending checkout request by reference and triggers STK push.
+azamPayRouter.post('/initiate', authenticate, async (req: AuthRequest, res, next) => {
+  try {
+    if (!isAzamPayConfigured()) {
+      res.status(503).json({ error: 'AZAMPAY_NOT_CONFIGURED' });
+      return;
+    }
+
+    const { reference } = z.object({
+      reference: z.string().trim().min(5),
+    }).parse(req.body);
+
+    // Find the pending checkout request
+    const paymentRequest = await prisma.subscriptionPaymentRequest.findFirst({
+      where: {
+        transactionRef: reference,
+        status: 'PENDING',
+        paymentMethod: 'SELF_SERVICE_CHECKOUT',
+      },
+      select: {
+        id: true,
+        amount: true,
+        payerPhone: true,
+        transactionRef: true,
+        pharmacyId: true,
+      },
+    });
+
+    if (!paymentRequest) {
+      res.status(404).json({ error: 'CHECKOUT_NOT_FOUND' });
+      return;
+    }
+
+    if (!paymentRequest.payerPhone) {
+      res.status(400).json({ error: 'NO_PAYER_PHONE' });
+      return;
+    }
+
+    const result = await initiateAzamPayCheckout({
+      phone: paymentRequest.payerPhone,
+      amount: Number(paymentRequest.amount),
+      reference: paymentRequest.transactionRef,
+    });
+
+    // Store AzamPay's transactionId on the request for callback matching
+    if (result.transactionId) {
+      await prisma.subscriptionPaymentRequest.update({
+        where: { id: paymentRequest.id },
+        data: { providerReference: result.transactionId },
+      });
+    }
+
+    if (!result.success) {
+      res.status(502).json({
+        error: 'AZAMPAY_CHECKOUT_FAILED',
+        message: result.message,
+      });
+      return;
+    }
+
+    res.json({
+      data: {
+        success: true,
+        message: result.message,
+        transactionId: result.transactionId,
+        instructions: 'A payment request has been sent to your phone. Enter your mobile money PIN to confirm.',
+      },
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// ── POST /azampay/callback ────────────────────────────────────────────────────
+// Called by AzamPay when payment succeeds or fails. Public — no auth.
+// AzamPay POSTs JSON with reference (our externalId), transactionStatus, etc.
+azamPayRouter.post('/callback', async (req, res) => {
+  try {
+    // AzamPay callback payload varies slightly by provider; capture all fields
+    const body = req.body as Record<string, unknown>;
+
+    console.info('[azampay] callback received', {
+      reference: body.reference ?? body.externalId,
+      transactionId: body.transactionId ?? body.transId,
+      status: body.transactionStatus ?? body.paymentStatus ?? body.success,
+    });
+
+    // Normalise fields across MNO providers
+    const reference = (body.reference ?? body.externalId ?? '') as string;
+    const transactionId = (body.transactionId ?? body.transId ?? '') as string;
+    const succeeded =
+      body.transactionStatus === 'SUCCESS' ||
+      body.paymentStatus === 'SUCCESS' ||
+      body.success === true ||
+      body.success === 'true' ||
+      String(body.message ?? '').toLowerCase().includes('success');
+
+    if (!reference) {
+      console.warn('[azampay] callback missing reference — ignoring');
+      res.json({ received: true }); // always 200 so AzamPay doesn't retry forever
+      return;
+    }
+
+    if (!succeeded) {
+      console.info('[azampay] callback — payment not successful', { reference, body });
+      res.json({ received: true });
+      return;
+    }
+
+    // Find the matching payment request
+    const paymentRequest = await prisma.subscriptionPaymentRequest.findFirst({
+      where: {
+        transactionRef: reference,
+        status: 'PENDING',
+      },
+      select: { id: true, pharmacyId: true },
+    });
+
+    if (!paymentRequest) {
+      console.warn('[azampay] callback — no matching PENDING request for reference', reference);
+      res.json({ received: true });
+      return;
+    }
+
+    // Activate the subscription
+    await prisma.$transaction(async (tx) => {
+      await activateSubscriptionFromPayment(tx, {
+        requestId: paymentRequest.id,
+        providerReference: transactionId || undefined,
+        reviewNote: `Confirmed automatically by AzamPay. Transaction ID: ${transactionId}`,
+      });
+    });
+
+    // Notify the pharmacy owner in-app
+    await prisma.notification.create({
+      data: {
+        pharmacyId: paymentRequest.pharmacyId,
+        type: 'SUBSCRIPTION_ACTIVATED',
+        title: 'Subscription activated',
+        body: 'Your payment was confirmed and your subscription is now active. Thank you!',
+        metadata: { reference, transactionId },
+      },
+    }).catch((err) => console.error('[azampay] notification create failed', err));
+
+    console.info('[azampay] subscription activated', {
+      pharmacyId: paymentRequest.pharmacyId,
+      reference,
+      transactionId,
+    });
+
+    res.json({ received: true, activated: true });
+  } catch (err) {
+    console.error('[azampay] callback error', err);
+    // Still return 200 — don't cause AzamPay to retry a payment that may have activated
+    res.json({ received: true, error: true });
+  }
+});

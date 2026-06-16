@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import {
   Building2, TrendingUp, ShoppingCart, UserPlus,
-  AlertTriangle, Clock, Activity,
+  AlertTriangle, Clock, Activity, Bell,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { DashboardMetrics, AdminAuditEntry } from './types';
@@ -129,6 +129,28 @@ export const AdminDashboardPage: React.FC = () => {
               ))}
             </div>
           </div>
+
+          {/* Expiring in 5 days */}
+          {(m?.expiringIn5Days?.length ?? 0) > 0 && (
+            <div className="rounded-2xl border border-red-100 bg-red-50 p-5">
+              <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-red-800">
+                <Bell size={14} /> Expiring within 5 days ({m!.expiringIn5Days.length})
+              </h2>
+              <div className="space-y-2">
+                {m!.expiringIn5Days.map((p) => {
+                  const daysLeft = Math.ceil((new Date(p.trialEndsAt).getTime() - Date.now()) / 86_400_000);
+                  return (
+                    <div key={p.id} className="flex items-center justify-between rounded-xl bg-white px-3 py-2 border border-red-100">
+                      <Link to={`/superadmin/pharmacies/${p.id}`} className="text-sm font-medium text-[#0D4035] hover:underline">{p.name}</Link>
+                      <span className="text-xs font-semibold text-red-700">
+                        {daysLeft <= 0 ? 'Today' : `${daysLeft}d left`} · {p.subscriptionTier}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Grace accounts */}
           {(m?.gracePeriodPharmacies?.length ?? 0) > 0 && (

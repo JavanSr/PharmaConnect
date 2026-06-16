@@ -105,7 +105,7 @@ export const ComplianceItemDetailPage: React.FC = () => {
           {[
             { label: 'Type', value: item.type.replace(/_/g, ' ') },
             { label: 'Issuing Body', value: item.issuingBody },
-            { label: 'Licence Number', value: item.licenceNumber || '—' },
+            { label: 'Registration Number', value: item.licenceNumber || '—' },
             { label: 'Issue Date', value: item.issueDate ? format(new Date(item.issueDate), 'dd MMM yyyy') : '—' },
             { label: 'Expiry Date', value: format(new Date(item.expiryDate), 'dd MMM yyyy') },
             { label: 'Days Until Expiry', value: item.isNotApplicable ? 'N/A' : days <= 0 ? 'EXPIRED' : `${days} days` },

@@ -11,10 +11,11 @@ import { selectMembershipPharmacy } from '@/lib/pharmacySelection';
 
 interface TopBarProps {
   onMenuClick: () => void;
+  onDesktopToggle: () => void;
   title?: string;
 }
 
-export const TopBar: React.FC<TopBarProps> = ({ onMenuClick, title }) => {
+export const TopBar: React.FC<TopBarProps> = ({ onMenuClick, onDesktopToggle, title }) => {
   const pharmacy = usePharmacyStore(state => state.pharmacy);
   const isWholesalePharmacy = pharmacy?.pharmacyType === 'WHOLESALE';
   const isOnline = useConnectivityStore(state => state.isOnline);
@@ -67,7 +68,12 @@ export const TopBar: React.FC<TopBarProps> = ({ onMenuClick, title }) => {
   return (
     <header className="min-h-[56px] bg-surface-container-low border-b border-outline-variant/30 flex items-center justify-between px-margin-mobile gap-4 sticky top-0 z-30 print:hidden">
       <div className="flex items-center gap-3">
-        <button onClick={onMenuClick} className="lg:hidden p-2 rounded-full hover:bg-surface-container-high text-on-surface-variant">
+        {/* Mobile: opens overlay sidebar */}
+        <button onClick={onMenuClick} className="lg:hidden p-2 rounded-full hover:bg-surface-container-high text-on-surface-variant" aria-label="Open menu">
+          <Menu size={20} />
+        </button>
+        {/* Desktop: toggles sidebar visibility */}
+        <button onClick={onDesktopToggle} className="hidden lg:flex p-2 rounded-full hover:bg-surface-container-high text-on-surface-variant" aria-label="Toggle sidebar">
           <Menu size={20} />
         </button>
         <button

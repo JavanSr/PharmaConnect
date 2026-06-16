@@ -66,11 +66,11 @@ export default function Nav() {
           </nav>
 
           <div className="hidden items-center gap-3 lg:flex">
+            <Button href="mailto:support@apotekh.co.tz?subject=Demo%20request" size="sm" variant="outline">
+              Book a demo
+            </Button>
             <Button href="https://app.apotekh.co.tz/register" size="sm" variant="primary">
               Get access
-            </Button>
-            <Button href="/investors" size="sm" variant="ghost">
-              Investors
             </Button>
           </div>
 
@@ -119,8 +119,8 @@ export default function Nav() {
               <Button href="https://app.apotekh.co.tz/register" size="lg" variant="primary">
                 Get access
               </Button>
-              <Button href="/investors" size="lg" variant="ghost">
-                Investors
+              <Button href="mailto:support@apotekh.co.tz?subject=Demo%20request" size="lg" variant="outline">
+                Book a demo
               </Button>
             </div>
           </div>

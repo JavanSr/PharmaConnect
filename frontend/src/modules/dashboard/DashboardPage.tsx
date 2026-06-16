@@ -113,20 +113,7 @@ export const DashboardPage: React.FC = () => {
           <h1 className="text-headline-md text-on-surface">{greeting}, {user?.firstName}!</h1>
           <p className="mt-1 text-body-md text-on-surface-variant">{format(new Date(), 'EEEE, d MMMM yyyy')}</p>
         </div>
-        <div className="flex gap-2">
-          {isWholesale ? (
-            <Link to="/wholesale/manual-order">
-              <Button leftIcon={<Plus size={16} />}>New Order</Button>
-            </Link>
-          ) : (
-            <Link to="/dispensing">
-              <Button leftIcon={<Plus size={16} />}>Dispense</Button>
-            </Link>
-          )}
-          <Link to="/inventory/receive">
-            <Button variant="secondary" leftIcon={<Plus size={16} />}>Receive Stock</Button>
-          </Link>
-        </div>
+        <div />
       </div>
 
       <div className="grid grid-cols-1 gap-gutter sm:grid-cols-2 lg:grid-cols-3">

@@ -107,6 +107,10 @@ const OrdersPage = lazy(() => import('@/modules/orders/OrdersPage').then(m => ({
 const ReportsPage = lazy(() => import('@/modules/reports/ReportsPage').then(m => ({ default: m.ReportsPage })));
 const StaffActivityPage = lazy(() => import('@/modules/reports/StaffActivityPage').then(m => ({ default: m.StaffActivityPage })));
 const ProfilePage = lazy(() => import('@/modules/settings/ProfilePage').then(m => ({ default: m.ProfilePage })));
+const SecurityPage = lazy(() => import('@/modules/settings/SecurityPage').then(m => ({ default: m.SecurityPage })));
+const PharmacyProfilePage = lazy(() => import('@/modules/settings/PharmacyProfilePage').then(m => ({ default: m.PharmacyProfilePage })));
+const NotificationsSettingsPage = lazy(() => import('@/modules/settings/NotificationsSettingsPage').then(m => ({ default: m.NotificationsSettingsPage })));
+const PrintingReceiptsPage = lazy(() => import('@/modules/settings/PrintingReceiptsPage').then(m => ({ default: m.PrintingReceiptsPage })));
 const TeamManagementPage = lazy(() => import('@/modules/settings/TeamManagementPage').then(m => ({ default: m.TeamManagementPage })));
 const SubscriptionPage = lazy(() => import('@/modules/settings/SubscriptionPage').then(m => ({ default: m.SubscriptionPage })));
 const DataReviewPage = lazy(() => import('@/modules/settings/DataReviewPage').then(m => ({ default: m.DataReviewPage })));
@@ -387,8 +391,12 @@ export const App: React.FC = () => (
           <Route path="/settings/profile" element={<PageErrorBoundary><Suspense fallback={<PageLoader />}><ProfilePage /></Suspense></PageErrorBoundary>} />
           <Route path="/settings/team" element={page(<TeamManagementPage />, ['OWNER', 'PHARMACIST_IN_CHARGE'])} />
           <Route path="/settings/subscription" element={page(<SubscriptionPage />, ['OWNER'])} />
-          <Route path="/settings/data-review" element={page(<DataReviewPage />, ['OWNER', 'PHARMACIST_IN_CHARGE'])} />
-          <Route path="/settings/source-updates" element={page(<SourceUpdatesPage />, ['OWNER', 'PHARMACIST_IN_CHARGE'])} />
+          <Route path="/settings/security" element={<PageErrorBoundary><Suspense fallback={<PageLoader />}><SecurityPage /></Suspense></PageErrorBoundary>} />
+          <Route path="/settings/pharmacy-profile" element={page(<PharmacyProfilePage />, ['OWNER', 'SUPER_ADMIN'])} />
+          <Route path="/settings/notifications" element={<PageErrorBoundary><Suspense fallback={<PageLoader />}><NotificationsSettingsPage /></Suspense></PageErrorBoundary>} />
+          <Route path="/settings/printing" element={page(<PrintingReceiptsPage />, ['OWNER', 'PHARMACIST_IN_CHARGE', 'SUPER_ADMIN'])} />
+          <Route path="/settings/data-review" element={page(<DataReviewPage />, ['SUPER_ADMIN'])} />
+          <Route path="/settings/source-updates" element={page(<SourceUpdatesPage />, ['SUPER_ADMIN'])} />
           <Route path="/settings/features" element={page(<FeaturesPage />, ['OWNER', 'PHARMACIST_IN_CHARGE'])} />
           <Route path="/settings/my-locations" element={page(<MyOutletsPage />, ['OWNER'])} />
           <Route path="/founder" element={<Navigate to="/superadmin/founder" replace />} />

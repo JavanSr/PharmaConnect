@@ -163,10 +163,10 @@ export const ComplianceItemFormPage: React.FC = () => {
               required
             />
             <Input
-              label="Licence / Registration Number"
+              label="Registration Number"
               value={form.licenceNumber}
               onChange={set('licenceNumber')}
-              placeholder="TZ-TMDA-2025-XXXX"
+              placeholder="e.g. PC/2025/XXXXX or TZ/MED/XXXX"
             />
             <Input
               label="Issue Date"

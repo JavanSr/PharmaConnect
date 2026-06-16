@@ -55,6 +55,13 @@ const routeTitles: Record<string, string> = {
 export const Layout: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarHidden, setSidebarHidden] = useState<boolean>(() => {
+    try { return localStorage.getItem('apotekh_sidebar_hidden') === 'true'; } catch { return false; }
+  });
+
+  React.useEffect(() => {
+    try { localStorage.setItem('apotekh_sidebar_hidden', String(sidebarHidden)); } catch { /* storage unavailable */ }
+  }, [sidebarHidden]);
   const location = useLocation();
   const pharmacy = usePharmacyStore((state) => state.pharmacy);
   const memberships = usePharmacyStore((state) => state.memberships);
@@ -232,11 +239,16 @@ export const Layout: React.FC = () => {
           collapsed={sidebarCollapsed}
           onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
           inGrace={isInGrace}
+          hiddenOnDesktop={sidebarHidden}
         />
       </div>
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden print:block print:overflow-visible">
-        <TopBar onMenuClick={() => setSidebarOpen(true)} title={title} />
+        <TopBar
+          onMenuClick={() => setSidebarOpen(true)}
+          onDesktopToggle={() => setSidebarHidden(h => !h)}
+          title={title}
+        />
         {!isFounderAccount && daysRemaining != null && daysRemaining >= 0 && effectiveSubscription?.status === 'TRIAL' && effectiveSubscription?.trialActive && daysRemaining < 7 && (
           <TrialBanner daysRemaining={daysRemaining} />
         )}

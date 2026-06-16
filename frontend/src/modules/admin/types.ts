@@ -1,7 +1,7 @@
 export type ActivityHealth = 'green' | 'amber' | 'red';
 
 export type PharmacyStatus = 'TRIAL' | 'ACTIVE' | 'GRACE' | 'SUSPENDED' | 'CANCELLED';
-export type SubscriptionTier = 'ADDO' | 'ESSENTIAL' | 'ADDO_PLUS' | 'STANDARD' | 'PREMIUM' | 'WHOLESALE' | 'ENTERPRISE';
+export type SubscriptionTier = 'ADDO' | 'BASIC' | 'STANDARD' | 'PREMIUM' | 'WHOLESALE' | 'ENTERPRISE';
 
 export interface AdminPharmacyRow {
   id: string;
@@ -73,6 +73,7 @@ export interface DashboardMetrics {
   churnedThisMonth: number;
   gracePeriodCount: number;
   gracePeriodPharmacies: Array<{ id: string; name: string; region: string; subscriptionTier: string; graceActivatedAt: string | null }>;
+  expiringIn5Days: Array<{ id: string; name: string; subscriptionTier: string; trialEndsAt: string; status: string }>;
   statusBreakdown: Record<string, number>;
   mrrTrend: Array<{ month: string; totalTzs: number }>;
 }
@@ -108,7 +109,7 @@ export const HEALTH_DOT: Record<ActivityHealth, string> = {
   red: 'bg-red-500',
 };
 
-export const TIERS: SubscriptionTier[] = ['ADDO', 'ESSENTIAL', 'ADDO_PLUS', 'STANDARD', 'PREMIUM', 'WHOLESALE', 'ENTERPRISE'];
+export const TIERS: SubscriptionTier[] = ['ADDO', 'BASIC', 'STANDARD', 'PREMIUM', 'WHOLESALE', 'ENTERPRISE'];
 export const STATUSES: PharmacyStatus[] = ['TRIAL', 'ACTIVE', 'GRACE', 'SUSPENDED', 'CANCELLED'];
 export const FEATURE_KEY_LABELS: Record<string, string> = {
   controlled_register: 'Controlled Register',

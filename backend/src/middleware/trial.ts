@@ -96,6 +96,22 @@ export function enforceTrialRestrictions(
       next();
       return;
     }
+
+    // ── 5-day automatic full-access buffer ────────────────────────────────────
+    // After a trial expires, pharmacies get 5 days of full access automatically
+    // so dispensing is never interrupted mid-day. The frontend reads the warning
+    // header and shows a banner prompting renewal.
+    const BUFFER_MS = 5 * 24 * 60 * 60 * 1000;
+    const expiredAt = pharmacy.trialEndsAt ? new Date(pharmacy.trialEndsAt).getTime() : 0;
+    const msSinceExpiry = Date.now() - expiredAt;
+
+    if (msSinceExpiry <= BUFFER_MS) {
+      req.graceWarning = true;
+      res.setHeader('X-Trial-Grace-Warning', 'true');
+      next();
+      return;
+    }
+
     res.status(402).json({
       error: 'TRIAL_EXPIRED',
       subscribeUrl: SUBSCRIPTION_URL,

@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft, ExternalLink, CheckCircle, AlertTriangle,
-  CreditCard, Activity, Users, FileText,
+  CreditCard, Activity, FileText,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useNotificationStore } from '@/stores/notificationStore';
@@ -39,6 +39,78 @@ const ConfirmModal: React.FC<{
     </div>
   </div>
 );
+
+// ─── Link user panel (membership repair) ─────────────────────────────────────
+// Use this when a user reports "no pharmacy" — they have an account but no membership.
+
+const ROLES_FOR_LINK = ['OWNER', 'PHARMACIST_IN_CHARGE', 'DISPENSER'] as const;
+
+const LinkUserPanel: React.FC<{ pharmacyId: string; onLinked: () => void }> = ({ pharmacyId, onLinked }) => {
+  const toast = useNotificationStore((s) => s.toast);
+  const [open, setOpen] = React.useState(false);
+  const [email, setEmail] = React.useState('');
+  const [role, setRole] = React.useState<string>('OWNER');
+  const [loading, setLoading] = React.useState(false);
+
+  const handleLink = async () => {
+    if (!email.trim()) return;
+    setLoading(true);
+    try {
+      await api.post(`/admin/pharmacies/${pharmacyId}/memberships`, { userEmail: email.trim(), role });
+      toast.success(`${email} linked as ${role}`);
+      setEmail('');
+      setOpen(false);
+      onLinked();
+    } catch (e: any) {
+      toast.error(e.response?.data?.error ?? 'Failed to link user');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="mt-4 border-t border-[#F1F5F9] pt-4">
+      {!open ? (
+        <button
+          onClick={() => setOpen(true)}
+          className="text-xs text-[#1A6B5C] hover:underline font-medium"
+        >
+          + Link existing user to this pharmacy
+        </button>
+      ) : (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-[#64748B] uppercase tracking-wide">Link user (fix "no pharmacy")</p>
+          <input
+            type="email"
+            placeholder="User email address"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className={inputCls}
+          />
+          <select value={role} onChange={(e) => setRole(e.target.value)} className={inputCls}>
+            {ROLES_FOR_LINK.map((r) => <option key={r} value={r}>{r}</option>)}
+          </select>
+          <div className="flex gap-2">
+            <button
+              onClick={handleLink}
+              disabled={loading || !email.trim()}
+              className="flex-1 rounded-xl bg-[#1A6B5C] py-2 text-xs font-semibold text-white hover:bg-[#145748] disabled:opacity-40"
+            >
+              {loading ? 'Linking…' : 'Link user'}
+            </button>
+            <button
+              onClick={() => { setOpen(false); setEmail(''); }}
+              className="flex-1 rounded-xl border border-[#D6F0E8] py-2 text-xs text-[#64748B] hover:bg-[#F8FAFC]"
+            >
+              Cancel
+            </button>
+          </div>
+          <p className="text-[11px] text-[#94A3B8]">The user must already have a registered account. This creates a PharmacyMembership record linking them to this pharmacy.</p>
+        </div>
+      )}
+    </div>
+  );
+};
 
 // ─── Actions panel ────────────────────────────────────────────────────────────
 
@@ -124,7 +196,30 @@ const ActionsPanel: React.FC<{ pharmacy: AdminPharmacyDetail; onRefresh: () => v
           </button>
 
           <div>
-            <label className={labelCls}>Set expiry date</label>
+            <label className={labelCls}>Extend by</label>
+            <div className="grid grid-cols-4 gap-1.5">
+              {([1, 3, 6, 12] as const).map((months) => (
+                <button
+                  key={months}
+                  type="button"
+                  onClick={() => {
+                    // Extend from whichever is later: today or the current expiry
+                    const base = expiryVal ? new Date(expiryVal) : new Date();
+                    const from = new Date(Math.max(base.getTime(), Date.now()));
+                    from.setMonth(from.getMonth() + months);
+                    const newDate = from.toISOString().slice(0, 10);
+                    setExpiryVal(newDate);
+                    patch('expiry', { expiresAt: newDate }, `Extended by ${months} month${months > 1 ? 's' : ''}`);
+                  }}
+                  className="rounded-lg border border-[#D6F0E8] py-1.5 text-xs font-semibold text-[#1A6B5C] hover:bg-[#EDF7F3] transition-colors"
+                >
+                  +{months}m
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className={labelCls}>Or set specific date</label>
             <input type="date" value={expiryVal} onChange={(e) => setExpiryVal(e.target.value)} className={inputCls} />
           </div>
           <button
@@ -132,7 +227,7 @@ const ActionsPanel: React.FC<{ pharmacy: AdminPharmacyDetail; onRefresh: () => v
             disabled={!expiryVal}
             className="w-full rounded-xl border border-[#D6F0E8] py-2 text-sm font-medium text-[#0D4035] hover:bg-[#F8FAFC] disabled:opacity-40"
           >
-            Set expiry
+            Set specific date
           </button>
         </div>
 
@@ -501,7 +596,7 @@ export const AdminPharmacyDetailPage: React.FC = () => {
                 <dl className="grid gap-3 sm:grid-cols-2">
                   {[
                     ['Pharmacy name', pharmacy.name],
-                    ['Licence number', pharmacy.licenceNumber],
+                    ['PC Registration Number', pharmacy.licenceNumber],
                     ['Address', pharmacy.address],
                     ['Region', pharmacy.region],
                     ['Type', pharmacy.pharmacyType],
@@ -542,9 +637,14 @@ export const AdminPharmacyDetailPage: React.FC = () => {
               </div>
 
               {/* Staff */}
-              {pharmacy.staff.length > 0 && (
-                <div className="rounded-2xl border border-[#D6F0E8] bg-white p-5">
-                  <p className="mb-4 text-xs font-semibold uppercase tracking-[0.15em] text-[#64748B]">Staff ({pharmacy.staff.length})</p>
+              {/* Staff */}
+              <div className="rounded-2xl border border-[#D6F0E8] bg-white p-5">
+                <p className="mb-4 text-xs font-semibold uppercase tracking-[0.15em] text-[#64748B]">
+                  Staff ({pharmacy.staff.length})
+                </p>
+                {pharmacy.staff.length === 0 ? (
+                  <p className="text-xs text-[#94A3B8]">No staff with active memberships found.</p>
+                ) : (
                   <div className="space-y-2">
                     {pharmacy.staff.map((s) => (
                       <div key={s.id} className="flex items-center justify-between rounded-xl border border-[#F1F5F9] px-3 py-2">
@@ -558,8 +658,10 @@ export const AdminPharmacyDetailPage: React.FC = () => {
                       </div>
                     ))}
                   </div>
-                </div>
-              )}
+                )}
+                {/* Membership repair — use this when a registered user says "no pharmacy" */}
+                <LinkUserPanel pharmacyId={pharmacy.id} onLinked={() => qc.invalidateQueries({ queryKey: ['admin-pharmacy-detail', pharmacy.id] })} />
+              </div>
 
               {pharmacy.internalNotes && (
                 <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4">

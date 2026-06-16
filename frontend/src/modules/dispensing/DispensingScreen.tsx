@@ -2,10 +2,12 @@ import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'rea
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle,
+  BookOpen,
   Camera,
   CheckCircle,
   ChevronDown,
   ChevronUp,
+  ExternalLink,
   Info,
   MessageCircle,
   Pill,
@@ -83,6 +85,63 @@ const phoneHrefValue = (phone: string) => {
 const isWeakConnectionCheckoutFailure = (error: any) => {
   if (!error.response) return true;
   return [408, 500, 502, 503, 504].includes(error.response.status);
+};
+
+/** Returns one or two plain-language sentences describing what a medicine is used for.
+ *  Priority: product.description → generic-name lookup → category mapping → fallback.
+ */
+const getMedicineIndication = (product: Product): string => {
+  if (product.description?.trim()) return product.description.trim();
+
+  const g = (product.genericName || product.name || '').toLowerCase();
+  const cat = (product.therapeuticCategory || '').toLowerCase();
+
+  // Generic-name specific overrides (most common Tanzania ADDO/pharmacy medicines)
+  if (g.includes('amoxicillin')) return 'Used for bacterial infections — chest infections, ear infections, throat infections, and urinary tract infections (UTI).';
+  if (g.includes('metronidazole') || g.includes('flagyl')) return 'Used for bacterial and parasitic infections — abdominal infections, dental infections, and vaginal infections.';
+  if (g.includes('ciprofloxacin')) return 'Used for bacterial infections — urinary tract infections, respiratory infections, and skin infections.';
+  if (g.includes('cotrimoxazole') || g.includes('trimethoprim')) return 'Used for urinary tract infections, chest infections, and as HIV/AIDS prophylaxis.';
+  if (g.includes('doxycycline')) return 'Used for bacterial infections, malaria prevention, and sexually transmitted infections (STIs).';
+  if (g.includes('azithromycin')) return 'Used for respiratory infections, throat infections, and sexually transmitted infections (STIs).';
+  if (g.includes('paracetamol') || g.includes('acetaminophen')) return 'Used for pain relief and fever — headache, body ache, and high temperature.';
+  if (g.includes('ibuprofen')) return 'Used for pain, fever, and inflammation — headache, toothache, and joint or muscle pain.';
+  if (g.includes('diclofenac')) return 'Used for pain and inflammation — joint pain, back pain, and muscle pain.';
+  if (g.includes('loratadine') || g.includes('cetirizine') || g.includes('chlorphenamine') || g.includes('promethazine')) return 'Used for allergies — hay fever, itchy skin, hives, runny nose, and allergic reactions.';
+  if (g.includes('omeprazole') || g.includes('pantoprazole') || g.includes('ranitidine')) return 'Used for stomach acid problems — heartburn, ulcers, and acid reflux (GERD).';
+  if (g.includes('metformin')) return 'Used to control blood sugar in Type 2 diabetes.';
+  if (g.includes('amlodipine') || g.includes('nifedipine')) return 'Used to lower high blood pressure and treat chest pain (angina).';
+  if (g.includes('enalapril') || g.includes('lisinopril') || g.includes('captopril')) return 'Used to lower high blood pressure and protect the heart and kidneys.';
+  if (g.includes('artemether') || g.includes('lumefantrine') || g.includes('coartem')) return 'Used for the treatment of malaria, including uncomplicated falciparum malaria.';
+  if (g.includes('quinine')) return 'Used for the treatment of severe malaria.';
+  if (g.includes('fluconazole') || g.includes('clotrimazole') || g.includes('miconazole')) return 'Used for fungal infections — vaginal candidiasis (thrush), oral thrush, and skin fungal infections.';
+  if (g.includes('oral rehydration') || g.includes('ors')) return 'Used to replace fluids and salts lost through diarrhoea or vomiting. Mix with clean water before use.';
+  if (g.includes('zinc')) return 'Used as a supplement for diarrhoea management in children, and for general immune support.';
+  if (g.includes('folic acid')) return 'Used to prevent neural tube defects in pregnancy and to treat certain types of anaemia.';
+  if (g.includes('ferrous') || g.includes('iron')) return 'Used to treat and prevent iron-deficiency anaemia. May cause dark stools — this is normal.';
+  if (g.includes('salbutamol') || g.includes('albuterol')) return 'Used to relieve asthma attacks and breathing difficulty — opens the airways quickly.';
+
+  // Category-based fallbacks
+  if (cat.includes('antibiotic') || cat.includes('antibacterial')) return 'Used for bacterial infections such as respiratory infections (URTI/LRTI), urinary tract infections, and skin infections.';
+  if (cat.includes('antihistamine') || cat.includes('anti-allergy') || cat.includes('allergy')) return 'Used for allergies — hay fever, itchy skin, hives, and allergic reactions.';
+  if (cat.includes('antifungal')) return 'Used for fungal infections — skin rashes, oral thrush, vaginal infections, and nail infections.';
+  if (cat.includes('analgesic') || cat.includes('pain') || cat.includes('nsaid')) return 'Used for pain relief and fever reduction.';
+  if (cat.includes('antihypertensive') || cat.includes('hypertension') || cat.includes('blood pressure')) return 'Used to lower high blood pressure (hypertension) and protect the heart.';
+  if (cat.includes('antidiabetic') || cat.includes('diabetes')) return 'Used to control blood sugar levels in diabetes (Type 2).';
+  if (cat.includes('antimalarial') || cat.includes('malaria')) return 'Used for treatment and prevention of malaria.';
+  if (cat.includes('antacid') || cat.includes('ulcer') || cat.includes('gastric') || cat.includes('proton pump')) return 'Used for stomach acid problems — heartburn, ulcers, and acid reflux.';
+  if (cat.includes('antiretroviral') || cat.includes('arv') || cat.includes('hiv')) return 'Used for HIV/AIDS treatment and management (antiretroviral therapy).';
+  if (cat.includes('tuberculosis') || cat.includes('tb')) return 'Used for tuberculosis (TB) treatment.';
+  if (cat.includes('diuretic')) return 'Used to remove excess fluid from the body — helps with high blood pressure and heart conditions.';
+  if (cat.includes('antiparasitic') || cat.includes('anthelmintic') || cat.includes('deworming')) return 'Used for parasitic infections and intestinal worms.';
+  if (cat.includes('antidiarrhoeal') || cat.includes('diarrhoea') || cat.includes('diarrhea')) return 'Used for diarrhoea and loose stools.';
+  if (cat.includes('antiemetic') || cat.includes('nausea')) return 'Used for nausea and vomiting.';
+  if (cat.includes('bronchodilator') || cat.includes('asthma') || cat.includes('respiratory')) return 'Used for asthma and breathing difficulties — opens the airways.';
+  if (cat.includes('corticosteroid') || cat.includes('steroid')) return 'Used for inflammation, allergic reactions, and autoimmune conditions.';
+  if (cat.includes('vitamin') || cat.includes('supplement') || cat.includes('mineral')) return 'Nutritional supplement — supports health and corrects vitamin or mineral deficiency.';
+  if (cat.includes('oral rehydration') || cat.includes('ors') || cat.includes('rehydration')) return 'Used to replace fluids and electrolytes lost through diarrhoea or vomiting.';
+  if (cat.includes('antifungal')) return 'Used for fungal infections of the skin, nails, or mouth.';
+
+  return 'No indication recorded for this medicine. Refer to the package insert or prescriber.';
 };
 
 type SessionShortcut = {
@@ -361,7 +420,18 @@ export const DispensingScreen: React.FC = () => {
     () =>
       (products.length > 0 ? products : cachedMedicineProducts)
         .filter((product) => productMatchesSearch(product, immediateDrugSearch))
-        .filter((product) => (product.currentStock ?? 0) > 0),
+        .filter((product) => (product.currentStock ?? 0) > 0)
+        .filter((product) => {
+          // Exclude products where all available stock is expired (FEFO next batch is past expiry
+          // and accounts for all remaining stock → nothing valid to dispense).
+          const batch = product.nextExpiringBatch;
+          if (!batch?.expiryDate) return true; // no batch data — don't hide
+          const daysLeft = Math.ceil((new Date(batch.expiryDate).getTime() - Date.now()) / 86_400_000);
+          if (daysLeft > 0) return true; // batch is still valid
+          // Batch is expired. If it holds all the current stock, nothing valid remains.
+          const allStockExpired = batch.quantityRemaining >= (product.currentStock ?? 0);
+          return !allStockExpired;
+        }),
     [cachedMedicineProducts, immediateDrugSearch, products],
   );
   const serverPaymentMethods = (paymentMethodsQuery.data?.data?.methods ?? []) as DispensingPaymentMethodOption[];
@@ -834,7 +904,21 @@ export const DispensingScreen: React.FC = () => {
                 variant="secondary"
                 size="sm"
                 onClick={async () => {
-                  const { downloadReceiptPdf } = await import('@/lib/receiptPdf');
+                  const [{ downloadReceiptPdf }, { api: apiClient }] = await Promise.all([
+                    import('@/lib/receiptPdf'),
+                    import('@/lib/api'),
+                  ]);
+                  // Load receipt settings for footer / PC reg no visibility
+                  let footerText: string | undefined;
+                  let showPcRegNo: boolean | undefined;
+                  try {
+                    const cfg = await apiClient.get('/settings/config/receipt.settings');
+                    const s = cfg.data?.data?.value;
+                    footerText = s?.footerText;
+                    showPcRegNo = s?.showPcRegNo;
+                  } catch {
+                    // use defaults
+                  }
                   downloadReceiptPdf({
                     referenceNumber: receipt.referenceNumber,
                     pharmacyName: pharmacy?.name ?? 'APOTEKH',
@@ -842,11 +926,15 @@ export const DispensingScreen: React.FC = () => {
                     pharmacyLicence: pharmacy?.licenceNumber ?? 'Licence not set',
                     totalAmount: receipt.totalAmount,
                     paymentMethod: receipt.paymentMethod,
+                    pharmacyFooterText: footerText ?? 'Thank you for your visit. Please take your medicines as directed.',
+                    showPcRegNo: showPcRegNo ?? true,
                     items: receipt.lines.map((line) => ({
                       name: line.productName,
+                      strength: line.strength,
                       quantity: line.quantity,
                       unitPrice: line.unitPrice,
                       lineTotal: line.totalAmount,
+                      dose: line.dose,
                     })),
                     createdAt: receipt.createdAt,
                     dispensedBy: user ? `${user.firstName} ${user.lastName}` : 'APOTEKH user',
@@ -1220,7 +1308,6 @@ export const DispensingScreen: React.FC = () => {
                           setSelectedDrug(product);
                           setDrugSearch('');
                           setShowDrugDropdown(false);
-                          setShowPatientPanel(true);
                           prefetchedProductRef.current = null;
                           api.get(`/inventory/products/${product.id}`)
                             .then(async (r) => {
@@ -1353,6 +1440,12 @@ export const DispensingScreen: React.FC = () => {
 
                   const isInfoExpanded = expandedInfo.has(item.id);
                   const p = item.product;
+                  const fefo = p.nextExpiringBatch;
+                  const fefoExpiryDays = fefo?.expiryDate
+                    ? Math.ceil((new Date(fefo.expiryDate).getTime() - Date.now()) / 86_400_000)
+                    : null;
+                  const fefoUrgent = fefoExpiryDays !== null && fefoExpiryDays <= 30;
+                  const isExpired = fefoExpiryDays !== null && fefoExpiryDays <= 0;
 
                   return (
                     <div key={item.id} className="px-5 py-3">
@@ -1374,7 +1467,7 @@ export const DispensingScreen: React.FC = () => {
                                 })
                               }
                               className="inline-flex h-4 w-4 items-center justify-center rounded-full text-[#1A6B5C] hover:text-[#0D4035]"
-                              title="Medicine info"
+                              title="About this medicine"
                             >
                               <Info size={13} />
                             </button>
@@ -1401,14 +1494,42 @@ export const DispensingScreen: React.FC = () => {
                             )}
                           </div>
                           {isInfoExpanded && (
-                            <div className="mt-2 rounded-lg bg-[#EDF7F3] px-3 py-2 text-xs text-[#374151] space-y-0.5">
-                              {p.brandName && <p><span className="font-medium text-[#0D4035]">Brand:</span> {p.brandName}</p>}
-                              {p.strength && <p><span className="font-medium text-[#0D4035]">Strength:</span> {p.strength}</p>}
-                              {p.dosageForm && <p><span className="font-medium text-[#0D4035]">Form:</span> {p.dosageForm.charAt(0) + p.dosageForm.slice(1).toLowerCase()}</p>}
-                              {p.therapeuticCategory && <p><span className="font-medium text-[#0D4035]">Category:</span> {p.therapeuticCategory}</p>}
-                              {p.awarClass && <p><span className="font-medium text-[#0D4035]">AWaRe:</span> {p.awarClass}</p>}
-                              {p.tmda && <p><span className="font-medium text-[#0D4035]">TMDA:</span> {p.tmda}</p>}
-                              <p><span className="font-medium text-[#0D4035]">Stock:</span> {p.currentStock ?? 0} units</p>
+                            <div className="mt-2 rounded-lg bg-[#EDF7F3] px-3 py-2.5 text-xs text-[#374151] space-y-1.5">
+                              {/* Plain-language indication */}
+                              <p className="text-[#0D4035]">{getMedicineIndication(p)}</p>
+                              {/* Active ingredient line (when brand name is displayed) */}
+                              {p.genericName && p.genericName !== p.name && (
+                                <p className="text-[#475569]">
+                                  Active ingredient: {p.genericName}{p.strength ? ` ${p.strength}` : ''}
+                                </p>
+                              )}
+                              {/* AWaRe antibiotic stewardship — plain language */}
+                              {p.awarClass === 'RESERVE' && (
+                                <p className="font-semibold text-[#DC2626]">⚠ AWaRe RESERVE — last-resort antibiotic. Only for serious infections where other antibiotics have failed.</p>
+                              )}
+                              {p.awarClass === 'WATCH' && (
+                                <p className="text-[#92400E]">AWaRe WATCH — use with care, avoid unnecessary prescribing.</p>
+                              )}
+                              {/* Key counselling points */}
+                              {['SYRUP', 'SUSPENSION', 'DROPS', 'SOLUTION'].includes(p.dosageForm) && (
+                                <p className="font-medium text-[#1A6B5C]">➤ Counsel: shake well before each use.</p>
+                              )}
+                              {(p.drugClass as string) === 'ANTIBIOTIC' && (
+                                <p className="font-medium text-[#1A6B5C]">➤ Counsel: complete the full course even if feeling better.</p>
+                              )}
+                              {(p.coldChainRequired || p.isColdChain) && (
+                                <p className="font-semibold text-[#1E40AF]">❄ Cold chain — must be stored in refrigerator.</p>
+                              )}
+                              {/* Knowledge Hub link */}
+                              <Link
+                                to={`/knowledge?q=${encodeURIComponent(p.genericName || p.name)}`}
+                                className="mt-1 inline-flex items-center gap-1 text-[#1A6B5C] hover:underline font-medium"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <BookOpen size={11} />
+                                More details in Knowledge Hub
+                                <ExternalLink size={10} />
+                              </Link>
                             </div>
                           )}
                           {isHintExpanded && topAlertText && (
@@ -1416,7 +1537,18 @@ export const DispensingScreen: React.FC = () => {
                               {topAlertText}
                             </p>
                           )}
-                          <p className="mt-0.5 text-xs text-[#64748B]">{item.quantity} × {money(item.unitPrice)}</p>
+                          {isExpired && (
+                            <div className="mt-1 flex items-center gap-1.5 rounded-lg border border-[#FECACA] bg-[#FEF2F2] px-2 py-1 text-xs font-semibold text-[#DC2626]">
+                              <AlertTriangle size={11} />
+                              EXPIRED — remove this item before dispensing
+                            </div>
+                          )}
+                          <p className="mt-0.5 text-xs text-[#64748B]">
+                            {item.quantity} × {money(item.unitPrice)}
+                            {!isExpired && fefoUrgent && fefoExpiryDays !== null && (
+                              <span className="ml-2 font-semibold text-[#B45309]">· Exp {fefoExpiryDays}d</span>
+                            )}
+                          </p>
                         </div>
                         <div className="text-right">
                           <p className="text-base font-bold text-[#0D4035]">{money(item.lineTotal)}</p>
@@ -1570,9 +1702,20 @@ export const DispensingScreen: React.FC = () => {
                   <span className="text-2xl font-bold tracking-tight text-[#0D4035]">{money(totalDue)}</span>
                 </div>
 
-              {safetyStatus.requiresOverride && !safetyStatus.overrideDraft && (
+              {safetyStatus.requiresOverride && (
                 <div className="rounded-2xl border border-[#FDE68A] bg-[#FFFBEB] px-4 py-3 text-xs text-[#92400E]">
-                  Add an override reason and PIC PIN in the patient safety panel before checkout.
+                  Acknowledge the high-risk alert in the safety panel above before completing this dispensing.
+                </div>
+              )}
+
+              {cartItems.some((item) => {
+                const days = item.product.nextExpiringBatch?.expiryDate
+                  ? Math.ceil((new Date(item.product.nextExpiringBatch.expiryDate).getTime() - Date.now()) / 86_400_000)
+                  : null;
+                return days !== null && days <= 0;
+              }) && (
+                <div className="rounded-2xl border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-xs font-semibold text-[#DC2626]">
+                  Remove expired medicines from the basket before completing this dispensing.
                 </div>
               )}
 
@@ -1584,7 +1727,13 @@ export const DispensingScreen: React.FC = () => {
                 disabled={
                   cartItems.length === 0 ||
                   (parsedDiscount > 0 && (!canApplyDiscount || !discountReason.trim())) ||
-                  (safetyStatus.requiresOverride && !safetyStatus.overrideDraft)
+                  safetyStatus.requiresOverride ||
+                  cartItems.some((item) => {
+                    const days = item.product.nextExpiringBatch?.expiryDate
+                      ? Math.ceil((new Date(item.product.nextExpiringBatch.expiryDate).getTime() - Date.now()) / 86_400_000)
+                      : null;
+                    return days !== null && days <= 0;
+                  })
                 }
                 onClick={() => checkoutMutation.mutate()}
               >

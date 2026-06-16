@@ -33,10 +33,33 @@ export default function Footer() {
             <p className="max-w-xs text-sm text-white/70">
               The pharmacy-side platform for better pharmaceutical services in Tanzania.
             </p>
-            <p className="text-sm text-white/60">Dodoma, Tanzania · 2026</p>
-            <a className="text-sm text-white/70 hover:text-white" href="mailto:support@apotekh.co.tz">
+            <p className="text-sm text-white/60">Dodoma, Tanzania · East Africa · 2026</p>
+            <a className="block text-sm text-white/70 hover:text-white" href="mailto:support@apotekh.co.tz">
               support@apotekh.co.tz
             </a>
+            <a className="block text-sm text-white/70 hover:text-white" href="https://wa.me/255000000000">
+              WhatsApp support
+            </a>
+            <div className="flex gap-3 pt-1">
+              <a
+                aria-label="LinkedIn"
+                className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 text-sm font-bold text-white/50 hover:border-white/40 hover:text-white"
+                href="https://linkedin.com/company/apotekh"
+                rel="noopener noreferrer"
+                target="_blank"
+              >
+                in
+              </a>
+              <a
+                aria-label="Twitter / X"
+                className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 text-sm font-bold text-white/50 hover:border-white/40 hover:text-white"
+                href="https://twitter.com/apotekh"
+                rel="noopener noreferrer"
+                target="_blank"
+              >
+                𝕏
+              </a>
+            </div>
           </div>
 
           <div>

@@ -4,12 +4,24 @@ import {
   LayoutDashboard, BookOpen, Package, Shield, Pill,
   Lock, ChevronLeft, ChevronRight, Settings, LogOut, BarChart3,
   AlertTriangle, ClipboardList, Users,
-  Building2, X, ShieldAlert, Telescope, PackagePlus, ExternalLink
+  Building2, X, ShieldAlert, Telescope, PackagePlus, ExternalLink, TrendingUp,
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { usePharmacyStore } from '@/stores/pharmacyStore';
 import { Badge } from '@/components/ui/Badge';
 import type { UserRole } from '@/types';
+
+type RetailTier = 'ADDO' | 'BASIC' | 'STANDARD' | 'PREMIUM' | 'WHOLESALE' | 'ENTERPRISE';
+
+// Higher number = higher tier. SUPER_ADMIN bypasses all tier checks.
+const TIER_LEVEL: Record<string, number> = {
+  ADDO: 0,
+  BASIC: 1,
+  STANDARD: 2,
+  PREMIUM: 3,
+  WHOLESALE: 4,
+  ENTERPRISE: 5,
+};
 
 interface NavItem {
   label: string;
@@ -18,6 +30,8 @@ interface NavItem {
   roles?: UserRole[];
   /** Whether this item is accessible during grace mode (subscription lapsed). */
   graceAllowed?: boolean;
+  /** Minimum subscription tier required to see this item (retail hierarchy). SUPER_ADMIN bypasses. */
+  minTier?: RetailTier;
 }
 
 const phase1Nav: NavItem[] = [
@@ -33,6 +47,8 @@ const phase1Nav: NavItem[] = [
   { label: 'Compliance',          path: '/compliance',                     icon: <Shield size={18} />,         roles: ['OWNER','PHARMACIST_IN_CHARGE','DISPENSER','SUPER_ADMIN'] },
   { label: 'Analytics',           path: '/analytics',                      icon: <BarChart3 size={18} />,      graceAllowed: true },
   { label: 'Reports',             path: '/reports',                        icon: <BarChart3 size={18} />,      roles: ['OWNER','PHARMACIST_IN_CHARGE','CASHIER','WHOLESALE_MANAGER','SUPER_ADMIN'] },
+  // PREMIUM: demand forecasting, dead stock, seasonality
+  { label: 'Forecasting',         path: '/forecasting',                    icon: <TrendingUp size={18} />,     roles: ['OWNER','PHARMACIST_IN_CHARGE','SUPER_ADMIN'], minTier: 'PREMIUM' },
   // ── Clinical records ─────────────────────────────────────────────────────────
   { label: 'Safety Alerts',       path: '/dispensing/alerts',              icon: <ShieldAlert size={18} />,    roles: ['OWNER','PHARMACIST_IN_CHARGE','SUPER_ADMIN'] },
   { label: 'Controlled Register', path: '/dispensing/controlled-register', icon: <Lock size={18} />,           roles: ['OWNER','PHARMACIST_IN_CHARGE','SUPER_ADMIN'] },
@@ -42,7 +58,8 @@ const phase1Nav: NavItem[] = [
   // ── Admin & wholesale ────────────────────────────────────────────────────────
   { label: 'Wholesale',           path: '/wholesale',                      icon: <Building2 size={18} />,      roles: ['OWNER','WHOLESALE_MANAGER','WHOLESALE_COUNTER_STAFF','DELIVERY_STAFF','SUPER_ADMIN'] },
   { label: 'Orders',              path: '/wholesale/orders',               icon: <ClipboardList size={18} />,  roles: ['OWNER','WHOLESALE_MANAGER','WHOLESALE_COUNTER_STAFF','DELIVERY_STAFF','SUPER_ADMIN'] },
-  { label: 'Staff Activity',      path: '/staff-activity',                 icon: <Users size={18} />,          roles: ['OWNER','PHARMACIST_IN_CHARGE'] },
+  // BASIC+: staff activity, override audit trail
+  { label: 'Staff Activity',      path: '/staff-activity',                 icon: <Users size={18} />,          roles: ['OWNER','PHARMACIST_IN_CHARGE'], minTier: 'BASIC' },
   { label: 'Sync Conflicts',      path: '/inventory/conflicts',            icon: <AlertTriangle size={18} />,  roles: ['OWNER','PHARMACIST_IN_CHARGE','SUPER_ADMIN'] },
   { label: 'Founder',             path: '/founder',                        icon: <Telescope size={18} />,      roles: ['SUPER_ADMIN'] },
 ];
@@ -68,6 +85,8 @@ interface SidebarProps {
   onToggleCollapse: () => void;
   /** Whether the pharmacy is currently in grace mode (subscription lapsed). */
   inGrace?: boolean;
+  /** Desktop-only: hide the sidebar completely (user toggled it off). */
+  hiddenOnDesktop?: boolean;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -76,6 +95,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   collapsed,
   onToggleCollapse,
   inGrace = false,
+  hiddenOnDesktop = false,
 }) => {
   const { user, logout } = useAuthStore();
   const { pharmacy } = usePharmacyStore();
@@ -181,6 +201,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
   ]);
   const isWholesalePharmacy = pharmacy?.pharmacyType === 'WHOLESALE';
 
+  // ── Tier check helper ─────────────────────────────────────────────────────
+  const currentTierLevel = TIER_LEVEL[pharmacy?.subscriptionTier ?? 'ADDO'] ?? 0;
+  const tierAllowed = (item: NavItem) => {
+    if (user?.role === 'SUPER_ADMIN') return true;
+    if (!item.minTier) return true;
+    return currentTierLevel >= (TIER_LEVEL[item.minTier] ?? 0);
+  };
+
   // ── Filter nav items ───────────────────────────────────────────────────────
   const visiblePhase1Nav = phase1Nav.filter((item) => {
     // Pure wholesale pharmacies: only wholesale-relevant nav
@@ -200,6 +228,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
     const roleAllowed =
       !item.roles || (user?.role && item.roles.includes(user.role as UserRole));
     if (!roleAllowed) return false;
+
+    // Tier gate: hide items the current subscription doesn't include
+    if (!tierAllowed(item)) return false;
 
     if (item.path === '/cpd') {
       return (
@@ -226,7 +257,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="min-w-0">
             <p className="text-sm font-bold leading-tight">
               <span className="text-[#7ECFB4]">APOTEK</span>
-              <span className="text-[#7ECFB4] opacity-60">H</span>
+              <span className="text-[#E8A020]">H</span>
             </p>
             <p className="text-[11px] font-semibold uppercase tracking-widest text-[#4B7B6A]">
               Platform Admin
@@ -400,24 +431,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {user?.role === 'SUPER_ADMIN' ? <FounderSidebarContent /> : <SidebarContent />}
       </div>
 
-      {/* Desktop sidebar */}
-      <div
-        className={`relative hidden lg:flex h-screen min-h-0 flex-col border-r transition-all duration-300 ${
-          user?.role === 'SUPER_ADMIN'
-            ? 'bg-[#0f1f18] border-[#1a3328]'
-            : 'bg-surface-container-lowest border-outline-variant/30'
-        } ${
-          collapsed ? 'w-16' : 'w-64'
-        }`}
-      >
-        {user?.role === 'SUPER_ADMIN' ? <FounderSidebarContent /> : <SidebarContent />}
-        <button
-          onClick={onToggleCollapse}
-          className="absolute top-16 -right-3 w-6 h-6 bg-surface-container-lowest border border-outline-variant/30 rounded-full flex items-center justify-center shadow-sm hover:bg-surface-container-high z-10"
+      {/* Desktop sidebar — hidden when user toggles it off */}
+      {!hiddenOnDesktop && (
+        <div
+          className={`relative hidden lg:flex h-screen min-h-0 flex-col border-r transition-all duration-300 ${
+            user?.role === 'SUPER_ADMIN'
+              ? 'bg-[#0f1f18] border-[#1a3328]'
+              : 'bg-surface-container-lowest border-outline-variant/30'
+          } ${
+            collapsed ? 'w-16' : 'w-64'
+          }`}
         >
-          {collapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
-        </button>
-      </div>
+          {user?.role === 'SUPER_ADMIN' ? <FounderSidebarContent /> : <SidebarContent />}
+          <button
+            onClick={onToggleCollapse}
+            className="absolute top-16 -right-3 w-6 h-6 bg-surface-container-lowest border border-outline-variant/30 rounded-full flex items-center justify-center shadow-sm hover:bg-surface-container-high z-10"
+          >
+            {collapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
+          </button>
+        </div>
+      )}
     </>
   );
 };

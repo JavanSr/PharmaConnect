@@ -141,7 +141,7 @@ export const StockOrderViewPage: React.FC = () => {
     y += 6;
     doc.text(order.pharmacy?.address ?? '', 15, y);
     y += 5;
-    doc.text(`Licence: ${order.pharmacy?.licenceNumber ?? '-'}`, 15, y);
+    doc.text(`PC Reg No: ${order.pharmacy?.licenceNumber ?? '-'}`, 15, y);
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(18);

@@ -41,6 +41,7 @@ import { catalogueImportRouter } from './modules/catalogue-import/catalogue-impo
 import { sourceSyncRouter } from './modules/source-sync/source-sync.router';
 import { agentsRouter } from './modules/agents/agents.router';
 import { supplierPortalRouter } from './modules/inventory/supplier-portal.router';
+import { azamPayRouter } from './modules/azampay/azampay.router';
 import { registerExpiryAlertsJob } from './jobs/expiry-alerts';
 import { registerLowStockAlertsJob } from './jobs/low-stock-alerts';
 import { registerComplianceAlertsJob, registerComplianceHealthJob } from './jobs/compliance-alerts';
@@ -322,6 +323,9 @@ app.use(`${v1}/catalogue-import`,  catalogueImportRouter);
 app.use(`${v1}/source-sync`,       sourceSyncRouter);
 app.use(`${v1}/agents`,            authenticate, agentsRouter);
 
+// ── AzamPay (initiate is authenticated; callback is public) ───────────────────
+app.use(`${v1}/azampay`, azamPayRouter);
+
 // ── Supplier Portal (public, no auth — short URL for WhatsApp links) ──────────
 app.use('/supplier-portal', supplierPortalRouter);
 
@@ -357,11 +361,8 @@ if (process.env.NODE_ENV !== 'test') {
       hasJwtRefreshSecret: Boolean(process.env.JWT_REFRESH_SECRET || process.env.JWT_REFRESH_PRIVATE_KEY),
     });
   });
-
-  server.on('error', (error) => {
-    console.error('[startup.listenFailed]', error);
-    process.exit(1);
-  });
+  server.keepAliveTimeout = 65_000;
+  server.headersTimeout = 70_000;
 }
 
-export default app;
+export { app };

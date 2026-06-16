@@ -1,37 +1,17 @@
 import React from 'react';
-import { useForm } from 'react-hook-form';
-import { useMutation } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Eye, EyeOff } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
-import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { useAuthStore } from '@/stores/authStore';
 import { usePharmacyStore } from '@/stores/pharmacyStore';
-import { useNotificationStore } from '@/stores/notificationStore';
-import { api } from '@/lib/api';
 import { SettingsNav } from './SettingsNav';
 
 export const ProfilePage: React.FC = () => {
   const user = useAuthStore(s => s.user);
   const pharmacy = usePharmacyStore(s => s.pharmacy);
   const memberships = usePharmacyStore(s => s.memberships);
-  const toast = useNotificationStore(s => s.toast);
   const canManageSubscription = ['OWNER', 'SUPER_ADMIN'].includes(user?.role || '');
-  const [showCurrentPassword, setShowCurrentPassword] = React.useState(false);
-  const [showNewPassword, setShowNewPassword] = React.useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = React.useState(false);
-
-  const { register, handleSubmit, formState: { errors } } = useForm({
-    defaultValues: { currentPassword: '', newPassword: '', confirmPassword: '' },
-  });
-
-  const pwMutation = useMutation({
-    mutationFn: (data: any) => api.post('/settings/change-password', data),
-    onSuccess: () => toast.success('Password updated'),
-    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to update password'),
-  });
 
   return (
     <div className="space-y-5 max-w-2xl">
@@ -103,41 +83,15 @@ export const ProfilePage: React.FC = () => {
         </Card>
       )}
 
-      <Card header={<span className="text-sm font-semibold text-[#0D4035]">Change Password</span>}>
-        <form onSubmit={handleSubmit(d => pwMutation.mutate(d))} className="space-y-4">
-          <Input
-            label="Current Password"
-            type={showCurrentPassword ? 'text' : 'password'}
-            {...register('currentPassword', { required: true })}
-            rightIcon={
-              <button type="button" onClick={() => setShowCurrentPassword(value => !value)} aria-label={showCurrentPassword ? 'Hide current password' : 'Show current password'}>
-                {showCurrentPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
-            }
-          />
-          <Input
-            label="New Password"
-            type={showNewPassword ? 'text' : 'password'}
-            {...register('newPassword', { required: true, minLength: 8 })}
-            rightIcon={
-              <button type="button" onClick={() => setShowNewPassword(value => !value)} aria-label={showNewPassword ? 'Hide new password' : 'Show new password'}>
-                {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
-            }
-          />
-          <Input
-            label="Confirm New Password"
-            type={showConfirmPassword ? 'text' : 'password'}
-            {...register('confirmPassword', { required: true })}
-            rightIcon={
-              <button type="button" onClick={() => setShowConfirmPassword(value => !value)} aria-label={showConfirmPassword ? 'Hide password confirmation' : 'Show password confirmation'}>
-                {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
-            }
-          />
-          <Button type="submit" loading={pwMutation.isPending}>Update Password</Button>
-        </form>
-      </Card>
+      <div className="rounded-2xl border border-[#D6F0E8] bg-[#EDF7F3] px-5 py-4 flex items-center justify-between">
+        <div>
+          <p className="text-sm font-medium text-[#0D4035]">Password & Security</p>
+          <p className="text-xs text-[#64748B] mt-0.5">Change your password or manage your dispensing PIN.</p>
+        </div>
+        <Link to="/settings/security">
+          <Button variant="secondary" size="sm">Security settings</Button>
+        </Link>
+      </div>
     </div>
   );
 };

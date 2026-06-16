@@ -21,7 +21,8 @@
     "import:public-products": "ts-node prisma/import-public-product-scrape-fast.ts",
     "backfill:public-product-brands": "ts-node prisma/backfill-public-product-brands.ts",
     "source-sync:check": "ts-node prisma/check-source-updates.ts",
-    "scrape:public-products": "python scripts/scrape_public_product_sources.py"
+    "scrape:public-products": "python scripts/scrape_public_product_sources.py",
+    "db:cleanup": "ts-node prisma/cleanup-non-seed-data.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.91.1",

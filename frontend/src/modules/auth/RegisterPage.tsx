@@ -79,7 +79,7 @@ export const RegisterPage: React.FC = () => {
 
         <div className="bg-white rounded-2xl border border-[#D6F0E8] shadow-sm p-8">
           <h1 className="text-xl font-bold text-[#0D4035] mb-1">Create pharmacy account</h1>
-          <p className="text-sm text-[#64748B] mb-6">Get started with APOTEKH. TMDA licence details can be added later in compliance.</p>
+          <p className="text-sm text-[#64748B] mb-6">Get started with APOTEKH. Your PC Registration Number and compliance details can be added later.</p>
 
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-[#DC2626]">{error}</div>

@@ -311,8 +311,8 @@ export const MyOutletsPage: React.FC = () => {
               />
 
               <Input
-                label="Licence number (optional)"
-                placeholder="Licence number"
+                label="PC Registration Number (optional)"
+                placeholder="e.g. PC/2025/XXXXX"
                 {...addonForm.register('licenceNumber')}
                 error={addonForm.formState.errors.licenceNumber?.message}
               />
@@ -402,8 +402,8 @@ export const MyOutletsPage: React.FC = () => {
               />
 
               <Input
-                label="Licence number (optional — can be added later)"
-                placeholder="Licence number"
+                label="PC Registration Number (optional — can be added later)"
+                placeholder="e.g. PC/2025/XXXXX"
                 {...standardForm.register('licenceNumber')}
                 error={standardForm.formState.errors.licenceNumber?.message}
               />

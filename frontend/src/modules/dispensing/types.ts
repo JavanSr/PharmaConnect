@@ -115,6 +115,7 @@ export interface DispensingReceipt {
   lines: Array<{
     productId: string;
     productName: string;
+    strength?: string | null;
     quantity: number;
     unitPrice: number;
     totalAmount: number;

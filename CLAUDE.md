@@ -387,12 +387,12 @@ Logo wordmark (`apotekh-logo.svg`, light backgrounds):
 - Bars + centre: #1A3328 (dark forest)
 - Top/bottom/left nodes: #1A6B5C (primary teal)
 - Right node: #E8A020 (amber active node)
-- Text: `APOTEK` in #1A3328, `H` in #7ECFB4
+- Text: `APOTEK` in #1A3328, `H` in #E8A020 (amber — mirrors the active node)
 
 Logo wordmark (`apotekh-logo-white.svg`, dark backgrounds):
 - Bars + nodes: white
 - Right node: #E8A020 (amber active node)
-- Text: `APOTEK` in white, `H` in #7ECFB4
+- Text: `APOTEK` in white, `H` in #E8A020 (amber — mirrors the active node)
 
 ### Colour system — Slate Teal
 

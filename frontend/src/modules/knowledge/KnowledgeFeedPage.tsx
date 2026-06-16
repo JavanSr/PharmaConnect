@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { BookOpen, Library, Megaphone, Search } from 'lucide-react';
 import { format } from 'date-fns';
 import { Badge } from '@/components/ui/Badge';
@@ -15,8 +15,9 @@ import type { Article, Bulletin, Publication } from '@/types';
 const CATEGORIES = ['All', 'DRUG_SAFETY', 'REGULATORY', 'CLINICAL', 'BUSINESS', 'TECHNOLOGY', 'CPD', 'GENERAL'];
 
 export const KnowledgeFeedPage: React.FC = () => {
+  const [searchParams] = useSearchParams();
   const [category, setCategory] = useState('All');
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(searchParams.get('q') ?? '');
   const [email, setEmail] = useState('');
   const debouncedSearch = useDebounce(search, 300);
   const toast = useNotificationStore((state) => state.toast);
