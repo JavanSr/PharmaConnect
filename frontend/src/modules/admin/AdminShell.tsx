@@ -51,17 +51,32 @@ export const AdminShell: React.FC = () => {
       {!sidebarHidden && (
         <aside className={`relative flex shrink-0 flex-col bg-[#082B23] border-r border-[#0D4035] transition-all duration-300 ${collapsed ? 'w-14' : 'w-56'}`}>
           {/* Logo */}
-          <div className={`flex h-14 items-center border-b border-[#0D4035] ${collapsed ? 'justify-center px-2' : 'gap-2 px-4'}`}>
+          <div className={`flex h-14 items-center border-b border-[#0D4035] ${collapsed ? 'justify-center px-2' : 'justify-between px-4'}`}>
             {collapsed ? (
-              <span className="text-sm font-bold text-[#E8A020]">A</span>
+              <button
+                onClick={() => setCollapsed(false)}
+                title="Expand sidebar"
+                className="flex items-center justify-center text-[#E8A020] hover:text-white transition-colors"
+              >
+                <ChevronRight size={16} />
+              </button>
             ) : (
               <>
-                <span className="text-sm font-bold tracking-widest uppercase">
-                  <span className="text-[#7ECFB4]">APOTEK</span><span className="text-[#E8A020]">H</span>
-                </span>
-                <span className="rounded bg-[#B45309] px-1.5 py-0.5 text-[10px] font-bold text-white uppercase tracking-wide">
-                  Admin
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold tracking-widest uppercase">
+                    <span className="text-[#7ECFB4]">APOTEK</span><span className="text-[#E8A020]">H</span>
+                  </span>
+                  <span className="rounded bg-[#B45309] px-1.5 py-0.5 text-[10px] font-bold text-white uppercase tracking-wide">
+                    Admin
+                  </span>
+                </div>
+                <button
+                  onClick={() => setCollapsed(true)}
+                  title="Collapse sidebar"
+                  className="rounded p-1 text-[#2A9478] hover:bg-[#0D4035] hover:text-white transition-colors"
+                >
+                  <ChevronLeft size={16} />
+                </button>
               </>
             )}
           </div>
@@ -115,14 +130,6 @@ export const AdminShell: React.FC = () => {
             </div>
           )}
 
-          {/* Collapse toggle — right edge */}
-          <button
-            onClick={() => setCollapsed(c => !c)}
-            className="absolute top-16 -right-3 z-10 flex h-6 w-6 items-center justify-center rounded-full border border-[#0D4035] bg-[#082B23] shadow-sm hover:bg-[#0D4035] text-[#7ECFB4]"
-            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          >
-            {collapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
-          </button>
         </aside>
       )}
 
