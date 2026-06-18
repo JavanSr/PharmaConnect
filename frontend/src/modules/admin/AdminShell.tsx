@@ -50,13 +50,13 @@ export const AdminShell: React.FC = () => {
       {/* Sidebar */}
       {!sidebarHidden && (
         <aside className={`relative flex shrink-0 flex-col bg-[#082B23] border-r border-[#0D4035] transition-all duration-300 ${collapsed ? 'w-14' : 'w-56'}`}>
-          {/* Logo */}
+          {/* Logo + collapse toggle */}
           <div className={`flex h-14 items-center border-b border-[#0D4035] ${collapsed ? 'justify-center px-2' : 'justify-between px-4'}`}>
             {collapsed ? (
               <button
                 onClick={() => setCollapsed(false)}
                 title="Expand sidebar"
-                className="flex items-center justify-center text-[#E8A020] hover:text-white transition-colors"
+                className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#0D4035] text-[#7ECFB4] hover:bg-[#1A6B5C] hover:text-white transition-colors"
               >
                 <ChevronRight size={16} />
               </button>
@@ -73,7 +73,7 @@ export const AdminShell: React.FC = () => {
                 <button
                   onClick={() => setCollapsed(true)}
                   title="Collapse sidebar"
-                  className="rounded p-1 text-[#2A9478] hover:bg-[#0D4035] hover:text-white transition-colors"
+                  className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#0D4035] text-[#7ECFB4] hover:bg-[#1A6B5C] hover:text-white transition-colors"
                 >
                   <ChevronLeft size={16} />
                 </button>
