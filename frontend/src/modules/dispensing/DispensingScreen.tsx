@@ -930,7 +930,7 @@ export const DispensingScreen: React.FC = () => {
                     showPcRegNo: showPcRegNo ?? true,
                     items: receipt.lines.map((line) => ({
                       name: line.productName,
-                      strength: line.strength,
+                      strength: line.strength ?? undefined,
                       quantity: line.quantity,
                       unitPrice: line.unitPrice,
                       lineTotal: line.totalAmount,

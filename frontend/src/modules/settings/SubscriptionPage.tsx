@@ -680,11 +680,6 @@ export const SubscriptionPage: React.FC = () => {
                   <Button onClick={() => selectPlanAndScroll(plan.tier as PaymentRequestTier)}>
                     Subscribe to {plan.tier}
                   </Button>
-                  {plan.tier === 'ENTERPRISE' && (
-                    <a href={`https://wa.me/${FOUNDER_WHATSAPP}?text=${message}`} target="_blank" rel="noreferrer">
-                      <Button variant="secondary" leftIcon={<MessageCircle size={16} />}>Contact us</Button>
-                    </a>
-                  )}
                 </div>
               )}
               {canManageSubscription && !isCurrent && !isPaymentRequestTier(plan.tier) && (
