@@ -3,8 +3,8 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, BookOpen, Package, Shield, Pill,
   Lock, ChevronLeft, ChevronRight, Settings, LogOut, BarChart3,
-  AlertTriangle, ClipboardList, Users,
-  Building2, X, ShieldAlert, Telescope, PackagePlus, ExternalLink, TrendingUp,
+  ClipboardList, Users,
+  Building2, X, Telescope, ExternalLink, TrendingUp,
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { usePharmacyStore } from '@/stores/pharmacyStore';
@@ -36,32 +36,22 @@ interface NavItem {
 
 const phase1Nav: NavItem[] = [
   // ── Primary daily operations ─────────────────────────────────────────────────
-  { label: 'Dashboard',           path: '/dashboard',                      icon: <LayoutDashboard size={18} /> },
-  // OWNER added so grace-mode owners can dispense (they wear all hats during lapse)
-  { label: 'Dispensing',          path: '/dispensing',                     icon: <Pill size={18} />,           roles: ['OWNER','PHARMACIST_IN_CHARGE','DISPENSER','CASHIER','SUPER_ADMIN'], graceAllowed: true },
-  // ── Inventory ────────────────────────────────────────────────────────────────
-  { label: 'Inventory',           path: '/inventory',                      icon: <Package size={18} />,        graceAllowed: true },
-  { label: 'Receive Stock',       path: '/inventory/receive',              icon: <PackagePlus size={18} />,    roles: ['OWNER','PHARMACIST_IN_CHARGE','DISPENSER','DATA_ENTRY_CLERK','SUPER_ADMIN'] },
-  { label: 'Order Preparation',   path: '/inventory/stock-orders',         icon: <ClipboardList size={18} />,  roles: ['OWNER','PHARMACIST_IN_CHARGE','DISPENSER','WHOLESALE_MANAGER','SUPER_ADMIN'] },
-  // ── Compliance & analytics ───────────────────────────────────────────────────
-  { label: 'Compliance',          path: '/compliance',                     icon: <Shield size={18} />,         roles: ['OWNER','PHARMACIST_IN_CHARGE','DISPENSER','SUPER_ADMIN'] },
-  { label: 'Analytics',           path: '/analytics',                      icon: <BarChart3 size={18} />,      graceAllowed: true },
-  { label: 'Reports',             path: '/reports',                        icon: <BarChart3 size={18} />,      roles: ['OWNER','PHARMACIST_IN_CHARGE','CASHIER','WHOLESALE_MANAGER','SUPER_ADMIN'] },
-  // PREMIUM: demand forecasting, dead stock, seasonality
-  { label: 'Forecasting',         path: '/forecasting',                    icon: <TrendingUp size={18} />,     roles: ['OWNER','PHARMACIST_IN_CHARGE','SUPER_ADMIN'], minTier: 'PREMIUM' },
-  // ── Clinical records ─────────────────────────────────────────────────────────
-  { label: 'Safety Alerts',       path: '/dispensing/alerts',              icon: <ShieldAlert size={18} />,    roles: ['OWNER','PHARMACIST_IN_CHARGE','SUPER_ADMIN'] },
-  { label: 'Controlled Register', path: '/dispensing/controlled-register', icon: <Lock size={18} />,           roles: ['OWNER','PHARMACIST_IN_CHARGE','SUPER_ADMIN'] },
+  { label: 'Dashboard',         path: '/dashboard',         icon: <LayoutDashboard size={18} /> },
+  { label: 'Dispensing',        path: '/dispensing',        icon: <Pill size={18} />,        roles: ['OWNER','PHARMACIST_IN_CHARGE','DISPENSER','CASHIER','SUPER_ADMIN'], graceAllowed: true },
+  { label: 'Inventory',         path: '/inventory',         icon: <Package size={18} />,     graceAllowed: true },
+  { label: 'Compliance',        path: '/compliance',        icon: <Shield size={18} />,      roles: ['OWNER','PHARMACIST_IN_CHARGE','DISPENSER','SUPER_ADMIN'] },
+  // ── Analytics & reporting ────────────────────────────────────────────────────
+  { label: 'Analytics',         path: '/analytics',         icon: <BarChart3 size={18} />,   graceAllowed: true },
+  { label: 'Reports',           path: '/reports',           icon: <BarChart3 size={18} />,   roles: ['OWNER','PHARMACIST_IN_CHARGE','CASHIER','WHOLESALE_MANAGER','SUPER_ADMIN'] },
+  { label: 'Forecasting',       path: '/forecasting',       icon: <TrendingUp size={18} />,  roles: ['OWNER','PHARMACIST_IN_CHARGE','SUPER_ADMIN'], minTier: 'PREMIUM' },
   // ── Knowledge ────────────────────────────────────────────────────────────────
-  { label: 'Knowledge Hub',       path: '/knowledge',                      icon: <BookOpen size={18} /> },
-  { label: 'TMDA Updates',        path: '/tmda-updates',                   icon: <BookOpen size={18} /> },
-  // ── Admin & wholesale ────────────────────────────────────────────────────────
-  { label: 'Wholesale',           path: '/wholesale',                      icon: <Building2 size={18} />,      roles: ['OWNER','WHOLESALE_MANAGER','WHOLESALE_COUNTER_STAFF','DELIVERY_STAFF','SUPER_ADMIN'] },
-  { label: 'Orders',              path: '/wholesale/orders',               icon: <ClipboardList size={18} />,  roles: ['OWNER','WHOLESALE_MANAGER','WHOLESALE_COUNTER_STAFF','DELIVERY_STAFF','SUPER_ADMIN'] },
-  // BASIC+: staff activity, override audit trail
-  { label: 'Staff Activity',      path: '/staff-activity',                 icon: <Users size={18} />,          roles: ['OWNER','PHARMACIST_IN_CHARGE'], minTier: 'BASIC' },
-  { label: 'Sync Conflicts',      path: '/inventory/conflicts',            icon: <AlertTriangle size={18} />,  roles: ['OWNER','PHARMACIST_IN_CHARGE','SUPER_ADMIN'] },
-  { label: 'Founder',             path: '/founder',                        icon: <Telescope size={18} />,      roles: ['SUPER_ADMIN'] },
+  { label: 'Knowledge Hub',     path: '/knowledge',         icon: <BookOpen size={18} /> },
+  // ── Team ─────────────────────────────────────────────────────────────────────
+  { label: 'Staff Activity',    path: '/staff-activity',    icon: <Users size={18} />,       roles: ['OWNER','PHARMACIST_IN_CHARGE'], minTier: 'BASIC' },
+  // ── Wholesale (hidden from pure retail) ──────────────────────────────────────
+  { label: 'Wholesale',         path: '/wholesale',         icon: <Building2 size={18} />,   roles: ['OWNER','WHOLESALE_MANAGER','WHOLESALE_COUNTER_STAFF','DELIVERY_STAFF','SUPER_ADMIN'] },
+  { label: 'Orders',            path: '/wholesale/orders',  icon: <ClipboardList size={18} />, roles: ['OWNER','WHOLESALE_MANAGER','WHOLESALE_COUNTER_STAFF','DELIVERY_STAFF','SUPER_ADMIN'] },
+  { label: 'Founder',           path: '/founder',           icon: <Telescope size={18} />,   roles: ['SUPER_ADMIN'] },
 ];
 
 const founderNav: NavItem[] = [
