@@ -258,62 +258,48 @@ async function getActivityHealthMap(pharmacyIds: string[]): Promise<Map<string, 
 // ─── Pharmacy detail ──────────────────────────────────────────────────────────
 
 export async function getPharmacyDetail(pharmacyId: string) {
+  // First confirm the pharmacy exists before firing the parallel sub-queries.
   const pharmacy = await prisma.pharmacy.findUnique({
     where: { id: pharmacyId },
     select: {
-      id: true,
-      name: true,
-      licenceNumber: true,
-      address: true,
-      region: true,
-      pharmacyType: true,
-      subscriptionTier: true,
-      billingCycle: true,
-      status: true,
-      trialActive: true,
-      trialStartsAt: true,
-      trialEndsAt: true,
-      isHybrid: true,
-      hybridAddonActive: true,
-      vfdEnabled: true,
-      userLimit: true,
-      isActive: true,
-      graceActivatedAt: true,
-      createdAt: true,
-      updatedAt: true,
+      id: true, name: true, licenceNumber: true, address: true, region: true,
+      pharmacyType: true, subscriptionTier: true, billingCycle: true,
+      status: true, trialActive: true, trialStartsAt: true, trialEndsAt: true,
+      isHybrid: true, hybridAddonActive: true, vfdEnabled: true, userLimit: true,
+      isActive: true, graceActivatedAt: true, createdAt: true, updatedAt: true,
     },
   });
 
   if (!pharmacy) throw Object.assign(new Error('Pharmacy not found'), { status: 404 });
 
-  const internalNotesRow = await prisma.$queryRaw<Array<{ internal_notes: string | null }>>(Prisma.sql`
-    SELECT "internal_notes" FROM "pharmacies" WHERE "id" = ${pharmacyId} LIMIT 1
-  `);
-
-  const owner = await prisma.pharmacyMembership.findFirst({
-    where: { pharmacyId, role: 'OWNER', active: true },
-    select: {
-      user: {
-        select: {
-          id: true, firstName: true, lastName: true,
-          email: true, phone: true, lastLogin: true, isActive: true,
+  // Run all remaining queries in parallel — each is independent.
+  const [internalNotesRow, owner, staff, health] = await Promise.all([
+    prisma.$queryRaw<Array<{ internal_notes: string | null }>>(Prisma.sql`
+      SELECT "internal_notes" FROM "pharmacies" WHERE "id" = ${pharmacyId} LIMIT 1
+    `),
+    prisma.pharmacyMembership.findFirst({
+      where: { pharmacyId, role: 'OWNER', active: true },
+      select: {
+        user: {
+          select: {
+            id: true, firstName: true, lastName: true,
+            email: true, phone: true, lastLogin: true, isActive: true,
+          },
         },
       },
-    },
-  });
-
-  const staff = await prisma.pharmacyMembership.findMany({
-    where: { pharmacyId, active: true },
-    select: {
-      role: true,
-      user: {
-        select: { id: true, firstName: true, lastName: true, email: true, role: true, lastLogin: true },
+    }),
+    prisma.pharmacyMembership.findMany({
+      where: { pharmacyId, active: true },
+      select: {
+        role: true,
+        user: {
+          select: { id: true, firstName: true, lastName: true, email: true, role: true, lastLogin: true },
+        },
       },
-    },
-    orderBy: { createdAt: 'asc' },
-  });
-
-  const health = await getActivityHealthMap([pharmacyId]);
+      orderBy: { createdAt: 'asc' },
+    }),
+    getActivityHealthMap([pharmacyId]),
+  ]);
 
   return {
     ...pharmacy,
