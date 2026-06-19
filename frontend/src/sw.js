@@ -46,7 +46,17 @@ skipWaiting();
 clientsClaim();
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(Promise.all([clearOldCaches(), broadcastSyncStatus({ state: 'ACTIVE' })]));
+  event.waitUntil(
+    Promise.all([
+      clearOldCaches(),
+      broadcastSyncStatus({ state: 'ACTIVE' }),
+      // Tell all open tabs to reload so they load fresh chunks from the new
+      // precache manifest instead of trying to fetch old hashed URLs.
+      self.clients.matchAll({ includeUncontrolled: true, type: 'window' }).then((clients) => {
+        clients.forEach((client) => client.postMessage({ type: 'SW_UPDATED' }));
+      }),
+    ]),
+  );
 });
 
 // ── Google Fonts CSS (stylesheet declarations) ────────────────────────────────
