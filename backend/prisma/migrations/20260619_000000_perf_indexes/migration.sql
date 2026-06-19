@@ -5,14 +5,14 @@
 -- 1. Notifications inbox
 --    Query: WHERE pharmacy_id = $1 AND (user_id = $2 OR user_id IS NULL) ORDER BY created_at DESC
 --    1,051 calls in sample window; no index existed on this table.
-CREATE INDEX CONCURRENTLY IF NOT EXISTS "notifications_pharmacy_user_created_idx"
+CREATE INDEX IF NOT EXISTS "notifications_pharmacy_user_created_idx"
   ON "notifications" ("pharmacy_id", "user_id", "created_at" DESC);
 
 -- 2. VFD retry job
 --    Query: SELECT ... FROM dispensing_events WHERE vfd_status = 'PENDING' ORDER BY created_at ASC
 --    5,705 calls; dispensing_events is a raw SQL table (not a Prisma model), so the
 --    index is defined here rather than in schema.prisma.
-CREATE INDEX CONCURRENTLY IF NOT EXISTS "dispensing_events_vfd_status_created_idx"
+CREATE INDEX IF NOT EXISTS "dispensing_events_vfd_status_created_idx"
   ON "dispensing_events" ("vfd_status", "created_at" ASC);
 
 -- 3. drug_products ILIKE search (knowledge hub / dispensing search)
@@ -21,13 +21,13 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS "dispensing_events_vfd_status_created_id
 --    pg_trgm is enabled on all Supabase projects by default.
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS "drug_products_generic_name_trgm_idx"
+CREATE INDEX IF NOT EXISTS "drug_products_generic_name_trgm_idx"
   ON "drug_products" USING GIN ("generic_name" gin_trgm_ops);
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS "drug_products_product_name_trgm_idx"
+CREATE INDEX IF NOT EXISTS "drug_products_product_name_trgm_idx"
   ON "drug_products" USING GIN ("product_name" gin_trgm_ops);
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS "drug_products_tmda_reg_trgm_idx"
+CREATE INDEX IF NOT EXISTS "drug_products_tmda_reg_trgm_idx"
   ON "drug_products" USING GIN ("tmda_registration_number" gin_trgm_ops);
 
 -- product_aliases normalized_alias is already indexed with a B-tree; the ILIKE
