@@ -120,7 +120,9 @@ const isApiGet = ({ request, url }) =>
 const isFreshApiRead = ({ url }) =>
   url.pathname.includes('/inventory/products') ||
   url.pathname.includes('/inventory/batches') ||
-  url.pathname.includes('/dispensing/checkout');
+  url.pathname.includes('/dispensing/checkout') ||
+  url.pathname.endsWith('/me') ||
+  url.pathname.includes('/settings/subscription');
 
 registerRoute(
   (args) => isApiGet(args) && isFreshApiRead(args),

@@ -355,6 +355,18 @@ export async function setPharmacyStatus(pharmacyId: string, status: string) {
   } else if (status === 'ACTIVE') {
     data.isActive = true;
     data.trialActive = false;
+    data.graceActivatedAt = null;
+    // If trialEndsAt is in the past (expired trial/subscription), push it forward
+    // so the grace check doesn't immediately re-trigger on the next API call.
+    const existingForActive = await prisma.pharmacy.findUnique({
+      where: { id: pharmacyId },
+      select: { trialEndsAt: true },
+    });
+    if (!existingForActive?.trialEndsAt || existingForActive.trialEndsAt < new Date()) {
+      const renewedUntil = new Date();
+      renewedUntil.setDate(renewedUntil.getDate() + 30);
+      data.trialEndsAt = renewedUntil;
+    }
   } else if (status === 'TRIAL') {
     data.isActive = true;
     data.trialActive = true;
