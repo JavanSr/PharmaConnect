@@ -325,7 +325,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="min-w-0">
             <p className="text-sm font-bold leading-tight">
               <span className="text-on-surface">APOTEK</span>
-              <span className="text-[#7ECFB4]">H</span>
+              <span className="text-[#E8A020]">H</span>
             </p>
             <p className="text-label-md text-on-surface-variant truncate">
               {pharmacy?.name || 'Loading...'}
