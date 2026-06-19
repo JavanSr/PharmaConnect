@@ -1,3 +1,4 @@
+
 import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -233,6 +234,7 @@ export const DispensingScreen: React.FC = () => {
   const user = useAuthStore((state) => state.user);
   const weightInputRef = useRef<HTMLInputElement>(null);
   const prefetchedProductRef = useRef<{ product: Product; fetchedAt: number; productId: string } | null>(null);
+  const allProductsRef = useRef<Product[]>([]);
   const pharmacyPatientProfiles = useDispensingPatientStore(
     (state) => state.profilesByPharmacy[pharmacy?.id ?? 'default'] ?? [],
   );
@@ -279,8 +281,7 @@ export const DispensingScreen: React.FC = () => {
     overrideDraft?: { reason: string; pic_pin: string };
   }>({ review: null, requiresOverride: false });
 
-  const immediateDrugSearch = useDebounce(drugSearch.trim(), 300);
-  const [cachedMedicineProducts, setCachedMedicineProducts] = useState<Product[]>([]);
+  const immediateDrugSearch = useDebounce(drugSearch.trim(), 100);
   const cartTotal = useMemo(
     () => cartItems.reduce((sum, item) => sum + (item.unitPrice ?? 0) * item.quantity, 0),
     [cartItems],
@@ -353,39 +354,41 @@ export const DispensingScreen: React.FC = () => {
     ],
   );
 
-  const { data: productResults, isFetching: isProductSuggestionsFetching } = useQuery({
-    queryKey: ['dispensing-products', immediateDrugSearch],
-    queryFn: async ({ signal }) => {
+  // Pre-load ALL pharmacy products once on mount and keep them in memory.
+  // Every keystroke then filters the in-memory list synchronously — zero network round-trips.
+  // The query refreshes in the background every 5 minutes so stock levels stay current.
+  const [allProductsLoaded, setAllProductsLoaded] = useState(false);
+  const { isFetching: isProductSuggestionsFetching } = useQuery({
+    queryKey: ['dispensing-products-cache', pharmacy?.id],
+    queryFn: async () => {
       try {
         const response = await api
-          .get('/inventory/products/suggestions', {
-            params: { search: immediateDrugSearch, limit: 12 },
-            signal,
-            timeout: 8000,
+          .get('/inventory/products/offline-cache', {
+            params: { limit: 1000 },
+            timeout: 15_000,
           })
           .then((r) => r.data);
         if (Array.isArray(response.data)) {
-          void cacheProducts(response.data);
-          return {
-            ...response,
-            data: await applyInventoryDeltasToProducts(response.data),
-          };
+          const withDeltas = await applyInventoryDeltasToProducts(response.data);
+          allProductsRef.current = withDeltas;
+          void cacheProducts(withDeltas, { catalogSnapshot: true });
+          setAllProductsLoaded(true);
+          return withDeltas;
         }
-        return response;
-      } catch (error: any) {
-        if (error?.code === 'ERR_CANCELED' || error?.name === 'CanceledError') {
-          throw error;
-        }
-        if (!navigator.onLine || !error?.response) {
-          const cached = await searchCachedProducts(immediateDrugSearch, 12);
-          return { data: await applyInventoryDeltasToProducts(cached), offline: true };
-        }
-        throw error;
+        return [];
+      } catch {
+        // Network unavailable — fall back to IndexedDB snapshot
+        const cached = await searchCachedProducts('', 1000);
+        const withDeltas = await applyInventoryDeltasToProducts(cached);
+        allProductsRef.current = withDeltas;
+        setAllProductsLoaded(cached.length > 0);
+        return withDeltas;
       }
     },
-    enabled: immediateDrugSearch.length > 0,
-    staleTime: 30_000,
-    networkMode: 'always',
+    enabled: Boolean(pharmacy?.id && user),
+    staleTime: 5 * 60_000,
+    refetchInterval: 5 * 60_000,
+    networkMode: 'offlineFirst',
   });
   const paymentMethodsQuery = useQuery({
     queryKey: ['dispensing-payment-methods', pharmacy?.id],
@@ -394,46 +397,26 @@ export const DispensingScreen: React.FC = () => {
     staleTime: 60_000,
   });
 
-  const products: Product[] = productResults?.data || [];
-  useEffect(() => {
-    let cancelled = false;
-    if (!immediateDrugSearch) {
-      setCachedMedicineProducts([]);
-      return;
-    }
-    void searchCachedProducts(immediateDrugSearch, 12)
-      .then((cached) => applyInventoryDeltasToProducts(cached))
-      .then((cached) => {
-        if (!cancelled) setCachedMedicineProducts(cached);
+  // Synchronous local filter — no network, no async, instant on every keystroke
+  const visibleProducts = useMemo(() => {
+    const pool = allProductsRef.current;
+    if (pool.length === 0) return [];
+    const q = immediateDrugSearch.trim();
+    return pool
+      .filter((product) => !q || productMatchesSearch(product, q))
+      .filter((product) => (product.currentStock ?? 0) > 0)
+      .filter((product) => {
+        const batch = product.nextExpiringBatch;
+        if (!batch?.expiryDate) return true;
+        const daysLeft = Math.ceil((new Date(batch.expiryDate).getTime() - Date.now()) / 86_400_000);
+        if (daysLeft > 0) return true;
+        const allStockExpired = batch.quantityRemaining >= (product.currentStock ?? 0);
+        return !allStockExpired;
       })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, [immediateDrugSearch]);
-  useEffect(() => {
-    if (Array.isArray(productResults?.data)) {
-      setCachedMedicineProducts(productResults.data);
-    }
-  }, [productResults]);
-  const visibleProducts = useMemo(
-    () =>
-      (products.length > 0 ? products : cachedMedicineProducts)
-        .filter((product) => productMatchesSearch(product, immediateDrugSearch))
-        .filter((product) => (product.currentStock ?? 0) > 0)
-        .filter((product) => {
-          // Exclude products where all available stock is expired (FEFO next batch is past expiry
-          // and accounts for all remaining stock → nothing valid to dispense).
-          const batch = product.nextExpiringBatch;
-          if (!batch?.expiryDate) return true; // no batch data — don't hide
-          const daysLeft = Math.ceil((new Date(batch.expiryDate).getTime() - Date.now()) / 86_400_000);
-          if (daysLeft > 0) return true; // batch is still valid
-          // Batch is expired. If it holds all the current stock, nothing valid remains.
-          const allStockExpired = batch.quantityRemaining >= (product.currentStock ?? 0);
-          return !allStockExpired;
-        }),
-    [cachedMedicineProducts, immediateDrugSearch, products],
-  );
+      .slice(0, 12);
+    // allProductsLoaded forces a re-compute after the startup fetch lands
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [immediateDrugSearch, allProductsLoaded]);
   const serverPaymentMethods = (paymentMethodsQuery.data?.data?.methods ?? []) as DispensingPaymentMethodOption[];
   const availablePaymentMethods =
     serverPaymentMethods.length > 0
@@ -1335,7 +1318,7 @@ export const DispensingScreen: React.FC = () => {
                         </p>
                       </button>
                     ))}
-                  {productResults && visibleProducts.length === 0 && !isProductSuggestionsFetching && (
+                  {allProductsLoaded && visibleProducts.length === 0 && !isProductSuggestionsFetching && (
                     <div className="px-4 py-3 text-sm text-[#64748B]">No matching medicine found</div>
                   )}
                 </div>

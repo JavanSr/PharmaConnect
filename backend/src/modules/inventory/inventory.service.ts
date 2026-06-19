@@ -988,8 +988,29 @@ export async function listProductsForOfflineCache(
     prisma.product.count({ where }),
   ]));
 
+  // Attach live stock totals so the dispensing screen can filter out zero-stock items
+  const productIds = products.map((p) => p.id);
+  const stockGroups = productIds.length > 0
+    ? await prisma.batch.groupBy({
+        by: ['productId'],
+        where: { pharmacyId, productId: { in: productIds }, quantityRemaining: { gt: 0 } },
+        _sum: { quantityRemaining: true },
+        _min: { expiryDate: true },
+      })
+    : [];
+  const stockByProduct = new Map(stockGroups.map((g) => [g.productId, g._sum.quantityRemaining ?? 0]));
+  const nextExpiryByProduct = new Map(stockGroups.map((g) => [g.productId, g._min.expiryDate ?? null]));
+
+  const enriched = products.map((p) => ({
+    ...p,
+    currentStock: stockByProduct.get(p.id) ?? 0,
+    nextExpiringBatch: nextExpiryByProduct.get(p.id)
+      ? { expiryDate: nextExpiryByProduct.get(p.id)!, quantityRemaining: stockByProduct.get(p.id) ?? 0 }
+      : null,
+  }));
+
   return {
-    data: products,
+    data: enriched,
     total,
     page,
     limit,
