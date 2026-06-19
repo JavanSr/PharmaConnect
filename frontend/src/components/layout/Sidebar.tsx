@@ -2,7 +2,7 @@ import React, { useRef, useCallback } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, BookOpen, Package, Shield, Pill,
-  Lock, ChevronLeft, ChevronRight, Settings, LogOut, BarChart3,
+  Lock, ChevronLeft, ChevronRight, Settings, LogOut, BarChart3, FileBarChart2,
   ClipboardList, Users,
   Building2, X, Telescope, ExternalLink, TrendingUp,
 } from 'lucide-react';
@@ -41,8 +41,8 @@ const phase1Nav: NavItem[] = [
   { label: 'Inventory',         path: '/inventory',         icon: <Package size={18} />,     graceAllowed: true },
   { label: 'Compliance',        path: '/compliance',        icon: <Shield size={18} />,      roles: ['OWNER','PHARMACIST_IN_CHARGE','DISPENSER','SUPER_ADMIN'] },
   // ── Analytics & reporting ────────────────────────────────────────────────────
-  { label: 'Analytics',         path: '/analytics',         icon: <BarChart3 size={18} />,   graceAllowed: true },
-  { label: 'Reports',           path: '/reports',           icon: <BarChart3 size={18} />,   roles: ['OWNER','PHARMACIST_IN_CHARGE','CASHIER','WHOLESALE_MANAGER','SUPER_ADMIN'] },
+  { label: 'Analytics',         path: '/analytics',         icon: <BarChart3 size={18} />,      graceAllowed: true },
+  { label: 'Reports',           path: '/reports',           icon: <FileBarChart2 size={18} />,  roles: ['OWNER','PHARMACIST_IN_CHARGE','CASHIER','WHOLESALE_MANAGER','SUPER_ADMIN'] },
   { label: 'Forecasting',       path: '/forecasting',       icon: <TrendingUp size={18} />,  roles: ['OWNER','PHARMACIST_IN_CHARGE','SUPER_ADMIN'], minTier: 'PREMIUM' },
   // ── Knowledge ────────────────────────────────────────────────────────────────
   { label: 'Knowledge Hub',     path: '/knowledge',         icon: <BookOpen size={18} /> },
