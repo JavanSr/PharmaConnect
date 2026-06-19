@@ -229,6 +229,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
       !item.roles || (user?.role && item.roles.includes(user.role as UserRole));
     if (!roleAllowed) return false;
 
+    // Wholesale nav items (path starts with /wholesale) are only for
+    // wholesale or hybrid pharmacies — never shown to pure retail.
+    if (
+      item.path.startsWith('/wholesale') &&
+      !isWholesalePharmacy &&
+      !pharmacy?.isHybrid &&
+      user?.role !== 'SUPER_ADMIN'
+    ) return false;
+
     // Tier gate: hide items the current subscription doesn't include
     if (!tierAllowed(item)) return false;
 
