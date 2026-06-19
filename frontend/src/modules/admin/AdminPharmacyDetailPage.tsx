@@ -526,10 +526,12 @@ export const AdminPharmacyDetailPage: React.FC = () => {
   const [tab, setTab] = React.useState<Tab>('identity');
   const qc = useQueryClient();
 
-  const { data: pharmacy, isLoading } = useQuery({
+  const { data: pharmacy, isLoading, isError, error } = useQuery({
     queryKey: ['admin-pharmacy-detail', id],
     queryFn: () => api.get(`/admin/pharmacies/${id}`).then((r) => r.data.data as AdminPharmacyDetail),
     enabled: Boolean(id),
+    retry: false,
+    staleTime: 30_000,
   });
 
   if (isLoading) {
@@ -540,7 +542,14 @@ export const AdminPharmacyDetailPage: React.FC = () => {
     );
   }
 
-  if (!pharmacy) return <p className="text-sm text-red-600">Pharmacy not found.</p>;
+  if (isError || !pharmacy) {
+    const is404 = (error as any)?.response?.status === 404;
+    return (
+      <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
+        {is404 ? 'This pharmacy no longer exists — it may have been deleted.' : 'Failed to load pharmacy. Check your connection and try again.'}
+      </div>
+    );
+  }
 
   const days = daysAgo(pharmacy.lastLogin);
 

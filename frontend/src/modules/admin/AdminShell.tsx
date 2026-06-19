@@ -56,7 +56,7 @@ export const AdminShell: React.FC = () => {
               <button
                 onClick={() => setCollapsed(false)}
                 title="Expand sidebar"
-                className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#0D4035] text-[#7ECFB4] hover:bg-[#1A6B5C] hover:text-white transition-colors"
+                className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#E8A020] text-white hover:bg-amber-500 transition-colors"
               >
                 <ChevronRight size={16} />
               </button>
@@ -73,7 +73,7 @@ export const AdminShell: React.FC = () => {
                 <button
                   onClick={() => setCollapsed(true)}
                   title="Collapse sidebar"
-                  className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#0D4035] text-[#7ECFB4] hover:bg-[#1A6B5C] hover:text-white transition-colors"
+                  className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#E8A020] text-white hover:bg-amber-500 transition-colors"
                 >
                   <ChevronLeft size={16} />
                 </button>
