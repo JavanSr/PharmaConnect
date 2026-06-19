@@ -1470,7 +1470,6 @@ model Notification {
   pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
   user     User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
 
-  @@index([pharmacyId, userId, createdAt(sort: Desc)], map: "notifications_pharmacy_user_created_idx")
   @@map("notifications")
 }
 
