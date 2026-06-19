@@ -34,7 +34,7 @@ export const AdminPharmaciesPage: React.FC = () => {
       api.get('/admin/pharmacies', {
         params: { search: debouncedSearch || undefined, tier: tier || undefined, status: status || undefined, region: region || undefined, page, limit: 25 },
       }).then((r) => r.data.data as ListResponse),
-    staleTime: 30_000,
+    staleTime: 0,
   });
 
   const rows = (data?.data ?? []).filter((r) =>
