@@ -605,7 +605,7 @@ export const AdminPharmacyDetailPage: React.FC = () => {
                 <dl className="grid gap-3 sm:grid-cols-2">
                   {[
                     ['Pharmacy name', pharmacy.name],
-                    ['PC Registration Number', pharmacy.licenceNumber],
+                    ['PC Registration Number', pharmacy.licenceNumber?.startsWith('PENDING-') ? 'Pending' : (pharmacy.licenceNumber ?? '—')],
                     ['Address', pharmacy.address],
                     ['Region', pharmacy.region],
                     ['Type', pharmacy.pharmacyType],
@@ -628,7 +628,7 @@ export const AdminPharmacyDetailPage: React.FC = () => {
                 <p className="mb-4 text-xs font-semibold uppercase tracking-[0.15em] text-[#64748B]">Subscription</p>
                 <dl className="grid gap-3 sm:grid-cols-2">
                   {[
-                    ['Tier', pharmacy.tier],
+                    ['Tier', pharmacy.tier ?? '—'],
                     ['Status', STATUS_LABEL[pharmacy.status as PharmacyStatus]],
                     ['Billing cycle', pharmacy.billingCycle],
                     ['Expires / paid until', fmtDate(pharmacy.trialEndsAt)],

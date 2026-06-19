@@ -206,11 +206,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
       return WHOLESALE_ALLOWED_PATHS.has(item.path) || item.path.startsWith('/wholesale');
     }
 
+    // Wholesale nav items are never shown to pure retail, regardless of grace state.
+    if (
+      item.path.startsWith('/wholesale') &&
+      !isWholesalePharmacy &&
+      !pharmacy?.isHybrid &&
+      user?.role !== 'SUPER_ADMIN'
+    ) return false;
+
     if (inGrace && user?.role === 'OWNER') {
       const ownerAllowed =
         !item.roles ||
         item.roles.includes('OWNER') ||
-        item.roles.includes('SUPER_ADMIN') ||
         item.graceAllowed;
       return ownerAllowed;
     }
@@ -218,15 +225,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     const roleAllowed =
       !item.roles || (user?.role && item.roles.includes(user.role as UserRole));
     if (!roleAllowed) return false;
-
-    // Wholesale nav items (path starts with /wholesale) are only for
-    // wholesale or hybrid pharmacies — never shown to pure retail.
-    if (
-      item.path.startsWith('/wholesale') &&
-      !isWholesalePharmacy &&
-      !pharmacy?.isHybrid &&
-      user?.role !== 'SUPER_ADMIN'
-    ) return false;
 
     // Tier gate: hide items the current subscription doesn't include
     if (!tierAllowed(item)) return false;
