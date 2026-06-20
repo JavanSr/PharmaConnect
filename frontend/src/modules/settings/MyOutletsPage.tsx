@@ -57,9 +57,7 @@ const addOutletSchema = z.object(baseOutletSchema);
 
 const addAddonOutletSchema = z.object({
   ...baseOutletSchema,
-  paymentMethod:  z.string().trim().min(2, 'Payment method is required'),
-  transactionRef: z.string().trim().min(3, 'Transaction reference is required'),
-  payerPhone:     z.string().trim().optional().or(z.literal('')),
+  payerPhone: z.string().trim().min(7, 'Phone number is required for payment'),
 });
 
 type AddOutletForm      = z.infer<typeof addOutletSchema>;
@@ -80,8 +78,8 @@ interface OutletLimitError {
 const ADDO_OUTLET_PRICE = 15_000;
 
 const TIER_LABELS: Record<string, string> = {
-  ADDO: 'ADDO', ESSENTIAL: 'Essential', ADDO_PLUS: 'ADDO Plus',
-  STANDARD: 'Standard', PREMIUM: 'Premium', WHOLESALE: 'Wholesale', ENTERPRISE: 'Enterprise',
+  ADDO: 'ADDO', ESSENTIAL: 'Basic', STANDARD: 'Standard',
+  PREMIUM: 'Premium', WHOLESALE: 'Wholesale', ENTERPRISE: 'Enterprise',
 };
 
 const REGIONS = [
@@ -142,7 +140,8 @@ export const MyOutletsPage: React.FC = () => {
       api.post('/me/pharmacies/add-outlet', payload).then(r => r.data.data),
     onSuccess: (result) => {
       if (result.pendingPayment) {
-        toast.success(`${result.name} created — pending payment confirmation from the APOTEKH team.`);
+        const msg = result.instructions ?? `${result.name} created — awaiting payment confirmation.`;
+        toast.success(msg, 8000);
       } else {
         const msg = result.sharedTrial && result.trialEndsAt
           ? `${result.name} added — trial ends ${new Date(result.trialEndsAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} with your other locations`
@@ -240,7 +239,7 @@ export const MyOutletsPage: React.FC = () => {
               <p className="text-sm font-semibold text-amber-800">{limitError.message}</p>
               {limitError.upgradeTo && (
                 <p className="text-sm text-amber-700 mt-1">
-                  Upgrade to <strong>{limitError.upgradeTo}</strong> to add more locations
+                  Upgrade to <strong>{TIER_LABELS[limitError.upgradeTo] ?? limitError.upgradeTo}</strong> to add more locations
                   {limitError.upgradePrice > 0
                     ? ` — Tsh ${limitError.upgradePrice.toLocaleString()}/month.`
                     : '. Contact us for Enterprise pricing.'}
@@ -275,11 +274,11 @@ export const MyOutletsPage: React.FC = () => {
           }
         >
           {isAddonPath ? (
-            /* ── ADDO addon form (with payment details) ── */
+            /* ── ADDO addon form — AzamPay STK push ── */
             <form onSubmit={addonForm.handleSubmit(onSubmitAddon)} className="space-y-4">
               <div className="rounded-lg bg-[#EDF7F3] px-4 py-3 text-xs text-[#1A6B5C] space-y-1">
                 <p className="font-semibold">Tsh {ADDO_OUTLET_PRICE.toLocaleString()}/month per ADDO</p>
-                <p>Each ADDO you add is billed separately. Send the payment to APOTEKH and enter the transaction details below. Your new ADDO will be activated once the APOTEKH team confirms receipt.</p>
+                <p>Enter your mobile money number below. A payment request will be sent to your phone — approve it with your PIN and the ADDO activates automatically.</p>
               </div>
 
               <Input
@@ -317,45 +316,22 @@ export const MyOutletsPage: React.FC = () => {
                 error={addonForm.formState.errors.licenceNumber?.message}
               />
 
-              <div className="border-t border-[#D6F0E8] pt-4 space-y-3">
-                <p className="text-xs font-semibold text-[#0D4035]">Payment — Tsh {ADDO_OUTLET_PRICE.toLocaleString()}</p>
-                <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-xs text-amber-800 space-y-1">
-                  <p className="font-semibold">Step 1 — Send the payment first</p>
-                  <p>Send Tsh {ADDO_OUTLET_PRICE.toLocaleString()} to APOTEKH via M-Pesa, Tigo Pesa, Airtel Money, or bank transfer. Once you receive the confirmation SMS, come back here and enter the code below.</p>
-                </div>
-
-                <Select
-                  label="Payment method"
-                  options={[
-                    { value: '',          label: 'Select…' },
-                    { value: 'M-Pesa',    label: 'M-Pesa' },
-                    { value: 'Tigo Pesa', label: 'Tigo Pesa' },
-                    { value: 'Airtel Money', label: 'Airtel Money' },
-                    { value: 'Bank transfer', label: 'Bank transfer' },
-                  ]}
-                  {...(addonForm.register('paymentMethod') as any)}
-                  error={addonForm.formState.errors.paymentMethod?.message}
-                />
-
+              <div className="border-t border-[#D6F0E8] pt-4">
                 <Input
-                  label="Confirmation code (from payment SMS)"
-                  placeholder="e.g. SB12345678"
-                  {...addonForm.register('transactionRef')}
-                  error={addonForm.formState.errors.transactionRef?.message}
-                  required
-                />
-
-                <Input
-                  label="Payer phone (optional)"
+                  label="Mobile money number"
                   placeholder="+255 7xx xxx xxx"
                   {...addonForm.register('payerPhone')}
                   error={addonForm.formState.errors.payerPhone?.message}
+                  required
                 />
+                <p className="mt-1.5 text-xs text-[#64748B]">
+                  Supports M-Pesa, Tigo Pesa, Airtel Money, Halopesa — we detect the network automatically.
+                </p>
               </div>
 
               <div className="flex gap-3 pt-1">
                 <Button type="submit" loading={addMutation.isPending} leftIcon={<Plus size={15} />}>
-                  Submit and await activation
+                  Pay Tsh {ADDO_OUTLET_PRICE.toLocaleString()} and create
                 </Button>
                 <Button type="button" variant="secondary" onClick={() => { setShowForm(false); resetForms(); }}>
                   Cancel

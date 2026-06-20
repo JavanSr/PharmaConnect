@@ -7,6 +7,12 @@ import { withPrismaRetry } from '../../lib/prisma-retry';
 import { issueAuthTokens, listAccessiblePharmacies } from '../auth/pharmacy-membership.service';
 import { trackFeatureTelemetry } from '../telemetry/feature-telemetry.service';
 import { sendFounderNotification } from '../../lib/email';
+import {
+  isAzamPayConfigured,
+  initiateAzamPayCheckout,
+  detectProvider,
+} from '../azampay/azampay.service';
+import { generateSubscriptionReference } from '../subscription/subscription-payments.service';
 
 export const meRouter = Router();
 meRouter.use(authenticate);
@@ -142,22 +148,19 @@ const TIER_UPGRADE: Record<string, string> = {
 };
 
 const TIER_PRICES: Record<string, number> = {
-  ADDO: 15_000, ESSENTIAL: 39_000, ADDO_PLUS: 45_000,
-  STANDARD: 55_000, PREMIUM: 75_000, ENTERPRISE: 0,
+  ADDO: 15_000, ESSENTIAL: 39_000, STANDARD: 55_000, PREMIUM: 75_000, ENTERPRISE: 0,
 };
 
 const ADDO_OUTLET_PRICE = 15_000;
 
 const addOutletSchema = z.object({
-  name:           z.string().trim().min(2, 'Name is required'),
-  pharmacyType:   z.enum(['ADDO', 'RETAIL']),  // no hybrid, no wholesale
-  region:         z.string().trim().min(1, 'Region is required'),
-  address:        z.string().trim().min(2, 'Address is required'),
-  licenceNumber:  z.string().trim().optional(),
-  // Payment fields — required only for ADDO addon outlets
-  paymentMethod:  z.string().trim().max(80).optional(),
-  transactionRef: z.string().trim().max(120).optional(),
-  payerPhone:     z.string().trim().max(40).optional().or(z.literal('')),
+  name:          z.string().trim().min(2, 'Name is required'),
+  pharmacyType:  z.enum(['ADDO', 'RETAIL']),
+  region:        z.string().trim().min(1, 'Region is required'),
+  address:       z.string().trim().min(2, 'Address is required'),
+  licenceNumber: z.string().trim().optional(),
+  // Phone for AzamPay STK push — required on the ADDO addon path
+  payerPhone:    z.string().trim().max(40).optional().or(z.literal('')),
 });
 
 meRouter.post(
@@ -215,15 +218,19 @@ meRouter.post(
           });
           return;
         }
-        if (!data.paymentMethod || !data.transactionRef) {
+        if (!data.payerPhone || data.payerPhone.trim().length < 7) {
           res.status(400).json({
-            error:   'PAYMENT_DETAILS_REQUIRED',
-            message: 'Provide M-Pesa or bank transfer details to add another ADDO.',
+            error:   'PHONE_REQUIRED',
+            message: 'Mobile money phone number is required to process payment.',
           });
           return;
         }
 
+        const reference     = generateSubscriptionReference();
         const licenceNumber = data.licenceNumber?.trim() || `PENDING-${Date.now()}`;
+        const azamPayReady  = isAzamPayConfigured();
+        const provider      = azamPayReady ? `AzamPay${detectProvider(data.payerPhone)}` : 'mobile_money';
+
         const result = await withPrismaRetry(() => prisma.$transaction(async (tx) => {
           const pharmacy = await tx.pharmacy.create({
             data: {
@@ -252,19 +259,48 @@ meRouter.post(
           });
           const paymentRequest = await tx.subscriptionPaymentRequest.create({
             data: {
-              pharmacyId:     pharmacy.id,
-              requestedBy:    userId,
-              requestedTier:  'ADDO',
-              billingCycle:   'MONTHLY',
-              amount:         new Prisma.Decimal(ADDO_OUTLET_PRICE),
-              paymentMethod:  data.paymentMethod!,
-              transactionRef: data.transactionRef!,
-              payerPhone:     data.payerPhone || null,
-              note:           `Additional ADDO outlet: ${data.name}`,
+              pharmacyId:    pharmacy.id,
+              requestedBy:   userId,
+              requestedTier: 'ADDO',
+              billingCycle:  'MONTHLY',
+              amount:        new Prisma.Decimal(ADDO_OUTLET_PRICE),
+              paymentMethod: 'SELF_SERVICE_CHECKOUT',
+              transactionRef: reference,
+              payerPhone:    data.payerPhone,
+              provider,
+              note:          `Additional ADDO outlet: ${data.name}`,
             },
           });
           return { pharmacy, paymentRequest };
         }));
+
+        // Trigger AzamPay STK push immediately if configured
+        let stkSent = false;
+        if (azamPayReady) {
+          try {
+            const stkResult = await initiateAzamPayCheckout({
+              phone:     data.payerPhone,
+              amount:    ADDO_OUTLET_PRICE,
+              reference,
+            });
+            stkSent = stkResult.success;
+            if (stkResult.transactionId) {
+              await prisma.subscriptionPaymentRequest.update({
+                where: { id: result.paymentRequest.id },
+                data:  { providerReference: stkResult.transactionId },
+              });
+            }
+          } catch (stkErr) {
+            console.error('[add-outlet] AzamPay STK push failed', stkErr);
+          }
+        }
+
+        const collectionPhone = (process.env.APOTEKH_PAYMENT_PHONE || '').trim() || null;
+        const instructions = stkSent
+          ? `A payment request has been sent to ${data.payerPhone}. Enter your mobile money PIN to confirm Tsh ${ADDO_OUTLET_PRICE.toLocaleString()}. Your ADDO activates automatically once confirmed.`
+          : collectionPhone
+            ? `Send Tsh ${ADDO_OUTLET_PRICE.toLocaleString()} to ${collectionPhone} and use reference ${reference}. Your ADDO activates after the APOTEKH team confirms payment.`
+            : `Use reference ${reference} when paying Tsh ${ADDO_OUTLET_PRICE.toLocaleString()} via mobile money. Contact us to confirm.`;
 
         sendFounderNotification({
           pharmacyName: result.pharmacy.name,
@@ -277,13 +313,15 @@ meRouter.post(
 
         res.status(201).json({
           data: {
-            id:               result.pharmacy.id,
-            name:             result.pharmacy.name,
-            pharmacyType:     result.pharmacy.pharmacyType,
-            region:           result.pharmacy.region,
-            status:           result.pharmacy.status,
-            pendingPayment:   true,
-            paymentRequestId: result.paymentRequest.id,
+            id:             result.pharmacy.id,
+            name:           result.pharmacy.name,
+            pharmacyType:   result.pharmacy.pharmacyType,
+            region:         result.pharmacy.region,
+            status:         result.pharmacy.status,
+            pendingPayment: true,
+            reference,
+            stkSent,
+            instructions,
           },
         });
         return;
