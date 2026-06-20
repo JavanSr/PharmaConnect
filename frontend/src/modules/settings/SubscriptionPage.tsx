@@ -26,7 +26,7 @@ const FOUNDER_WHATSAPP = '255764591374';
 
 const TIER_LABEL: Record<string, string> = {
   ADDO: 'ADDO',
-  ESSENTIAL: 'Essential',
+  ESSENTIAL: 'Basic',
   ADDO_PLUS: 'ADDO Plus',
   STANDARD: 'Standard',
   PREMIUM: 'Premium',
@@ -46,13 +46,84 @@ const fmtDate = (iso?: string | null) =>
   iso ? new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
 const plans = [
-  { tier: 'ADDO',      monthly: 'Tsh 15,000',  annual: 'Tsh 150,000',   users: '3 users',     bestFor: '1 outlet · DLDM / ADDO shops',          description: 'Full POS, safety, dashboard, barcode scanning, DLDM compliance, and TMDA bulletins.',                                                                    features: ['1 outlet · 3 users · 14-day trial', 'Owner Dashboard + Clinical Decision Support included', 'Barcode scanning and offline-first POS'] },
-  { tier: 'ESSENTIAL', monthly: 'Tsh 39,000',  annual: 'Tsh 390,000',   users: '5 users',     bestFor: '2 outlets · Single retail pharmacies',   description: 'Multi-outlet Owner Dashboard, roles & permissions, void/reissue workflow, and full pharmacy compliance tracker.',                                        features: ['Up to 2 outlets · 5 users · 14-day trial', 'Roles & permissions · void/reissue workflow with audit trail', 'Full compliance tracker (TMDA + PC licence types)'] },
-  { tier: 'ADDO_PLUS', monthly: 'Tsh 45,000',  annual: 'Tsh 450,000',   users: '7 users',     bestFor: 'ADDO shops preparing to expand',         description: 'A step above ADDO with stronger stock controls, reports, and team management.',                                                                           features: ['Expanded ADDO operations', 'Up to 7 users and richer reporting', 'Ready for retail pharmacy upgrade'] },
-  { tier: 'STANDARD',  monthly: 'Tsh 55,000',  annual: 'Tsh 550,000',   users: '10 users',    bestFor: '3 outlets · Small multi-outlet teams',   description: 'Up to 3 outlets with accounting, customer history, Patient Ordering Portal, and full Knowledge Hub.',                                                    features: ['Up to 3 outlets · 10 users · 14-day trial', 'Accounting module · customer purchase history & loyalty', 'Patient Ordering Portal + Knowledge Hub full access'] },
-  { tier: 'PREMIUM',   monthly: 'Tsh 75,000',  annual: 'Tsh 750,000',   users: '20 users',    bestFor: '5 outlets · Growing retail groups',       description: 'Up to 5 outlets with demand forecasting, dead-stock scoring, peer benchmarking, and revenue projections.',                                              features: ['Up to 5 outlets · 20 users · 14-day trial', 'Demand forecasting · dead stock risk scoring', 'Peer benchmarking · revenue trend projection'] },
-  { tier: 'WHOLESALE', monthly: 'Tsh 100,000', annual: 'Tsh 1,000,000', users: '10+ users',   bestFor: 'Wholesale distributors',                  description: 'Structured wholesale workflow — order inbox, catalogue pricing, credit limits, delivery scheduling, and VAT invoices.',                                   features: ['Order inbox from APOTEKH retail network', 'Credit limits per buyer · receivables dashboard', 'VAT-compliant invoice generation on order confirmation'] },
-  { tier: 'ENTERPRISE',monthly: 'Negotiated',  annual: 'Negotiated',    users: 'Unlimited',   bestFor: '6+ outlets · Large operators',            description: '6+ outlets, unlimited users, all Premium features, custom reporting, and dedicated implementation support.',                                              features: ['6+ outlets · unlimited users', 'All Premium retail features', 'Negotiated support and contract'] },
+  {
+    tier: 'ADDO', monthly: 'Tsh 15,000', annual: 'Tsh 150,000', users: '3 users',
+    bestFor: '1 outlet · DLDM / ADDO shops',
+    description: 'Full POS, barcode scanning, offline-first sync, DLDM compliance, and Clinical Decision Support — everything an ADDO needs.',
+    features: [
+      '1 outlet · 3 users · 14-day trial',
+      'FEFO inventory · expiry alerts · bulk Excel import',
+      'Basic POS & dispensing · customer database · sales reports',
+      'Owner Dashboard — live revenue + stock from any device',
+      'Barcode scanning (EAN-13 via phone camera) · offline-first sync',
+      'DLDM compliance tracker · document storage · inspection checklist',
+      'TMDA bulletins & recall feed',
+      'Full Clinical Decision Support Suite',
+    ],
+  },
+  {
+    tier: 'ESSENTIAL', monthly: 'Tsh 39,000', annual: 'Tsh 390,000', users: '5 users',
+    bestFor: '2 outlets · Single retail pharmacies',
+    description: 'Multi-outlet Owner Dashboard, roles & permissions, void/reissue workflow, and the full pharmacy compliance tracker.',
+    features: [
+      'Up to 2 outlets · 5 users · 14-day trial',
+      'Multi-outlet Owner Dashboard — consolidated view',
+      'Receipts, proformas, PDF export · discount management',
+      'Roles & permissions · void/reissue workflow with audit trail',
+      'Full pharmacy compliance tracker (TMDA + PC licence types)',
+    ],
+  },
+  // ADDO_PLUS is intentionally excluded — not a marketed tier
+  {
+    tier: 'STANDARD', monthly: 'Tsh 55,000', annual: 'Tsh 550,000', users: '10 users',
+    bestFor: '3 outlets · Small multi-outlet teams',
+    description: 'Up to 3 outlets with accounting, customer history, Patient Ordering Portal, and full Knowledge Hub.',
+    features: [
+      'Up to 3 outlets · 10 users · 14-day trial',
+      'Accounting module · customer purchase history & loyalty',
+      'Multi-shop consolidated reporting',
+      'Patient Ordering Portal (optional, customer-facing)',
+      'Basic marketing campaigns',
+      'Knowledge Hub full access',
+    ],
+  },
+  {
+    tier: 'PREMIUM', monthly: 'Tsh 75,000', annual: 'Tsh 750,000', users: '20 users',
+    bestFor: '5 outlets · Growing retail groups',
+    description: 'Up to 5 outlets with demand forecasting, dead-stock scoring, peer benchmarking, and revenue projections.',
+    features: [
+      'Up to 5 outlets · 20 users · 14-day trial',
+      'Predictive low-stock alerts (7–14 days) · demand forecasting',
+      'Seasonal demand patterns · dead stock risk scoring',
+      'Revenue trend projection · peak hour & staffing analysis',
+      'Peer benchmarking (anonymised, opt-in) · push notifications',
+      'Full Knowledge Hub including courses · advanced compliance reporting',
+    ],
+  },
+  {
+    tier: 'WHOLESALE', monthly: 'Tsh 100,000', annual: 'Tsh 1,000,000', users: '10+ users',
+    bestFor: 'Wholesale distributors',
+    description: 'Structured wholesale workflow — order inbox, catalogue pricing, credit limits, delivery scheduling, and VAT invoices.',
+    features: [
+      'Order inbox from APOTEKH retail network',
+      'Product catalogue with tiered pricing per client',
+      'Credit limits per buyer · receivables dashboard',
+      'VAT-compliant invoice generation on order confirmation',
+      'Delivery scheduling + driver assignment per order',
+      'Demand intelligence across buyer network',
+    ],
+  },
+  {
+    tier: 'ENTERPRISE', monthly: 'Negotiated', annual: 'Negotiated', users: 'Unlimited',
+    bestFor: '6+ outlets · Chains · Hospital pharmacies',
+    description: '6+ outlets, unlimited users, all Premium features, custom reporting, and dedicated implementation support.',
+    features: [
+      '6+ outlets · unlimited users',
+      'All Premium retail features',
+      'Custom reporting and governance',
+      'Dedicated implementation support + negotiated contract',
+    ],
+  },
 ];
 
 type SubscriptionPaymentRequest = {
@@ -74,7 +145,7 @@ type SubscriptionPaymentRequest = {
   createdAt: string;
 };
 
-const tierOptions = ['ADDO', 'ESSENTIAL', 'ADDO_PLUS', 'STANDARD', 'PREMIUM', 'WHOLESALE'] as const satisfies readonly SubscriptionTier[];
+const tierOptions = ['ADDO', 'ESSENTIAL', 'STANDARD', 'PREMIUM', 'WHOLESALE'] as const satisfies readonly SubscriptionTier[];
 type PaymentRequestTier = (typeof tierOptions)[number];
 
 const isPaymentRequestTier = (tier?: string | null): tier is PaymentRequestTier =>
@@ -83,7 +154,6 @@ const isPaymentRequestTier = (tier?: string | null): tier is PaymentRequestTier 
 const planPriceTable: Record<PaymentRequestTier, Record<BillingCycle, number>> = {
   ADDO: { MONTHLY: 15_000, ANNUAL: 150_000 },
   ESSENTIAL: { MONTHLY: 39_000, ANNUAL: 390_000 },
-  ADDO_PLUS: { MONTHLY: 45_000, ANNUAL: 450_000 },
   STANDARD: { MONTHLY: 55_000, ANNUAL: 550_000 },
   PREMIUM: { MONTHLY: 75_000, ANNUAL: 750_000 },
   WHOLESALE: { MONTHLY: 100_000, ANNUAL: 1_000_000 },

@@ -26,8 +26,8 @@ export const TIERS: Tier[] = [
   {
     id: "addo",
     name: "ADDO",
-    price: 20_000,
-    annualPrice: 200_000,
+    price: 15_000,
+    annualPrice: 150_000,
     currency: "Tsh",
     period: "month",
     trialDays: 14,
