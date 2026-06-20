@@ -128,6 +128,10 @@ meRouter.post('/pharmacies/:id/select', async (req: AuthRequest, res, next) => {
 
 const TRIAL_DAYS = 14;
 
+// Treat placeholder-only licence numbers (dashes, dots, spaces) as absent
+const parseLicenceNumber = (raw: string | undefined): string =>
+  /\S/.test((raw ?? '').replace(/[-–—.]/g, '').trim()) ? raw!.trim() : `PENDING-${Date.now()}`;
+
 // Outlet limits per subscription tier (mirrors CLAUDE.md)
 const OUTLET_LIMITS: Record<string, number> = {
   ADDO:       1,
@@ -227,7 +231,7 @@ meRouter.post(
         }
 
         const reference     = generateSubscriptionReference();
-        const licenceNumber = data.licenceNumber?.trim() || `PENDING-${Date.now()}`;
+        const licenceNumber = parseLicenceNumber(data.licenceNumber);
         const azamPayReady  = isAzamPayConfigured();
         const provider      = azamPayReady ? `AzamPay${detectProvider(data.payerPhone)}` : 'mobile_money';
 

@@ -50,7 +50,7 @@ const baseOutletSchema = {
   pharmacyType:  z.enum(['ADDO', 'RETAIL']),
   region:        z.string().trim().min(1, 'Region is required'),
   address:       z.string().trim().min(2, 'Address is required'),
-  licenceNumber: z.string().trim().optional(),
+  licenceNumber: z.string().trim().optional().transform(v => v === '-' || v === '—' || v === '' ? undefined : v),
 };
 
 const addOutletSchema = z.object(baseOutletSchema);
