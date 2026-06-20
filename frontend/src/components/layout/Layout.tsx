@@ -64,6 +64,8 @@ export const Layout: React.FC = () => {
   }, [sidebarHidden]);
   const location = useLocation();
   const pharmacy = usePharmacyStore((state) => state.pharmacy);
+  const pharmacyRef = React.useRef(pharmacy);
+  React.useLayoutEffect(() => { pharmacyRef.current = pharmacy; }, [pharmacy]);
   const memberships = usePharmacyStore((state) => state.memberships);
   const setPharmacy = usePharmacyStore((state) => state.setPharmacy);
   const setMemberships = usePharmacyStore((state) => state.setMemberships);
@@ -134,18 +136,15 @@ export const Layout: React.FC = () => {
   }, [membershipsQuery.data, pharmacy?.id, setMemberships, setPharmacy]);
 
   React.useEffect(() => {
-    if (!subscription) {
-      return;
-    }
-
+    if (!subscription) return;
+    const prev = pharmacyRef.current;
     const changed =
-      !pharmacy ||
-      Object.entries(subscription).some(([key, value]) => ((pharmacy as unknown as Record<string, unknown>)[key] !== value));
-
+      !prev ||
+      Object.entries(subscription).some(([key, value]) => (prev as unknown as Record<string, unknown>)[key] !== value);
     if (changed) {
-      setPharmacy({ ...(pharmacy ?? {}), ...subscription });
+      setPharmacy({ ...(prev ?? {}), ...subscription } as any);
     }
-  }, [pharmacy, setPharmacy, subscription]);
+  }, [setPharmacy, subscription]);
 
   React.useEffect(() => {
     const handleTrialExpired = () => setForceTrialExpired(true);

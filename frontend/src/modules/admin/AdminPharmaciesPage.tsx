@@ -1,6 +1,6 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Search, Download, ChevronLeft, ChevronRight } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { AdminPharmacyRow, PharmacyStatus, SubscriptionTier } from './types';
@@ -19,9 +19,10 @@ interface ListResponse {
 const inputCls = 'rounded-xl border border-[#D6F0E8] px-3 py-2 text-sm text-[#0D4035] outline-none focus:border-[#1A6B5C] focus:ring-1 focus:ring-[#1A6B5C] bg-white';
 
 export const AdminPharmaciesPage: React.FC = () => {
+  const [searchParams] = useSearchParams();
   const [search, setSearch] = React.useState('');
   const [tier, setTier] = React.useState('');
-  const [status, setStatus] = React.useState('');
+  const [status, setStatus] = React.useState(() => searchParams.get('status') ?? '');
   const [region, setRegion] = React.useState('');
   const [page, setPage] = React.useState(1);
   const [activityFilter, setActivityFilter] = React.useState<'' | 'amber' | 'red'>('');

@@ -15,8 +15,9 @@ const MetricCard: React.FC<{
   sub?: string;
   icon: React.ReactNode;
   accent?: string;
-}> = ({ label, value, sub, icon, accent = 'text-[#1A6B5C]' }) => (
-  <div className="rounded-2xl border border-[#D6F0E8] bg-white p-5 shadow-sm">
+  to?: string;
+}> = ({ label, value, sub, icon, accent = 'text-[#1A6B5C]', to }) => {
+  const inner = (
     <div className="flex items-start justify-between">
       <div>
         <p className="text-xs font-semibold uppercase tracking-[0.15em] text-[#64748B]">{label}</p>
@@ -25,8 +26,16 @@ const MetricCard: React.FC<{
       </div>
       <div className="rounded-xl bg-[#EDF7F3] p-2.5 text-[#1A6B5C]">{icon}</div>
     </div>
-  </div>
-);
+  );
+  if (to) {
+    return (
+      <Link to={to} className="block rounded-2xl border border-[#D6F0E8] bg-white p-5 shadow-sm hover:border-[#1A6B5C] hover:shadow-md transition-shadow">
+        {inner}
+      </Link>
+    );
+  }
+  return <div className="rounded-2xl border border-[#D6F0E8] bg-white p-5 shadow-sm">{inner}</div>;
+};
 
 const MiniMrrChart: React.FC<{ trend: Array<{ month: string; totalTzs: number }> }> = ({ trend }) => {
   if (!trend.length) return <div className="h-24 flex items-center justify-center text-xs text-[#94A3B8]">No payment data yet</div>;
@@ -88,21 +97,23 @@ export const AdminDashboardPage: React.FC = () => {
 
       {/* Metric cards */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <MetricCard label="Active pharmacies" value={m?.activePharmacies ?? 0} icon={<Building2 size={18} />} />
-        <MetricCard label="MRR" value={`Tsh ${(m?.mrr ?? 0).toLocaleString()}`} sub="from active subscriptions" icon={<TrendingUp size={18} />} />
-        <MetricCard label="Transactions this month" value={(m?.transactionsThisMonth ?? 0).toLocaleString()} icon={<ShoppingCart size={18} />} />
-        <MetricCard label="New this month" value={m?.newPharmaciesThisMonth ?? 0} icon={<UserPlus size={18} />} />
+        <MetricCard label="Active pharmacies" value={m?.activePharmacies ?? 0} icon={<Building2 size={18} />} to="/superadmin/pharmacies?status=ACTIVE" />
+        <MetricCard label="MRR" value={`Tsh ${(m?.mrr ?? 0).toLocaleString()}`} sub="from active subscriptions" icon={<TrendingUp size={18} />} to="/superadmin/founder" />
+        <MetricCard label="Transactions this month" value={(m?.transactionsThisMonth ?? 0).toLocaleString()} icon={<ShoppingCart size={18} />} to="/superadmin/pharmacies" />
+        <MetricCard label="New this month" value={m?.newPharmaciesThisMonth ?? 0} icon={<UserPlus size={18} />} to="/superadmin/pharmacies" />
         <MetricCard
           label="Churned this month"
           value={m?.churnedThisMonth ?? 0}
           icon={<AlertTriangle size={18} />}
           accent={(m?.churnedThisMonth ?? 0) > 0 ? 'text-red-600' : 'text-[#1A6B5C]'}
+          to="/superadmin/pharmacies?status=CANCELLED"
         />
         <MetricCard
           label="In grace period"
           value={m?.gracePeriodCount ?? 0}
           icon={<Clock size={18} />}
           accent={(m?.gracePeriodCount ?? 0) > 0 ? 'text-amber-600' : 'text-[#1A6B5C]'}
+          to="/superadmin/pharmacies?status=GRACE"
         />
       </div>
 
@@ -120,12 +131,16 @@ export const AdminDashboardPage: React.FC = () => {
             <h2 className="mb-4 text-sm font-semibold text-[#0D4035]">Pharmacy status breakdown</h2>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
               {(['ACTIVE', 'TRIAL', 'GRACE', 'SUSPENDED', 'CANCELLED'] as const).map((s) => (
-                <div key={s} className="rounded-xl border border-[#E2E8F0] p-3 text-center">
+                <Link
+                  key={s}
+                  to={`/superadmin/pharmacies?status=${s}`}
+                  className="rounded-xl border border-[#E2E8F0] p-3 text-center hover:border-[#1A6B5C] hover:bg-[#EDF7F3] transition-colors"
+                >
                   <p className="text-2xl font-bold text-[#0D4035]">{m?.statusBreakdown?.[s] ?? 0}</p>
                   <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold ${STATUS_STYLE[s]}`}>
                     {STATUS_LABEL[s]}
                   </span>
-                </div>
+                </Link>
               ))}
             </div>
           </div>
