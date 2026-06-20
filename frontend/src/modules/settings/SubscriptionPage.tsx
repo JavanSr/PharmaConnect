@@ -24,14 +24,35 @@ import { SettingsNav } from './SettingsNav';
 
 const FOUNDER_WHATSAPP = '255764591374';
 
+const TIER_LABEL: Record<string, string> = {
+  ADDO: 'ADDO',
+  ESSENTIAL: 'Essential',
+  ADDO_PLUS: 'ADDO Plus',
+  STANDARD: 'Standard',
+  PREMIUM: 'Premium',
+  WHOLESALE: 'Wholesale',
+  ENTERPRISE: 'Enterprise',
+};
+
+const STATUS_LABEL: Record<string, string> = {
+  ACTIVE: 'Active',
+  TRIAL: 'Trial',
+  GRACE: 'Grace period',
+  SUSPENDED: 'Suspended',
+  CANCELLED: 'Cancelled',
+};
+
+const fmtDate = (iso?: string | null) =>
+  iso ? new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+
 const plans = [
-  { tier: 'ADDO', monthly: 'Tsh 15,000', annual: 'Tsh 150,000', users: '3 users', bestFor: '1 outlet · DLDM / ADDO shops', description: 'Full POS, safety, dashboard, barcode scanning, DLDM compliance, and TMDA bulletins.', features: ['1 outlet · 3 users · 14-day trial', 'Owner Dashboard + Clinical Decision Support included', 'Barcode scanning and offline-first POS'] },
-  { tier: 'ESSENTIAL', monthly: 'Tsh 39,000', annual: 'Tsh 390,000', users: '5 users', bestFor: '2 outlets · Single retail pharmacies', description: 'Multi-outlet Owner Dashboard, roles & permissions, void/reissue workflow, and full pharmacy compliance tracker.', features: ['Up to 2 outlets · 5 users · 14-day trial', 'Roles & permissions · void/reissue workflow with audit trail', 'Full compliance tracker (TMDA + PC licence types)'] },
-  { tier: 'ADDO_PLUS', monthly: 'Tsh 45,000', annual: 'Tsh 450,000', users: '7 users', bestFor: 'ADDO shops preparing to expand', description: 'A step above ADDO with stronger stock, reports, and team controls.', features: ['Expanded ADDO operations', 'More users and reporting controls', 'Ready for retail pharmacy upgrade'] },
-  { tier: 'STANDARD', monthly: 'Tsh 55,000', annual: 'Tsh 550,000', users: '10 users', bestFor: '3 outlets · Small multi-outlet teams', description: 'Up to 3 outlets with accounting, customer history, Patient Ordering Portal, and full Knowledge Hub.', features: ['Up to 3 outlets · 10 users · 14-day trial', 'Accounting module · customer purchase history & loyalty', 'Patient Ordering Portal + Knowledge Hub full access'] },
-  { tier: 'PREMIUM', monthly: 'Tsh 75,000', annual: 'Tsh 750,000', users: '20 users', bestFor: '5 outlets · Growing retail groups', description: 'Up to 5 outlets with demand forecasting, dead-stock scoring, peer benchmarking, and revenue projections.', features: ['Up to 5 outlets · 20 users · 14-day trial', 'Demand forecasting · dead stock risk scoring', 'Peer benchmarking · revenue trend projection'] },
-  { tier: 'WHOLESALE', monthly: 'Tsh 100,000', annual: 'Tsh 1,000,000', users: '10+ users', bestFor: 'Wholesale distributors', description: 'Structured wholesale workflow — order inbox, catalogue pricing, credit limits, delivery scheduling, and VAT invoices.', features: ['Order inbox from APOTEKH retail network', 'Credit limits per buyer · receivables dashboard', 'VAT-compliant invoice generation on order confirmation'] },
-{ tier: 'ENTERPRISE', monthly: 'Negotiated', annual: 'Negotiated', users: 'Unlimited', bestFor: '6+ outlets · Large operators', description: '6+ outlets, unlimited users, all Premium features, custom reporting, and dedicated implementation support.', features: ['6+ outlets · unlimited users', 'All Premium retail features', 'Negotiated support and contract'] },
+  { tier: 'ADDO',      monthly: 'Tsh 15,000',  annual: 'Tsh 150,000',   users: '3 users',     bestFor: '1 outlet · DLDM / ADDO shops',          description: 'Full POS, safety, dashboard, barcode scanning, DLDM compliance, and TMDA bulletins.',                                                                    features: ['1 outlet · 3 users · 14-day trial', 'Owner Dashboard + Clinical Decision Support included', 'Barcode scanning and offline-first POS'] },
+  { tier: 'ESSENTIAL', monthly: 'Tsh 39,000',  annual: 'Tsh 390,000',   users: '5 users',     bestFor: '2 outlets · Single retail pharmacies',   description: 'Multi-outlet Owner Dashboard, roles & permissions, void/reissue workflow, and full pharmacy compliance tracker.',                                        features: ['Up to 2 outlets · 5 users · 14-day trial', 'Roles & permissions · void/reissue workflow with audit trail', 'Full compliance tracker (TMDA + PC licence types)'] },
+  { tier: 'ADDO_PLUS', monthly: 'Tsh 45,000',  annual: 'Tsh 450,000',   users: '7 users',     bestFor: 'ADDO shops preparing to expand',         description: 'A step above ADDO with stronger stock controls, reports, and team management.',                                                                           features: ['Expanded ADDO operations', 'Up to 7 users and richer reporting', 'Ready for retail pharmacy upgrade'] },
+  { tier: 'STANDARD',  monthly: 'Tsh 55,000',  annual: 'Tsh 550,000',   users: '10 users',    bestFor: '3 outlets · Small multi-outlet teams',   description: 'Up to 3 outlets with accounting, customer history, Patient Ordering Portal, and full Knowledge Hub.',                                                    features: ['Up to 3 outlets · 10 users · 14-day trial', 'Accounting module · customer purchase history & loyalty', 'Patient Ordering Portal + Knowledge Hub full access'] },
+  { tier: 'PREMIUM',   monthly: 'Tsh 75,000',  annual: 'Tsh 750,000',   users: '20 users',    bestFor: '5 outlets · Growing retail groups',       description: 'Up to 5 outlets with demand forecasting, dead-stock scoring, peer benchmarking, and revenue projections.',                                              features: ['Up to 5 outlets · 20 users · 14-day trial', 'Demand forecasting · dead stock risk scoring', 'Peer benchmarking · revenue trend projection'] },
+  { tier: 'WHOLESALE', monthly: 'Tsh 100,000', annual: 'Tsh 1,000,000', users: '10+ users',   bestFor: 'Wholesale distributors',                  description: 'Structured wholesale workflow — order inbox, catalogue pricing, credit limits, delivery scheduling, and VAT invoices.',                                   features: ['Order inbox from APOTEKH retail network', 'Credit limits per buyer · receivables dashboard', 'VAT-compliant invoice generation on order confirmation'] },
+  { tier: 'ENTERPRISE',monthly: 'Negotiated',  annual: 'Negotiated',    users: 'Unlimited',   bestFor: '6+ outlets · Large operators',            description: '6+ outlets, unlimited users, all Premium features, custom reporting, and dedicated implementation support.',                                              features: ['6+ outlets · unlimited users', 'All Premium retail features', 'Negotiated support and contract'] },
 ];
 
 type SubscriptionPaymentRequest = {
@@ -166,8 +187,14 @@ export const SubscriptionPage: React.FC = () => {
 
   const daysRemaining =
     subscription?.trialEndsAt
-      ? Math.max(0, differenceInCalendarDays(new Date(subscription.trialEndsAt), new Date()))
+      ? differenceInCalendarDays(new Date(subscription.trialEndsAt), new Date())
       : null;
+
+  const isOnTrial = Boolean(subscription?.trialActive);
+  const isGrace =
+    subscription?.status === 'GRACE' ||
+    (!subscription?.trialActive && subscription?.status === 'ACTIVE' && daysRemaining != null && daysRemaining <= 0);
+  const isPaidActive = !isOnTrial && !isGrace && subscription?.status === 'ACTIVE';
   const latestCheckout = React.useMemo(
     () => (paymentRequestsQuery.data?.data ?? []).find((request) => request.paymentMethod === 'SELF_SERVICE_CHECKOUT') ?? null,
     [paymentRequestsQuery.data?.data],
@@ -266,9 +293,9 @@ export const SubscriptionPage: React.FC = () => {
         </div>
         {subscription && (
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="info" size="sm">{subscription.subscriptionTier}</Badge>
-            <Badge variant={subscription.status === 'TRIAL' ? 'warning' : 'success'} size="sm">
-              {subscription.status}
+            <Badge variant="info" size="sm">{TIER_LABEL[subscription.subscriptionTier] ?? subscription.subscriptionTier}</Badge>
+            <Badge variant={isGrace ? 'danger' : isOnTrial ? 'warning' : 'success'} size="sm">
+              {isGrace ? 'Grace period' : (STATUS_LABEL[subscription.status] ?? subscription.status)}
             </Badge>
           </div>
         )}
@@ -283,41 +310,57 @@ export const SubscriptionPage: React.FC = () => {
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <div className="rounded-2xl bg-[#EDF7F3] px-4 py-3">
               <p className="text-xs uppercase tracking-wide text-[#64748B]">Current tier</p>
-              <p className="mt-1 text-lg font-semibold text-[#0D4035]">{subscription.subscriptionTier}</p>
+              <p className="mt-1 text-lg font-semibold text-[#0D4035]">
+                {TIER_LABEL[subscription.subscriptionTier] ?? subscription.subscriptionTier}
+              </p>
+            </div>
+            <div className="rounded-2xl bg-white px-4 py-3 border border-[#D6F0E8]">
+              <p className="text-xs uppercase tracking-wide text-[#64748B]">Status</p>
+              <p className="mt-1 text-lg font-semibold text-[#0D4035]">
+                {isGrace ? 'Grace period' : (STATUS_LABEL[subscription.status] ?? subscription.status)}
+              </p>
+            </div>
+            <div className={`rounded-2xl px-4 py-3 border ${isGrace ? 'border-red-200 bg-red-50' : isPaidActive ? 'border-[#D6F0E8] bg-[#EDF7F3]' : 'border-[#D6F0E8] bg-white'}`}>
+              <p className="text-xs uppercase tracking-wide text-[#64748B]">
+                {isOnTrial ? 'Trial expires' : isPaidActive ? 'Paid until' : 'Expires'}
+              </p>
+              <p className={`mt-1 text-lg font-semibold ${isGrace ? 'text-red-700' : 'text-[#0D4035]'}`}>
+                {subscription.trialEndsAt ? fmtDate(subscription.trialEndsAt) : '—'}
+              </p>
             </div>
             <div className="rounded-2xl bg-white px-4 py-3 border border-[#D6F0E8]">
               <p className="text-xs uppercase tracking-wide text-[#64748B]">Billing cycle</p>
-              <p className="mt-1 text-lg font-semibold text-[#0D4035]">{subscription.billingCycle}</p>
-            </div>
-            <div className="rounded-2xl bg-white px-4 py-3 border border-[#D6F0E8]">
-              <p className="text-xs uppercase tracking-wide text-[#64748B]">Trial status</p>
               <p className="mt-1 text-lg font-semibold text-[#0D4035]">
-                {subscription.trialActive ? 'Active' : 'Ended'}
-              </p>
-            </div>
-            <div className="rounded-2xl bg-[#FFFBEB] px-4 py-3">
-              <p className="text-xs uppercase tracking-wide text-[#64748B]">Trial countdown</p>
-              <p className="mt-1 text-lg font-semibold text-[#92400E]">
-                {daysRemaining != null ? `${daysRemaining} days` : 'N/A'}
+                {subscription.billingCycle === 'ANNUAL' ? 'Annual' : 'Monthly'}
               </p>
             </div>
           </div>
         )}
 
-        {subscription?.trialActive && daysRemaining != null && daysRemaining <= 14 && (
+        {isOnTrial && daysRemaining != null && daysRemaining <= 14 && (
           <div className={`mt-5 rounded-2xl px-4 py-4 border ${daysRemaining <= 3 ? 'border-red-200 bg-red-50' : 'border-amber-200 bg-amber-50'}`}>
             <p className={`text-sm font-semibold ${daysRemaining <= 3 ? 'text-red-800' : 'text-amber-800'}`}>
-              {daysRemaining === 0 ? 'Trial expires today' : `Trial ends in ${daysRemaining} day${daysRemaining === 1 ? '' : 's'}`}
+              {daysRemaining <= 0 ? 'Trial expires today' : `Trial ends in ${daysRemaining} day${daysRemaining === 1 ? '' : 's'}`}
             </p>
             <p className={`mt-1 text-sm ${daysRemaining <= 3 ? 'text-red-700' : 'text-amber-700'}`}>
               Subscribe below to keep your access — activation is automatic once payment is confirmed.
             </p>
           </div>
         )}
-        {!subscription?.trialActive && subscription?.status === 'GRACE' && (
+        {isGrace && (
           <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-4">
-            <p className="text-sm font-semibold text-red-800">Access in grace period</p>
-            <p className="mt-1 text-sm text-red-700">Subscribe below to restore full access before the grace period ends.</p>
+            <p className="text-sm font-semibold text-red-800">Subscription lapsed — grace access active</p>
+            <p className="mt-1 text-sm text-red-700">
+              Only dispensing, inventory, and core features are accessible. Subscribe below to restore full access.
+            </p>
+          </div>
+        )}
+        {isPaidActive && (
+          <div className="mt-5 rounded-2xl border border-[#AFDFD3] bg-[#EDF7F3] px-4 py-4">
+            <p className="text-sm font-semibold text-[#0D4035]">Subscription active</p>
+            <p className="mt-1 text-sm text-[#475569]">
+              All features for your tier are unlocked. Renew before {fmtDate(subscription?.trialEndsAt)} to avoid interruption.
+            </p>
           </div>
         )}
       </Card>
@@ -351,7 +394,7 @@ export const SubscriptionPage: React.FC = () => {
                   }}
                   className="h-10 w-full rounded-xl border border-[#D6F0E8] bg-white px-3 text-sm text-[#0D4035] outline-none focus:border-[#1A6B5C] focus:ring-2 focus:ring-[#1A6B5C]/20"
                 >
-                  {tierOptions.map((tier) => <option key={tier} value={tier}>{tier}</option>)}
+                  {tierOptions.map((tier) => <option key={tier} value={tier}>{TIER_LABEL[tier] ?? tier}</option>)}
                 </select>
               </div>
               <div>
@@ -515,6 +558,11 @@ export const SubscriptionPage: React.FC = () => {
       </Card>
 
       {canManagePaymentSettings && (
+        <>
+          <div className="pt-2">
+            <p className="text-xs font-semibold uppercase tracking-[0.15em] text-[#64748B]">Payment settings</p>
+            <p className="mt-1 text-sm text-[#94A3B8]">Configure how customers pay at your dispensing counter.</p>
+          </div>
         <Card
           header={(
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -525,11 +573,11 @@ export const SubscriptionPage: React.FC = () => {
                 <div>
                   <h2 className="text-base font-semibold text-[#0D4035]">Dispensing payment methods</h2>
                   <p className="mt-1 text-sm text-[#64748B]">
-                    Cash always stays enabled. Add mobile money options here so dispensing can move off hardcoded methods next.
+                    Cash is always available. Add mobile money numbers here to offer them as options at checkout.
                   </p>
                 </div>
               </div>
-              <Badge variant="info" size="sm">Owner config</Badge>
+              <Badge variant="info" size="sm">Owner only</Badge>
             </div>
           )}
           footer={(
@@ -646,20 +694,21 @@ export const SubscriptionPage: React.FC = () => {
             </div>
           )}
         </Card>
+        </>
       )}
 
       <div className="grid gap-4 xl:grid-cols-2">
         {plans.map((plan) => {
-          const message = encodeURIComponent(`I would like to upgrade APOTEKH to ${plan.tier}`);
+          const message = encodeURIComponent(`I would like to subscribe to APOTEKH ${TIER_LABEL[plan.tier] ?? plan.tier}`);
           const isCurrent = subscription?.subscriptionTier === plan.tier;
 
           return (
             <Card key={plan.tier}>
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-[#0D4035]">{plan.tier}</p>
-                  <p className="mt-1 text-xs text-[#64748B]">{plan.bestFor} | {plan.users}</p>
-                   </div>
+                  <p className="text-sm font-semibold text-[#0D4035]">{TIER_LABEL[plan.tier] ?? plan.tier}</p>
+                  <p className="mt-1 text-xs text-[#64748B]">{plan.bestFor} · {plan.users}</p>
+                </div>
                 {isCurrent ? <Badge variant="success" size="sm">Current plan</Badge> : null}
               </div>
               <p className="mt-3 text-sm text-[#475569]">{plan.description}</p>
@@ -678,7 +727,7 @@ export const SubscriptionPage: React.FC = () => {
               {canManageSubscription && !isCurrent && isPaymentRequestTier(plan.tier) && (
                 <div className="mt-5 flex flex-wrap gap-3">
                   <Button onClick={() => selectPlanAndScroll(plan.tier as PaymentRequestTier)}>
-                    Subscribe to {plan.tier}
+                    Subscribe to {TIER_LABEL[plan.tier] ?? plan.tier}
                   </Button>
                 </div>
               )}
