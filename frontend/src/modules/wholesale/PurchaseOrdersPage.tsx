@@ -1,14 +1,24 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronDown, ChevronUp, PackagePlus, Plus, Trash2 } from 'lucide-react';
+import { Building2, ChevronDown, ChevronUp, PackagePlus, Plus, Trash2, Upload, UserCheck } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { useNotificationStore } from '@/stores/notificationStore';
-import type { Product, Supplier, SupplierOrder, SupplierOrderLine, SupplierOrderStatus } from '@/types';
+import type { Product, Supplier, SupplierOrder, SupplierOrderStatus } from '@/types';
 import { WholesaleShell } from './WholesaleShell';
+
+type SupplierMode = 'registered' | 'walkin';
+
+type ExtractedLine = {
+  productName: string;
+  genericName?: string | null;
+  quantity: number;
+  unitPrice?: number | null;
+  batchNumber?: string | null;
+  expiryDate?: string | null;
+};
 
 const STATUS_STYLE: Record<SupplierOrderStatus, string> = {
   DRAFT: 'bg-slate-100 text-slate-600',
@@ -176,15 +186,21 @@ const PurchaseOrderCard: React.FC<{ order: SupplierOrder }> = ({ order }) => {
 
 // ─── Create order form ────────────────────────────────────────────────────────
 
-type DraftLine = { productId: string; quantity: string; unitPriceTzs: string };
+type DraftLine = { productId: string; productName: string; quantity: string; unitPriceTzs: string };
 
 const CreatePurchaseOrderForm: React.FC<{ onCreated: () => void }> = ({ onCreated }) => {
   const toast = useNotificationStore((s) => s.toast);
   const queryClient = useQueryClient();
+  const fileRef = React.useRef<HTMLInputElement>(null);
+
+  const [supplierMode, setSupplierMode] = React.useState<SupplierMode>('registered');
   const [supplierId, setSupplierId] = React.useState('');
+  const [walkinName, setWalkinName] = React.useState('');
+  const [walkinPhone, setWalkinPhone] = React.useState('');
   const [expectedDate, setExpectedDate] = React.useState('');
   const [notes, setNotes] = React.useState('');
-  const [draftLines, setDraftLines] = React.useState<DraftLine[]>([{ productId: '', quantity: '', unitPriceTzs: '' }]);
+  const [draftLines, setDraftLines] = React.useState<DraftLine[]>([{ productId: '', productName: '', quantity: '', unitPriceTzs: '' }]);
+  const [extracting, setExtracting] = React.useState(false);
 
   const suppliersQuery = useQuery({
     queryKey: ['b2b-suppliers'],
@@ -196,45 +212,132 @@ const CreatePurchaseOrderForm: React.FC<{ onCreated: () => void }> = ({ onCreate
     queryFn: () => api.get('/inventory/products', { params: { limit: 200 } }).then((r) => r.data.data as Product[]),
   });
 
-  function addLine() { setDraftLines((prev) => [...prev, { productId: '', quantity: '', unitPriceTzs: '' }]); }
+  function addLine() { setDraftLines((prev) => [...prev, { productId: '', productName: '', quantity: '', unitPriceTzs: '' }]); }
   function removeLine(i: number) { setDraftLines((prev) => prev.filter((_, idx) => idx !== i)); }
   function updateLine(i: number, field: keyof DraftLine, value: string) {
     setDraftLines((prev) => prev.map((l, idx) => idx === i ? { ...l, [field]: value } : l));
   }
 
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setExtracting(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await api.post('/b2b/purchase-orders/extract-delivery-note', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      const { data } = res.data as { data: { supplierName?: string | null; supplierPhone?: string | null; lines: ExtractedLine[] } };
+      if (data.supplierName && supplierMode === 'walkin') {
+        setWalkinName((prev) => prev || data.supplierName!);
+        setWalkinPhone((prev) => prev || data.supplierPhone || '');
+      }
+      if (data.lines.length > 0) {
+        setDraftLines(data.lines.map((l) => ({
+          productId: '',
+          productName: l.productName,
+          quantity: String(l.quantity),
+          unitPriceTzs: l.unitPrice != null ? String(l.unitPrice) : '',
+        })));
+        toast.success(`Extracted ${data.lines.length} line items from document`);
+      } else {
+        toast.error('No line items found in the uploaded document');
+      }
+    } catch {
+      toast.error('Could not extract data from document');
+    } finally {
+      setExtracting(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  }
+
   const createMutation = useMutation({
     mutationFn: () =>
       api.post('/b2b/purchase-orders', {
-        supplierId,
+        ...(supplierMode === 'registered' ? { supplierId: supplierId || undefined } : {}),
+        ...(supplierMode === 'walkin' ? { walkinSupplierName: walkinName.trim(), walkinSupplierPhone: walkinPhone.trim() || undefined } : {}),
         expectedDeliveryDate: expectedDate || null,
         notes: notes || null,
         lines: draftLines
-          .filter((l) => l.productId && parseInt(l.quantity, 10) > 0)
-          .map((l) => ({ productId: l.productId, quantity: parseInt(l.quantity, 10), unitPriceTzs: parseFloat(l.unitPriceTzs) || 0 })),
+          .filter((l) => parseInt(l.quantity, 10) > 0)
+          .map((l) => ({
+            productId: l.productId || undefined,
+            productName: l.productName || undefined,
+            quantity: parseInt(l.quantity, 10),
+            unitPriceTzs: parseFloat(l.unitPriceTzs) || 0,
+          })),
       }).then((r) => r.data.data as SupplierOrder),
     onSuccess: () => {
       toast.success('Purchase order created');
       queryClient.invalidateQueries({ queryKey: ['purchase-orders'] });
-      setSupplierId(''); setExpectedDate(''); setNotes('');
-      setDraftLines([{ productId: '', quantity: '', unitPriceTzs: '' }]);
+      setSupplierId(''); setWalkinName(''); setWalkinPhone(''); setExpectedDate(''); setNotes('');
+      setDraftLines([{ productId: '', productName: '', quantity: '', unitPriceTzs: '' }]);
       onCreated();
     },
     onError: (error: any) => toast.error(error.response?.data?.error ?? 'Could not create order'),
   });
 
-  const canSubmit = supplierId && draftLines.some((l) => l.productId && parseInt(l.quantity, 10) > 0);
+  const supplierReady = supplierMode === 'registered' ? Boolean(supplierId) : Boolean(walkinName.trim());
+  const canSubmit = supplierReady && draftLines.some((l) => parseInt(l.quantity, 10) > 0);
 
   return (
     <Card header={<h2 className="text-base font-semibold text-[#0D4035]">Create purchase order</h2>}>
       <div className="space-y-4">
-        <div className="grid gap-3 sm:grid-cols-3">
-          <div>
-            <label className="mb-1 block text-xs font-medium text-[#64748B]">Supplier</label>
+        {/* Supplier mode toggle */}
+        <div className="space-y-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.15em] text-[#64748B]">Supplier</p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setSupplierMode('registered')}
+              className={`flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-colors ${supplierMode === 'registered' ? 'border-[#1A6B5C] bg-[#1A6B5C] text-white' : 'border-[#D6F0E8] text-[#64748B] hover:bg-[#EDF7F3]'}`}
+            >
+              <Building2 size={13} /> Registered supplier
+            </button>
+            <button
+              onClick={() => setSupplierMode('walkin')}
+              className={`flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-colors ${supplierMode === 'walkin' ? 'border-[#1A6B5C] bg-[#1A6B5C] text-white' : 'border-[#D6F0E8] text-[#64748B] hover:bg-[#EDF7F3]'}`}
+            >
+              <UserCheck size={13} /> New / unregistered
+            </button>
+          </div>
+
+          {supplierMode === 'registered' ? (
             <select value={supplierId} onChange={(e) => setSupplierId(e.target.value)} className="w-full rounded-xl border border-[#D6F0E8] px-3 py-2 text-sm text-[#0D4035] outline-none focus:border-[#1A6B5C] focus:ring-1 focus:ring-[#1A6B5C]">
               <option value="">Select supplier…</option>
               {(suppliersQuery.data ?? []).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Input label="Supplier / manufacturer name *" value={walkinName} onChange={(e) => setWalkinName(e.target.value)} placeholder="e.g. Shelys Pharma Ltd" />
+              <Input label="Phone (optional)" value={walkinPhone} onChange={(e) => setWalkinPhone(e.target.value)} placeholder="+255 7XX XXX XXX" />
+            </div>
+          )}
+        </div>
+
+        {/* Delivery note upload */}
+        <div className="rounded-2xl border border-dashed border-[#AFDFD3] bg-[#F7FCFA] p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-[#0D4035]">Upload delivery note or receipt</p>
+              <p className="text-xs text-[#64748B] mt-0.5">PDF or image — AI extracts line items automatically</p>
+            </div>
+            <div>
+              <input ref={fileRef} type="file" accept=".pdf,image/jpeg,image/png,image/webp" className="hidden" onChange={handleFileUpload} />
+              <Button
+                variant="secondary"
+                size="sm"
+                leftIcon={<Upload size={13} />}
+                loading={extracting}
+                onClick={() => fileRef.current?.click()}
+              >
+                {extracting ? 'Extracting…' : 'Upload'}
+              </Button>
+            </div>
           </div>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
           <Input label="Expected delivery" type="date" value={expectedDate} onChange={(e) => setExpectedDate(e.target.value)} />
           <Input label="Notes (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} />
         </div>
@@ -245,10 +348,22 @@ const CreatePurchaseOrderForm: React.FC<{ onCreated: () => void }> = ({ onCreate
             <div key={i} className="grid items-end gap-2 sm:grid-cols-[2fr_1fr_1fr_auto]">
               <div>
                 <label className="mb-1 block text-xs font-medium text-[#64748B]">Product</label>
-                <select value={line.productId} onChange={(e) => updateLine(i, 'productId', e.target.value)} className="w-full rounded-xl border border-[#D6F0E8] px-3 py-2 text-sm text-[#0D4035] outline-none focus:border-[#1A6B5C] focus:ring-1 focus:ring-[#1A6B5C]">
-                  <option value="">Select product…</option>
-                  {(productsQuery.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
+                <input
+                  type="text"
+                  value={line.productName || line.productId}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    const match = (productsQuery.data ?? []).find((p) => p.name === val);
+                    updateLine(i, 'productName', val);
+                    if (match) updateLine(i, 'productId', match.id);
+                  }}
+                  list={`products-list-${i}`}
+                  placeholder="Type or select product name…"
+                  className="w-full rounded-xl border border-[#D6F0E8] px-3 py-2 text-sm text-[#0D4035] outline-none focus:border-[#1A6B5C] focus:ring-1 focus:ring-[#1A6B5C]"
+                />
+                <datalist id={`products-list-${i}`}>
+                  {(productsQuery.data ?? []).map((p) => <option key={p.id} value={p.name} />)}
+                </datalist>
               </div>
               <Input label="Qty" type="number" min={1} value={line.quantity} onChange={(e) => updateLine(i, 'quantity', e.target.value)} />
               <Input label="Unit price (Tsh)" type="number" value={line.unitPriceTzs} onChange={(e) => updateLine(i, 'unitPriceTzs', e.target.value)} />
@@ -278,11 +393,6 @@ export const PurchaseOrdersPage: React.FC = () => {
     queryFn: () => api.get('/b2b/purchase-orders').then((r) => r.data.data as SupplierOrder[]),
   });
 
-  const suppliersQuery = useQuery({
-    queryKey: ['b2b-suppliers'],
-    queryFn: () => api.get('/b2b/suppliers').then((r) => r.data.data as Supplier[]),
-  });
-
   const orders = ordersQuery.data ?? [];
 
   return (
@@ -296,16 +406,7 @@ export const PurchaseOrdersPage: React.FC = () => {
         </div>
         <p className="text-sm text-[#64748B]">Orders placed to your suppliers for wholesale stock replenishment. Receiving an order automatically creates batches and stock movements.</p>
 
-        {showCreate && suppliersQuery.data?.length === 0 && (
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-            No suppliers registered yet.{' '}
-            <Link to="/wholesale/settings" className="font-semibold underline">
-              Go to Settings → Your suppliers
-            </Link>
-            {' '}to add your first supplier before creating a purchase order.
-          </div>
-        )}
-        {showCreate && (suppliersQuery.data?.length ?? 0) > 0 && <CreatePurchaseOrderForm onCreated={() => setShowCreate(false)} />}
+        {showCreate && <CreatePurchaseOrderForm onCreated={() => setShowCreate(false)} />}
 
         <div className="space-y-3">
           {ordersQuery.isLoading && (

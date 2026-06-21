@@ -140,6 +140,16 @@ export const WholesaleSettingsPage: React.FC = () => {
     });
   }, [creditLimitsQuery.data]);
 
+  const removeCatalogueItemMutation = useMutation({
+    mutationFn: ({ catalogueId, productId }: { catalogueId: string; productId: string }) =>
+      api.delete(`/b2b/catalogues/${catalogueId}/items/${productId}`),
+    onSuccess: () => {
+      toast.success('Product removed from catalogue');
+      queryClient.invalidateQueries({ queryKey: ['wholesale-catalogue'] });
+    },
+    onError: (error: any) => toast.error(error.response?.data?.error ?? 'Could not remove product'),
+  });
+
   const createCatalogueMutation = useMutation({
     mutationFn: async () => {
       const selectedProduct = productsQuery.data?.find((product) => product.id === catalogueDraft.productId);
@@ -438,22 +448,32 @@ export const WholesaleSettingsPage: React.FC = () => {
             )}
 
             <div className="space-y-3">
-              {(catalogueQuery.data ?? []).slice(0, 8).map((item) => (
+              {(catalogueQuery.data ?? []).map((item) => (
                 <div key={`${item.catalogueId}-${item.productId}`} className="rounded-2xl border border-[#D6F0E8] p-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
+                    <div className="min-w-0 flex-1">
                       <p className="font-medium text-[#0D4035]">{item.productName}</p>
                       <p className="text-sm text-[#64748B]">
                         Base Tsh {item.price.toLocaleString()}
                         {typeof item.effectivePrice === 'number' ? ` · Effective Tsh ${item.effectivePrice.toLocaleString()}` : ''}
                       </p>
                     </div>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       {Object.entries(item.tierPrices ?? {}).map(([tier, price]) => (
                         <span key={tier} className="rounded-full bg-[#EDF7F3] px-3 py-1 text-xs font-semibold text-[#0D4035]">
                           {tier}: Tsh {Number(price).toLocaleString()}
                         </span>
                       ))}
+                      {canManageWholesaleSettings && (
+                        <button
+                          onClick={() => removeCatalogueItemMutation.mutate({ catalogueId: item.catalogueId, productId: item.productId })}
+                          disabled={removeCatalogueItemMutation.isPending}
+                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#D6F0E8] text-[#94A3B8] hover:border-red-200 hover:text-[#B91C1C]"
+                          title="Remove from catalogue"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>

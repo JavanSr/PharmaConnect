@@ -76,13 +76,13 @@ export const WholesaleShell: React.FC<{ children: React.ReactNode }> = ({ childr
             </p>
             <h1 className="text-title-lg font-semibold leading-snug text-white">
               {mode === 'seller'
-                ? 'Wholesale workspace — shared platform backbone.'
+                ? 'Wholesale distribution — orders, invoices, credit, and delivery.'
                 : 'Order from wholesale pharmacies on APOTEKH.'}
             </h1>
             <p className="max-w-2xl text-body-md text-white/80">
               {mode === 'seller'
-                ? 'Orders, credit, delivery, invoicing, and demand signals in one place.'
-                : 'Browse supplier catalogues, check your tier pricing, and submit orders. Confirmation and dispatch updates arrive by email.'}
+                ? 'Manage every buyer order from submission to delivery. Track credit exposure, issue VAT invoices, and monitor demand — all in one workspace.'
+                : 'Browse supplier catalogues, check your tier pricing, and submit orders. Confirmation and dispatch updates arrive in your notifications.'}
             </p>
           </div>
           {(isHybrid || (canSell && canBuy)) && (

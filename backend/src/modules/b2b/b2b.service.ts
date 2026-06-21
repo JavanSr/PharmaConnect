@@ -35,8 +35,11 @@ export type OrderLine = {
 type OrderRow = {
   id: string;
   order_number: string;
-  buyer_pharmacy_id: string;
+  buyer_pharmacy_id: string | null;
   seller_pharmacy_id: string;
+  buyer_name: string | null;
+  seller_name: string | null;
+  walkin_buyer_name: string | null;
   assigned_picker: string | null;
   assigned_driver: string | null;
   status: OrderStatus;
@@ -158,6 +161,9 @@ function mapOrder(row: OrderRow) {
     orderNumber: row.order_number,
     buyerPharmacyId: row.buyer_pharmacy_id,
     sellerPharmacyId: row.seller_pharmacy_id,
+    buyerName: row.walkin_buyer_name ?? row.buyer_name ?? undefined,
+    sellerName: row.seller_name ?? undefined,
+    walkinBuyerName: row.walkin_buyer_name ?? undefined,
     assignedPicker: row.assigned_picker,
     assignedDriver: row.assigned_driver,
     status: row.status,
@@ -323,7 +329,9 @@ async function generateVatInvoice(order: OrderRow) {
 
   const [seller, buyer] = await Promise.all([
     prisma.pharmacy.findUnique({ where: { id: order.seller_pharmacy_id }, select: { name: true } }),
-    prisma.pharmacy.findUnique({ where: { id: order.buyer_pharmacy_id }, select: { name: true } }),
+    order.buyer_pharmacy_id
+      ? prisma.pharmacy.findUnique({ where: { id: order.buyer_pharmacy_id }, select: { name: true } })
+      : null,
   ]);
 
   const items = Array.isArray(order.items) ? (order.items as OrderLine[]) : [];
@@ -401,6 +409,8 @@ async function sendOrderStatusNotification(order: OrderRow, nextStatus: OrderSta
 
   const message = statusMessages[nextStatus];
   if (!message) return;
+
+  if (!order.buyer_pharmacy_id) return;
 
   const buyerOwner = await prisma.pharmacyMembership.findFirst({
     where: { pharmacyId: order.buyer_pharmacy_id, role: 'OWNER', active: true },
@@ -543,6 +553,19 @@ export async function upsertWholesaleCatalogue(input: {
   return { catalogueId };
 }
 
+export async function removeCatalogueItem(sellerPharmacyId: string, catalogueId: string, productId: string) {
+  await prisma.$executeRaw(Prisma.sql`
+    UPDATE "wholesale_catalogue_pricing"
+    SET "is_active" = false, "updated_at" = NOW()
+    WHERE "catalogue_id" = ${catalogueId}
+      AND "product_id" = ${productId}
+      AND EXISTS (
+        SELECT 1 FROM "wholesale_catalogues" wc
+        WHERE wc."id" = ${catalogueId} AND wc."pharmacy_id" = ${sellerPharmacyId}
+      )
+  `);
+}
+
 async function reserveStockForOrder(orderId: string, sellerPharmacyId: string, lines: OrderLine[]) {
   for (const line of lines) {
     await prisma.$executeRaw(Prisma.sql`
@@ -593,16 +616,22 @@ async function checkStockAvailability(sellerPharmacyId: string, items: Array<{ p
 }
 
 export async function createOrder(input: {
-  buyerPharmacyId: string;
+  buyerPharmacyId?: string | null;
+  walkinBuyerName?: string;
   sellerPharmacyId: string;
   notes?: string;
   items: Array<{ productId: string; quantity: number }>;
 }) {
   await assertPlatformWholesaleSeller(input.sellerPharmacyId);
-  const buyer = await prisma.pharmacy.findUnique({
-    where: { id: input.buyerPharmacyId },
-    select: { subscriptionTier: true },
-  });
+  if (!input.buyerPharmacyId && !input.walkinBuyerName) {
+    throw Object.assign(new Error('Either buyerPharmacyId or walkinBuyerName is required'), { status: 422 });
+  }
+  const buyer = input.buyerPharmacyId
+    ? await prisma.pharmacy.findUnique({
+        where: { id: input.buyerPharmacyId },
+        select: { subscriptionTier: true },
+      })
+    : null;
 
   const pricingRows = await prisma.$queryRaw<CataloguePricingRow[]>(Prisma.sql`
     SELECT
@@ -622,11 +651,13 @@ export async function createOrder(input: {
       AND wcp."is_active" = true
       AND p."id" IN (${Prisma.join(input.items.map((item) => item.productId))})
   `);
-  const overridePriceMap = await resolveActiveClientPriceOverrideMap(
-    input.sellerPharmacyId,
-    input.buyerPharmacyId,
-    input.items.map((item) => item.productId),
-  );
+  const overridePriceMap = input.buyerPharmacyId
+    ? await resolveActiveClientPriceOverrideMap(
+        input.sellerPharmacyId,
+        input.buyerPharmacyId,
+        input.items.map((item) => item.productId),
+      )
+    : new Map<string, number>();
 
   const pricingMap = new Map(pricingRows.map((row) => [row.product_id, row]));
   const lines: OrderLine[] = input.items.map((item) => {
@@ -664,13 +695,16 @@ export async function createOrder(input: {
   const totalAmount = Number((subtotalAmount - totalSavings).toFixed(2));
 
   await checkStockAvailability(input.sellerPharmacyId, input.items);
-  await validateCreditLimit(input.sellerPharmacyId, input.buyerPharmacyId, totalAmount);
+  if (input.buyerPharmacyId) {
+    await validateCreditLimit(input.sellerPharmacyId, input.buyerPharmacyId, totalAmount);
+  }
 
   const orderId = randomUUID();
   const rows = await prisma.$queryRaw<OrderRow[]>(Prisma.sql`
     INSERT INTO "orders" (
       "id",
       "buyer_pharmacy_id",
+      "walkin_buyer_name",
       "seller_pharmacy_id",
       "status",
       "items",
@@ -683,7 +717,8 @@ export async function createOrder(input: {
     )
     VALUES (
       ${orderId}::uuid,
-      ${input.buyerPharmacyId},
+      ${input.buyerPharmacyId ?? null},
+      ${input.walkinBuyerName ?? null},
       ${input.sellerPharmacyId},
       'SUBMITTED',
       ${JSON.stringify(lines)}::jsonb,
@@ -708,8 +743,13 @@ export async function listOrders(input: {
 }) {
   const wholesaleScope = ['WHOLESALE_MANAGER', 'WHOLESALE_COUNTER_STAFF', 'DELIVERY_STAFF'].includes(input.role);
   const rows = await prisma.$queryRaw<OrderRow[]>(Prisma.sql`
-    SELECT o.*
+    SELECT
+      o.*,
+      bp."name" AS buyer_name,
+      sp."name" AS seller_name
     FROM "orders" o
+    LEFT JOIN "pharmacies" bp ON bp."id" = o."buyer_pharmacy_id"
+    LEFT JOIN "pharmacies" sp ON sp."id" = o."seller_pharmacy_id"
     WHERE ${
       wholesaleScope
         ? Prisma.sql`o."seller_pharmacy_id" = ${input.pharmacyId}`
@@ -717,7 +757,7 @@ export async function listOrders(input: {
     }
     ${input.assignedPickerUserId ? Prisma.sql`AND o."assigned_picker" = ${input.assignedPickerUserId}` : Prisma.empty}
     ORDER BY o."created_at" DESC
-    LIMIT 100
+    LIMIT 200
   `);
 
   return rows.map(mapOrder);
@@ -975,20 +1015,26 @@ export async function listVatInvoices(pharmacyId: string) {
   const rows = await prisma.$queryRaw<Array<{
     id: string;
     order_id: string;
+    order_number: string;
+    buyer_name: string | null;
     invoice_number: string;
     pdf_path: string | null;
     subtotal_amount: Prisma.Decimal | string | number;
     vat_amount: Prisma.Decimal | string | number;
     total_amount: Prisma.Decimal | string | number;
-    efdms_status: string;
+    efdms_status: string | null;
     efdms_reference: string | null;
     efdms_payload: Prisma.JsonValue;
     efdms_synced_at: Date | null;
     issued_at: Date;
   }>>(Prisma.sql`
-    SELECT vi.*
+    SELECT
+      vi.*,
+      o."order_number",
+      bp."name" AS buyer_name
     FROM "vat_invoices" vi
     INNER JOIN "orders" o ON o."id" = vi."order_id"
+    LEFT JOIN "pharmacies" bp ON bp."id" = o."buyer_pharmacy_id"
     WHERE o."seller_pharmacy_id" = ${pharmacyId} OR o."buyer_pharmacy_id" = ${pharmacyId}
     ORDER BY vi."issued_at" DESC
   `);
@@ -996,12 +1042,14 @@ export async function listVatInvoices(pharmacyId: string) {
   return rows.map((row) => ({
     id: row.id,
     orderId: row.order_id,
+    orderNumber: row.order_number,
+    buyerName: row.buyer_name ?? undefined,
     invoiceNumber: row.invoice_number,
     pdfPath: row.pdf_path,
     subtotalAmount: asNumber(row.subtotal_amount),
     vatAmount: asNumber(row.vat_amount),
     totalAmount: asNumber(row.total_amount),
-    efdmsStatus: row.efdms_status,
+    efdmsStatus: row.efdms_status ?? undefined,
     efdmsReference: row.efdms_reference,
     efdmsPayload: row.efdms_payload,
     efdmsSyncedAt: row.efdms_synced_at?.toISOString() ?? null,

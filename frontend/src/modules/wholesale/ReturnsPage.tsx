@@ -33,6 +33,7 @@ const CreateReturnForm: React.FC<{ onCreated: () => void }> = ({ onCreated }) =>
   const queryClient = useQueryClient();
   const [selectedOrderId, setSelectedOrderId] = React.useState('');
   const [reason, setReason] = React.useState<WholesaleReturnReason>('DAMAGED');
+  const [notes, setNotes] = React.useState('');
   const [lines, setLines] = React.useState<Record<string, { qty: string; unitPrice: string }>>({});
 
   const ordersQuery = useQuery({
@@ -63,12 +64,13 @@ const CreateReturnForm: React.FC<{ onCreated: () => void }> = ({ onCreated }) =>
 
   const createMutation = useMutation({
     mutationFn: () =>
-      api.post('/b2b/returns', { orderId: selectedOrderId, reason, lines: returnLines }).then((r) => r.data.data as WholesaleReturn),
+      api.post('/b2b/returns', { orderId: selectedOrderId, reason, lines: returnLines, notes: notes.trim() || undefined }).then((r) => r.data.data as WholesaleReturn),
     onSuccess: () => {
       toast.success('Return request created');
       queryClient.invalidateQueries({ queryKey: ['wholesale-returns'] });
       setSelectedOrderId('');
       setLines({});
+      setNotes('');
       onCreated();
     },
     onError: (error: any) => toast.error(error.response?.data?.error ?? 'Could not create return'),
@@ -107,6 +109,17 @@ const CreateReturnForm: React.FC<{ onCreated: () => void }> = ({ onCreated }) =>
           </select>
         </div>
 
+        <div>
+          <label className="mb-1 block text-xs font-medium text-[#64748B]">Notes{reason === 'OTHER' ? ' *' : ' (optional)'}</label>
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder={reason === 'OTHER' ? 'Describe the reason for this return…' : 'Additional context, batch number, condition…'}
+            rows={3}
+            className="w-full rounded-xl border border-[#D6F0E8] px-3 py-2 text-sm text-[#0D4035] outline-none focus:border-[#1A6B5C] focus:ring-1 focus:ring-[#1A6B5C] resize-none"
+          />
+        </div>
+
         {selectedOrder && (
           <div className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-[0.15em] text-[#64748B]">Qty to return per item</p>
@@ -141,7 +154,7 @@ const CreateReturnForm: React.FC<{ onCreated: () => void }> = ({ onCreated }) =>
           className="w-full"
           onClick={() => createMutation.mutate()}
           loading={createMutation.isPending}
-          disabled={!selectedOrderId || returnLines.length === 0}
+          disabled={!selectedOrderId || returnLines.length === 0 || (reason === 'OTHER' && !notes.trim())}
         >
           Submit return request
         </Button>
@@ -184,10 +197,13 @@ const ReturnCard: React.FC<{ item: WholesaleReturn; isManager: boolean }> = ({ i
           </Button>
         )}
       </div>
+      {item.notes && (
+        <p className="mt-3 rounded-xl border border-[#D6F0E8] bg-[#F7FCFA] px-3 py-2 text-xs text-[#64748B]">{item.notes}</p>
+      )}
       <div className="mt-3 space-y-1">
         {item.lines.map((line) => (
           <div key={line.productId} className="flex justify-between text-xs text-[#64748B]">
-            <span>{line.productId.slice(-8)} × {line.qty}</span>
+            <span>{line.productName ?? line.productId.slice(-8)} × {line.qty}</span>
             <span>Tsh {(line.qty * line.unitPrice).toLocaleString()}</span>
           </div>
         ))}

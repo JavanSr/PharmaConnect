@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import multer from 'multer';
+import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 import { authenticate, requireRole, type AuthRequest } from '../../middleware/auth';
 import { applyWholesaleCounterStaffOrderFilter, requirePermission } from '../../middleware/permissions';
@@ -16,6 +18,7 @@ import {
   listVatInvoices,
   listWholesaleCatalogue,
   pickOrderItems,
+  removeCatalogueItem,
   scheduleDelivery,
   updateOrderStatus,
   upsertCreditLimit,
@@ -57,6 +60,19 @@ import {
 export const b2bRouter = Router();
 b2bRouter.use(authenticate);
 b2bRouter.use(enforceTrialRestrictions);
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+    cb(null, allowed.includes(file.mimetype));
+  },
+});
+
+const aiClient = process.env.ANTHROPIC_API_KEY
+  ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+  : null;
 
 function pid(req: AuthRequest): string {
   const p = req.user?.pharmacyId;
@@ -143,6 +159,15 @@ b2bRouter.post('/catalogues', requirePermission('wholesale.manage_catalogue'), a
   }
 });
 
+b2bRouter.delete('/catalogues/:catalogueId/items/:productId', requirePermission('wholesale.manage_catalogue'), async (req: AuthRequest, res, next) => {
+  try {
+    await removeCatalogueItem(pid(req), req.params.catalogueId, req.params.productId);
+    res.json({ data: { removed: true } });
+  } catch (error) {
+    next(error);
+  }
+});
+
 b2bRouter.post('/orders', requireRole('OWNER', 'PHARMACIST_IN_CHARGE', 'WHOLESALE_MANAGER', 'SUPER_ADMIN'), async (req: AuthRequest, res, next) => {
   try {
     const payload = z.object({
@@ -170,17 +195,21 @@ b2bRouter.post('/orders', requireRole('OWNER', 'PHARMACIST_IN_CHARGE', 'WHOLESAL
 b2bRouter.post('/orders/manual', requireRole(...sellerOnlyRoles), async (req: AuthRequest, res, next) => {
   try {
     const payload = z.object({
-      buyerPharmacyId: z.string().min(1),
+      buyerPharmacyId: z.string().min(1).optional(),
+      walkinBuyerName: z.string().min(1).optional(),
       notes: z.string().optional(),
       items: z.array(z.object({
         productId: z.string().min(1),
         quantity: z.coerce.number().int().positive(),
       })).min(1),
+    }).refine((d) => d.buyerPharmacyId || d.walkinBuyerName, {
+      message: 'Either buyerPharmacyId or walkinBuyerName is required',
     }).parse(req.body);
 
     res.status(201).json({
       data: await createOrder({
-        buyerPharmacyId: payload.buyerPharmacyId,
+        buyerPharmacyId: payload.buyerPharmacyId ?? null,
+        walkinBuyerName: payload.walkinBuyerName,
         sellerPharmacyId: pid(req),
         notes: payload.notes,
         items: payload.items,
@@ -294,6 +323,7 @@ b2bRouter.post('/returns', requireRole(...sellerOnlyRoles), async (req: AuthRequ
     const payload = z.object({
       orderId: z.string(),
       reason: wholesaleReturnReasonSchema,
+      notes: z.string().optional(),
       lines: z.array(z.object({
         productId: z.string(),
         qty: z.coerce.number().int().positive(),
@@ -307,6 +337,7 @@ b2bRouter.post('/returns', requireRole(...sellerOnlyRoles), async (req: AuthRequ
         createdBy: uid(req),
         orderId: payload.orderId,
         reason: payload.reason,
+        notes: payload.notes,
         lines: payload.lines,
       }),
     });
@@ -385,27 +416,133 @@ b2bRouter.delete('/suppliers/:id', requireRole(...sellerOnlyRoles), async (req: 
   }
 });
 
+b2bRouter.post('/purchase-orders/extract-delivery-note', requireRole(...sellerOnlyRoles), upload.single('file'), async (req: AuthRequest, res, next) => {
+  try {
+    if (!req.file) {
+      res.status(400).json({ error: 'No file uploaded' }); return;
+    }
+    if (!aiClient) {
+      res.status(503).json({ error: 'AI extraction unavailable — ANTHROPIC_API_KEY not configured' }); return;
+    }
+
+    const isPdf = req.file.mimetype === 'application/pdf';
+    const fileBase64 = req.file.buffer.toString('base64');
+
+    const contentSource = isPdf
+      ? { type: 'document' as const, source: { type: 'base64' as const, media_type: 'application/pdf' as const, data: fileBase64 } }
+      : { type: 'image' as const, source: { type: 'base64' as const, media_type: req.file.mimetype as 'image/jpeg' | 'image/png' | 'image/webp', data: fileBase64 } };
+
+    const message = await aiClient.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 2048,
+      messages: [{
+        role: 'user',
+        content: [
+          contentSource,
+          {
+            type: 'text',
+            text: `This is a delivery note, goods received note (GRN), or supplier receipt for a pharmacy purchase order.
+
+Extract all line items and return ONLY a valid JSON object with this exact structure — no markdown, no code fences:
+{
+  "supplierName": "string or null",
+  "supplierPhone": "string or null",
+  "deliveryDate": "YYYY-MM-DD or null",
+  "invoiceNumber": "string or null",
+  "lines": [
+    {
+      "productName": "string",
+      "genericName": "string or null",
+      "quantity": number,
+      "unitPrice": number or null,
+      "batchNumber": "string or null",
+      "expiryDate": "YYYY-MM-DD or null",
+      "notes": "string or null"
+    }
+  ]
+}
+
+Rules:
+- quantity must be a positive integer
+- unitPrice should be in the document currency (Tanzania Shillings preferred)
+- expiryDate format: YYYY-MM-DD
+- If a field is not found, use null
+- Return all line items, even if some fields are missing`,
+          },
+        ],
+      }],
+    });
+
+    const text = message.content[0].type === 'text' ? message.content[0].text.trim() : '{}';
+    let result: { supplierName?: string | null; supplierPhone?: string | null; deliveryDate?: string | null; invoiceNumber?: string | null; lines?: unknown[] };
+    try {
+      result = JSON.parse(text);
+      if (!result.lines) result.lines = [];
+    } catch {
+      result = { lines: [] };
+    }
+
+    const lineSchema = z.object({
+      productName: z.string().min(1),
+      genericName: z.string().nullish(),
+      quantity: z.number().int().positive(),
+      unitPrice: z.number().nonnegative().nullish(),
+      batchNumber: z.string().nullish(),
+      expiryDate: z.string().nullish(),
+      notes: z.string().nullish(),
+    });
+
+    const validatedLines = ((result.lines ?? []) as unknown[])
+      .map((l) => { try { return lineSchema.parse(l); } catch { return null; } })
+      .filter(Boolean);
+
+    res.json({
+      data: {
+        supplierName: result.supplierName ?? null,
+        supplierPhone: result.supplierPhone ?? null,
+        deliveryDate: result.deliveryDate ?? null,
+        invoiceNumber: result.invoiceNumber ?? null,
+        lines: validatedLines,
+      },
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
 b2bRouter.post('/purchase-orders', requireRole(...sellerOnlyRoles), async (req: AuthRequest, res, next) => {
   try {
     const payload = z.object({
-      supplierId: z.string(),
+      supplierId: z.string().optional().nullable(),
+      walkinSupplierName: z.string().min(1).optional(),
+      walkinSupplierPhone: z.string().optional(),
       status: supplierOrderStatusSchema.optional(),
       expectedDeliveryDate: z.coerce.date().optional().nullable(),
       notes: z.string().optional().nullable(),
       lines: z.array(z.object({
-        productId: z.string(),
+        productId: z.string().optional(),
+        productName: z.string().optional(),
         quantity: z.coerce.number().int().positive(),
         unitPriceTzs: z.coerce.number().nonnegative(),
         note: z.string().optional().nullable(),
       })).min(1),
+    }).refine((d) => d.supplierId || d.walkinSupplierName, {
+      message: 'Either supplierId or walkinSupplierName is required',
     }).parse(req.body);
 
     res.status(201).json({
       data: await createSupplierOrder({
         outletId: pid(req),
-        supplierId: payload.supplierId,
+        supplierId: payload.supplierId ?? null,
+        walkinSupplierName: payload.walkinSupplierName,
+        walkinSupplierPhone: payload.walkinSupplierPhone,
         status: payload.status,
-        lines: payload.lines,
+        lines: payload.lines.map((l) => ({
+          productId: l.productId ?? '',
+          quantity: l.quantity,
+          unitPriceTzs: l.unitPriceTzs,
+          note: l.note ?? null,
+        })),
         expectedDeliveryDate: payload.expectedDeliveryDate ?? null,
         notes: payload.notes ?? null,
         createdBy: uid(req),

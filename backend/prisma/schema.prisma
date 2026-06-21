@@ -453,6 +453,7 @@ model Product {
   dosageForm             DosageForm @default(TABLET)
   strength               String?
   unitOfMeasure          String     @default("unit")
+  unitOfMeasureId        String?    @map("unit_of_measure_id")
   drugClass              DrugClass  @default(OTC)
   description            String?
   reorderLevel           Int        @default(10)
@@ -474,6 +475,7 @@ model Product {
 
   pharmacy                   Pharmacy                    @relation(fields: [pharmacyId], references: [id])
   drugMaster                 DrugProduct?                @relation(fields: [drugMasterId], references: [id])
+  uom                        UnitOfMeasure?              @relation(fields: [unitOfMeasureId], references: [id], onDelete: SetNull)
   lastSupplier               Supplier?                   @relation("ProductLastSupplier", fields: [lastSupplierId], references: [id], onDelete: SetNull)
   batches                    Batch[]
   stockMovements             StockMovement[]
@@ -489,6 +491,7 @@ model Product {
   @@index([pharmacyId, sku], map: "products_pharmacy_sku_idx")
   @@index([drugMasterId], map: "products_drug_product_id_idx")
   @@index([lastSupplierId], map: "products_last_supplier_id_idx")
+  @@index([unitOfMeasureId], map: "products_unit_of_measure_id_idx")
   @@map("products")
 }
 
@@ -847,6 +850,7 @@ model DrugProduct {
   dosageFormName          String?      @map("dosage_form_name")
   routeId                 String?      @map("route_id")
   packSizeId              String?      @map("pack_size_id")
+  unitOfMeasureId         String?      @map("unit_of_measure_id")
   therapeuticClassId      String?      @map("therapeutic_class_id")
   primarySourceDocumentId String?      @map("primary_source_document_id")
   strengthText            String?      @map("strength_text")
@@ -870,6 +874,7 @@ model DrugProduct {
   dosageForm            DosageFormDefinition?   @relation(fields: [dosageFormId], references: [id], onDelete: SetNull)
   route                 RouteDefinition?        @relation(fields: [routeId], references: [id], onDelete: SetNull)
   packSize              PackSizeDefinition?     @relation(fields: [packSizeId], references: [id], onDelete: SetNull)
+  unitOfMeasure         UnitOfMeasure?          @relation(fields: [unitOfMeasureId], references: [id], onDelete: SetNull)
   therapeuticClass      TherapeuticClass?       @relation(fields: [therapeuticClassId], references: [id], onDelete: SetNull)
   primarySourceDocument SourceDocument?         @relation("DrugProductPrimarySourceDocument", fields: [primarySourceDocumentId], references: [id], onDelete: SetNull)
   products              Product[]
@@ -1014,6 +1019,22 @@ model PackSizeDefinition {
   products DrugProduct[]
 
   @@map("pack_sizes")
+}
+
+model UnitOfMeasure {
+  id             String   @id @default(uuid())
+  name           String
+  symbol         String
+  normalizedName String   @unique @map("normalized_name")
+  description    String?
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  products     Product[]
+  drugProducts DrugProduct[]
+
+  @@map("units_of_measure")
 }
 
 model TherapeuticClass {

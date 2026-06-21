@@ -67,6 +67,7 @@ type WholesaleReturnRow = {
   reason: WholesaleReturnReason;
   status: 'PENDING' | 'APPROVED' | 'CREDITED';
   lines: Prisma.JsonValue;
+  notes: string | null;
   credit_note_number: string | null;
   credit_amount_tzs: number;
   created_at: Date;
@@ -77,8 +78,10 @@ type WholesaleReturnRow = {
 type SupplierOrderRow = {
   id: string;
   outlet_id: string;
-  supplier_id: string;
-  supplier_name?: string;
+  supplier_id: string | null;
+  supplier_name?: string | null;
+  walkin_supplier_name?: string | null;
+  walkin_supplier_phone?: string | null;
   status: SupplierOrderStatus;
   lines: Prisma.JsonValue;
   expected_delivery_date: Date | null;
@@ -250,6 +253,7 @@ function mapWholesaleReturn(row: WholesaleReturnRow) {
     reason: row.reason,
     status: row.status,
     lines: parseJsonArray<ReturnLine>(row.lines),
+    notes: row.notes ?? null,
     creditNoteNumber: row.credit_note_number,
     creditAmountTzs: row.credit_amount_tzs,
     createdAt: row.created_at.toISOString(),
@@ -262,8 +266,9 @@ function mapSupplierOrder(row: SupplierOrderRow) {
   return {
     id: row.id,
     outletId: row.outlet_id,
-    supplierId: row.supplier_id,
-    supplierName: row.supplier_name ?? null,
+    supplierId: row.supplier_id ?? null,
+    supplierName: row.walkin_supplier_name ?? row.supplier_name ?? null,
+    walkinSupplierPhone: row.walkin_supplier_phone ?? null,
     status: row.status,
     lines: parseJsonArray<SupplierOrderLine>(row.lines),
     expectedDeliveryDate: row.expected_delivery_date?.toISOString() ?? null,
@@ -456,11 +461,18 @@ export async function createWholesaleReturn(input: {
   createdBy: string;
   orderId: string;
   reason: WholesaleReturnReason;
+  notes?: string;
   lines: ReturnLine[];
 }) {
   const order = await getSellerOrder(input.orderId, input.outletId);
-  const validatedLines = validateReturnLines(parseJsonArray<OrderLine>(order.items), input.lines);
-  const creditAmountTzs = validatedLines.reduce((sum, line) => sum + Math.round(line.qty * line.unitPrice), 0);
+  const orderLines = parseJsonArray<OrderLine>(order.items);
+  const validatedLines = validateReturnLines(orderLines, input.lines);
+  // Enrich lines with product names so they're readable without extra DB lookups
+  const enrichedLines = validatedLines.map((l) => ({
+    ...l,
+    productName: orderLines.find((ol) => ol.productId === l.productId)?.productName ?? l.productId,
+  }));
+  const creditAmountTzs = enrichedLines.reduce((sum, line) => sum + Math.round(line.qty * line.unitPrice), 0);
 
   const rows = await prisma.$queryRaw<WholesaleReturnRow[]>(Prisma.sql`
     INSERT INTO "wholesale_returns" (
@@ -469,6 +481,7 @@ export async function createWholesaleReturn(input: {
       "outlet_id",
       "created_by",
       "reason",
+      "notes",
       "status",
       "lines",
       "credit_amount_tzs",
@@ -481,8 +494,9 @@ export async function createWholesaleReturn(input: {
       ${input.outletId},
       ${input.createdBy},
       ${input.reason},
+      ${input.notes ?? null},
       'PENDING',
-      ${JSON.stringify(validatedLines)}::jsonb,
+      ${JSON.stringify(enrichedLines)}::jsonb,
       ${creditAmountTzs},
       CURRENT_TIMESTAMP,
       CURRENT_TIMESTAMP
@@ -617,37 +631,38 @@ export async function deleteWholesaleSupplier(outletId: string, supplierId: stri
 
 export async function createSupplierOrder(input: {
   outletId: string;
-  supplierId: string;
+  supplierId?: string | null;
+  walkinSupplierName?: string | null;
+  walkinSupplierPhone?: string | null;
   status?: SupplierOrderStatus;
   lines: SupplierOrderLine[];
   expectedDeliveryDate?: Date | null;
   notes?: string | null;
   createdBy: string;
 }) {
-  const supplier = await prisma.supplier.findFirst({
-    where: {
-      id: input.supplierId,
-      pharmacyId: input.outletId,
-      isActive: true,
-    },
-    select: { id: true },
-  });
-
-  if (!supplier) {
-    throw Object.assign(new Error('Supplier not found'), { status: 404 });
+  if (!input.supplierId && !input.walkinSupplierName?.trim()) {
+    throw Object.assign(new Error('Either a registered supplier or a supplier name is required'), { status: 422 });
   }
 
-  const productIds = input.lines.map((line) => line.productId);
-  const products = await prisma.product.findMany({
-    where: {
-      pharmacyId: input.outletId,
-      id: { in: productIds },
-    },
-    select: { id: true },
-  });
+  if (input.supplierId) {
+    const supplier = await prisma.supplier.findFirst({
+      where: { id: input.supplierId, pharmacyId: input.outletId, isActive: true },
+      select: { id: true },
+    });
+    if (!supplier) {
+      throw Object.assign(new Error('Supplier not found'), { status: 404 });
+    }
+  }
 
-  if (products.length !== productIds.length) {
-    throw Object.assign(new Error('One or more products could not be found for this outlet'), { status: 422 });
+  const productIds = input.lines.map((line) => line.productId).filter(Boolean);
+  if (productIds.length > 0) {
+    const products = await prisma.product.findMany({
+      where: { pharmacyId: input.outletId, id: { in: productIds } },
+      select: { id: true },
+    });
+    if (products.length !== productIds.length) {
+      throw Object.assign(new Error('One or more products could not be found for this outlet'), { status: 422 });
+    }
   }
 
   const normalizedLines = input.lines.map((line) => ({
@@ -660,21 +675,15 @@ export async function createSupplierOrder(input: {
 
   const rows = await prisma.$queryRaw<SupplierOrderRow[]>(Prisma.sql`
     INSERT INTO "supplier_orders" (
-      "id",
-      "outlet_id",
-      "supplier_id",
-      "status",
-      "lines",
-      "expected_delivery_date",
-      "notes",
-      "created_by",
-      "created_at",
-      "updated_at"
+      "id", "outlet_id", "supplier_id", "walkin_supplier_name", "walkin_supplier_phone",
+      "status", "lines", "expected_delivery_date", "notes", "created_by", "created_at", "updated_at"
     )
     VALUES (
       ${randomUUID()},
       ${input.outletId},
-      ${input.supplierId},
+      ${input.supplierId ?? null},
+      ${input.walkinSupplierName?.trim() || null},
+      ${input.walkinSupplierPhone?.trim() || null},
       ${(input.status ?? 'DRAFT') as SupplierOrderStatus},
       ${JSON.stringify(normalizedLines)}::jsonb,
       ${input.expectedDeliveryDate ?? null},
@@ -693,7 +702,7 @@ export async function listSupplierOrders(outletId: string) {
   const rows = await prisma.$queryRaw<SupplierOrderRow[]>(Prisma.sql`
     SELECT so.*, s."name" AS "supplier_name"
     FROM "supplier_orders" so
-    INNER JOIN "suppliers" s ON s."id" = so."supplier_id"
+    LEFT JOIN "suppliers" s ON s."id" = so."supplier_id"
     WHERE so."outlet_id" = ${outletId}
     ORDER BY so."created_at" DESC
   `);
@@ -705,7 +714,7 @@ export async function getSupplierOrder(outletId: string, supplierOrderId: string
   const rows = await prisma.$queryRaw<SupplierOrderRow[]>(Prisma.sql`
     SELECT so.*, s."name" AS "supplier_name"
     FROM "supplier_orders" so
-    INNER JOIN "suppliers" s ON s."id" = so."supplier_id"
+    LEFT JOIN "suppliers" s ON s."id" = so."supplier_id"
     WHERE so."id" = ${supplierOrderId}
       AND so."outlet_id" = ${outletId}
     LIMIT 1

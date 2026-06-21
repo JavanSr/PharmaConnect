@@ -11,20 +11,35 @@ import { useNotificationStore } from '@/stores/notificationStore';
 import { api } from '@/lib/api';
 import { useDebounce } from '@/hooks/useDebounce';
 
+interface UnitOfMeasure { id: string; name: string; symbol: string; }
+
+/** Dispensing units suggested by dosage form */
+const DOSAGE_FORM_TO_UOM: Record<string, string> = {
+  TABLET: 'Tablet',
+  CAPSULE: 'Capsule',
+  SYRUP: 'Bottle',
+  SOLUTION: 'Bottle',
+  DROPS: 'Bottle',
+  INJECTION: 'Vial',
+  CREAM: 'Tube',
+  OINTMENT: 'Tube',
+  INHALER: 'Inhaler',
+  SUPPOSITORY: 'Suppository',
+  POWDER: 'Sachet',
+  OTHER: 'Unit',
+};
+
 const DOSAGE_FORMS = [
   'TABLET', 'CAPSULE', 'SYRUP', 'INJECTION', 'CREAM', 'OINTMENT', 'DROPS', 'INHALER', 'SUPPOSITORY', 'POWDER', 'SOLUTION', 'OTHER',
 ];
 
-const DRUG_CLASSES = [
-  'OTC', 'PRESCRIPTION', 'CONTROLLED', 'NARCOTIC',
-];
+const DRUG_CLASSES = ['OTC', 'PRESCRIPTION', 'CONTROLLED', 'NARCOTIC'];
 
-const UNITS_OF_MEASURE = ['Tablets', 'Capsules', 'ml', 'mg', 'g', 'Units', 'Vials', 'Ampoules', 'Sachets', 'Patches', 'Other'];
-
-const STORAGE_CONDITIONS = [
-  { value: 'AMBIENT',      label: 'Ambient (Room Temperature 15–25°C)' },
-  { value: 'REFRIGERATED', label: 'Refrigerated (2–8°C)' },
-  { value: 'FROZEN',       label: 'Frozen (≤−15°C)' },
+/** Cold chain options — value encodes both storageCondition and coldChainRequired */
+const COLD_CHAIN_OPTIONS = [
+  { value: 'AMBIENT',      label: 'Room temperature (15–25°C) — no cold chain' },
+  { value: 'REFRIGERATED', label: 'Refrigerated (2–8°C) — cold chain required' },
+  { value: 'FROZEN',       label: 'Frozen (≤−15°C) — deep cold chain required' },
 ];
 
 interface FormState {
@@ -42,7 +57,6 @@ interface FormState {
   unitOfMeasure: string;
   packSize: string;
   storageCondition: string;
-  isColdChain: boolean;
   tmdaRegistrationNumber: string;
   sellingPrice: string;
   purchasePriceDefault: string;
@@ -96,8 +110,8 @@ const DOSAGE_FORM_MAP: Record<string, string> = {
 const empty: FormState = {
   name: '', genericName: '', brandName: '', manufacturer: '', therapeuticCategory: '', drugClass: '', description: '',
   sku: '', barcode: '', dosageForm: 'TABLET', strength: '',
-  unitOfMeasure: 'unit', packSize: '1',
-  storageCondition: 'AMBIENT', isColdChain: false,
+  unitOfMeasure: 'Tablet', packSize: '1',
+  storageCondition: 'AMBIENT',
   tmdaRegistrationNumber: '', sellingPrice: '',
   purchasePriceDefault: '', reorderLevel: '10', minStock: '5',
   initialQty: '', initialBatchNo: '', initialExpiryDate: '', initialPurchasePrice: '',
@@ -126,6 +140,16 @@ export const ProductFormPage: React.FC = () => {
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
   const debouncedSearch = useDebounce(drugSearch, 300);
 
+  const { data: uomData } = useQuery({
+    queryKey: ['units-of-measure'],
+    queryFn: () => api.get('/inventory/units-of-measure').then(r => r.data.data as UnitOfMeasure[]),
+    staleTime: 5 * 60 * 1000,
+  });
+  const uomOptions = React.useMemo(() => {
+    const list = uomData ?? [];
+    return list.map(u => ({ value: u.name, label: u.name }));
+  }, [uomData]);
+
   const { data: drugResults } = useQuery({
     queryKey: ['drug-master-search', debouncedSearch],
     queryFn: () =>
@@ -153,7 +177,7 @@ export const ProductFormPage: React.FC = () => {
           drugClass: p.drugClass || '',
           dosageForm: normalizeDosageForm(p.dosageForm),
           strength: p.strength || '',
-          unitOfMeasure: p.unitOfMeasure || 'unit',
+          unitOfMeasure: p.unitOfMeasure || 'Tablet',
           packSize: p.packSize ?? 1,
           storageCondition: p.storageCondition || 'AMBIENT',
           isColdChain: p.coldChainRequired || p.isColdChain || false,
@@ -175,10 +199,9 @@ export const ProductFormPage: React.FC = () => {
         barcode: p.barcode || '',
         dosageForm: normalizeDosageForm(p.dosageForm),
         strength: p.strength || '',
-        unitOfMeasure: p.unitOfMeasure || 'unit',
+        unitOfMeasure: p.unitOfMeasure || DOSAGE_FORM_TO_UOM[normalizeDosageForm(p.dosageForm)] || 'Unit',
         packSize: String(p.packSize ?? 1),
         storageCondition: p.storageCondition || 'AMBIENT',
-        isColdChain: p.coldChainRequired || p.isColdChain || false,
         tmdaRegistrationNumber: p.tmdaRegistrationNumber || '',
         sellingPrice: p.sellingPrice != null ? String(p.sellingPrice) : '',
         purchasePriceDefault: p.purchasePriceDefault != null ? String(p.purchasePriceDefault) : '',
@@ -212,10 +235,9 @@ export const ProductFormPage: React.FC = () => {
       drugClass: drug.drugClass || '',
       dosageForm: normalizeDosageForm(drug.dosageForm),
       strength: drug.strength || '',
-      unitOfMeasure: drug.unitOfMeasure || 'unit',
+      unitOfMeasure: drug.unitOfMeasure || DOSAGE_FORM_TO_UOM[normalizeDosageForm(drug.dosageForm)] || 'Unit',
       packSize: String(drug.packSize ?? 1),
-      storageCondition: drug.storageCondition || 'AMBIENT',
-      isColdChain: Boolean(drug.isColdChain),
+      storageCondition: drug.storageCondition || (drug.isColdChain ? 'REFRIGERATED' : 'AMBIENT'),
       tmdaRegistrationNumber: drug.tmdaRegistrationNumber || '',
     }));
   };
@@ -248,7 +270,7 @@ export const ProductFormPage: React.FC = () => {
         unitOfMeasure: form.unitOfMeasure,
         packSize: parseInt(form.packSize, 10) || 1,
         storageCondition: form.storageCondition,
-        coldChainRequired: form.isColdChain,
+        coldChainRequired: form.storageCondition !== 'AMBIENT',
         tmdaRegistrationNumber: form.tmdaRegistrationNumber || undefined,
         drugMasterId: selectedDrug?.id ?? undefined,
         sellingPrice: form.sellingPrice ? parseFloat(form.sellingPrice) : undefined,
@@ -450,44 +472,39 @@ export const ProductFormPage: React.FC = () => {
           <Select
             label="Dosage Form"
             value={form.dosageForm}
-            onChange={set('dosageForm')}
+            onChange={e => {
+              const df = e.target.value;
+              const suggestedUom = DOSAGE_FORM_TO_UOM[df] || 'Unit';
+              setForm(f => ({ ...f, dosageForm: df, unitOfMeasure: f.unitOfMeasure === DOSAGE_FORM_TO_UOM[f.dosageForm] || !f.unitOfMeasure ? suggestedUom : f.unitOfMeasure }));
+            }}
             disabled={clinicalFieldsLocked}
             options={optionValuesWithCurrent(DOSAGE_FORMS, form.dosageForm).map(f => ({ value: f, label: f }))}
           />
           <Input label="Strength" value={form.strength} onChange={set('strength')} placeholder="e.g. 500mg, 250mg/5ml, 10IU" disabled={clinicalFieldsLocked} readOnly={clinicalFieldsLocked} />
           <Select
-            label="Unit of Measure"
+            label="Dispensing Unit"
             value={form.unitOfMeasure}
             onChange={set('unitOfMeasure')}
-            disabled={clinicalFieldsLocked}
-            options={optionValuesWithCurrent(UNITS_OF_MEASURE, form.unitOfMeasure).map(u => ({ value: u, label: u }))}
+            options={uomOptions.length > 0
+              ? uomOptions
+              : [{ value: form.unitOfMeasure, label: form.unitOfMeasure }]}
           />
           <Input label="Pack Size (units per pack)" type="number" value={form.packSize} onChange={set('packSize')} min="1" placeholder="e.g. 30 for a blister of 30 tabs" disabled={clinicalFieldsLocked} readOnly={clinicalFieldsLocked} />
         </div>
       </Card>
 
-      {/* Storage */}
+      {/* Storage / Cold Chain */}
       <Card>
-        <p className="text-xs font-semibold text-[#64748B] uppercase tracking-wide mb-4">Storage Conditions</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <p className="text-xs font-semibold text-[#64748B] uppercase tracking-wide mb-1">Storage &amp; Cold Chain</p>
+        <p className="text-xs text-[#94A3B8] mb-4">Selecting refrigerated or frozen automatically activates cold-chain temperature logging for this product.</p>
+        <div className="max-w-sm">
           <Select
-            label="Storage Condition"
+            label="Cold chain requirement"
             value={form.storageCondition}
             onChange={set('storageCondition')}
             disabled={clinicalFieldsLocked}
-            options={STORAGE_CONDITIONS}
+            options={COLD_CHAIN_OPTIONS}
           />
-          <div className="flex items-center gap-3 pt-6">
-            <input
-              type="checkbox"
-              id="coldChain"
-              checked={form.isColdChain}
-              onChange={e => setForm(f => ({ ...f, isColdChain: e.target.checked }))}
-              disabled={clinicalFieldsLocked}
-              className="w-4 h-4 rounded border-[#D6F0E8] text-[#1A6B5C] accent-[#1A6B5C]"
-            />
-            <label htmlFor="coldChain" className="text-sm text-[#0D4035]">Requires cold-chain management (temperature log)</label>
-          </div>
         </div>
       </Card>
 

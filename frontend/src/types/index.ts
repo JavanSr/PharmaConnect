@@ -103,6 +103,8 @@ export interface WholesaleOrder {
   orderNumber: string;
   buyerPharmacyId: string;
   sellerPharmacyId: string;
+  buyerName?: string;
+  sellerName?: string;
   assignedPicker?: string | null;
   assignedDriver?: string | null;
   status: OrderStatus;
@@ -130,6 +132,8 @@ export interface WholesaleOrder {
 export interface VatInvoice {
   id: string;
   orderId: string;
+  orderNumber?: string;
+  buyerName?: string;
   invoiceNumber: string;
   pdfPath: string | null;
   subtotalAmount: number;
@@ -206,6 +210,7 @@ export type WholesaleReturnStatus = 'PENDING' | 'APPROVED' | 'CREDITED';
 
 export interface WholesaleReturnLine {
   productId: string;
+  productName?: string;
   qty: number;
   unitPrice: number;
 }
@@ -218,6 +223,7 @@ export interface WholesaleReturn {
   reason: WholesaleReturnReason;
   status: WholesaleReturnStatus;
   lines: WholesaleReturnLine[];
+  notes: string | null;
   creditNoteNumber: string | null;
   creditAmountTzs: number;
   createdAt: string;

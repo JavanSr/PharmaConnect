@@ -1,6 +1,6 @@
 import React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Minus, Plus, Search, Send, Trash2 } from 'lucide-react';
+import { Building2, Minus, Plus, Search, Send, Trash2, UserCheck } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -11,14 +11,20 @@ import { usePharmacyStore } from '@/stores/pharmacyStore';
 import { WholesaleShell } from './WholesaleShell';
 
 type CartLine = WholesaleCatalogueItem & { qty: number };
+type BuyerMode = 'apotekh' | 'walkin';
 
 export const ManualOrderPage: React.FC = () => {
   const toast = useNotificationStore((s) => s.toast);
   const queryClient = useQueryClient();
   const myPharmacyId = usePharmacyStore((s) => s.pharmacy?.id);
 
+  // Buyer — either a registered APOTEKH pharmacy or a free-text walk-in name
+  const [buyerMode, setBuyerMode] = React.useState<BuyerMode>('apotekh');
   const [buyerSearch, setBuyerSearch] = React.useState('');
   const [selectedBuyer, setSelectedBuyer] = React.useState<Pharmacy | null>(null);
+  const [walkinName, setWalkinName] = React.useState('');
+  const [walkinPhone, setWalkinPhone] = React.useState('');
+
   const [cart, setCart] = React.useState<Map<string, CartLine>>(new Map());
   const [notes, setNotes] = React.useState('');
   const [submitted, setSubmitted] = React.useState<WholesaleOrder | null>(null);
@@ -26,7 +32,7 @@ export const ManualOrderPage: React.FC = () => {
   const pharmacyQuery = useQuery({
     queryKey: ['b2b-pharmacy-search', buyerSearch],
     queryFn: () => api.get('/b2b/pharmacies/search', { params: { q: buyerSearch } }).then((r) => r.data.data as Pharmacy[]),
-    enabled: buyerSearch.length >= 2 && !selectedBuyer,
+    enabled: buyerSearch.length >= 2 && !selectedBuyer && buyerMode === 'apotekh',
   });
 
   const catalogueQuery = useQuery({
@@ -57,11 +63,17 @@ export const ManualOrderPage: React.FC = () => {
   const cartLines = Array.from(cart.values());
   const cartTotal = cartLines.reduce((sum, l) => sum + (l.effectivePrice ?? l.price) * l.qty, 0);
 
+  const buyerReady = buyerMode === 'apotekh' ? Boolean(selectedBuyer) : Boolean(walkinName.trim());
+  const buyerLabel = buyerMode === 'apotekh' ? selectedBuyer?.name : walkinName.trim() || 'Walk-in buyer';
+
   const submitMutation = useMutation({
     mutationFn: () =>
       api.post('/b2b/orders/manual', {
-        buyerPharmacyId: selectedBuyer!.id,
-        notes: notes || undefined,
+        ...(buyerMode === 'apotekh' && selectedBuyer ? { buyerPharmacyId: selectedBuyer.id } : {}),
+        ...(buyerMode === 'walkin' ? {
+          walkinBuyerName: walkinName.trim(),
+          notes: [walkinPhone.trim() ? `Phone: ${walkinPhone.trim()}` : '', notes.trim()].filter(Boolean).join('\n') || undefined,
+        } : { notes: notes || undefined }),
         items: cartLines.map((l) => ({ productId: l.productId, quantity: l.qty })),
       }).then((r) => r.data.data as WholesaleOrder),
     onSuccess: (order) => {
@@ -69,10 +81,19 @@ export const ManualOrderPage: React.FC = () => {
       setSubmitted(order);
       setCart(new Map());
       setNotes('');
+      setWalkinName('');
+      setWalkinPhone('');
       queryClient.invalidateQueries({ queryKey: ['wholesale-orders-full'] });
     },
     onError: (error: any) => toast.error(error.response?.data?.error ?? 'Order creation failed'),
   });
+
+  function resetBuyer() {
+    setSelectedBuyer(null);
+    setBuyerSearch('');
+    setWalkinName('');
+    setWalkinPhone('');
+  }
 
   if (submitted) {
     return (
@@ -99,7 +120,7 @@ export const ManualOrderPage: React.FC = () => {
             </div>
             <div className="flex gap-3">
               <Button onClick={() => setSubmitted(null)} className="flex-1">Create another order</Button>
-              <Button variant="secondary" onClick={() => { setSubmitted(null); setSelectedBuyer(null); setBuyerSearch(''); }} className="flex-1">
+              <Button variant="secondary" onClick={() => { setSubmitted(null); resetBuyer(); }} className="flex-1">
                 Change buyer
               </Button>
             </div>
@@ -112,53 +133,97 @@ export const ManualOrderPage: React.FC = () => {
   return (
     <WholesaleShell>
       <div className="space-y-5">
-        <h1 className="text-xl font-semibold text-[#0D4035]">Manual order entry</h1>
-        <p className="text-sm text-[#64748B]">Create an order on behalf of a walk-in or phone buyer.</p>
+        <div>
+          <h1 className="text-xl font-semibold text-[#0D4035]">Manual order entry</h1>
+          <p className="text-sm text-[#64748B] mt-0.5">Create an order on behalf of a walk-in or phone buyer.</p>
+        </div>
 
-        {/* Step 1: Select buyer */}
-        <Card header={<h2 className="text-base font-semibold text-[#0D4035]">1 · Select buyer pharmacy</h2>}>
-          {selectedBuyer ? (
-            <div className="flex items-center justify-between rounded-2xl border border-[#D6F0E8] bg-[#F7FCFA] p-4">
-              <div>
-                <p className="font-semibold text-[#0D4035]">{selectedBuyer.name}</p>
-                <p className="text-sm text-[#64748B]">{selectedBuyer.subscriptionTier} · {selectedBuyer.region ?? '—'}</p>
+        {/* Step 1: Buyer */}
+        <Card header={<h2 className="text-base font-semibold text-[#0D4035]">1 · Buyer</h2>}>
+          {/* Mode toggle */}
+          <div className="mb-4 flex gap-2">
+            <button
+              onClick={() => { setBuyerMode('apotekh'); resetBuyer(); }}
+              className={`flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-colors ${buyerMode === 'apotekh' ? 'border-[#1A6B5C] bg-[#1A6B5C] text-white' : 'border-[#D6F0E8] text-[#64748B] hover:bg-[#EDF7F3]'}`}
+            >
+              <Building2 size={14} />
+              APOTEKH pharmacy
+            </button>
+            <button
+              onClick={() => { setBuyerMode('walkin'); resetBuyer(); }}
+              className={`flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-colors ${buyerMode === 'walkin' ? 'border-[#1A6B5C] bg-[#1A6B5C] text-white' : 'border-[#D6F0E8] text-[#64748B] hover:bg-[#EDF7F3]'}`}
+            >
+              <UserCheck size={14} />
+              Walk-in / unregistered
+            </button>
+          </div>
+
+          {buyerMode === 'apotekh' ? (
+            selectedBuyer ? (
+              <div className="flex items-center justify-between rounded-2xl border border-[#D6F0E8] bg-[#F7FCFA] p-4">
+                <div>
+                  <p className="font-semibold text-[#0D4035]">{selectedBuyer.name}</p>
+                  <p className="text-sm text-[#64748B]">{selectedBuyer.subscriptionTier} · {selectedBuyer.region ?? '—'}</p>
+                </div>
+                <Button variant="secondary" size="sm" onClick={resetBuyer}>Change</Button>
               </div>
-              <Button variant="secondary" size="sm" onClick={() => { setSelectedBuyer(null); setBuyerSearch(''); }}>
-                Change
-              </Button>
-            </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="relative">
+                  <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" />
+                  <input
+                    type="text"
+                    value={buyerSearch}
+                    onChange={(e) => setBuyerSearch(e.target.value)}
+                    placeholder="Search pharmacy name on APOTEKH…"
+                    className="w-full rounded-xl border border-[#D6F0E8] py-2 pl-9 pr-3 text-sm text-[#0D4035] placeholder-[#94A3B8] outline-none focus:border-[#1A6B5C] focus:ring-1 focus:ring-[#1A6B5C]"
+                  />
+                </div>
+                {pharmacyQuery.isLoading && <p className="text-sm text-[#64748B]">Searching…</p>}
+                {(pharmacyQuery.data ?? []).map((pharmacy) => (
+                  <button
+                    key={pharmacy.id}
+                    onClick={() => { setSelectedBuyer(pharmacy); setBuyerSearch(''); }}
+                    className="w-full rounded-2xl border border-[#D6F0E8] p-4 text-left hover:bg-[#EDF7F3] transition-colors"
+                  >
+                    <p className="font-medium text-[#0D4035]">{pharmacy.name}</p>
+                    <p className="text-xs text-[#64748B]">{pharmacy.subscriptionTier} · {pharmacy.region ?? '—'}</p>
+                  </button>
+                ))}
+                {buyerSearch.length >= 2 && !pharmacyQuery.isLoading && (pharmacyQuery.data ?? []).length === 0 && (
+                  <p className="text-sm text-[#94A3B8]">No pharmacies found on APOTEKH with that name. Switch to "Walk-in / unregistered" to enter manually.</p>
+                )}
+              </div>
+            )
           ) : (
             <div className="space-y-3">
-              <div className="relative">
-                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" />
-                <input
-                  type="text"
-                  value={buyerSearch}
-                  onChange={(e) => setBuyerSearch(e.target.value)}
-                  placeholder="Search pharmacy name…"
-                  className="w-full rounded-xl border border-[#D6F0E8] py-2 pl-9 pr-3 text-sm text-[#0D4035] placeholder-[#94A3B8] outline-none focus:border-[#1A6B5C] focus:ring-1 focus:ring-[#1A6B5C]"
+              <p className="text-xs text-[#64748B]">Enter the buyer's name as it should appear on the order. They don't need an APOTEKH account.</p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Input
+                  label="Pharmacy / buyer name *"
+                  value={walkinName}
+                  onChange={(e) => setWalkinName(e.target.value)}
+                  placeholder="e.g. Bright Star Pharmacy"
+                />
+                <Input
+                  label="Phone (optional)"
+                  value={walkinPhone}
+                  onChange={(e) => setWalkinPhone(e.target.value)}
+                  placeholder="+255 7XX XXX XXX"
                 />
               </div>
-              {pharmacyQuery.isLoading && <p className="text-sm text-[#64748B]">Searching…</p>}
-              {(pharmacyQuery.data ?? []).map((pharmacy) => (
-                <button
-                  key={pharmacy.id}
-                  onClick={() => { setSelectedBuyer(pharmacy); setBuyerSearch(''); }}
-                  className="w-full rounded-2xl border border-[#D6F0E8] p-4 text-left hover:bg-[#EDF7F3] transition-colors"
-                >
-                  <p className="font-medium text-[#0D4035]">{pharmacy.name}</p>
-                  <p className="text-xs text-[#64748B]">{pharmacy.subscriptionTier} · {pharmacy.region ?? '—'}</p>
-                </button>
-              ))}
-              {buyerSearch.length >= 2 && !pharmacyQuery.isLoading && (pharmacyQuery.data ?? []).length === 0 && (
-                <p className="text-sm text-[#64748B]">No pharmacies found. They must be registered on APOTEKH.</p>
+              {walkinName.trim() && (
+                <div className="rounded-xl border border-[#D6F0E8] bg-[#F7FCFA] px-4 py-3">
+                  <p className="text-sm font-semibold text-[#0D4035]">{walkinName.trim()}</p>
+                  {walkinPhone.trim() && <p className="text-xs text-[#64748B]">{walkinPhone.trim()}</p>}
+                </div>
               )}
             </div>
           )}
         </Card>
 
         {/* Step 2: Build cart */}
-        {selectedBuyer && (
+        {buyerReady && (
           <div className="grid gap-5 xl:grid-cols-[1fr_340px]">
             <Card header={
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -233,7 +298,12 @@ export const ManualOrderPage: React.FC = () => {
                   <div className="flex justify-between border-t border-[#D6F0E8] pt-3 text-sm font-semibold text-[#0D4035]">
                     <span>Total</span><span>Tsh {cartTotal.toLocaleString()}</span>
                   </div>
-                  <Input label="Notes (optional)" placeholder="Special instructions…" value={notes} onChange={(e) => setNotes(e.target.value)} />
+                  <Input
+                    label="Notes (optional)"
+                    placeholder="Special instructions, delivery address…"
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                  />
                   <Button
                     className="w-full"
                     leftIcon={<Send size={13} />}
@@ -241,7 +311,7 @@ export const ManualOrderPage: React.FC = () => {
                     loading={submitMutation.isPending}
                     disabled={cartLines.length === 0}
                   >
-                    Create order for {selectedBuyer.name}
+                    Create order for {buyerLabel}
                   </Button>
                 </div>
               )}

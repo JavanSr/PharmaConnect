@@ -1079,6 +1079,7 @@ export async function suggestProducts(pharmacyId: string, params: ProductSuggest
     }
 
     const prefixOr: Prisma.ProductWhereInput[] = [
+      { name: { startsWith: search, mode: 'insensitive' } },
       { genericName: { startsWith: search, mode: 'insensitive' } },
       { brandName: { startsWith: search, mode: 'insensitive' } },
     ];
@@ -1090,6 +1091,7 @@ export async function suggestProducts(pharmacyId: string, params: ProductSuggest
 
     const prefixIds = prefixProducts.map((product) => product.id);
     const containsOr: Prisma.ProductWhereInput[] = [
+      { name: { contains: search, mode: 'insensitive' } },
       { genericName: { contains: search, mode: 'insensitive' } },
       { brandName: { contains: search, mode: 'insensitive' } },
     ];

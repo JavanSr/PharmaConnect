@@ -306,6 +306,7 @@ const OrderCard: React.FC<{ order: WholesaleOrder; role: string; invoice?: VatIn
             )}
           </div>
           <p className="mt-1 text-sm text-[#64748B]">
+            {order.buyerName ? <span className="font-medium text-[#0D4035]">{order.buyerName} · </span> : null}
             {order.items.length} line{order.items.length !== 1 ? 's' : ''} · Tsh {order.totalAmount.toLocaleString()}
           </p>
           <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-[#94A3B8]">
@@ -481,6 +482,7 @@ export const OrdersPage: React.FC = () => {
   const user = useAuthStore((state) => state.user);
   const role = user?.role ?? '';
   const [statusFilter, setStatusFilter] = React.useState<OrderStatus | 'ALL'>('ALL');
+  const [search, setSearch] = React.useState('');
   const [orders, setOrders] = React.useState<WholesaleOrder[] | null>(null);
 
   const ordersQuery = useQuery({
@@ -503,7 +505,18 @@ export const OrdersPage: React.FC = () => {
 
   const invoiceByOrderId = new Map((invoicesQuery.data ?? []).map((inv) => [inv.orderId, inv]));
 
-  const displayed = (orders ?? []).filter((o) => statusFilter === 'ALL' || o.status === statusFilter);
+  const searchTerm = search.trim().toLowerCase();
+  const displayed = (orders ?? []).filter((o) => {
+    if (statusFilter !== 'ALL' && o.status !== statusFilter) return false;
+    if (searchTerm) {
+      return (
+        o.orderNumber.toLowerCase().includes(searchTerm) ||
+        (o.buyerName ?? '').toLowerCase().includes(searchTerm) ||
+        (o.sellerName ?? '').toLowerCase().includes(searchTerm)
+      );
+    }
+    return true;
+  });
 
   const countByStatus = (orders ?? []).reduce<Record<string, number>>((acc, o) => {
     acc[o.status] = (acc[o.status] ?? 0) + 1;
@@ -517,9 +530,18 @@ export const OrdersPage: React.FC = () => {
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-xl font-semibold text-[#0D4035]">Wholesale orders</h1>
-          {ordersQuery.isFetching && (
-            <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#1A6B5C] border-t-transparent" />
-          )}
+          <div className="flex items-center gap-2">
+            {ordersQuery.isFetching && (
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#1A6B5C] border-t-transparent" />
+            )}
+            <input
+              type="search"
+              placeholder="Order # or buyer name…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="rounded-xl border border-[#D6F0E8] bg-white px-3 py-1.5 text-sm text-[#0D4035] placeholder-[#94A3B8] outline-none focus:border-[#1A6B5C] focus:ring-1 focus:ring-[#1A6B5C]"
+            />
+          </div>
         </div>
 
         {/* Status filter chips */}

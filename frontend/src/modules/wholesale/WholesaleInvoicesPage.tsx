@@ -6,8 +6,11 @@ import { Card } from '@/components/ui/Card';
 import type { VatInvoice } from '@/types';
 import { WholesaleShell } from './WholesaleShell';
 
+const EFDMS_LABEL: Record<string, string> = {
+  PENDING: 'Pending', SENT: 'Sent', CONFIRMED: 'Invoiced', FAILED: 'Failed',
+};
+
 const EFDMS_STYLE: Record<string, string> = {
-  STUBBED: 'bg-amber-50 text-amber-700',
   PENDING: 'bg-amber-50 text-amber-700',
   SENT: 'bg-blue-50 text-blue-700',
   CONFIRMED: 'bg-[#EDF7F3] text-[#1A6B5C]',
@@ -32,6 +35,8 @@ export const WholesaleInvoicesPage: React.FC = () => {
     ? invoices.filter(
         (inv) =>
           inv.invoiceNumber.toLowerCase().includes(search.toLowerCase()) ||
+          (inv.orderNumber ?? '').toLowerCase().includes(search.toLowerCase()) ||
+          (inv.buyerName ?? '').toLowerCase().includes(search.toLowerCase()) ||
           inv.efdmsReference?.toLowerCase().includes(search.toLowerCase()),
       )
     : invoices;
@@ -73,7 +78,7 @@ export const WholesaleInvoicesPage: React.FC = () => {
               <h2 className="text-base font-semibold text-[#0D4035]">Invoice register</h2>
               <input
                 type="search"
-                placeholder="Search invoice number…"
+                placeholder="Invoice, order ref, or buyer…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="rounded-xl border border-[#D6F0E8] bg-white px-3 py-1.5 text-sm text-[#0D4035] placeholder-[#94A3B8] outline-none focus:border-[#1A6B5C] focus:ring-1 focus:ring-[#1A6B5C]"
@@ -108,10 +113,11 @@ export const WholesaleInvoicesPage: React.FC = () => {
                     <tr className="border-b border-[#D6F0E8] text-left text-xs font-semibold uppercase tracking-[0.15em] text-[#64748B]">
                       <th className="pb-2 pr-4">Invoice</th>
                       <th className="pb-2 pr-4">Order ref</th>
+                      <th className="pb-2 pr-4">Buyer</th>
                       <th className="pb-2 pr-4 text-right">Subtotal</th>
                       <th className="pb-2 pr-4 text-right">VAT</th>
                       <th className="pb-2 pr-4 text-right">Total</th>
-                      <th className="pb-2 pr-4">EFDMS</th>
+                      <th className="pb-2 pr-4">Status</th>
                       <th className="pb-2">Issued</th>
                     </tr>
                   </thead>
@@ -137,13 +143,14 @@ export const WholesaleInvoicesPage: React.FC = () => {
                             <p className="text-xs text-[#94A3B8]">{inv.efdmsReference}</p>
                           )}
                         </td>
-                        <td className="py-3 pr-4 text-[#64748B]">{inv.orderId.slice(-8)}</td>
+                        <td className="py-3 pr-4 text-[#64748B]">{inv.orderNumber ?? `…${inv.orderId.slice(-8)}`}</td>
+                        <td className="py-3 pr-4 text-[#64748B]">{inv.buyerName ?? '—'}</td>
                         <td className="py-3 pr-4 text-right text-[#64748B]">Tsh {inv.subtotalAmount.toLocaleString()}</td>
                         <td className="py-3 pr-4 text-right text-[#64748B]">Tsh {inv.vatAmount.toLocaleString()}</td>
                         <td className="py-3 pr-4 text-right font-semibold text-[#0D4035]">Tsh {inv.totalAmount.toLocaleString()}</td>
                         <td className="py-3 pr-4">
-                          <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${EFDMS_STYLE[inv.efdmsStatus ?? 'STUBBED'] ?? 'bg-slate-50 text-slate-600'}`}>
-                            {inv.efdmsStatus ?? 'STUBBED'}
+                          <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${EFDMS_STYLE[inv.efdmsStatus ?? 'PENDING'] ?? 'bg-amber-50 text-amber-700'}`}>
+                            {EFDMS_LABEL[inv.efdmsStatus ?? ''] ?? 'Invoiced'}
                           </span>
                         </td>
                         <td className="py-3 text-[#64748B]">{fmt(inv.issuedAt)}</td>
@@ -167,10 +174,14 @@ export const WholesaleInvoicesPage: React.FC = () => {
                             </a>
                           )}
                         </div>
-                        <p className="text-xs text-[#94A3B8]">Order {inv.orderId.slice(-8)} · {fmt(inv.issuedAt)}</p>
+                        <p className="text-xs text-[#94A3B8]">
+                          {inv.orderNumber ?? `Ord …${inv.orderId.slice(-8)}`}
+                          {inv.buyerName ? ` · ${inv.buyerName}` : ''}
+                          {` · ${fmt(inv.issuedAt)}`}
+                        </p>
                       </div>
-                      <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${EFDMS_STYLE[inv.efdmsStatus ?? 'STUBBED'] ?? 'bg-slate-50 text-slate-600'}`}>
-                        {inv.efdmsStatus ?? 'STUBBED'}
+                      <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${EFDMS_STYLE[inv.efdmsStatus ?? 'PENDING'] ?? 'bg-amber-50 text-amber-700'}`}>
+                        {EFDMS_LABEL[inv.efdmsStatus ?? ''] ?? 'Invoiced'}
                       </span>
                     </div>
                     <div className="mt-3 grid grid-cols-3 gap-2 text-sm">

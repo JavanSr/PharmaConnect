@@ -590,6 +590,19 @@ inventoryRouter.post('/enterprise/transfers', requireTier('ENTERPRISE'), require
   }
 });
 
+inventoryRouter.get('/units-of-measure', async (_req, res, next) => {
+  try {
+    const units = await prisma.unitOfMeasure.findMany({
+      where: { isActive: true },
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true, symbol: true, normalizedName: true, description: true },
+    });
+    res.json({ data: units });
+  } catch (e) {
+    next(e);
+  }
+});
+
 inventoryRouter.get('/drug-master', requirePermission('inventory.view_products'), async (req: AuthRequest, res, next) => {
   try {
     const { q, limit, page, storageCondition, essential } = z.object({

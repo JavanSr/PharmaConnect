@@ -37,6 +37,7 @@ type ProductOption = {
   manufacturer?: string | null;
   therapeuticCategory?: string | null;
   drugMasterId?: string | null;
+  currentStock?: number;
 };
 
 type MasterCatalogOption = {
@@ -122,15 +123,22 @@ function matchesSearch(search: string, values: Array<string | number | null | un
 
 function productMatchesSearch(product: ProductOption, search: string) {
   return matchesSearch(search, [
+    product.name,
     product.genericName,
     product.brandName,
+    product.strength,
+    product.dosageForm,
+    product.sku,
   ]);
 }
 
 function catalogProductMatchesSearch(product: MasterCatalogOption, search: string) {
   return matchesSearch(search, [
+    product.productName,
     product.genericName,
     product.brandName,
+    product.strength,
+    product.dosageForm,
   ]);
 }
 
@@ -341,9 +349,23 @@ export const StockIntakePage: React.FC = () => {
       void cacheProducts(productsData.data as Product[]);
     }
   }, [productsData]);
-  const visibleProducts = useMemo(
-    () => (products.length > 0 ? products : cachedProducts).filter((product) => productMatchesSearch(product, trimmedSearch)),
-    [cachedProducts, products, trimmedSearch],
+  // Products from pharmacy inventory, used purely for stock-count enrichment.
+  // API results are already server-filtered — skip client-side filter on them.
+  const inventoryProducts = useMemo(() => {
+    if (products.length > 0) return products;
+    return cachedProducts.filter((p) => productMatchesSearch(p, trimmedSearch));
+  }, [cachedProducts, products, trimmedSearch]);
+
+  // Index by drugMasterId for O(1) lookup when merging with master catalog.
+  const inventoryByMasterId = useMemo(
+    () => new Map(inventoryProducts.filter((p) => p.drugMasterId).map((p) => [p.drugMasterId!, p])),
+    [inventoryProducts],
+  );
+
+  // Pharmacy-only products that have no master catalog entry (manually added / legacy).
+  const inventoryOnlyProducts = useMemo(
+    () => inventoryProducts.filter((p) => !p.drugMasterId),
+    [inventoryProducts],
   );
   const shouldSearchMasterCatalog = trimmedSearch.length >= 2;
   const { data: masterCatalogData, isFetching: isMasterFetching } = useQuery({
@@ -373,10 +395,18 @@ export const StockIntakePage: React.FC = () => {
       setCachedMasterProducts(masterCatalogData.data);
     }
   }, [masterCatalogData]);
-  const visibleMasterProducts = useMemo(
-    () => (masterCatalogData ? masterProducts : cachedMasterProducts).filter((product) => catalogProductMatchesSearch(product, trimmedSearch)),
-    [cachedMasterProducts, masterCatalogData, masterProducts, trimmedSearch],
-  );
+  const visibleMasterProducts = useMemo(() => {
+    if (masterCatalogData) return masterProducts; // API already filtered
+    return cachedMasterProducts.filter((p) => catalogProductMatchesSearch(p, trimmedSearch));
+  }, [cachedMasterProducts, masterCatalogData, masterProducts, trimmedSearch]);
+
+  // Master catalog entries enriched with the pharmacy's current stock (or 0 if not stocked yet).
+  const unifiedResults = useMemo(() => {
+    return visibleMasterProducts.map((cp) => ({
+      master: cp,
+      inventory: inventoryByMasterId.get(cp.id) ?? null,
+    }));
+  }, [visibleMasterProducts, inventoryByMasterId]);
   const suppliers = suppliersData?.data ?? [];
 
   // create product from catalog
@@ -719,41 +749,79 @@ export const StockIntakePage: React.FC = () => {
             </div>
           )}
 
-          {/* Unified search results — no section headers */}
+          {/* Unified search results — master catalog as primary source, enriched with current stock */}
           {!selectedProduct && trimmedSearch.length > 0 && (
             <div className="border border-[#D6F0E8] rounded-xl overflow-hidden">
-              {(isProductFetching || isMasterFetching) && visibleProducts.length === 0 && visibleMasterProducts.length === 0 && (
+              {(isProductFetching || isMasterFetching) && unifiedResults.length === 0 && inventoryOnlyProducts.length === 0 && (
                 <div className="px-4 py-3 text-sm text-[#64748B]">Searching…</div>
               )}
-              {visibleProducts.map(p => (
+
+              {/* Master catalog entries — each shows current pharmacy stock (0 if not yet stocked) */}
+              {unifiedResults.map(({ master: cp, inventory: inv }) => {
+                const stock = inv?.currentStock ?? 0;
+                const alreadyStocked = stock > 0;
+                return (
+                  <button
+                    key={cp.id}
+                    type="button"
+                    onClick={() => {
+                      if (inv) {
+                        selectProduct(inv, cp);
+                      } else {
+                        setSelectedCatalogProduct(cp);
+                        createCatalogMutation.mutate(cp);
+                      }
+                    }}
+                    disabled={createCatalogMutation.isPending && selectedCatalogProduct?.id === cp.id}
+                    className="w-full text-left px-4 py-2.5 hover:bg-[#EDF7F3] border-b border-[#D6F0E8] last:border-0 disabled:opacity-50"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-[#0D4035]">
+                          {cp.genericName}{cp.strength ? ` ${cp.strength}` : ''}{cp.dosageForm ? ` · ${cp.dosageForm}` : ''}
+                        </p>
+                        <p className="text-xs text-[#64748B]">
+                          {[cp.brandName, cp.manufacturer].filter(Boolean).join(' · ')}
+                        </p>
+                      </div>
+                      <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold whitespace-nowrap ${
+                        alreadyStocked
+                          ? 'bg-[#EDF7F3] text-[#1A6B5C]'
+                          : 'bg-slate-100 text-slate-500'
+                      }`}>
+                        {alreadyStocked ? `${stock.toLocaleString()} in stock` : '0 in stock'}
+                      </span>
+                    </div>
+                    {createCatalogMutation.isPending && selectedCatalogProduct?.id === cp.id && (
+                      <p className="mt-0.5 text-xs text-[#1A6B5C]">Creating product record…</p>
+                    )}
+                  </button>
+                );
+              })}
+
+              {/* Pharmacy-only products (manually added, no master catalog match) */}
+              {inventoryOnlyProducts.map(p => (
                 <button key={p.id} type="button" onClick={() => selectProduct(p)}
                   className="w-full text-left px-4 py-2.5 hover:bg-[#EDF7F3] border-b border-[#D6F0E8] last:border-0">
-                  <p className="text-sm font-medium text-[#0D4035]">{productName(p)}</p>
-                  <p className="text-xs text-[#64748B]">
-                    {[p.brandName && `Brand: ${p.brandName}`, p.genericName && `Generic: ${p.genericName}`, p.dosageForm, p.strength].filter(Boolean).join(' | ')}
-                  </p>
-                </button>
-              ))}
-              {visibleMasterProducts
-                .filter(cp => !visibleProducts.some(p => p.drugMasterId === cp.id))
-                .map(cp => (
-                  <div key={cp.id} className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-[#D6F0E8] last:border-0 hover:bg-[#EDF7F3]">
+                  <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-[#0D4035]">{cp.genericName}{cp.strength ? ` ${cp.strength}` : ''}{cp.dosageForm ? ` · ${cp.dosageForm}` : ''}</p>
+                      <p className="text-sm font-medium text-[#0D4035]">{productName(p)}</p>
                       <p className="text-xs text-[#64748B]">
-                        {[cp.brandName, cp.manufacturer].filter(Boolean).join(' · ')}
+                        {[p.brandName && `Brand: ${p.brandName}`, p.genericName, p.dosageForm, p.strength].filter(Boolean).join(' · ')}
                       </p>
                     </div>
-                    <Button type="button" size="sm" variant="secondary"
-                      loading={createCatalogMutation.isPending && selectedCatalogProduct?.id === cp.id}
-                      onClick={() => { setSelectedCatalogProduct(cp); createCatalogMutation.mutate(cp); }}>
-                      Use
-                    </Button>
+                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold whitespace-nowrap ${
+                      (p.currentStock ?? 0) > 0 ? 'bg-[#EDF7F3] text-[#1A6B5C]' : 'bg-slate-100 text-slate-500'
+                    }`}>
+                      {(p.currentStock ?? 0) > 0 ? `${(p.currentStock ?? 0).toLocaleString()} in stock` : '0 in stock'}
+                    </span>
                   </div>
-                ))}
-              {!isProductFetching && !isMasterFetching && visibleProducts.length === 0 && visibleMasterProducts.length === 0 && (productsData || masterCatalogData) && (
+                </button>
+              ))}
+
+              {!isProductFetching && !isMasterFetching && unifiedResults.length === 0 && inventoryOnlyProducts.length === 0 && (productsData || masterCatalogData) && (
                 <div className="px-4 py-3">
-                  <p className="text-sm text-[#92400E]">No match found.</p>
+                  <p className="text-sm text-[#92400E]">No match in TMDA catalogue.</p>
                   <Link to="/inventory/products/new" className="mt-1 block text-xs font-medium text-[#1A6B5C] hover:underline">
                     Add product manually →
                   </Link>
