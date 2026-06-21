@@ -1,17 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import ContactForm from "@/components/ContactForm";
 import { cn } from "@/lib/utils";
 
 const tabs = [
-  { label: "Get access", value: "waitlist" as const },
+  { label: "Wholesale & Enterprise", value: "wholesale" as const },
   { label: "Investor inquiry", value: "investor" as const },
   { label: "Partnership inquiry", value: "partner" as const },
 ];
 
 export default function ContactTabs() {
-  const [active, setActive] = useState<(typeof tabs)[number]["value"]>("waitlist");
+  const [active, setActive] = useState<(typeof tabs)[number]["value"]>("wholesale");
+
+  useEffect(() => {
+    const tab = new URLSearchParams(window.location.search).get("tab");
+    if (tab === "wholesale") setActive("wholesale");
+    else if (tab === "investor") setActive("investor");
+    else if (tab === "partner") setActive("partner");
+  }, []);
 
   return (
     <div>

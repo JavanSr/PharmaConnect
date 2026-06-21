@@ -7,7 +7,7 @@ import { z } from "zod";
 import Button from "@/components/ui/Button";
 
 interface ContactFormProps {
-  variant: "waitlist" | "investor" | "partner";
+  variant: "wholesale" | "investor" | "partner";
 }
 
 const phoneRegex = /^\+?255[0-9]{9}$/;
@@ -17,12 +17,14 @@ export default function ContactForm({ variant }: ContactFormProps) {
   const [error, setError] = useState<string | null>(null);
 
   const schema = useMemo(() => {
-    if (variant === "waitlist") {
+    if (variant === "wholesale") {
       return z.object({
-        pharmacyName: z.string().min(3),
-        ownerName: z.string().min(3),
+        organisation: z.string().min(2),
+        contactName: z.string().min(3),
+        email: z.string().email(),
         phone: z.string().regex(phoneRegex),
-        type: z.enum(["ADDO", "Retail", "Wholesale"]),
+        accountType: z.enum(["Wholesale distributor", "Pharmacy chain", "Hospital group", "Other enterprise"]),
+        message: z.string().min(10),
       });
     }
 
@@ -49,8 +51,8 @@ export default function ContactForm({ variant }: ContactFormProps) {
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues:
-      variant === "waitlist"
-        ? ({ pharmacyName: "", ownerName: "", phone: "", type: "ADDO" } as FormValues)
+      variant === "wholesale"
+        ? ({ organisation: "", contactName: "", email: "", phone: "", accountType: "Wholesale distributor", message: "" } as FormValues)
         : variant === "investor"
           ? ({ name: "", email: "", organisation: "", message: "" } as FormValues)
           : ({ name: "", email: "", organisation: "", partnershipType: "Regulatory", message: "" } as FormValues),
@@ -58,14 +60,8 @@ export default function ContactForm({ variant }: ContactFormProps) {
 
   async function onSubmit(values: FormValues) {
     setError(null);
-    const endpoint = variant === "waitlist" ? "/api/waitlist" : "/api/contact";
-    const payload =
-      variant === "waitlist"
-        ? values
-        : {
-            ...values,
-            variant,
-          };
+    const endpoint = "/api/contact";
+    const payload = { ...values, variant };
 
     const response = await fetch(endpoint, {
       method: "POST",
@@ -94,26 +90,35 @@ export default function ContactForm({ variant }: ContactFormProps) {
 
   return (
     <form className="grid gap-4" onSubmit={form.handleSubmit(onSubmit)}>
-      {variant === "waitlist" ? (
+      {variant === "wholesale" ? (
         <>
           <div>
-            <input className={inputClassName} placeholder="Pharmacy name" {...form.register("pharmacyName" as keyof FormValues)} />
-            <FieldError message={form.formState.errors["pharmacyName"]?.message as string | undefined} />
+            <input className={inputClassName} placeholder="Organisation name" {...form.register("organisation" as keyof FormValues)} />
+            <FieldError message={form.formState.errors["organisation"]?.message as string | undefined} />
           </div>
           <div>
-            <input className={inputClassName} placeholder="Owner name" {...form.register("ownerName" as keyof FormValues)} />
-            <FieldError message={form.formState.errors["ownerName"]?.message as string | undefined} />
+            <input className={inputClassName} placeholder="Contact name" {...form.register("contactName" as keyof FormValues)} />
+            <FieldError message={form.formState.errors["contactName"]?.message as string | undefined} />
+          </div>
+          <div>
+            <input className={inputClassName} placeholder="Work email" type="email" {...form.register("email" as keyof FormValues)} />
+            <FieldError message={form.formState.errors["email"]?.message as string | undefined} />
           </div>
           <div>
             <input className={inputClassName} placeholder="+255..." {...form.register("phone" as keyof FormValues)} />
             <FieldError message={form.formState.errors["phone"]?.message as string | undefined} />
           </div>
           <div>
-            <select className={inputClassName} {...form.register("type" as keyof FormValues)}>
-              <option value="ADDO">ADDO</option>
-              <option value="Retail">Retail Pharmacy</option>
-              <option value="Wholesale">Wholesale</option>
+            <select className={inputClassName} {...form.register("accountType" as keyof FormValues)}>
+              <option value="Wholesale distributor">Wholesale distributor</option>
+              <option value="Pharmacy chain">Pharmacy chain</option>
+              <option value="Hospital group">Hospital group</option>
+              <option value="Other enterprise">Other enterprise</option>
             </select>
+          </div>
+          <div>
+            <textarea className="w-full rounded-lg border border-slate/20 bg-white px-3 py-3 text-slate outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20" placeholder="Tell us about your rollout" rows={4} {...form.register("message" as keyof FormValues)} />
+            <FieldError message={form.formState.errors["message"]?.message as string | undefined} />
           </div>
         </>
       ) : (
@@ -151,8 +156,8 @@ export default function ContactForm({ variant }: ContactFormProps) {
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
       <Button className="w-full" size="lg" type="submit" variant="primary">
-        {variant === "waitlist"
-          ? "Request access →"
+        {variant === "wholesale"
+          ? "Send inquiry →"
           : variant === "investor"
             ? "Send inquiry →"
             : "Send partnership inquiry →"}

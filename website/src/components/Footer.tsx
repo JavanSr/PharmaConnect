@@ -26,6 +26,19 @@ const legalLinks = [
 export default function Footer() {
   return (
     <footer className="bg-primary-dark text-white">
+      <div className="border-b border-white/10">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-5 sm:px-6 lg:px-8">
+          <p className="text-sm font-medium text-white/80">
+            Wholesale or Enterprise?
+          </p>
+          <Link
+            className="rounded-lg bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/20"
+            href="/contact?tab=wholesale"
+          >
+            Contact us directly →
+          </Link>
+        </div>
+      </div>
       <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
         <div className="grid gap-10 md:grid-cols-2 xl:grid-cols-4">
           <div className="space-y-4">
