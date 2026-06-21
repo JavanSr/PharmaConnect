@@ -10,6 +10,6 @@
     <circle cx="204" cy="120" r="6" fill="#FFFFFF" opacity="0.6"/>
   </g>
   <text x="102" y="66" font-family="'DM Sans', 'Segoe UI', Arial, sans-serif" font-size="56" font-weight="800" letter-spacing="0">
-    <tspan fill="#0D4035">APOTEK</tspan><tspan fill="#7ECFB4">H</tspan>
+    <tspan fill="#0D4035">APOTEK</tspan><tspan fill="#E8A020">H</tspan>
   </text>
 </svg>

@@ -205,7 +205,7 @@ function Logo({ white = false, height = 30 }: { white?: boolean; height?: number
         <circle cx="204" cy="120" r="6" fill="#fff" opacity={0.6} />
       </g>
       <text x="102" y="66" fontFamily="'DM Sans','Segoe UI',Arial,sans-serif" fontSize="56" fontWeight="800" letterSpacing="0">
-        <tspan fill={c}>APOTEK</tspan><tspan fill="#7ECFB4">H</tspan>
+        <tspan fill={c}>APOTEK</tspan><tspan fill="#E8A020">H</tspan>
       </text>
     </svg>
   );

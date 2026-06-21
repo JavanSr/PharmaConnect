@@ -12,21 +12,21 @@ export function LightBackground() {
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
         <img src={MARK_LIGHT} alt="" width={24} height={24} style={{ display: 'block', width: 24, height: 'auto', flexShrink: 0 }} />
         <span style={{ fontFamily: '"DM Sans", sans-serif', fontSize: '1.15rem', fontWeight: 800, lineHeight: 1, display: 'inline-flex', alignItems: 'baseline', gap: 0 }}>
-          <span style={{ color: '#0D4035' }}>APOTEK</span><span style={{ color: '#7ECFB4', marginLeft: '-0.015em' }}>H</span>
+          <span style={{ color: '#0D4035' }}>APOTEK</span><span style={{ color: '#E8A020', marginLeft: '-0.015em' }}>H</span>
         </span>
       </span>
       {/* md — 32px mark */}
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: '10px' }}>
         <img src={MARK_LIGHT} alt="" width={32} height={32} style={{ display: 'block', width: 32, height: 'auto', flexShrink: 0 }} />
         <span style={{ fontFamily: '"DM Sans", sans-serif', fontSize: '1.55rem', fontWeight: 800, lineHeight: 1, display: 'inline-flex', alignItems: 'baseline', gap: 0 }}>
-          <span style={{ color: '#0D4035' }}>APOTEK</span><span style={{ color: '#7ECFB4', marginLeft: '-0.015em' }}>H</span>
+          <span style={{ color: '#0D4035' }}>APOTEK</span><span style={{ color: '#E8A020', marginLeft: '-0.015em' }}>H</span>
         </span>
       </span>
       {/* lg — 48px mark */}
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: '10px' }}>
         <img src={MARK_LIGHT} alt="" width={48} height={48} style={{ display: 'block', width: 48, height: 'auto', flexShrink: 0 }} />
         <span style={{ fontFamily: '"DM Sans", sans-serif', fontSize: '2.35rem', fontWeight: 800, lineHeight: 1, display: 'inline-flex', alignItems: 'baseline', gap: 0 }}>
-          <span style={{ color: '#0D4035' }}>APOTEK</span><span style={{ color: '#7ECFB4', marginLeft: '-0.015em' }}>H</span>
+          <span style={{ color: '#0D4035' }}>APOTEK</span><span style={{ color: '#E8A020', marginLeft: '-0.015em' }}>H</span>
         </span>
       </span>
     </div>

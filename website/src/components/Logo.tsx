@@ -61,7 +61,7 @@ export default function Logo({
         aria-hidden="true"
       >
         <span className={isWhite ? "text-white" : "text-[#0D4035]"}>APOTEK</span>
-        <span className="-ml-[0.015em] text-[#7ECFB4]">H</span>
+        <span className="-ml-[0.015em] text-[#E8A020]">H</span>
       </span>
     </span>
   );
