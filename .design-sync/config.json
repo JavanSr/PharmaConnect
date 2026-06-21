@@ -1,0 +1,32 @@
+{
+  "projectId": "07cbd311-0b99-4c3b-98f7-50993fdecbe2",
+  "shape": "package",
+  "pkg": "pharmaconnect-website",
+  "globalName": "ApotekhWebsite",
+  "tsconfig": "website/tsconfig.json",
+  "cssEntry": "website-styles.css",
+  "buildCmd": "cd website && npx tailwindcss -i src/app/globals.css -o website-tailwind.css --minify",
+  "runtimeFontPrefixes": ["DM Sans", "DM Serif Display", "JetBrains Mono"],
+  "readmeHeader": ".design-sync/conventions.md",
+  "componentSrcMap": {
+    "Button":          "src/components/ui/Button.tsx",
+    "Badge":           "src/components/ui/Badge.tsx",
+    "AnimatedSection": "src/components/ui/AnimatedSection.tsx",
+    "StatCard":        "src/components/ui/StatCard.tsx",
+    "AppMockup":       "src/components/AppMockup.tsx",
+    "ContactForm":     "src/components/ContactForm.tsx",
+    "ContactTabs":     "src/components/ContactTabs.tsx",
+    "FaqAccordion":    "src/components/FaqAccordion.tsx",
+    "Footer":          "src/components/Footer.tsx",
+    "Logo":            "src/components/Logo.tsx",
+    "ModuleCard":      "src/components/ModuleCard.tsx",
+    "Nav":             "src/components/Nav.tsx",
+    "PlatformGrid":    "src/components/PlatformGrid.tsx",
+    "PricingCard":     "src/components/PricingCard.tsx",
+    "PricingToggle":   "src/components/PricingToggle.tsx",
+    "NhifFlow":        null,
+    "InvestorGate":    null,
+    "BlogSearch":      null,
+    "SeveritySpectrum": null
+  }
+}
