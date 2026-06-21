@@ -9,6 +9,7 @@ import { requireTier } from '../../middleware/tier';
 import { enforceTrialRestrictions } from '../../middleware/trial';
 import { prisma } from '../../lib/prisma';
 import * as svc from './inventory.service';
+import { emitToPharmacy } from '../realtime/realtime.service';
 
 const productSchema = z.object({
   name: z.string().min(1),
@@ -306,7 +307,9 @@ inventoryRouter.post('/batches', requirePermission('inventory.manage_stock'), as
         localTimestamp: z.string().datetime().optional(),
       })
       .parse(req.body);
-    res.status(201).json({ data: await svc.receiveBatch(pid(req), uid(req), data) });
+    const batch = await svc.receiveBatch(pid(req), uid(req), data);
+    emitToPharmacy(pid(req), 'STOCK_UPDATED');
+    res.status(201).json({ data: batch });
   } catch (e) {
     next(e);
   }
@@ -431,12 +434,14 @@ inventoryRouter.patch('/adjustment-suggestions/:id/review', requirePermission('i
       })
       .parse(req.body);
 
-    res.json({
-      data: await svc.reviewStockAdjustmentSuggestion(pid(req), uid(req), req.params.id, {
-        ...data,
-        reviewNote: data.reviewNote?.trim() || undefined,
-      }),
+    const result = await svc.reviewStockAdjustmentSuggestion(pid(req), uid(req), req.params.id, {
+      ...data,
+      reviewNote: data.reviewNote?.trim() || undefined,
     });
+    if (data.status === 'APPROVED' || data.status === 'PARTIAL') {
+      emitToPharmacy(pid(req), 'STOCK_UPDATED');
+    }
+    res.json({ data: result });
   } catch (e) {
     next(e);
   }

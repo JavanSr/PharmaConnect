@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { api } from '@/lib/api';
 import { usePharmacyStore } from '@/stores/pharmacyStore';
 import { useAuth } from '@/hooks/useAuth';
+import { usePharmacyRealtimeSync } from '@/hooks/usePharmacyRealtimeSync';
 
 type DashboardSummary = {
   totalProducts?: number;
@@ -35,6 +36,7 @@ const getProductStock = (product: any) => {
 };
 
 export const InventoryDashboardPage: React.FC = () => {
+  usePharmacyRealtimeSync();
   const pharmacy = usePharmacyStore((state) => state.pharmacy);
   const { user } = useAuth();
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';

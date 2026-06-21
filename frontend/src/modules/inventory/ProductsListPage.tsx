@@ -9,6 +9,7 @@ import { Card } from '@/components/ui/Card';
 import { Select } from '@/components/ui/Select';
 import { api } from '@/lib/api';
 import { useDebounce } from '@/hooks/useDebounce';
+import { usePharmacyRealtimeSync } from '@/hooks/usePharmacyRealtimeSync';
 import { useNotificationStore } from '@/stores/notificationStore';
 import type { Product, Batch } from '@/types';
 
@@ -210,6 +211,7 @@ const ProductsListRow = function ProductsListRow({
 };
 
 export const ProductsListPage: React.FC = () => {
+  usePharmacyRealtimeSync();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const toast = useNotificationStore(s => s.toast);

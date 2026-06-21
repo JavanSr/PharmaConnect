@@ -42,6 +42,7 @@ import { sourceSyncRouter } from './modules/source-sync/source-sync.router';
 import { agentsRouter } from './modules/agents/agents.router';
 import { supplierPortalRouter } from './modules/inventory/supplier-portal.router';
 import { azamPayRouter } from './modules/azampay/azampay.router';
+import { realtimeRouter } from './modules/realtime/realtime.router';
 import { registerExpiryAlertsJob } from './jobs/expiry-alerts';
 import { registerLowStockAlertsJob } from './jobs/low-stock-alerts';
 import { registerComplianceAlertsJob, registerComplianceHealthJob } from './jobs/compliance-alerts';
@@ -325,6 +326,9 @@ app.use(`${v1}/agents`,            authenticate, agentsRouter);
 
 // ── AzamPay (initiate is authenticated; callback is public) ───────────────────
 app.use(`${v1}/azampay`, azamPayRouter);
+
+// ── Realtime SSE (pharmacy-scoped stock/dispensing push) ─────────────────────
+app.use(`${v1}/realtime`, realtimeRouter);
 
 // ── Supplier Portal (public, no auth — short URL for WhatsApp links) ──────────
 app.use('/supplier-portal', supplierPortalRouter);

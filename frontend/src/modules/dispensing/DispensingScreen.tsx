@@ -36,6 +36,7 @@ import {
   type DispensingPaymentMethodOption,
 } from '@/modules/settings/paymentMethodConfig';
 import { useDebounce } from '@/hooks/useDebounce';
+import { usePharmacyRealtimeSync } from '@/hooks/usePharmacyRealtimeSync';
 import { useAuthStore } from '@/stores/authStore';
 import {
   normalizePatientPhone,
@@ -227,6 +228,7 @@ const AwarDot: React.FC<{ awarClass?: Product['awarClass'] }> = ({ awarClass }) 
 };
 
 export const DispensingScreen: React.FC = () => {
+  usePharmacyRealtimeSync();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const toast = useNotificationStore((state) => state.toast);

@@ -7,6 +7,7 @@ import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { authenticate, requireRole, type AuthRequest } from '../../middleware/auth';
 import { hasPermission, requirePermission } from '../../middleware/permissions';
+import { emitToPharmacy } from '../realtime/realtime.service';
 import { enforceTrialRestrictions } from '../../middleware/trial';
 import { picPinLimiter } from '../../middleware/pic-pin';
 import { prisma } from '../../lib/prisma';
@@ -1033,6 +1034,8 @@ dispensingRouter.post('/checkout', requirePermission('dispensing.access'), uploa
         ${JSON.stringify({ referenceNumber, totalAmount, lines: checkoutResult.lines, prescriptionPhotoPath })}::jsonb
       )
     `);
+
+    emitToPharmacy(pharmacyId, 'STOCK_UPDATED');
 
     res.status(201).json({
       data: {
