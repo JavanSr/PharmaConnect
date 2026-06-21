@@ -358,6 +358,7 @@ export const DispensingScreen: React.FC = () => {
   // Every keystroke then filters the in-memory list synchronously — zero network round-trips.
   // The query refreshes in the background every 5 minutes so stock levels stay current.
   const [allProductsLoaded, setAllProductsLoaded] = useState(false);
+  const [stockSnapshotVersion, setStockSnapshotVersion] = useState(0);
   const { isFetching: isProductSuggestionsFetching } = useQuery({
     queryKey: ['dispensing-products-cache', pharmacy?.id],
     queryFn: async () => {
@@ -390,6 +391,38 @@ export const DispensingScreen: React.FC = () => {
     refetchInterval: 5 * 60_000,
     networkMode: 'offlineFirst',
   });
+
+  // 5-second live stock-level sync — only fetches {id, currentStock, nextExpiryDate},
+  // not the full product catalogue. Merges into allProductsRef so the local filter
+  // always reflects what another device just dispensed or received.
+  useQuery({
+    queryKey: ['dispensing-stock-snapshot', pharmacy?.id],
+    queryFn: async () => {
+      const res = await api.get('/inventory/products/stock-snapshot').then((r) => r.data.data as Array<{ id: string; currentStock: number; nextExpiryDate: string | null }>);
+      if (allProductsRef.current.length > 0) {
+        const byId = new Map(res.map((s) => [s.id, s]));
+        allProductsRef.current = allProductsRef.current.map((p) => {
+          const snap = byId.get(p.id);
+          if (!snap) return { ...p, currentStock: 0 };
+          return {
+            ...p,
+            currentStock: snap.currentStock,
+            nextExpiringBatch: snap.nextExpiryDate
+              ? { expiryDate: snap.nextExpiryDate, quantityRemaining: snap.currentStock } as any
+              : null,
+          };
+        });
+        setStockSnapshotVersion((v) => v + 1);
+      }
+      return res;
+    },
+    enabled: Boolean(pharmacy?.id && user && allProductsLoaded),
+    staleTime: 0,
+    refetchInterval: 5_000,
+    refetchIntervalInBackground: false,
+    networkMode: 'offlineFirst',
+  });
+
   const paymentMethodsQuery = useQuery({
     queryKey: ['dispensing-payment-methods', pharmacy?.id],
     queryFn: () => api.get('/dispensing/payment-methods').then((response) => response.data),
@@ -414,9 +447,9 @@ export const DispensingScreen: React.FC = () => {
         return !allStockExpired;
       })
       .slice(0, 12);
-    // allProductsLoaded forces a re-compute after the startup fetch lands
+    // allProductsLoaded → startup fetch landed; stockSnapshotVersion → 5s live sync updated stock
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [immediateDrugSearch, allProductsLoaded]);
+  }, [immediateDrugSearch, allProductsLoaded, stockSnapshotVersion]);
   const serverPaymentMethods = (paymentMethodsQuery.data?.data?.methods ?? []) as DispensingPaymentMethodOption[];
   const availablePaymentMethods =
     serverPaymentMethods.length > 0

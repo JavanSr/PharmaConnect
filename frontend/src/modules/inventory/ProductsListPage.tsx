@@ -225,15 +225,18 @@ export const ProductsListPage: React.FC = () => {
   const { data, isLoading } = useQuery({
     queryKey: ['products', debouncedSearch, lowStockOnly, storageFilter, sortBy, page],
     queryFn: () => api.get('/inventory/products', {
-      params: { 
-        search: debouncedSearch || undefined, 
+      params: {
+        search: debouncedSearch || undefined,
         lowStock: lowStockOnly || undefined,
         storageCondition: storageFilter || undefined,
         sortBy: sortBy || undefined,
-        page, 
-        limit: PAGE_SIZE 
+        page,
+        limit: PAGE_SIZE
       },
     }).then(r => r.data as ProductsResponse),
+    staleTime: 5_000,
+    refetchInterval: 5_000,
+    refetchIntervalInBackground: false,
   });
 
   const products: Product[] = data?.data || [];

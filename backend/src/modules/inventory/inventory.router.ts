@@ -160,6 +160,29 @@ inventoryRouter.get('/products/offline-cache', requirePermission('inventory.view
   }
 });
 
+// Lightweight 5-second polling endpoint — only stock levels and nearest expiry,
+// no product metadata. Used by dispensing and inventory pages for live sync.
+inventoryRouter.get('/products/stock-snapshot', requirePermission('inventory.view_products'), async (req: AuthRequest, res, next) => {
+  try {
+    const pharmacyId = pid(req);
+    const rows = await prisma.batch.groupBy({
+      by: ['productId'],
+      where: { pharmacyId, quantityRemaining: { gt: 0 } },
+      _sum: { quantityRemaining: true },
+      _min: { expiryDate: true },
+    });
+    res.json({
+      data: rows.map((r) => ({
+        id: r.productId,
+        currentStock: r._sum.quantityRemaining ?? 0,
+        nextExpiryDate: r._min.expiryDate ?? null,
+      })),
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
 inventoryRouter.get('/products/:id', requirePermission('inventory.view_products'), async (req: AuthRequest, res, next) => {
   try {
     res.json({ data: await svc.getProduct(req.params.id, pid(req)) });
