@@ -38,8 +38,27 @@ SVG marks are inlined as base64 data URIs in `.design-sync/previews/Logo.tsx`.
 This is intentional — `ds-bundle/assets/` is cleared on every rebuild and
 `next/image` does not load from the preview server in the IIFE context.
 
+## Grade file format (CRITICAL)
+
+Grade files in `.design-sync/.cache/review/<Name>.grade.json` MUST use:
+```json
+{"cells": {"CellName": {"verdict": "good", "note": "..."}}}
+```
+NOT the flat format `{"CellName": "pass"}` — that is NOT recognized; the
+component will re-capture every sync. Check `Badge.grade.json` as the reference
+for a correctly-carried-forward grade.
+
+## Remote anchor (`remote-sync.json`)
+
+When saving the anchor from `DesignSync(get_file "_ds_sync.json")` to
+`.design-sync/.cache/remote-sync.json`, save the COMPLETE JSON verbatim —
+including the `sourceHashes` field. A truncated save (missing `sourceHashes`)
+causes the re-sync driver to treat the anchor as malformed and run full-scope
+(all 15 components) instead of a fast diff. The anchor is idempotent, so a
+full-scope run is harmless — but slow.
+
 ## planId (incremental upload channel)
 
-`plan_07cbd3110b994c3b_876159d312bc` — covers all uploads to project
-`07cbd311-0b99-4c3b-98f7-50993fdecbe2` (APOTEKH Design System).
+planId changes every re-sync session. The latest is
+`plan_07cbd3110b994c3b_3e86c7737478`.
 Lost mid-session → call `DesignSync(finalize_plan)` to get a fresh one.

@@ -28,5 +28,10 @@
     "InvestorGate":    null,
     "BlogSearch":      null,
     "SeveritySpectrum": null
+  },
+  "overrides": {
+    "Logo":       {"cardMode": "column"},
+    "ModuleCard": {"cardMode": "column"},
+    "StatCard":   {"cardMode": "column"}
   }
 }
