@@ -20,15 +20,23 @@ window.addEventListener('vite:preloadError', () => {
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').then((registration) => {
-      // When a new SW finishes installing, check if it's waiting (update available).
-      // If there's already a controller, this is an update — not the first install.
-      // Dispatch an event so UpdateBanner can show the "Update now" prompt.
+      function notifyUpdateWaiting() {
+        if (navigator.serviceWorker.controller) {
+          window.dispatchEvent(new CustomEvent('sw-update-waiting'));
+        }
+      }
+
+      // Race condition: if the SW updated between page load and .then() running,
+      // updatefound already fired and the new SW is already waiting. Check now.
+      if (registration.waiting) {
+        notifyUpdateWaiting();
+      }
+
+      // Normal path: new SW found after registration resolves.
       registration.addEventListener('updatefound', () => {
         const newWorker = registration.installing;
         newWorker?.addEventListener('statechange', () => {
-          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-            window.dispatchEvent(new CustomEvent('sw-update-waiting'));
-          }
+          if (newWorker.state === 'installed') notifyUpdateWaiting();
         });
       });
     }).catch((error) => {
