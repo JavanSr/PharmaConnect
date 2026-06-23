@@ -7,6 +7,7 @@ import { SystemStatusWindow } from '@/components/SystemStatusWindow';
 import { useOfflineSync } from '@/hooks/useOfflineSync';
 import { useHeartbeat } from '@/hooks/useHeartbeat';
 import { ImpersonationBanner } from '@/modules/admin/ImpersonationBanner';
+import { UpdateBanner } from '@/components/UpdateBanner';
 import { useNotificationStore } from '@/stores/notificationStore';
 import { useAuthStore } from '@/stores/authStore';
 import { usePharmacyStore } from '@/stores/pharmacyStore';
@@ -296,6 +297,7 @@ const ImpersonationBootstrap: React.FC = () => {
 export const App: React.FC = () => (
   <ErrorBoundary>
   <QueryClientProvider client={queryClient}>
+    <UpdateBanner />
     <AuthenticatedOfflineSyncBootstrap />
     <ImpersonationBootstrap />
     <ImpersonationBanner />

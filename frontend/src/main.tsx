@@ -19,15 +19,26 @@ window.addEventListener('vite:preloadError', () => {
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch((error) => {
+    navigator.serviceWorker.register('/sw.js').then((registration) => {
+      // When a new SW finishes installing, check if it's waiting (update available).
+      // If there's already a controller, this is an update — not the first install.
+      // Dispatch an event so UpdateBanner can show the "Update now" prompt.
+      registration.addEventListener('updatefound', () => {
+        const newWorker = registration.installing;
+        newWorker?.addEventListener('statechange', () => {
+          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+            window.dispatchEvent(new CustomEvent('sw-update-waiting'));
+          }
+        });
+      });
+    }).catch((error) => {
       console.error('Service worker registration failed', error);
     });
 
-    // SW broadcasts SW_UPDATED on activate — reload to get fresh chunks.
-    navigator.serviceWorker.addEventListener('message', (event) => {
-      if (event.data?.type === 'SW_UPDATED') {
-        window.location.reload();
-      }
+    // When the user approves the update, the SW calls skipWaiting() and takes
+    // control. This fires controllerchange — reload to load fresh JS chunks.
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      window.location.reload();
     });
   });
 }

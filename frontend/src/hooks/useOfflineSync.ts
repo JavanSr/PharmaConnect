@@ -81,6 +81,11 @@ export function useOfflineSync(autoFlush = true) {
       if (event.data?.type === 'PC_SYNC_STATUS') {
         window.dispatchEvent(new CustomEvent(OFFLINE_SYNC_STATUS_EVENT, { detail: event.data }));
       }
+      // Background Sync fired by the OS while the tab was in background —
+      // flush the write queue now that connectivity is confirmed.
+      if (event.data?.type === 'PC_BACKGROUND_SYNC' && autoFlush) {
+        void flush();
+      }
     };
 
     window.addEventListener('online', handleOnline);

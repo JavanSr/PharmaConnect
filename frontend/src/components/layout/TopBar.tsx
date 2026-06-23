@@ -60,7 +60,7 @@ export const TopBar: React.FC<TopBarProps> = ({ onMenuClick, onDesktopToggle, ti
     return (
       <div className="flex min-h-[32px] items-center gap-1.5 rounded-full border border-primary/20 bg-secondary-container px-3 py-1">
         <div className="w-2 h-2 bg-primary rounded-full" />
-        <span className="text-label-md text-on-secondary-container font-medium">Online - syncing</span>
+        <span className="text-label-md text-on-secondary-container font-medium">Connected</span>
       </div>
     );
   };

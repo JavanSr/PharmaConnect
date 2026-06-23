@@ -1,4 +1,4 @@
-import { clientsClaim, skipWaiting } from 'workbox-core';
+import { clientsClaim } from 'workbox-core';
 import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching';
 import { registerRoute } from 'workbox-routing';
 import { CacheFirst, NetworkFirst, StaleWhileRevalidate } from 'workbox-strategies';
@@ -42,7 +42,10 @@ async function broadcastSyncStatus(detail) {
   });
 }
 
-skipWaiting();
+// Do NOT call skipWaiting() here — the new SW waits in the "waiting" state
+// until the user approves the update via the UpdateBanner. When they click
+// "Update now", the app sends SKIP_WAITING (handled in the message listener
+// above) and we reload via the controllerchange event in main.tsx.
 clientsClaim();
 
 self.addEventListener('activate', (event) => {
@@ -50,11 +53,6 @@ self.addEventListener('activate', (event) => {
     Promise.all([
       clearOldCaches(),
       broadcastSyncStatus({ state: 'ACTIVE' }),
-      // Tell all open tabs to reload so they load fresh chunks from the new
-      // precache manifest instead of trying to fetch old hashed URLs.
-      self.clients.matchAll({ includeUncontrolled: true, type: 'window' }).then((clients) => {
-        clients.forEach((client) => client.postMessage({ type: 'SW_UPDATED' }));
-      }),
     ]),
   );
 });
@@ -140,6 +138,25 @@ registerRoute(
     plugins: [new ExpirationPlugin({ maxEntries: 200, maxAgeSeconds: 7 * 24 * 60 * 60 })],
   }),
 );
+
+// ── Background Sync — flush write queue when OS reconnects ──────────────────
+// The app registers a 'inventory-write-queue' sync tag via registerOfflineSync().
+// When the browser reconnects (even in background), the OS fires this event.
+// We can't call flushOfflineWrites() here (it's in app-layer JS), so we post
+// a message to all open tabs and let useOfflineSync handle the actual flush.
+self.addEventListener('sync', (event) => {
+  if (event.tag === 'inventory-write-queue') {
+    event.waitUntil(
+      self.clients
+        .matchAll({ includeUncontrolled: true, type: 'window' })
+        .then((clients) => {
+          clients.forEach((client) => {
+            client.postMessage({ type: 'PC_BACKGROUND_SYNC', tag: event.tag });
+          });
+        }),
+    );
+  }
+});
 
 // ── Write operations — pass through, broadcast failure to app layer ───────────
 // No origin check: in production the API is on a different domain (Railway),

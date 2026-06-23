@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Search, Plus, AlertTriangle, Thermometer, Snowflake, Wind, Upload, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
@@ -213,11 +213,12 @@ const ProductsListRow = function ProductsListRow({
 export const ProductsListPage: React.FC = () => {
   usePharmacyRealtimeSync();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const toast = useNotificationStore(s => s.toast);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState('');
-  const [lowStockOnly, setLowStockOnly] = useState(false);
+  const [lowStockOnly, setLowStockOnly] = useState(searchParams.get('filter') === 'low-stock');
   const [storageFilter, setStorageFilter] = useState('');
   const [sortBy, setSortBy] = useState('chronological');
   const [page, setPage] = useState(1);

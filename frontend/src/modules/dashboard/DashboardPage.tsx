@@ -116,7 +116,7 @@ export const DashboardPage: React.FC = () => {
         <div />
       </div>
 
-      <div className="grid grid-cols-1 gap-gutter sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-gutter sm:grid-cols-2 lg:grid-cols-4">
         <StatCardEl
           label="Today's Revenue"
           value={formatTsh(todayStats.revenue)}
@@ -131,7 +131,7 @@ export const DashboardPage: React.FC = () => {
           value={summary?.lowStockCount ?? '--'}
           icon={<AlertTriangle size={20} className="text-[#D97706]" />}
           color="bg-amber-50"
-          link="/inventory"
+          link="/inventory/products?filter=low-stock"
         />
         <StatCardEl
           label="Expiring <=30 Days"
@@ -140,6 +140,13 @@ export const DashboardPage: React.FC = () => {
           color="bg-red-50"
           link="/inventory/expiry"
         />
+        <StatCardEl
+          label="Total Products"
+          value={summary?.totalProducts ?? '--'}
+          icon={<Package size={20} className="text-[#1A6B5C]" />}
+          color="bg-[#EDF7F3]"
+          link="/inventory/products"
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -147,7 +154,7 @@ export const DashboardPage: React.FC = () => {
           header={
             <div className="flex items-center justify-between">
               <span className="text-title-md text-on-surface">Low Stock Alerts</span>
-              <Link to="/inventory" className="text-label-md text-primary hover:underline flex items-center gap-1">
+              <Link to="/inventory/products?filter=low-stock" className="text-label-md text-primary hover:underline flex items-center gap-1">
                 Manage <ArrowRight size={12} />
               </Link>
             </div>
@@ -189,7 +196,7 @@ export const DashboardPage: React.FC = () => {
           header={
             <div className="flex items-center justify-between">
               <span className="text-title-md text-on-surface">Recent Movements</span>
-              <Link to="/inventory" className="text-label-md text-primary hover:underline flex items-center gap-1">
+              <Link to="/reports" className="text-label-md text-primary hover:underline flex items-center gap-1">
                 View all <ArrowRight size={12} />
               </Link>
             </div>
@@ -239,45 +246,53 @@ export const DashboardPage: React.FC = () => {
             <div className="p-8 text-center text-body-md text-on-surface-variant">No activity recorded today yet.</div>
           ) : (
             <div className="space-y-4 pt-1">
-              <div className="flex items-center justify-between p-3 bg-[#D6F0E8] rounded-2xl">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-[#1A6B5C] rounded-xl flex items-center justify-center">
-                    <TrendingDown size={15} className="text-white" />
+              <Link to="/dispensing/daily-close" className="block">
+                <div className="flex items-center justify-between p-3 bg-[#D6F0E8] rounded-2xl hover:opacity-80 transition-opacity">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-[#1A6B5C] rounded-xl flex items-center justify-center">
+                      <TrendingDown size={15} className="text-white" />
+                    </div>
+                    <span className="text-sm text-[#0D4035]">Dispensed</span>
                   </div>
-                  <span className="text-sm text-[#0D4035]">Dispensed</span>
+                  <span className="text-lg font-bold text-[#1A6B5C]">{todayStats.dispensed ?? 0}</span>
                 </div>
-                <span className="text-lg font-bold text-[#1A6B5C]">{todayStats.dispensed ?? 0}</span>
-              </div>
+              </Link>
 
-              <div className="flex items-center justify-between p-3 bg-[#EDF7F3] rounded-2xl">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-[#1D9E75] rounded-xl flex items-center justify-center">
-                    <Package size={15} className="text-white" />
+              <Link to="/inventory/receive" className="block">
+                <div className="flex items-center justify-between p-3 bg-[#EDF7F3] rounded-2xl hover:opacity-80 transition-opacity">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-[#1D9E75] rounded-xl flex items-center justify-center">
+                      <Package size={15} className="text-white" />
+                    </div>
+                    <span className="text-sm text-[#0D4035]">Received</span>
                   </div>
-                  <span className="text-sm text-[#0D4035]">Received</span>
+                  <span className="text-lg font-bold text-[#1D9E75]">{todayStats.received ?? 0}</span>
                 </div>
-                <span className="text-lg font-bold text-[#1D9E75]">{todayStats.received ?? 0}</span>
-              </div>
+              </Link>
 
-              <div className="flex items-center justify-between p-3 bg-amber-50 rounded-2xl">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-[#D97706] rounded-xl flex items-center justify-center">
-                    <ArrowDownUp size={15} className="text-white" />
+              <Link to="/inventory/adjust" className="block">
+                <div className="flex items-center justify-between p-3 bg-amber-50 rounded-2xl hover:opacity-80 transition-opacity">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-[#D97706] rounded-xl flex items-center justify-center">
+                      <ArrowDownUp size={15} className="text-white" />
+                    </div>
+                    <span className="text-sm text-[#0D4035]">Adjustments</span>
                   </div>
-                  <span className="text-sm text-[#0D4035]">Adjustments</span>
+                  <span className="text-lg font-bold text-[#D97706]">{todayStats.adjustments ?? 0}</span>
                 </div>
-                <span className="text-lg font-bold text-[#D97706]">{todayStats.adjustments ?? 0}</span>
-              </div>
+              </Link>
 
-              <div className="flex items-center justify-between p-3 bg-[#EDF7F3] rounded-2xl">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-[#64748B] rounded-xl flex items-center justify-center">
-                    <Activity size={15} className="text-white" />
+              <Link to="/reports" className="block">
+                <div className="flex items-center justify-between p-3 bg-[#EDF7F3] rounded-2xl hover:opacity-80 transition-opacity">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-[#64748B] rounded-xl flex items-center justify-center">
+                      <Activity size={15} className="text-white" />
+                    </div>
+                    <span className="text-sm text-[#0D4035]">Total Events</span>
                   </div>
-                  <span className="text-sm text-[#0D4035]">Total Events</span>
+                  <span className="text-lg font-bold text-[#0D4035]">{todayStats.events ?? 0}</span>
                 </div>
-                <span className="text-lg font-bold text-[#0D4035]">{todayStats.events ?? 0}</span>
-              </div>
+              </Link>
             </div>
           )}
         </Card>
