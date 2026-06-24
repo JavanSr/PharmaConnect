@@ -693,7 +693,7 @@ async function completeDispensingCheckout(input: {
     };
   });
 
-  if (payload.override && review?.interactions.some((item) => item.requiresPicPin || item.severity === 'HIGH') || review?.contraindications.some((item) => item.requiresPicPin || item.severity === 'HIGH')) {
+  if (payload.override && (review?.interactions.some((item) => item.requiresPicPin || item.severity === 'HIGH') || review?.contraindications.some((item) => item.requiresPicPin || item.severity === 'HIGH'))) {
     const criticalInteraction = review?.interactions.find((item) => item.requiresPicPin || item.severity === 'HIGH');
     const criticalContraindication = review?.contraindications.find((item) => item.requiresPicPin || item.severity === 'HIGH');
 
@@ -990,7 +990,7 @@ dispensingRouter.post('/checkout', requirePermission('dispensing.access'), uploa
       `);
     }
 
-    if (payload.override && review?.interactions.some((item) => item.requiresPicPin || item.severity === 'HIGH') || review?.contraindications.some((item) => item.requiresPicPin || item.severity === 'HIGH')) {
+    if (payload.override && (review?.interactions.some((item) => item.requiresPicPin || item.severity === 'HIGH') || review?.contraindications.some((item) => item.requiresPicPin || item.severity === 'HIGH'))) {
       const criticalInteraction = review.interactions.find((item) => item.requiresPicPin || item.severity === 'HIGH');
       const criticalContraindication = review.contraindications.find((item) => item.requiresPicPin || item.severity === 'HIGH');
 
