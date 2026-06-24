@@ -11,6 +11,7 @@ import { emitToPharmacy } from '../realtime/realtime.service';
 import { enforceTrialRestrictions } from '../../middleware/trial';
 import { picPinLimiter } from '../../middleware/pic-pin';
 import { prisma } from '../../lib/prisma';
+import { clampLocalTimestamp } from '../../lib/timestamps';
 import { recordAnonymousSafetyEvents, sessionReview } from '../patient-safety/patient-safety.service';
 import { ensurePaymentMethodConfig } from '../settings/payment-method-config';
 import { trackFeatureTelemetry } from '../telemetry/feature-telemetry.service';
@@ -384,14 +385,7 @@ function normalizeDispensingPaymentMethods(value: Prisma.JsonValue | null | unde
 
 type CheckoutPayload = z.infer<typeof checkoutSchema>;
 
-function parseLocalTimestamp(value: string | undefined): Date | null {
-  if (!value) {
-    return null;
-  }
-
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
+// clampLocalTimestamp is imported from ../../lib/timestamps
 
 async function persistAnonymousSafetyEvents(input: Parameters<typeof recordAnonymousSafetyEvents>[0]) {
   try {
@@ -413,7 +407,7 @@ async function completeDispensingCheckout(input: {
   const discountAmount = payload.discountAmount ?? 0;
   const discountReason = payload.discountReason?.trim() || null;
   const localSessionId = payload.localSessionId?.trim() || null;
-  const localCreatedAt = parseLocalTimestamp(payload.localTimestamp);
+  const localCreatedAt = clampLocalTimestamp(payload.localTimestamp);
   const syncedAt = new Date();
 
   if (localSessionId) {

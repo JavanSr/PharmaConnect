@@ -3,6 +3,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { prisma } from '../../lib/prisma';
 import { withPrismaRetry } from '../../lib/prisma-retry';
+import { clampLocalTimestamp } from '../../lib/timestamps';
 import { Prisma, type MovementType, type SyncConflictStatus } from '@prisma/client';
 
 type ProductWriteInput = {
@@ -1695,7 +1696,7 @@ export async function receiveBatch(
         type: 'RECEIVED',
         quantity: data.quantityRemaining,
         notes: 'Stock intake',
-        localCreatedAt: data.localTimestamp ? new Date(data.localTimestamp) : new Date(),
+        localCreatedAt: clampLocalTimestamp(data.localTimestamp),
         syncedAt: new Date(),
       },
     });
