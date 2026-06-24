@@ -130,7 +130,16 @@ export async function storeComplianceObject(input: {
         .createSignedUrl(relativeObjectPath, SIGNED_URL_TTL_SECONDS);
 
       if (signedError) {
-        throw new Error(signedError.message);
+        // File is stored — don't throw and undo the upload.
+        // Return the raw path; getComplianceObjectUrl will regenerate the
+        // signed URL on next read when Supabase is available again.
+        console.error('[compliance.storage] Signed URL failed after successful upload:', signedError.message);
+        return {
+          storageMode: 'supabase',
+          bucket: input.bucket,
+          filePath: relativeObjectPath,
+          url: `/${relativeObjectPath}`,
+        };
       }
 
       return {
@@ -169,15 +178,22 @@ export async function getComplianceObjectUrl(bucket: string, filePath: string): 
     return filePath.startsWith('/') ? filePath : `/${filePath}`;
   }
 
-  const { data, error } = await supabase.storage
-    .from(bucket)
-    .createSignedUrl(filePath, SIGNED_URL_TTL_SECONDS);
+  try {
+    const { data, error } = await supabase.storage
+      .from(bucket)
+      .createSignedUrl(filePath, SIGNED_URL_TTL_SECONDS);
 
-  if (error) {
-    throw new Error(error.message);
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return data.signedUrl;
+  } catch (err) {
+    // A failed signed URL must not crash the document or checklist list.
+    // Return the raw path as fallback so the caller can still render the record.
+    console.error('[compliance.storage] Failed to generate signed URL for', filePath, ':', (err as Error).message);
+    return filePath.startsWith('/') ? filePath : `/${filePath}`;
   }
-
-  return data.signedUrl;
 }
 
 export function isSupabaseStorageConfigured(): boolean {
