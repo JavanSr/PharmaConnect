@@ -1319,13 +1319,21 @@ type DailyCloseSummary = {
   paymentBreakdown: DailyClosePaymentBreakdown[];
 };
 
-function dailyCloseDateSql(closingDate?: string) {
-  return closingDate
-    ? Prisma.sql`CAST(${closingDate} AS date)`
-    : Prisma.sql`DATE(NOW() AT TIME ZONE 'Africa/Nairobi')`;
+async function getPharmacyTimezone(pharmacyId: string): Promise<string> {
+  const pharmacy = await prisma.pharmacy.findUnique({
+    where: { id: pharmacyId },
+    select: { timezone: true },
+  });
+  return pharmacy?.timezone ?? 'Africa/Nairobi';
 }
 
-async function getDailyCloseSummary(pharmacyId: string, closingDate?: string): Promise<DailyCloseSummary> {
+function dailyCloseDateSql(closingDate?: string, timezone = 'Africa/Nairobi') {
+  return closingDate
+    ? Prisma.sql`CAST(${closingDate} AS date)`
+    : Prisma.sql`DATE(NOW() AT TIME ZONE ${timezone})`;
+}
+
+async function getDailyCloseSummary(pharmacyId: string, closingDate?: string, timezone = 'Africa/Nairobi'): Promise<DailyCloseSummary> {
   const [summaryRows, itemRows, paymentRows] = await Promise.all([
     prisma.$queryRaw<Array<{
       close_date: Date | string;
@@ -1339,10 +1347,10 @@ async function getDailyCloseSummary(pharmacyId: string, closingDate?: string): P
         WHERE
           "pharmacy_id" = ${pharmacyId}
           AND "status" = 'COMPLETED'
-          AND DATE("created_at" AT TIME ZONE 'Africa/Nairobi') = ${dailyCloseDateSql(closingDate)}
+          AND DATE("created_at" AT TIME ZONE ${timezone}) = ${dailyCloseDateSql(closingDate, timezone)}
       )
       SELECT
-        ${dailyCloseDateSql(closingDate)} AS "close_date",
+        ${dailyCloseDateSql(closingDate, timezone)} AS "close_date",
         COUNT(*)::int AS "total_sales",
         COALESCE(SUM("total_amount"), 0)::text AS "total_revenue_tzs",
         COALESCE(SUM("total_amount") FILTER (WHERE "payment_method" = 'CASH'), 0)::text AS "expected_cash"
@@ -1358,7 +1366,7 @@ async function getDailyCloseSummary(pharmacyId: string, closingDate?: string): P
         WHERE
           "pharmacy_id" = ${pharmacyId}
           AND "status" = 'COMPLETED'
-          AND DATE("created_at" AT TIME ZONE 'Africa/Nairobi') = ${dailyCloseDateSql(closingDate)}
+          AND DATE("created_at" AT TIME ZONE ${timezone}) = ${dailyCloseDateSql(closingDate, timezone)}
       ),
       line_items AS (
         SELECT
@@ -1385,7 +1393,7 @@ async function getDailyCloseSummary(pharmacyId: string, closingDate?: string): P
       WHERE
         "pharmacy_id" = ${pharmacyId}
         AND "status" = 'COMPLETED'
-        AND DATE("created_at" AT TIME ZONE 'Africa/Nairobi') = ${dailyCloseDateSql(closingDate)}
+        AND DATE("created_at" AT TIME ZONE ${timezone}) = ${dailyCloseDateSql(closingDate, timezone)}
       GROUP BY "payment_method"
       ORDER BY "payment_method"
     `),
@@ -1408,7 +1416,7 @@ async function getDailyCloseSummary(pharmacyId: string, closingDate?: string): P
   };
 }
 
-async function getDailyCloseRecord(pharmacyId: string, closingDate?: string) {
+async function getDailyCloseRecord(pharmacyId: string, closingDate?: string, timezone = 'Africa/Nairobi') {
   const rows = await prisma.$queryRaw<
     Array<{
       id: string;
@@ -1423,7 +1431,7 @@ async function getDailyCloseRecord(pharmacyId: string, closingDate?: string) {
     SELECT "id", "closing_date", "expected_cash", "actual_cash_counted", "discrepancy", "notes", "created_at"
     FROM "daily_closings"
     WHERE "pharmacy_id" = ${pharmacyId}
-      AND "closing_date" = ${dailyCloseDateSql(closingDate)}
+      AND "closing_date" = ${dailyCloseDateSql(closingDate, timezone)}
     LIMIT 1
   `);
 
@@ -1452,9 +1460,10 @@ dispensingRouter.get(
         .object({ closingDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() })
         .parse(req.query);
       const pharmacyId = getPharmacyId(req);
+      const timezone = await getPharmacyTimezone(pharmacyId);
       const [summary, existing] = await Promise.all([
-        getDailyCloseSummary(pharmacyId, closingDate),
-        getDailyCloseRecord(pharmacyId, closingDate),
+        getDailyCloseSummary(pharmacyId, closingDate, timezone),
+        getDailyCloseRecord(pharmacyId, closingDate, timezone),
       ]);
 
       res.json({
@@ -1479,7 +1488,8 @@ dispensingRouter.post(
 
       const pharmacyId = getPharmacyId(req);
       const currentUserId = getUserId(req);
-      const summary = await getDailyCloseSummary(pharmacyId, closingDate);
+      const timezone = await getPharmacyTimezone(pharmacyId);
+      const summary = await getDailyCloseSummary(pharmacyId, closingDate, timezone);
       const discrepancy = Number((actualCashCounted - summary.expectedCash).toFixed(2));
       if (Math.abs(discrepancy) > 5000 && !normalizedNotes) {
         res.status(400).json({ error: 'VARIANCE_NOTE_REQUIRED' });
@@ -1509,7 +1519,7 @@ dispensingRouter.post(
           ${pharmacyId},
           ${currentUserId},
           ${currentUserId},
-          ${dailyCloseDateSql(closingDate)},
+          ${dailyCloseDateSql(closingDate, timezone)},
           ${summary.expectedCash},
           ${actualCashCounted},
           ${discrepancy},
@@ -1575,7 +1585,19 @@ dispensingRouter.get(
   async (req: AuthRequest, res, next) => {
     try {
       const pharmacyId = getPharmacyId(req);
-      const rows = await prisma.$queryRaw<Array<{
+
+      const { page, limit, from, to } = z.object({
+        page:  z.coerce.number().int().positive().default(1),
+        limit: z.coerce.number().int().min(1).max(500).default(100),
+        from:  z.string().datetime().optional(),
+        to:    z.string().datetime().optional(),
+      }).parse(req.query);
+
+      const offset = (page - 1) * limit;
+      const fromDate = from ? new Date(from) : null;
+      const toDate   = to   ? new Date(to)   : null;
+
+      type RegisterRow = {
         event_id: string;
         reference_number: string;
         product_id: string;
@@ -1586,33 +1608,56 @@ dispensingRouter.get(
         payment_method: string;
         created_at: Date;
         dispensed_by_name: string;
-      }>>(Prisma.sql`
-        SELECT
-          de."id" AS event_id,
-          de."reference_number",
-          item."productId" AS product_id,
-          p."name" AS product_name,
-          p."drugClass"::text AS drug_class,
-          item."quantity"::int AS quantity,
-          item."batchNumber" AS batch_number,
-          de."payment_method"::text AS payment_method,
-          de."created_at",
-          (u."firstName" || ' ' || u."lastName") AS dispensed_by_name
-        FROM "dispensing_events" de
-        INNER JOIN "users" u ON u."id" = de."dispensed_by"
-        CROSS JOIN LATERAL jsonb_to_recordset(de."items") AS item(
-          "productId" text,
-          "quantity" int,
-          "batchNumber" text
-        )
-        INNER JOIN "products" p ON p."id" = item."productId"
-        WHERE
-          de."pharmacy_id" = ${pharmacyId}
-          AND de."status" = 'COMPLETED'
-          AND p."drugClass" IN ('CONTROLLED', 'NARCOTIC')
-        ORDER BY de."created_at" DESC
-        LIMIT 200
-      `);
+      };
+
+      const baseWhere = Prisma.sql`
+        de."pharmacy_id" = ${pharmacyId}
+        AND de."status" = 'COMPLETED'
+        AND p."drugClass" IN ('CONTROLLED', 'NARCOTIC')
+        ${fromDate ? Prisma.sql`AND de."created_at" >= ${fromDate}` : Prisma.empty}
+        ${toDate   ? Prisma.sql`AND de."created_at" <= ${toDate}`   : Prisma.empty}
+      `;
+
+      const [rows, countResult] = await Promise.all([
+        prisma.$queryRaw<RegisterRow[]>(Prisma.sql`
+          SELECT
+            de."id" AS event_id,
+            de."reference_number",
+            item."productId" AS product_id,
+            p."name" AS product_name,
+            p."drugClass"::text AS drug_class,
+            item."quantity"::int AS quantity,
+            item."batchNumber" AS batch_number,
+            de."payment_method"::text AS payment_method,
+            de."created_at",
+            (u."firstName" || ' ' || u."lastName") AS dispensed_by_name
+          FROM "dispensing_events" de
+          INNER JOIN "users" u ON u."id" = de."dispensed_by"
+          CROSS JOIN LATERAL jsonb_to_recordset(de."items") AS item(
+            "productId" text,
+            "quantity" int,
+            "batchNumber" text
+          )
+          INNER JOIN "products" p ON p."id" = item."productId"
+          WHERE ${baseWhere}
+          ORDER BY de."created_at" DESC
+          LIMIT ${limit} OFFSET ${offset}
+        `),
+        prisma.$queryRaw<[{ total: bigint }]>(Prisma.sql`
+          SELECT COUNT(*) AS total
+          FROM "dispensing_events" de
+          CROSS JOIN LATERAL jsonb_to_recordset(de."items") AS item(
+            "productId" text,
+            "quantity" int,
+            "batchNumber" text
+          )
+          INNER JOIN "products" p ON p."id" = item."productId"
+          WHERE ${baseWhere}
+        `),
+      ]);
+
+      const total = Number(countResult[0]?.total ?? 0);
+      const totalPages = Math.ceil(total / limit);
 
       res.json({
         data: rows.map((row) => ({
@@ -1627,6 +1672,13 @@ dispensingRouter.get(
           dispensedByName: row.dispensed_by_name,
           createdAt: row.created_at.toISOString(),
         })),
+        meta: {
+          total,
+          page,
+          limit,
+          totalPages,
+          truncated: page === 1 && total > limit,
+        },
       });
     } catch (error) {
       next(error);
