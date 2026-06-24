@@ -387,6 +387,18 @@ type CheckoutPayload = z.infer<typeof checkoutSchema>;
 
 // clampLocalTimestamp is imported from ../../lib/timestamps
 
+// Override logs are permanent medical records. The write is intentionally
+// non-fatal: if it fails the dispensing event has already committed and
+// the sale must not return 500. Errors are logged at ERROR level so ops
+// can reconstruct the missing entry from the dispensing event payload.
+async function persistOverrideLog(data: Prisma.OverrideLogUncheckedCreateInput) {
+  try {
+    await prisma.overrideLog.create({ data });
+  } catch (error) {
+    console.error('[CRITICAL] Failed to write override log — medical record may be missing:', error);
+  }
+}
+
 async function persistAnonymousSafetyEvents(input: Parameters<typeof recordAnonymousSafetyEvents>[0]) {
   try {
     await recordAnonymousSafetyEvents(input);
@@ -694,24 +706,21 @@ async function completeDispensingCheckout(input: {
   if (payload.override && (review?.interactions.some((item) => item.requiresPicPin || item.severity === 'HIGH') || review?.contraindications.some((item) => item.requiresPicPin || item.severity === 'HIGH'))) {
     const criticalInteraction = review?.interactions.find((item) => item.requiresPicPin || item.severity === 'HIGH');
     const criticalContraindication = review?.contraindications.find((item) => item.requiresPicPin || item.severity === 'HIGH');
-
-      await prisma.overrideLog.create({
-        data: {
-          pharmacyId,
-          userId: currentUserId,
-          picUserId: payload.override!.pic_user_id || currentUserId,
-          alertType: criticalContraindication ? 'CONTRAINDICATION' : 'INTERACTION',
-          reason: payload.override!.reason,
-          interactionId: criticalInteraction?.id,
-          contraindicationId: criticalContraindication?.id,
-          payload: {
-            referenceNumber,
-            dispensingEventId: checkoutResult.event.id,
-            review,
-            localSessionId,
-          } as Prisma.JsonObject,
-        },
-      });
+    await persistOverrideLog({
+      pharmacyId,
+      userId: currentUserId,
+      picUserId: payload.override.pic_user_id || currentUserId,
+      alertType: criticalContraindication ? 'CONTRAINDICATION' : 'INTERACTION',
+      reason: payload.override.reason,
+      interactionId: criticalInteraction?.id,
+      contraindicationId: criticalContraindication?.id,
+      payload: {
+        referenceNumber,
+        dispensingEventId: checkoutResult.event.id,
+        review,
+        localSessionId,
+      } as Prisma.JsonObject,
+    });
   }
 
   await persistAnonymousSafetyEvents({
@@ -1016,21 +1025,19 @@ dispensingRouter.post('/checkout', requirePermission('dispensing.access'), uploa
       const criticalInteraction = review.interactions.find((item) => item.requiresPicPin || item.severity === 'HIGH');
       const criticalContraindication = review.contraindications.find((item) => item.requiresPicPin || item.severity === 'HIGH');
 
-      await prisma.overrideLog.create({
-        data: {
-          pharmacyId,
-          userId: currentUserId,
-          picUserId: payload.override!.pic_user_id || currentUserId,
-          alertType: criticalContraindication ? 'CONTRAINDICATION' : 'INTERACTION',
-          reason: payload.override!.reason,
-          interactionId: criticalInteraction?.id,
-          contraindicationId: criticalContraindication?.id,
-          payload: {
-            referenceNumber,
-            dispensingEventId: checkoutResult.event.id,
-            review,
-          } as Prisma.JsonObject,
-        },
+      await persistOverrideLog({
+        pharmacyId,
+        userId: currentUserId,
+        picUserId: payload.override!.pic_user_id || currentUserId,
+        alertType: criticalContraindication ? 'CONTRAINDICATION' : 'INTERACTION',
+        reason: payload.override!.reason,
+        interactionId: criticalInteraction?.id,
+        contraindicationId: criticalContraindication?.id,
+        payload: {
+          referenceNumber,
+          dispensingEventId: checkoutResult.event.id,
+          review,
+        } as Prisma.JsonObject,
       });
     }
 
