@@ -32,7 +32,7 @@ export default function Footer() {
             Wholesale or Enterprise?
           </p>
           <Link
-            className="rounded-lg bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/20"
+            className="rounded-lg bg-[#E8A020] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#c8881a]"
             href="/contact?tab=wholesale"
           >
             Contact us directly →

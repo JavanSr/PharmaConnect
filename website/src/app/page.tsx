@@ -243,7 +243,7 @@ function Nav() {
           </nav>
           <div className="nav-desktop-links" style={{ gap: 10, alignItems: 'center' }}>
             <a href="https://app.apotekh.co.tz/login" style={{ padding: '10px 18px', fontSize: 13, fontWeight: 500, color: '#0D4035', opacity: 0.7, minHeight: 44, display: 'inline-flex', alignItems: 'center' }}>Sign in</a>
-            <a href="mailto:support@apotekh.co.tz?subject=Demo%20request" style={{ padding: '10px 18px', borderRadius: 8, border: '1.5px solid #1A6B5C', color: '#1A6B5C', fontSize: 13, fontWeight: 600, minHeight: 44, display: 'inline-flex', alignItems: 'center' }}>Book a demo</a>
+            <a href="/demo" style={{ padding: '10px 18px', borderRadius: 8, border: '1.5px solid #1A6B5C', color: '#1A6B5C', fontSize: 13, fontWeight: 600, minHeight: 44, display: 'inline-flex', alignItems: 'center' }}>Book a demo</a>
             <a href="https://app.apotekh.co.tz/register" style={{ padding: '10px 20px', borderRadius: 8, background: '#1A6B5C', color: 'white', fontSize: 13, fontWeight: 600, minHeight: 44, display: 'inline-flex', alignItems: 'center' }}>Start free trial</a>
           </div>
           <button className="nav-hamburger" onClick={() => setMobileOpen(true)}
@@ -265,7 +265,7 @@ function Nav() {
           </nav>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingTop: 28 }}>
             <a href="https://app.apotekh.co.tz/login" style={{ display: 'block', textAlign: 'center', padding: '13px', borderRadius: 10, border: '1.5px solid #E2EDE8', color: '#0D4035', fontSize: 15, fontWeight: 600 }}>Sign in</a>
-            <a href="mailto:support@apotekh.co.tz?subject=Demo%20request" style={{ display: 'block', textAlign: 'center', padding: '13px', borderRadius: 10, border: '1.5px solid #1A6B5C', color: '#1A6B5C', fontSize: 15, fontWeight: 600 }}>Book a demo</a>
+            <a href="/demo" style={{ display: 'block', textAlign: 'center', padding: '13px', borderRadius: 10, border: '1.5px solid #1A6B5C', color: '#1A6B5C', fontSize: 15, fontWeight: 600 }}>Book a demo</a>
             <a href="https://app.apotekh.co.tz/register" style={{ display: 'block', textAlign: 'center', padding: '13px', borderRadius: 10, background: '#1A6B5C', color: 'white', fontSize: 15, fontWeight: 600 }}>Start free trial</a>
           </div>
         </div>
@@ -311,7 +311,7 @@ function Hero() {
             }}>
               Start free trial — 14 days free
             </a>
-            <a href="mailto:support@apotekh.co.tz?subject=Demo%20request" className="cta-outline" style={{ borderColor: 'rgba(255,255,255,0.4)', color: 'rgba(255,255,255,0.9)' }}>
+            <a href="/demo" className="cta-outline" style={{ borderColor: 'rgba(255,255,255,0.4)', color: 'rgba(255,255,255,0.9)' }}>
               Book a demo →
             </a>
           </div>
@@ -897,17 +897,17 @@ function SafetyChecks() {
         </div>
         <div style={{ display: 'grid', gap: 12 }}>
           {[
-            { level: 'MINOR', desc: 'Counselling recommended', bg: '#F7FBF8', border: '#D6F0E8', text: '#0D4035', badge: null },
-            { level: 'MODERATE', desc: 'Review and counsel before proceeding', bg: '#EDF7F3', border: '#AFDFD3', text: '#145748', badge: null },
-            { level: 'MAJOR', desc: 'Acknowledge risk and log justification', bg: '#EDF7F3', border: '#1A6B5C', text: '#0D4035', badge: 'Logged override' },
-            { level: 'CONTRAINDICATED', desc: 'Acknowledge highest severity and log justification', bg: '#F7FBF8', border: '#1A6B5C', text: '#0D4035', badge: 'Logged override' },
-          ].map(({ level, desc, bg, border, text, badge }) => (
+            { level: 'MINOR', desc: 'Counselling recommended', bg: '#F0FDF4', border: '#86EFAC', text: '#166534', badgeBg: null, badge: null },
+            { level: 'MODERATE', desc: 'Review and counsel before proceeding', bg: '#FFFBEB', border: '#FCD34D', text: '#92400E', badgeBg: null, badge: null },
+            { level: 'MAJOR', desc: 'Acknowledge risk and log justification', bg: '#FFF7ED', border: '#FB923C', text: '#9A3412', badgeBg: '#EA580C', badge: 'Logged override' },
+            { level: 'CONTRAINDICATED', desc: 'Acknowledge highest severity and log justification', bg: '#FEF2F2', border: '#F87171', text: '#991B1B', badgeBg: '#DC2626', badge: 'Logged override' },
+          ].map(({ level, desc, bg, border, text, badgeBg, badge }) => (
             <div key={level} style={{ background: bg, border: `1.5px solid ${border}`, borderRadius: 12, padding: '18px 22px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <p className="mono" style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', color: text, margin: '0 0 5px' }}>{level}</p>
                 <p style={{ fontSize: 15, fontWeight: 500, color: text, margin: 0 }}>{desc}</p>
               </div>
-              {badge && <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 6, background: text, color: 'white', whiteSpace: 'nowrap', flexShrink: 0, marginLeft: 12 }}>{badge}</span>}
+              {badge && <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 6, background: badgeBg ?? text, color: 'white', whiteSpace: 'nowrap', flexShrink: 0, marginLeft: 12 }}>{badge}</span>}
             </div>
           ))}
         </div>
@@ -930,11 +930,11 @@ function RoleSection() {
     {
       label: 'Pharmacist-in-Charge',
       headline: 'Stay inspection-ready every day.',
-      features: ['TMDA licence tracker', 'Inspection checklist', 'Controlled drugs register', 'Staff credential vault', 'Drug interaction oversight before every sale', 'Clinical override with logged justification'],
+      features: ['Licence & registration tracker', 'Inspection checklist', 'Controlled drugs register', 'Staff credential vault', 'Drug interaction oversight before every sale', 'Clinical override — acknowledged and logged'],
       stat: { eye: 'PHARMACIST-IN-CHARGE · IN NUMBERS', val: '0', sub: 'inspection pack rebuilds — it is always live' },
     },
     {
-      label: 'Counter team',
+      label: 'Dispensers',
       headline: 'Fast, guided, impossible to get wrong.',
       features: ['Barcode scan to select and verify instantly', 'FEFO-guided product selection every time', 'Drug interaction check on every dispense', 'Offline-ready during network outages', 'Dispensing receipt generated automatically', 'Anonymous session — no patient data stored'],
       stat: { eye: 'COUNTER TEAM · IN NUMBERS', val: '< 30s', sub: 'from scan to verified dispensing receipt' },
@@ -1199,7 +1199,7 @@ function SupportStrip() {
           ))}
         </div>
         <div style={{ marginTop: 40, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-          <a href="mailto:support@apotekh.co.tz?subject=Demo%20request" style={{
+          <a href="/demo" style={{
             display: 'inline-flex', alignItems: 'center', gap: 8, padding: '12px 24px', borderRadius: 8,
             background: '#1A6B5C', color: 'white', fontSize: 14, fontWeight: 600, minHeight: 44,
           }}>
@@ -1258,7 +1258,7 @@ function FinalCTA() {
           <a href="https://app.apotekh.co.tz/register" className="cta-primary" style={{ background: 'white', color: '#0D4035', padding: '15px 36px', boxShadow: '0 4px 24px rgba(0,0,0,0.25)', fontSize: 15 }}>
             Start free trial — 14 days free
           </a>
-          <a href="mailto:support@apotekh.co.tz?subject=Demo%20request" className="cta-outline" style={{ padding: '14px 36px', borderColor: 'rgba(255,255,255,0.55)', color: 'rgba(255,255,255,0.9)' }}>
+          <a href="/demo" className="cta-outline" style={{ padding: '14px 36px', borderColor: 'rgba(255,255,255,0.55)', color: 'rgba(255,255,255,0.9)' }}>
             Book a demo →
           </a>
         </div>

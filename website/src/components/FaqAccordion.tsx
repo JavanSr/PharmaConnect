@@ -4,7 +4,12 @@ import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const FAQS = [
+export interface FaqItem {
+  q: string;
+  a: string;
+}
+
+const DEFAULT_FAQS: FaqItem[] = [
   {
     q: "Does APOTEKH work without internet?",
     a: "Yes. APOTEKH is offline-first — dispensing, stock updates, and safety checks all work without a connection. Data syncs automatically the moment connectivity returns. You never lose a sale or a record because of network problems.",
@@ -31,12 +36,17 @@ const FAQS = [
   },
   {
     q: "How does pricing work?",
-    a: "Retail subscriptions start at Tsh 20,000/month for ADDOs and scale to Tsh 75,000/month for Premium (5 outlets, 20 users). All retail tiers include a 14-day free trial. Annual billing gives two months free. Wholesale and Enterprise pricing is separate — contact us to discuss.",
+    a: "Retail subscriptions start at Tsh 15,000/month for ADDOs and scale to Tsh 75,000/month for Premium (5 outlets, 20 users). All retail tiers include a 14-day free trial. Annual billing gives two months free. Wholesale and Enterprise pricing is separate — contact us to discuss.",
   },
 ];
 
-export default function FaqAccordion() {
-  const [open, setOpen] = useState<Set<number>>(new Set([0, 1]));
+interface FaqAccordionProps {
+  items?: FaqItem[];
+  defaultOpen?: number[];
+}
+
+export default function FaqAccordion({ items = DEFAULT_FAQS, defaultOpen = [0, 1] }: FaqAccordionProps) {
+  const [open, setOpen] = useState<Set<number>>(new Set(defaultOpen));
 
   const toggle = (i: number) =>
     setOpen((prev) => {
@@ -47,7 +57,7 @@ export default function FaqAccordion() {
 
   return (
     <div className="divide-y divide-slate/10">
-      {FAQS.map((faq, i) => (
+      {items.map((faq, i) => (
         <div key={i}>
           <button
             className="flex w-full items-center justify-between gap-4 py-5 text-left"

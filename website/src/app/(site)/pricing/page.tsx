@@ -1,22 +1,24 @@
 import PricingToggle from "@/components/PricingToggle";
+import FaqAccordion from "@/components/FaqAccordion";
 import Button from "@/components/ui/Button";
 import { WHOLESALE_TIERS } from "@/lib/data/pricing";
 import { Check } from "lucide-react";
+import type { FaqItem } from "@/components/FaqAccordion";
 
 export const metadata = {
   title: "Pricing - APOTEKH",
   description: "Transparent pricing for Tanzania's pharmacies and ADDOs — from ADDO to multi-branch chains.",
 };
 
-const faqs = [
-  ["Is this a payments platform?", "No. APOTEKH records payment method for dispensing and reconciliation. It does not process or settle money."],
-  ["Does APOTEKH work without internet?", "Yes — APOTEKH is offline-first. Dispensing, stock updates, and safety checks all work without a connection. Every action syncs automatically when connectivity returns."],
-  ["What is the Clinical Decision Support Suite?", "It includes drug interaction checking (4 severity levels), contraindication alerts for 8 patient status flags, a dose calculator, NCD usage hints, diagnosis-drug matching, alternative medicine suggestions, and therapeutic equivalence matching. It is available identically across all retail tiers — never gated by price."],
-  ["Does APOTEKH store patient names or IDs?", "No. All clinical checks run on an anonymous session. No patient names, national IDs, or personal records are ever stored — this is by design."],
-  ["Can I manage multiple pharmacy branches?", "Yes - ADDO includes a single-outlet Owner Dashboard. Basic (2 outlets) through Premium (5 outlets) add multi-outlet Owner Dashboard visibility with live revenue, stock, and compliance status. Enterprise supports unlimited outlets."],
-  ["Do prices include implementation support?", "Standard, Premium, and all wholesale/enterprise tiers include full implementation support. Basic includes partial support. ADDO tier is self-service with documentation."],
-  ["Are future modules included when they launch?", "Your subscription tier determines which new modules you receive automatically. You will not be charged extra for modules within your tier's scope."],
-  ["What happens when the trial ends?", "Accounts convert to paid at the end of the 14-day trial. There are no extensions. If payment is not confirmed, the account suspends until billing is resolved."],
+const faqs: FaqItem[] = [
+  { q: "Is this a payments platform?", a: "No. APOTEKH records payment method for dispensing and reconciliation. It does not process or settle money." },
+  { q: "Does APOTEKH work without internet?", a: "Yes — APOTEKH is offline-first. Dispensing, stock updates, and safety checks all work without a connection. Every action syncs automatically when connectivity returns." },
+  { q: "What is the Clinical Decision Support Suite?", a: "It includes drug interaction checking (4 severity levels), contraindication alerts for 8 patient status flags, a dose calculator, NCD usage hints, diagnosis-drug matching, alternative medicine suggestions, and therapeutic equivalence matching. It is available identically across all retail tiers — never gated by price." },
+  { q: "Does APOTEKH store patient names or IDs?", a: "No. All clinical checks run on an anonymous session. No patient names, national IDs, or personal records are ever stored — this is by design." },
+  { q: "Can I manage multiple pharmacy branches?", a: "Yes — ADDO includes a single-outlet Owner Dashboard. Basic (2 outlets) through Premium (5 outlets) add multi-outlet Owner Dashboard visibility with live revenue, stock, and compliance status. Enterprise supports unlimited outlets." },
+  { q: "Do prices include implementation support?", a: "Standard, Premium, and all wholesale/enterprise tiers include full implementation support. Basic includes partial support. ADDO tier is self-service with documentation." },
+  { q: "Are future modules included when they launch?", a: "Your subscription tier determines which new modules you receive automatically. You will not be charged extra for modules within your tier's scope." },
+  { q: "What happens when the trial ends?", a: "Accounts convert to paid at the end of the 14-day trial. There are no extensions. If payment is not confirmed, the account suspends until billing is resolved." },
 ];
 
 export default function PricingPage() {
@@ -49,7 +51,7 @@ export default function PricingPage() {
                 <p className="mt-4 text-white/65">{tier.tagline}</p>
 
                 <div className="mt-8">
-                  <Button href="/contact" variant="outline">{tier.cta}</Button>
+                  <Button href="/contact" variant="amber">{tier.cta}</Button>
                 </div>
               </div>
 
@@ -100,14 +102,11 @@ export default function PricingPage() {
         </section>
 
         {/* FAQ */}
-        <section className="mt-16 grid gap-4">
+        <section className="mt-16">
           <h2 className="text-2xl font-semibold text-slate">Common questions</h2>
-          {faqs.map(([question, answer]) => (
-            <details className="rounded-xl bg-white p-5 shadow-sm" key={question}>
-              <summary className="cursor-pointer font-semibold text-slate">{question}</summary>
-              <p className="mt-3 text-sm leading-7 text-slate/65">{answer}</p>
-            </details>
-          ))}
+          <div className="mt-6 rounded-xl bg-white px-6 shadow-sm">
+            <FaqAccordion items={faqs} defaultOpen={[0]} />
+          </div>
         </section>
 
         {/* CTA */}
@@ -115,7 +114,7 @@ export default function PricingPage() {
           <h2 className="font-serif text-3xl font-semibold">Ready to get started?</h2>
           <p className="mt-3 text-white/70">Tell us about your pharmacy and we will respond within 48 hours.</p>
           <div className="mt-6">
-            <Button href="/contact#waitlist" variant="outline">Get access</Button>
+            <Button href="/contact#waitlist" variant="amber">Get access</Button>
           </div>
         </section>
       </div>

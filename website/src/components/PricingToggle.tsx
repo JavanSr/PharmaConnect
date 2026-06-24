@@ -36,8 +36,8 @@ export default function PricingToggle() {
           );
         })}
       </div>
-      <div className="mt-8 overflow-x-auto pb-4">
-        <div className="flex snap-x snap-mandatory gap-5 lg:grid lg:grid-cols-5 lg:overflow-visible">
+      <div className="mt-8 overflow-x-auto pb-4 pt-5">
+        <div className="flex snap-x snap-mandatory gap-5 lg:grid lg:grid-cols-4 lg:overflow-visible">
           {TIERS.map((tier) => (
             <PricingCard billing={billing} key={tier.id} tier={tier} />
           ))}
