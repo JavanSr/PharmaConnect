@@ -5,7 +5,7 @@ import { Router, type NextFunction, type Response } from 'express';
 import multer from 'multer';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
-import { authenticate, requireRole, type AuthRequest } from '../../middleware/auth';
+import { authenticate, assertUser, requireRole, type AuthRequest } from '../../middleware/auth';
 import { hasPermission, requirePermission } from '../../middleware/permissions';
 import { emitToPharmacy } from '../realtime/realtime.service';
 import { enforceTrialRestrictions } from '../../middleware/trial';
@@ -162,7 +162,7 @@ function getPharmacyId(req: AuthRequest): string {
 }
 
 function getUserId(req: AuthRequest) {
-  return req.user!.userId;
+  return assertUser(req).userId;
 }
 
 function toNumber(value: string | number | Prisma.Decimal | null | undefined): number {
@@ -803,7 +803,7 @@ dispensingRouter.post('/checkout', requirePermission('dispensing.access'), uploa
     }
 
     if (discountAmount > 0 || discountReason) {
-      const canDiscount = hasPermission(req.user!.role, 'dispensing.apply_discount', req.user!.pharmacy);
+      const canDiscount = hasPermission(assertUser(req).role, 'dispensing.apply_discount', assertUser(req).pharmacy);
       if (!canDiscount) {
         res.status(403).json({ error: 'ROLE_INSUFFICIENT', permission: 'dispensing.apply_discount' });
         return;
@@ -960,7 +960,7 @@ dispensingRouter.post('/checkout', requirePermission('dispensing.access'), uploa
         VALUES (
           ${pharmacyId},
           ${currentUserId},
-          ${req.user!.normalizedRole === 'CASHIER' ? currentUserId : null},
+          ${assertUser(req).normalizedRole === 'CASHIER' ? currentUserId : null},
           ${referenceNumber},
           ${payload.paymentMethod}::"PaymentMethod",
           ${payload.paymentRef || null},
@@ -1118,7 +1118,7 @@ dispensingRouter.post('/sync-batch', requirePermission('dispensing.access'), asy
           payload,
           pharmacyId,
           currentUserId,
-          user: req.user!,
+          user: assertUser(req),
           source: 'OFFLINE_SYNC',
         });
         results.push({

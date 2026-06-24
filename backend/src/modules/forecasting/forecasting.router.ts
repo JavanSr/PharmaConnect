@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { authenticate, type AuthRequest } from '../../middleware/auth';
+import { authenticate, assertUser, type AuthRequest } from '../../middleware/auth';
 import { requirePermission } from '../../middleware/permissions';
 import { requireTier } from '../../middleware/tier';
 import { enforceTrialRestrictions } from '../../middleware/trial';
@@ -33,7 +33,7 @@ forecastingRouter.get('/stockout', requireTier('PREMIUM'), async (req: AuthReque
 
     await trackFeatureTelemetry({
       pharmacyId: pid(req),
-      userId: req.user!.userId,
+      userId: assertUser(req).userId,
       featureKey: 'forecasting',
       eventType: 'USED',
       metadata: {
@@ -60,7 +60,7 @@ forecastingRouter.get('/seasonality', requireTier('PREMIUM'), async (req: AuthRe
   try {
     await trackFeatureTelemetry({
       pharmacyId: pid(req),
-      userId: req.user!.userId,
+      userId: assertUser(req).userId,
       featureKey: 'forecasting',
       eventType: 'USED',
       metadata: {
@@ -81,7 +81,7 @@ forecastingRouter.get('/dead-stock', requireTier('PREMIUM'), async (req: AuthReq
 
     await trackFeatureTelemetry({
       pharmacyId: pid(req),
-      userId: req.user!.userId,
+      userId: assertUser(req).userId,
       featureKey: 'forecasting',
       eventType: 'USED',
       metadata: {

@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { Router } from 'express';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
-import { authenticate, type AuthRequest } from '../../middleware/auth';
+import { authenticate, assertUser, type AuthRequest } from '../../middleware/auth';
 import { requirePermission } from '../../middleware/permissions';
 import { enforceTrialRestrictions } from '../../middleware/trial';
 import { prisma } from '../../lib/prisma';
@@ -448,7 +448,7 @@ knowledgeRouter.get('/courses/:slug', async (req: AuthRequest, res, next) => {
       SELECT *
       FROM "course_enrolments"
       WHERE "course_id" = ${course.id}
-        AND "user_id" = ${req.user!.userId}
+        AND "user_id" = ${assertUser(req).userId}
       LIMIT 1
     `;
 
@@ -487,7 +487,7 @@ knowledgeRouter.post('/courses/:id/enrol', async (req: AuthRequest, res, next) =
 
     const rows = await prisma.$queryRaw<Array<{ id: string }>>`
       INSERT INTO "course_enrolments" ("course_id", "user_id", "pharmacy_id")
-      VALUES (${course.id}, ${req.user!.userId}, ${pid(req)})
+      VALUES (${course.id}, ${assertUser(req).userId}, ${pid(req)})
       ON CONFLICT ("course_id", "user_id")
       DO UPDATE SET "updated_at" = NOW()
       RETURNING "id"
@@ -517,7 +517,7 @@ knowledgeRouter.post('/courses/:id/attempt', async (req: AuthRequest, res, next)
       SELECT *
       FROM "course_enrolments"
       WHERE "course_id" = ${course.id}
-        AND "user_id" = ${req.user!.userId}
+        AND "user_id" = ${assertUser(req).userId}
       LIMIT 1
     `;
 
@@ -587,7 +587,7 @@ knowledgeRouter.post('/courses/:id/attempt', async (req: AuthRequest, res, next)
         )
         VALUES (
           ${randomUUID()},
-          ${req.user!.userId},
+          ${assertUser(req).userId},
           'ONLINE_COURSE',
           ${course.title},
           'APOTEKH',
@@ -625,7 +625,7 @@ const slugify = (title: string) =>
 knowledgeRouter.get('/submissions', authenticate, enforceTrialRestrictions, async (req: AuthRequest, res, next) => {
   try {
     const articles = await prisma.article.findMany({
-      where: { submittedByUserId: req.user!.userId },
+      where: { submittedByUserId: assertUser(req).userId },
       orderBy: { updatedAt: 'desc' },
       select: {
         id: true, slug: true, title: true, summary: true, category: true,
@@ -657,7 +657,7 @@ knowledgeRouter.post('/submissions', authenticate, enforceTrialRestrictions, asy
         category:         (body.category ?? 'GENERAL') as any,
         tags:             body.tags ?? [],
         authorBio:        body.authorBio,
-        submittedByUserId: req.user!.userId,
+        submittedByUserId: assertUser(req).userId,
         submissionStatus: 'DRAFT',
         isPublished:      false,
       },
@@ -669,7 +669,7 @@ knowledgeRouter.post('/submissions', authenticate, enforceTrialRestrictions, asy
 knowledgeRouter.get('/submissions/:id', authenticate, enforceTrialRestrictions, async (req: AuthRequest, res, next) => {
   try {
     const article = await prisma.article.findFirst({
-      where: { id: req.params.id, submittedByUserId: req.user!.userId },
+      where: { id: req.params.id, submittedByUserId: assertUser(req).userId },
     });
     if (!article) { res.status(404).json({ error: 'Not found' }); return; }
     res.json({ data: article });
@@ -679,7 +679,7 @@ knowledgeRouter.get('/submissions/:id', authenticate, enforceTrialRestrictions, 
 knowledgeRouter.patch('/submissions/:id', authenticate, enforceTrialRestrictions, async (req: AuthRequest, res, next) => {
   try {
     const existing = await prisma.article.findFirst({
-      where: { id: req.params.id, submittedByUserId: req.user!.userId },
+      where: { id: req.params.id, submittedByUserId: assertUser(req).userId },
     });
     if (!existing) { res.status(404).json({ error: 'Not found' }); return; }
     if (existing.submissionStatus === 'PENDING_REVIEW') {
@@ -715,7 +715,7 @@ knowledgeRouter.patch('/submissions/:id', authenticate, enforceTrialRestrictions
 knowledgeRouter.post('/submissions/:id/submit', authenticate, enforceTrialRestrictions, async (req: AuthRequest, res, next) => {
   try {
     const existing = await prisma.article.findFirst({
-      where: { id: req.params.id, submittedByUserId: req.user!.userId },
+      where: { id: req.params.id, submittedByUserId: assertUser(req).userId },
     });
     if (!existing) { res.status(404).json({ error: 'Not found' }); return; }
     if (!existing.htmlContent && !existing.summary) {
@@ -735,7 +735,7 @@ knowledgeRouter.post('/submissions/:id/submit', authenticate, enforceTrialRestri
 knowledgeRouter.post('/submissions/:id/withdraw', authenticate, enforceTrialRestrictions, async (req: AuthRequest, res, next) => {
   try {
     const existing = await prisma.article.findFirst({
-      where: { id: req.params.id, submittedByUserId: req.user!.userId },
+      where: { id: req.params.id, submittedByUserId: assertUser(req).userId },
     });
     if (!existing) { res.status(404).json({ error: 'Not found' }); return; }
     const updated = await prisma.article.update({
@@ -749,7 +749,7 @@ knowledgeRouter.post('/submissions/:id/withdraw', authenticate, enforceTrialRest
 knowledgeRouter.delete('/submissions/:id', authenticate, enforceTrialRestrictions, async (req: AuthRequest, res, next) => {
   try {
     const existing = await prisma.article.findFirst({
-      where: { id: req.params.id, submittedByUserId: req.user!.userId },
+      where: { id: req.params.id, submittedByUserId: assertUser(req).userId },
     });
     if (!existing) { res.status(404).json({ error: 'Not found' }); return; }
     if (existing.isPublished) { res.status(409).json({ error: 'Cannot delete a published article' }); return; }

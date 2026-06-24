@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { authenticate, requireRole, type AuthRequest } from '../../middleware/auth';
+import { authenticate, assertUser, requireRole, type AuthRequest } from '../../middleware/auth';
 import * as svc from './review.service';
 
 export const reviewRouter = Router();
@@ -8,7 +8,7 @@ reviewRouter.use(authenticate);
 reviewRouter.use(requireRole('OWNER', 'PHARMACIST_IN_CHARGE', 'SUPER_ADMIN'));
 
 function viewer(req: AuthRequest) {
-  return req.user!;
+  return assertUser(req);
 }
 
 reviewRouter.get('/', async (req: AuthRequest, res, next) => {

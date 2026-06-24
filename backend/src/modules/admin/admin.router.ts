@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { authenticate, requireRole, type AuthRequest } from '../../middleware/auth';
+import { authenticate, assertUser, requireRole, type AuthRequest } from '../../middleware/auth';
 import { signAccess } from '../../lib/jwt';
 import { prisma } from '../../lib/prisma';
 import { writeAuditLog } from './admin.audit';
@@ -10,8 +10,8 @@ export const adminRouter = Router();
 adminRouter.use(authenticate);
 adminRouter.use(requireRole('SUPER_ADMIN'));
 
-const uid = (req: AuthRequest) => req.user!.userId;
-const email = (req: AuthRequest) => req.user!.email;
+const uid = (req: AuthRequest) => assertUser(req).userId;
+const email = (req: AuthRequest) => assertUser(req).email;
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
@@ -649,5 +649,5 @@ adminRouter.post('/knowledge/submissions/:id/reject', async (req: AuthRequest, r
 // ─── Me (verify super-admin session) ─────────────────────────────────────────
 
 adminRouter.get('/me', (req: AuthRequest, res) => {
-  res.json({ data: { userId: uid(req), email: email(req), role: req.user!.role } });
+  res.json({ data: { userId: uid(req), email: email(req), role: assertUser(req).role } });
 });

@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
-import { authenticate, hasRoleAccess, type AuthRequest } from '../../middleware/auth';
+import { authenticate, assertUser, hasRoleAccess, type AuthRequest } from '../../middleware/auth';
 import { enforceTrialRestrictions } from '../../middleware/trial';
 // picPinLimiter / requirePicPin removed — CLAUDE.md: dispenser overrides at own risk,
 // no Superintendent PIN required, no escalation. Override is logged against the dispenser.
@@ -164,13 +164,13 @@ patientSafetyRouter.post('/counselling-suggestions', async (req: AuthRequest, re
 
     const data = await getCounsellingSuggestions({
       pharmacyId: pid(req),
-      userId: req.user!.userId,
+      userId: assertUser(req).userId,
       triggers: payload.triggers,
     });
 
     await trackFeatureTelemetry({
       pharmacyId: pid(req),
-      userId: req.user!.userId,
+      userId: assertUser(req).userId,
       featureKey: 'ai_counselling',
       eventType: 'USED',
       metadata: {
@@ -231,7 +231,7 @@ patientSafetyRouter.post('/override', async (req: AuthRequest, res, next) => {
 
     const data = await createOverrideLog({
       pharmacyId: pid(req),
-      userId: req.user!.userId,
+      userId: assertUser(req).userId,
       picUserId: undefined,   // no PIC approval required per product design
       alertType: payload.alertType,
       reason: payload.reason,

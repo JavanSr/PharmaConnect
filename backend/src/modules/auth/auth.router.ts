@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { authenticate } from '../../middleware/auth';
+import { authenticate, assertUser } from '../../middleware/auth';
 import { prisma } from '../../lib/prisma';
 import {
   loginService,
@@ -127,7 +127,7 @@ authRouter.post('/logout', authenticate, async (req: AuthRequest, res, next) => 
 authRouter.get('/me', authenticate, async (req: AuthRequest, res, next) => {
   try {
     const user = await prisma.user.findUnique({
-      where: { id: req.user!.userId },
+      where: { id: assertUser(req).userId },
       include: { pharmacy: true },
     });
     if (!user) { res.status(404).json({ error: 'User not found' }); return; }

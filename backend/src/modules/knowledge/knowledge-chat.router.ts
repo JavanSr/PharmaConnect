@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../../lib/prisma';
-import { authenticate, type AuthRequest } from '../../middleware/auth';
+import { authenticate, assertUser, type AuthRequest } from '../../middleware/auth';
 import { enforceTrialRestrictions } from '../../middleware/trial';
 
 export const knowledgeChatRouter = Router();
@@ -15,7 +15,7 @@ const pid = (req: AuthRequest): string => {
   return p;
 };
 
-const uid = (req: AuthRequest): string => req.user!.userId;
+const uid = (req: AuthRequest): string => assertUser(req).userId;
 
 const CHAT_CATEGORIES = ['GENERAL', 'DRUG_SAFETY', 'CLINICAL', 'REGULATORY', 'BUSINESS', 'DISPENSING'] as const;
 

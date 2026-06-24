@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { authenticate } from '../../middleware/auth';
+import { authenticate, assertUser } from '../../middleware/auth';
 import type { AuthRequest } from '../../middleware/auth';
 import { requirePermission } from '../../middleware/permissions';
 import { requireTier } from '../../middleware/tier';
@@ -109,7 +109,7 @@ const pid = (req: AuthRequest): string => {
 
 analyticsRouter.get('/features', async (req: AuthRequest, res) => {
   res.json({
-    data: getAnalyticsFeatureSet(req.user!.pharmacy?.subscriptionTier ?? null),
+    data: getAnalyticsFeatureSet(assertUser(req).pharmacy?.subscriptionTier ?? null),
   });
 });
 
@@ -211,7 +211,7 @@ analyticsRouter.post('/compare', requireTier('STANDARD'), async (req: AuthReques
 
     const memberships = await prisma.pharmacyMembership.findMany({
       where: {
-        userId: req.user!.userId,
+        userId: assertUser(req).userId,
         active: true,
         OR: [
           { validFrom: null },

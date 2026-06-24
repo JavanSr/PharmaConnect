@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { authenticate, requireRole, type AuthRequest } from '../../middleware/auth';
+import { authenticate, assertUser, requireRole, type AuthRequest } from '../../middleware/auth';
 import { requirePermission } from '../../middleware/permissions';
 import { enforceTrialRestrictions } from '../../middleware/trial';
 import { getSafetyImpactReport } from '../patient-safety/patient-safety.service';
@@ -21,7 +21,7 @@ import {
 } from './reports.service';
 
 function ensureFinancialReportAccess(req: AuthRequest) {
-  if (req.user!.normalizedRole === 'WHOLESALE_COUNTER_STAFF') {
+  if (assertUser(req).normalizedRole === 'WHOLESALE_COUNTER_STAFF') {
     throw Object.assign(new Error('ROLE_INSUFFICIENT'), { status: 403, code: 'ROLE_INSUFFICIENT' });
   }
 }
@@ -108,7 +108,7 @@ reportsRouter.get('/safety-impact', requireRole('OWNER', 'PHARMACIST_IN_CHARGE',
     }).parse(req.query);
     const officeScope = scope === 'office';
 
-    if (officeScope && req.user!.normalizedRole !== 'SUPER_ADMIN') {
+    if (officeScope && assertUser(req).normalizedRole !== 'SUPER_ADMIN') {
       res.status(403).json({ error: 'OFFICE_SCOPE_REQUIRES_SUPER_ADMIN' });
       return;
     }
@@ -198,7 +198,7 @@ reportsRouter.get('/sales', requireRole('OWNER', 'PHARMACIST_IN_CHARGE', 'SUPER_
 reportsRouter.get('/profit', requireRole('OWNER', 'SUPER_ADMIN'), async (req: AuthRequest, res, next) => {
   try {
     const tier = req.user?.pharmacy?.subscriptionTier as string | undefined;
-    const isSuperAdmin = req.user!.normalizedRole === 'SUPER_ADMIN';
+    const isSuperAdmin = assertUser(req).normalizedRole === 'SUPER_ADMIN';
     const ALLOWED_TIERS = ['STANDARD', 'PREMIUM', 'ENTERPRISE'];
     if (!isSuperAdmin && (!tier || !ALLOWED_TIERS.includes(tier))) {
       res.status(403).json({ error: 'Forbidden: Profit report requires STANDARD tier or above.' });

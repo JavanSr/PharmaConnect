@@ -2,7 +2,7 @@ import { Router } from 'express';
 import type { NextFunction, Response } from 'express';
 import multer from 'multer';
 import { z } from 'zod';
-import { authenticate } from '../../middleware/auth';
+import { authenticate, assertUser } from '../../middleware/auth';
 import type { AuthRequest } from '../../middleware/auth';
 import { requirePermission } from '../../middleware/permissions';
 import { requireTier } from '../../middleware/tier';
@@ -57,7 +57,7 @@ function pid(req: AuthRequest): string {
   if (!p) throw Object.assign(new Error('Pharmacy context required'), { status: 400 });
   return p;
 }
-const uid = (req: AuthRequest) => req.user!.userId;
+const uid = (req: AuthRequest) => assertUser(req).userId;
 const canReviewStockAdjustmentSuggestions = (req: AuthRequest) =>
   ['OWNER', 'PHARMACIST_IN_CHARGE', 'SUPER_ADMIN'].includes(req.user?.normalizedRole ?? '');
 const DISPENSER_SUPPLIER_WRITE_KEY = 'inventory.dispenser_supplier_write';

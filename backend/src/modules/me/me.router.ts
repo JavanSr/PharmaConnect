@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
-import { authenticate, requireRole, type AuthRequest } from '../../middleware/auth';
+import { authenticate, assertUser, requireRole, type AuthRequest } from '../../middleware/auth';
 import { prisma } from '../../lib/prisma';
 import { withPrismaRetry } from '../../lib/prisma-retry';
 import { issueAuthTokens, listAccessiblePharmacies } from '../auth/pharmacy-membership.service';
@@ -37,7 +37,7 @@ const activeMembershipWhere = (userId: string, pharmacyId: string) => ({
 
 meRouter.get('/pharmacies', async (req: AuthRequest, res, next) => {
   try {
-    const memberships = await listAccessiblePharmacies(req.user!.userId);
+    const memberships = await listAccessiblePharmacies(assertUser(req).userId);
     res.json({
       data: memberships.map((membership) => ({
         ...membership,
@@ -53,7 +53,7 @@ meRouter.post('/pharmacies/:id/select', async (req: AuthRequest, res, next) => {
   try {
     const pharmacyId = z.string().uuid().parse(req.params.id);
     const membership = await withPrismaRetry(() => prisma.pharmacyMembership.findFirst({
-      where: activeMembershipWhere(req.user!.userId, pharmacyId),
+      where: activeMembershipWhere(assertUser(req).userId, pharmacyId),
       select: {
         pharmacyId: true,
         pharmacy: {
@@ -87,19 +87,19 @@ meRouter.post('/pharmacies/:id/select', async (req: AuthRequest, res, next) => {
     }
 
     await withPrismaRetry(() => prisma.user.update({
-      where: { id: req.user!.userId },
+      where: { id: assertUser(req).userId },
       data: { pharmacyId: pharmacyId },
     }));
 
     const { accessToken, refreshToken } = await issueAuthTokens({
-      userId: req.user!.userId,
-      role: req.user!.role,
+      userId: assertUser(req).userId,
+      role: assertUser(req).role,
       pharmacyId,
     });
 
     await trackFeatureTelemetry({
       pharmacyId,
-      userId: req.user!.userId,
+      userId: assertUser(req).userId,
       featureKey: 'multi_pharmacy_selector',
       eventType: 'USED',
       metadata: {
@@ -173,7 +173,7 @@ meRouter.post(
   async (req: AuthRequest, res, next) => {
     try {
       const data   = addOutletSchema.parse(req.body);
-      const userId = req.user!.userId;
+      const userId = assertUser(req).userId;
 
       // ── Tier limit check ────────────────────────────────────────────────────
       // Count active pharmacies this owner belongs to as OWNER (includes SUSPENDED)
@@ -187,7 +187,7 @@ meRouter.post(
       });
 
       // Use the currently selected pharmacy's tier as the account tier
-      const currentTier = req.user!.pharmacy?.subscriptionTier ?? 'ADDO';
+      const currentTier = assertUser(req).pharmacy?.subscriptionTier ?? 'ADDO';
       const limit       = OUTLET_LIMITS[currentTier] ?? 1;
 
       // ── ADDO per-outlet addon path ──────────────────────────────────────────
@@ -308,8 +308,8 @@ meRouter.post(
 
         sendFounderNotification({
           pharmacyName: result.pharmacy.name,
-          ownerName:    req.user!.email,
-          ownerEmail:   req.user!.email,
+          ownerName:    assertUser(req).email,
+          ownerEmail:   assertUser(req).email,
           region:       result.pharmacy.region,
           pharmacyType: result.pharmacy.pharmacyType,
           tier:         result.pharmacy.subscriptionTier,
@@ -406,8 +406,8 @@ meRouter.post(
 
       sendFounderNotification({
         pharmacyName: result.name,
-        ownerName:    req.user!.email,
-        ownerEmail:   req.user!.email,
+        ownerName:    assertUser(req).email,
+        ownerEmail:   assertUser(req).email,
         region:       result.region,
         pharmacyType: result.pharmacyType,
         tier:         result.subscriptionTier,

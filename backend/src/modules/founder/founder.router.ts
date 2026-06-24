@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { Prisma } from '@prisma/client';
-import { authenticate, requireRole, type AuthRequest } from '../../middleware/auth';
+import { authenticate, assertUser, requireRole, type AuthRequest } from '../../middleware/auth';
 import { prisma } from '../../lib/prisma';
 import { sendWelcomeEmail } from '../../lib/email';
 import { activateSubscriptionFromPayment, defaultPaidUntil } from '../subscription/subscription-payments.service';
@@ -177,14 +177,14 @@ founderRouter.patch('/subscription-payments/:id/review', async (req: AuthRequest
         });
         await tx.subscriptionPaymentRequest.update({
           where: { id: existing.id },
-          data: { reviewedBy: req.user!.userId },
+          data: { reviewedBy: assertUser(req).userId },
         });
       } else {
         await tx.subscriptionPaymentRequest.update({
           where: { id: existing.id },
           data: {
             status: data.status,
-            reviewedBy: req.user!.userId,
+            reviewedBy: assertUser(req).userId,
             reviewedAt: new Date(),
             reviewNote: data.reviewNote || null,
             paidUntil,

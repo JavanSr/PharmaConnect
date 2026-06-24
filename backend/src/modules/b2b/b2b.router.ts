@@ -2,7 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
-import { authenticate, requireRole, type AuthRequest } from '../../middleware/auth';
+import { authenticate, assertUser, requireRole, type AuthRequest } from '../../middleware/auth';
 import { applyWholesaleCounterStaffOrderFilter, requirePermission } from '../../middleware/permissions';
 import { enforceTrialRestrictions } from '../../middleware/trial';
 import { prisma } from '../../lib/prisma';
@@ -79,7 +79,7 @@ function pid(req: AuthRequest): string {
   if (!p) throw Object.assign(new Error('Pharmacy context required'), { status: 400 });
   return p;
 }
-const uid = (req: AuthRequest) => req.user!.userId;
+const uid = (req: AuthRequest) => assertUser(req).userId;
 const orderStatusSchema = z.enum(ORDER_STATUSES);
 const wholesaleReturnReasonSchema = z.enum(WHOLESALE_RETURN_REASONS);
 const supplierOrderStatusSchema = z.enum(SUPPLIER_ORDER_STATUSES);
@@ -225,7 +225,7 @@ b2bRouter.get('/orders', applyWholesaleCounterStaffOrderFilter, async (req: Auth
     res.json({
       data: await listOrders({
         pharmacyId: pid(req),
-        role: req.user!.normalizedRole,
+        role: assertUser(req).normalizedRole,
         assignedPickerUserId: req.orderScope?.assignedPickerUserId,
       }),
     });
@@ -239,7 +239,7 @@ b2bRouter.get('/orders/my-queue', requireRole('WHOLESALE_COUNTER_STAFF', 'WHOLES
     res.json({
       data: await listOrders({
         pharmacyId: pid(req),
-        role: req.user!.normalizedRole,
+        role: assertUser(req).normalizedRole,
         assignedPickerUserId: uid(req),
       }),
     });
@@ -264,7 +264,7 @@ b2bRouter.patch('/orders/:id/status', async (req: AuthRequest, res, next) => {
       assignedDriver: z.string().nullable().optional(),
     }).parse(req.body);
 
-    if (!canTransition(req.user!.normalizedRole, payload.nextStatus)) {
+    if (!canTransition(assertUser(req).normalizedRole, payload.nextStatus)) {
       res.status(403).json({ error: 'ROLE_INSUFFICIENT' });
       return;
     }
@@ -628,7 +628,7 @@ b2bRouter.get('/manifests', requireRole('OWNER', 'WHOLESALE_MANAGER', 'DELIVERY_
       data: await listDeliveryManifests({
         outletId: pid(req),
         userId: uid(req),
-        normalizedRole: req.user!.normalizedRole,
+        normalizedRole: assertUser(req).normalizedRole,
       }),
     });
   } catch (error) {
@@ -643,7 +643,7 @@ b2bRouter.get('/manifests/:id', requireRole('OWNER', 'WHOLESALE_MANAGER', 'DELIV
         outletId: pid(req),
         manifestId: req.params.id,
         userId: uid(req),
-        normalizedRole: req.user!.normalizedRole,
+        normalizedRole: assertUser(req).normalizedRole,
       }),
     });
   } catch (error) {
@@ -658,7 +658,7 @@ b2bRouter.patch('/manifests/:id/depart', requireRole('OWNER', 'WHOLESALE_MANAGER
         outletId: pid(req),
         manifestId: req.params.id,
         userId: uid(req),
-        normalizedRole: req.user!.normalizedRole,
+        normalizedRole: assertUser(req).normalizedRole,
       }),
     });
   } catch (error) {
@@ -678,7 +678,7 @@ b2bRouter.patch('/manifests/:id/complete', requireRole('OWNER', 'WHOLESALE_MANAG
         outletId: pid(req),
         manifestId: req.params.id,
         userId: uid(req),
-        normalizedRole: req.user!.normalizedRole,
+        normalizedRole: assertUser(req).normalizedRole,
         deliveredOrderIds: payload.deliveredOrderIds,
         partialLines: payload.partialLines as any,
       }),

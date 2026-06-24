@@ -1,13 +1,13 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { authenticate, requireRole, type AuthRequest } from '../../middleware/auth';
+import { authenticate, assertUser, requireRole, type AuthRequest } from '../../middleware/auth';
 import { prisma } from '../../lib/prisma';
 import { getNotificationPreference, upsertNotificationPreference } from '../../services/NotificationService';
 
 export const notificationsRouter = Router();
 notificationsRouter.use(authenticate);
 
-const uid = (req: AuthRequest) => req.user!.userId;
+const uid = (req: AuthRequest) => assertUser(req).userId;
 function pid(req: AuthRequest): string {
   const p = req.user?.pharmacyId;
   if (!p) throw Object.assign(new Error('Pharmacy context required'), { status: 400 });

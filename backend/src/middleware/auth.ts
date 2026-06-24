@@ -207,6 +207,18 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
   }
 }
 
+/**
+ * Asserts that the request is authenticated and narrows the type.
+ * Throws a 401 (caught by errorHandler) if auth middleware was bypassed.
+ * Use this instead of `req.user!` throughout route handlers.
+ */
+export function assertUser(req: AuthRequest): AuthenticatedUserContext {
+  if (!req.user) {
+    throw Object.assign(new Error('Authentication required'), { status: 401 });
+  }
+  return req.user;
+}
+
 export function requireRole(...roles: string[]) {
   return (req: AuthRequest, res: Response, next: NextFunction): void => {
     if (!req.user) {

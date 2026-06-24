@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { z } from 'zod';
-import { authenticate, type AuthRequest } from '../../middleware/auth';
+import { authenticate, assertUser, type AuthRequest } from '../../middleware/auth';
 import { requirePermission } from '../../middleware/permissions';
 import { enforceTrialRestrictions } from '../../middleware/trial';
 import {
@@ -74,7 +74,7 @@ function pharmacyId(req: AuthRequest): string {
 }
 
 function complianceRole(req: AuthRequest) {
-  return req.user!.role;
+  return assertUser(req).role;
 }
 
 function handleComplianceError(res: any, error: unknown): boolean {
@@ -253,7 +253,7 @@ complianceRouter.post(
         itemId: req.params.id,
         pharmacyId: pharmacyId(req),
         role: complianceRole(req),
-        uploadedBy: req.user!.userId,
+        uploadedBy: assertUser(req).userId,
         file: req.file,
       });
 
@@ -360,7 +360,7 @@ complianceRouter.post('/inspection-checklists', requirePermission('compliance.ma
     await ensureChecklistTemplatesSeeded();
     const data = await generateInspectionChecklist({
       pharmacyId: pharmacyId(req),
-      generatedBy: req.user!.userId,
+      generatedBy: assertUser(req).userId,
     });
     res.status(201).json({ data });
   } catch (error) {

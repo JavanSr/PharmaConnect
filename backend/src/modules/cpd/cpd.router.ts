@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Router, type Response } from 'express';
 import { z } from 'zod';
-import { authenticate, type AuthRequest } from '../../middleware/auth';
+import { authenticate, assertUser, type AuthRequest } from '../../middleware/auth';
 import { enforceTrialRestrictions } from '../../middleware/trial';
 import { prisma } from '../../lib/prisma';
 
@@ -19,7 +19,7 @@ function ensureCpdAccess(req: AuthRequest, res: Response) {
   return true;
 }
 
-const uid = (req: AuthRequest) => req.user!.userId;
+const uid = (req: AuthRequest) => assertUser(req).userId;
 
 cpdRouter.get('/activities', async (req: AuthRequest, res, next) => {
   try {

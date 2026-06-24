@@ -2,7 +2,7 @@ import { Prisma } from '@prisma/client';
 import { Router } from 'express';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
-import { authenticate, requireRole } from '../../middleware/auth';
+import { authenticate, assertUser, requireRole } from '../../middleware/auth';
 import type { AuthRequest } from '../../middleware/auth';
 import { requirePermission, canAccessHybridDashboards } from '../../middleware/permissions';
 import { enforceTrialRestrictions } from '../../middleware/trial';
@@ -25,7 +25,7 @@ import { initiateAzamPayCheckout, isAzamPayConfigured, detectProvider } from '..
 export const settingsRouter = Router();
 settingsRouter.use(authenticate);
 
-const uid = (req: AuthRequest) => req.user!.userId;
+const uid = (req: AuthRequest) => assertUser(req).userId;
 function pid(req: AuthRequest): string {
   const p = req.user?.pharmacyId;
   if (!p) throw Object.assign(new Error('Pharmacy context required'), { status: 400 });
@@ -79,7 +79,7 @@ settingsRouter.get('/subscription', async (req: AuthRequest, res, next) => {
       data: {
         ...pharmacy,
         trialActive: pharmacy.trialActive && !trialEndedByDate,
-        dashboardAccess: canAccessHybridDashboards(req.user!.role, pharmacy),
+        dashboardAccess: canAccessHybridDashboards(assertUser(req).role, pharmacy),
       },
     });
   } catch (e) {

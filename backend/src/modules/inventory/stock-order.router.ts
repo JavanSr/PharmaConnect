@@ -1,6 +1,6 @@
 import { Router, type NextFunction, type Response } from 'express';
 import { z } from 'zod';
-import type { AuthRequest } from '../../middleware/auth';
+import { assertUser, type AuthRequest } from '../../middleware/auth';
 import { requirePermission } from '../../middleware/permissions';
 import * as svc from './stock-order.service';
 import * as exportSvc from './stock-order-export.service';
@@ -76,7 +76,7 @@ function pid(req: AuthRequest): string {
   if (!p) throw Object.assign(new Error('Pharmacy context required'), { status: 400 });
   return p;
 }
-const uid = (req: AuthRequest) => req.user!.userId;
+const uid = (req: AuthRequest) => assertUser(req).userId;
 
 stockOrderRouter.get('/suggestions', async (req: AuthRequest, res, next) => {
   try {
