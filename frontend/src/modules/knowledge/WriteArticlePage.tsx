@@ -411,7 +411,7 @@ export const WriteArticlePage: React.FC = () => {
 
                   <p className="mt-2 text-[10px] text-[#64748B]">
                     Updated {formatDistanceToNow(new Date(sub.updatedAt), { addSuffix: true })}
-                    {sub.publishedAt && ` · Published ${format(new Date(sub.publishedAt), 'dd MMM yyyy')}`}
+                    {sub.isPublished && ' · Published'}
                   </p>
                 </div>
 
