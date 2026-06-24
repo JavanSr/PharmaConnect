@@ -400,7 +400,7 @@ export const FounderDashboardPage: React.FC = () => {
                     <div key={o.id} className="px-5 py-3">
                       <div className="flex items-center justify-between gap-3 flex-wrap">
                         <div>
-                          <p className="text-sm font-medium text-[#0D4035]">{o.pharmacy?.name ?? o.pharmacyId}</p>
+                          <Link to={`/superadmin/pharmacies/${o.pharmacyId}`} className="text-sm font-medium text-[#0D4035] hover:underline hover:text-[#1A6B5C]">{o.pharmacy?.name ?? o.pharmacyId}</Link>
                           <p className="text-xs text-[#64748B] mt-0.5 truncate max-w-xs">{o.reason}</p>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
