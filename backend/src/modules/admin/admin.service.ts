@@ -791,13 +791,22 @@ type RecipientFilter = {
   pharmacyIds?: string[];
 };
 
+const RECIPIENT_LIMIT = 5000;
+
 async function resolveRecipients(filter: RecipientFilter): Promise<string[]> {
   if (filter.type === 'pharmacy_ids' && filter.pharmacyIds?.length) {
     return filter.pharmacyIds;
   }
 
   if (filter.type === 'all') {
-    const rows = await prisma.pharmacy.findMany({ where: { isActive: true }, select: { id: true } });
+    const rows = await prisma.pharmacy.findMany({
+      where: { isActive: true },
+      select: { id: true },
+      take: RECIPIENT_LIMIT,
+    });
+    if (rows.length === RECIPIENT_LIMIT) {
+      console.warn(`[admin.messages] resolveRecipients hit RECIPIENT_LIMIT (${RECIPIENT_LIMIT}) — broadcast may be incomplete`);
+    }
     return rows.map((r) => r.id);
   }
 
@@ -805,6 +814,7 @@ async function resolveRecipients(filter: RecipientFilter): Promise<string[]> {
     const rows = await prisma.pharmacy.findMany({
       where: { status: filter.value as any, isActive: true },
       select: { id: true },
+      take: RECIPIENT_LIMIT,
     });
     return rows.map((r) => r.id);
   }
@@ -813,12 +823,17 @@ async function resolveRecipients(filter: RecipientFilter): Promise<string[]> {
     const rows = await prisma.pharmacy.findMany({
       where: { subscriptionTier: filter.value as any, isActive: true },
       select: { id: true },
+      take: RECIPIENT_LIMIT,
     });
     return rows.map((r) => r.id);
   }
 
   if (filter.type === 'activity_health' && filter.value) {
-    const allActive = await prisma.pharmacy.findMany({ where: { isActive: true }, select: { id: true } });
+    const allActive = await prisma.pharmacy.findMany({
+      where: { isActive: true },
+      select: { id: true },
+      take: RECIPIENT_LIMIT,
+    });
     const healthMap = await getActivityHealthMap(allActive.map((p) => p.id));
     return allActive.filter((p) => healthMap.get(p.id) === filter.value).map((p) => p.id);
   }
@@ -841,10 +856,12 @@ export async function sendAdminMessage(input: {
   `);
   const messageId = msgRows[0]?.id;
 
-  for (const pharmacyId of recipientIds) {
+  if (recipientIds.length > 0) {
     await prisma.$executeRaw(Prisma.sql`
       INSERT INTO "pharmacy_notifications" ("pharmacy_id","message_id","message_body")
-      VALUES (${pharmacyId}, ${messageId}, ${input.body})
+      VALUES ${Prisma.join(
+        recipientIds.map((pharmacyId) => Prisma.sql`(${pharmacyId}, ${messageId}, ${input.body})`),
+      )}
     `);
   }
 
