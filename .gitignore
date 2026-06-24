@@ -90,3 +90,9 @@ tmp/
 # Obsidian vault config (created when docs/ is opened in Obsidian)
 .obsidian/
 docs/Untitled.md
+
+# Design sync generated output (compiled bundle + CSS exports — not source)
+ds-bundle/
+website-styles.css
+website-tailwind.css
+website/website-tailwind.css
