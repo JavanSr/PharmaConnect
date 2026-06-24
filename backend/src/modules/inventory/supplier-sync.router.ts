@@ -304,104 +304,87 @@ router.post('/upload-csv', authenticate, requireRole('SUPER_ADMIN'), upload.sing
       }
     }
 
-    // Process each wholesaler and create/update their products
+    // Process each wholesaler atomically — deleteMany + createMany must succeed together
     for (const [wholesalerName, products] of wholesalerMap.entries()) {
       try {
-        let supplier;
+        const importedCount = await prisma.$transaction(async (tx) => {
+          let supplier;
 
-        // Pre-registration mode: use provided supplierId
-        if (supplierId) {
-          supplier = await prisma.supplier.findUnique({ where: { id: supplierId } });
-          if (!supplier) {
-            results.push({
-              success: false,
-              row: 0,
-              message: `Supplier with ID ${supplierId} not found`,
+          if (supplierId) {
+            supplier = await tx.supplier.findUnique({ where: { id: supplierId } });
+            if (!supplier) {
+              throw Object.assign(new Error(`Supplier with ID ${supplierId} not found`), { code: 'NOT_FOUND' });
+            }
+          } else {
+            supplier = await tx.supplier.findFirst({
+              where: { name: wholesalerName, isApotekNetworkWholesaler: true },
             });
-            continue;
+            if (!supplier) {
+              supplier = await tx.supplier.create({
+                data: {
+                  pharmacyId: systemPharmacy!.id,
+                  name: wholesalerName,
+                  isApotekNetworkWholesaler: true,
+                  isActive: true,
+                },
+              });
+            }
           }
-        } else {
-          // Auto-create mode: find or create supplier by name
-          supplier = await prisma.supplier.findFirst({
-            where: {
-              name: wholesalerName,
-              isApotekNetworkWholesaler: true,
-            },
+
+          let catalogue = await tx.supplierCatalogue.findFirst({
+            where: { wholesalerId: supplier.id, retailPharmacyId: null },
           });
 
-          if (!supplier) {
-            // Create a new supplier marked as APOTEKH network wholesaler
-            supplier = await prisma.supplier.create({
+          if (!catalogue) {
+            catalogue = await tx.supplierCatalogue.create({
               data: {
-                pharmacyId: systemPharmacy!.id,
-                name: wholesalerName,
-                isApotekNetworkWholesaler: true,
-                isActive: true,
+                wholesalerId: supplier.id,
+                lastSyncedAt: new Date(),
+                syncStatus: 'ACTIVE',
+                totalItemsAvailable: products.length,
+              },
+            });
+          } else {
+            catalogue = await tx.supplierCatalogue.update({
+              where: { id: catalogue.id },
+              data: {
+                lastSyncedAt: new Date(),
+                syncStatus: 'ACTIVE',
+                totalItemsAvailable: products.length,
               },
             });
           }
-        }
 
-        // Create catalogue items for this supplier (global catalogue, not tied to specific retail pharmacies)
-        // Find or create a global catalogue for this wholesaler
-        let catalogue = await prisma.supplierCatalogue.findFirst({
-          where: { wholesalerId: supplier.id, retailPharmacyId: null },
-        });
+          await tx.supplierCatalogueItem.deleteMany({ where: { catalogueId: catalogue.id } });
 
-        if (!catalogue) {
-          catalogue = await prisma.supplierCatalogue.create({
-            data: {
-              wholesalerId: supplier.id,
-              lastSyncedAt: new Date(),
-              syncStatus: 'ACTIVE',
-              totalItemsAvailable: products.length,
-            },
-          });
-        } else {
-          catalogue = await prisma.supplierCatalogue.update({
-            where: { id: catalogue.id },
-            data: {
-              lastSyncedAt: new Date(),
-              syncStatus: 'ACTIVE',
-              totalItemsAvailable: products.length,
-            },
-          });
-        }
+          const itemsToCreate: Prisma.SupplierCatalogueItemCreateManyInput[] = products.map((p) => ({
+            catalogueId: catalogue.id,
+            productName: p.productName,
+            genericName: p.genericName || null,
+            strength: p.strength || null,
+            dosageForm: p.dosageForm || null,
+            quantityAvailable: Math.max(p.quantity || 0, 0),
+            unitPrice: new Prisma.Decimal(p.unitPrice),
+            minimumOrderQuantity: 1,
+          }));
 
-        // Delete old items for this catalogue
-        await prisma.supplierCatalogueItem.deleteMany({
-          where: { catalogueId: catalogue.id },
-        });
-
-        // Create new items from CSV
-        const itemsToCreate: Prisma.SupplierCatalogueItemCreateManyInput[] = products.map((p) => ({
-          catalogueId: catalogue.id,
-          productName: p.productName,
-          genericName: p.genericName || null,
-          strength: p.strength || null,
-          dosageForm: p.dosageForm || null,
-          quantityAvailable: Math.max(p.quantity || 0, 0),
-          unitPrice: new Prisma.Decimal(p.unitPrice),
-          minimumOrderQuantity: 1,
-        }));
-
-        await prisma.supplierCatalogueItem.createMany({
-          data: itemsToCreate,
+          await tx.supplierCatalogueItem.createMany({ data: itemsToCreate });
+          return itemsToCreate.length;
         });
 
         results.push({
           success: true,
           row: wholesalerName.length,
-          message: `Imported ${itemsToCreate.length} products from ${wholesalerName}`,
+          message: `Imported ${importedCount} products from ${wholesalerName}`,
         });
       } catch (error) {
-        if (!suppressErrors) {
-          results.push({
-            success: false,
-            row: 0,
-            message: `Failed to import ${wholesalerName}: ${(error as any).message}`,
-          });
-        }
+        results.push({
+          success: false,
+          row: 0,
+          message: (error as any).code === 'NOT_FOUND'
+            ? (error as Error).message
+            : `Failed to import ${wholesalerName}: ${(error as any).message}`,
+        });
       }
     }
 
