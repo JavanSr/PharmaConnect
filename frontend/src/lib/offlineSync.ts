@@ -249,7 +249,11 @@ export async function registerOfflineSync(tag = 'inventory-write-queue'): Promis
   }
 }
 
-export async function flushOfflineWrites(): Promise<FlushResult> {
+// In-tab guard: prevents re-entrant calls within the same tab in environments
+// without Web Locks support (old Safari, Firefox ESR).
+let syncInProgress = false;
+
+async function _doFlush(): Promise<FlushResult> {
   const purgedExpired = await purgeExpiredOfflineWrites();
   const queuedWrites = await listOfflineWrites();
   let synced = 0;
@@ -295,7 +299,6 @@ export async function flushOfflineWrites(): Promise<FlushResult> {
           });
           conflicts += 1;
         } catch {
-          // If conflict logging fails, keep the local queue item below with the updated error.
           await updateOfflineWrite({
             ...queuedWrite,
             attempts: queuedWrite.attempts + 1,
@@ -322,4 +325,38 @@ export async function flushOfflineWrites(): Promise<FlushResult> {
     remaining: await getOfflineWriteCount(),
     purgedExpired,
   };
+}
+
+const _noopResult = async (): Promise<FlushResult> => ({
+  synced: 0,
+  conflicts: 0,
+  remaining: await getOfflineWriteCount(),
+  purgedExpired: 0,
+});
+
+export async function flushOfflineWrites(): Promise<FlushResult> {
+  // Cross-tab lock via Web Locks API — at most one tab flushes at a time.
+  // ifAvailable: true makes this a non-blocking tryLock: if another tab holds
+  // the lock the callback receives null and we bail out immediately rather than
+  // queuing up a second flush behind the first.
+  if (typeof navigator !== 'undefined' && 'locks' in navigator) {
+    return (navigator.locks as any).request(
+      'pc-offline-sync-lock',
+      { ifAvailable: true },
+      async (lock: unknown) => {
+        if (!lock) return _noopResult();
+        return _doFlush();
+      },
+    ) as Promise<FlushResult>;
+  }
+
+  // Fallback for browsers without Web Locks (old Safari / Firefox ESR):
+  // simple in-tab boolean guard.
+  if (syncInProgress) return _noopResult();
+  syncInProgress = true;
+  try {
+    return await _doFlush();
+  } finally {
+    syncInProgress = false;
+  }
 }
