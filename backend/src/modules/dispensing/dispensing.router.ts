@@ -11,7 +11,6 @@ import { emitToPharmacy } from '../realtime/realtime.service';
 import { enforceTrialRestrictions } from '../../middleware/trial';
 import { picPinLimiter } from '../../middleware/pic-pin';
 import { prisma } from '../../lib/prisma';
-import { resolveFefoBatch } from '../inventory/inventory.service';
 import { recordAnonymousSafetyEvents, sessionReview } from '../patient-safety/patient-safety.service';
 import { ensurePaymentMethodConfig } from '../settings/payment-method-config';
 import { trackFeatureTelemetry } from '../telemetry/feature-telemetry.service';
@@ -499,61 +498,65 @@ async function completeDispensingCheckout(input: {
   });
   const productMap = new Map(products.map((product) => [product.id, product]));
 
-  // Pre-fetch all FEFO batches for all items in one query instead of N queries
-  const uniqueProductIds = [...new Set(payload.items.map((item) => item.productId))];
-  const allBatches = await prisma.batch.findMany({
-    where: {
-      pharmacyId,
-      productId: { in: uniqueProductIds },
-      quantityRemaining: { gt: 0 },
-    },
-    orderBy: [{ expiryDate: 'asc' }, { receivedAt: 'asc' }],
-  });
-  const batchesByProduct = new Map<string, typeof allBatches>();
-  for (const batch of allBatches) {
-    const list = batchesByProduct.get(batch.productId) ?? [];
-    list.push(batch);
-    batchesByProduct.set(batch.productId, list);
-  }
-
-  const lines: DispensingEventItem[] = [];
-  let subtotalAmount = 0;
-
-  for (const item of payload.items) {
-    const product = productMap.get(item.productId);
-    if (!product) {
-      throw Object.assign(new Error('Product not found'), { status: 404, code: 'PRODUCT_NOT_FOUND' });
-    }
-
-    const productBatches = batchesByProduct.get(item.productId) ?? [];
-    const batch = productBatches.find((b) => b.quantityRemaining >= item.quantity);
-    if (!batch) {
-      throw Object.assign(new Error('No FEFO batch has enough stock for this request'), { status: 409 });
-    }
-
-    const unitPrice = Number(item.unitPrice);
-    const lineTotal = Number((unitPrice * item.quantity).toFixed(2));
-    subtotalAmount += lineTotal;
-    lines.push({
-      productId: item.productId,
-      productName: product.name,
-      genericName: product.genericName,
-      batchId: batch.id,
-      batchNumber: batch.batchNumber,
-      quantity: item.quantity,
-      unitPrice,
-      lineTotal,
-      dose: item.dose,
-    });
-  }
-
-  const totalAmount = Number((subtotalAmount - discountAmount).toFixed(2));
-  if (totalAmount < 0) {
-    throw Object.assign(new Error('Discount cannot exceed subtotal'), { status: 400, code: 'DISCOUNT_EXCEEDS_SUBTOTAL' });
-  }
-
   const checkoutResult = await prisma.$transaction(async (tx) => {
-    // Update all batches in parallel
+    // FEFO batch selection inside transaction — read and write are now atomic,
+    // eliminating the race window that caused spurious 409s under concurrent load.
+    // Single batched query for all items (no N+1).
+    const uniqueProductIds = [...new Set(payload.items.map((item) => item.productId))];
+    const allBatches = await tx.batch.findMany({
+      where: {
+        pharmacyId,
+        productId: { in: uniqueProductIds },
+        quantityRemaining: { gt: 0 },
+      },
+      orderBy: [{ expiryDate: 'asc' }, { receivedAt: 'asc' }],
+    });
+    const batchesByProduct = new Map<string, typeof allBatches>();
+    for (const batch of allBatches) {
+      const list = batchesByProduct.get(batch.productId) ?? [];
+      list.push(batch);
+      batchesByProduct.set(batch.productId, list);
+    }
+
+    const lines: DispensingEventItem[] = [];
+    let subtotalAmount = 0;
+
+    for (const item of payload.items) {
+      const product = productMap.get(item.productId);
+      if (!product) {
+        throw Object.assign(new Error('Product not found'), { status: 404, code: 'PRODUCT_NOT_FOUND' });
+      }
+
+      const productBatches = batchesByProduct.get(item.productId) ?? [];
+      const batch = productBatches.find((b) => b.quantityRemaining >= item.quantity);
+      if (!batch) {
+        throw Object.assign(new Error('No FEFO batch has enough stock for this request'), { status: 409 });
+      }
+
+      const unitPrice = Number(item.unitPrice);
+      const lineTotal = Number((unitPrice * item.quantity).toFixed(2));
+      subtotalAmount += lineTotal;
+      lines.push({
+        productId: item.productId,
+        productName: product.name,
+        genericName: product.genericName,
+        batchId: batch.id,
+        batchNumber: batch.batchNumber,
+        quantity: item.quantity,
+        unitPrice,
+        lineTotal,
+        dose: item.dose,
+      });
+    }
+
+    const totalAmount = Number((subtotalAmount - discountAmount).toFixed(2));
+    if (totalAmount < 0) {
+      throw Object.assign(new Error('Discount cannot exceed subtotal'), { status: 400, code: 'DISCOUNT_EXCEEDS_SUBTOTAL' });
+    }
+
+    // Update all batches in parallel. The gte guard is kept as defense-in-depth:
+    // if another transaction committed between our findMany and updateMany, this
+    // catches it and rolls back cleanly instead of overselling.
     const batchUpdates = await Promise.all(
       lines.map((line) =>
         tx.batch.updateMany({
@@ -690,6 +693,7 @@ async function completeDispensingCheckout(input: {
     return {
       event,
       lines,
+      totalAmount,
     };
   });
 
@@ -737,7 +741,7 @@ async function completeDispensingCheckout(input: {
       ${currentUserId},
       ${JSON.stringify({
         referenceNumber,
-        totalAmount,
+        totalAmount: checkoutResult.totalAmount,
         lines: checkoutResult.lines,
         prescriptionPhotoPath: input.prescriptionPhotoPath ?? null,
         localSessionId,
@@ -842,39 +846,8 @@ dispensingRouter.post('/checkout', requirePermission('dispensing.access'), uploa
       },
     });
     const productMap = new Map(products.map((product) => [product.id, product]));
-    const lines: DispensingEventItem[] = [];
-    let subtotalAmount = 0;
-
-    for (const item of payload.items) {
-      const product = productMap.get(item.productId);
-      if (!product) {
-        res.status(404).json({ error: 'Product not found' });
-        return;
-      }
-
-      const batch = await resolveFefoBatch(pharmacyId, item.productId, item.quantity);
-      const unitPrice = Number(item.unitPrice);
-      const lineTotal = Number((unitPrice * item.quantity).toFixed(2));
-      subtotalAmount += lineTotal;
-      lines.push({
-        productId: item.productId,
-        productName: product.name,
-        genericName: product.genericName,
-        batchId: batch.id,
-        batchNumber: batch.batchNumber,
-        quantity: item.quantity,
-        unitPrice,
-        lineTotal,
-        dose: item.dose,
-      });
-    }
-
-    const totalAmount = Number((subtotalAmount - discountAmount).toFixed(2));
-    if (totalAmount < 0) {
-      res.status(400).json({ error: 'Discount cannot exceed subtotal' });
-      return;
-    }
-
+    // Prescription photo upload must happen before the transaction — it's
+    // external I/O and must not hold a DB connection open while it runs.
     const prescriptionPhotoPath = prescriptionPhoto
       ? await storePrescriptionPhoto({
           originalname: prescriptionPhoto.originalname,
@@ -884,6 +857,60 @@ dispensingRouter.post('/checkout', requirePermission('dispensing.access'), uploa
       : null;
 
     const checkoutResult = await prisma.$transaction(async (tx) => {
+      // FEFO batch selection inside transaction — read and write are now atomic.
+      // Single batched query for all items replaces the previous N per-item queries.
+      const uniqueProductIds = [...new Set(payload.items.map((item) => item.productId))];
+      const allBatches = await tx.batch.findMany({
+        where: {
+          pharmacyId,
+          productId: { in: uniqueProductIds },
+          quantityRemaining: { gt: 0 },
+        },
+        orderBy: [{ expiryDate: 'asc' }, { receivedAt: 'asc' }],
+      });
+      const batchesByProduct = new Map<string, typeof allBatches>();
+      for (const batch of allBatches) {
+        const list = batchesByProduct.get(batch.productId) ?? [];
+        list.push(batch);
+        batchesByProduct.set(batch.productId, list);
+      }
+
+      const lines: DispensingEventItem[] = [];
+      let subtotalAmount = 0;
+
+      for (const item of payload.items) {
+        const product = productMap.get(item.productId);
+        if (!product) {
+          throw Object.assign(new Error('Product not found'), { status: 404, code: 'PRODUCT_NOT_FOUND' });
+        }
+
+        const productBatches = batchesByProduct.get(item.productId) ?? [];
+        const batch = productBatches.find((b) => b.quantityRemaining >= item.quantity);
+        if (!batch) {
+          throw Object.assign(new Error('No FEFO batch has enough stock for this request'), { status: 409 });
+        }
+
+        const unitPrice = Number(item.unitPrice);
+        const lineTotal = Number((unitPrice * item.quantity).toFixed(2));
+        subtotalAmount += lineTotal;
+        lines.push({
+          productId: item.productId,
+          productName: product.name,
+          genericName: product.genericName,
+          batchId: batch.id,
+          batchNumber: batch.batchNumber,
+          quantity: item.quantity,
+          unitPrice,
+          lineTotal,
+          dose: item.dose,
+        });
+      }
+
+      const totalAmount = Number((subtotalAmount - discountAmount).toFixed(2));
+      if (totalAmount < 0) {
+        throw Object.assign(new Error('Discount cannot exceed subtotal'), { status: 400, code: 'DISCOUNT_EXCEEDS_SUBTOTAL' });
+      }
+
       for (const line of lines) {
         const batchUpdate = await tx.batch.updateMany({
           where: {
@@ -966,6 +993,7 @@ dispensingRouter.post('/checkout', requirePermission('dispensing.access'), uploa
       return {
         event,
         lines,
+        totalAmount,
       };
     });
 
@@ -1031,7 +1059,7 @@ dispensingRouter.post('/checkout', requirePermission('dispensing.access'), uploa
         ${checkoutResult.event.id},
         'INSERT',
         ${currentUserId},
-        ${JSON.stringify({ referenceNumber, totalAmount, lines: checkoutResult.lines, prescriptionPhotoPath })}::jsonb
+        ${JSON.stringify({ referenceNumber, totalAmount: checkoutResult.totalAmount, lines: checkoutResult.lines, prescriptionPhotoPath })}::jsonb
       )
     `);
 
