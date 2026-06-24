@@ -2,7 +2,7 @@ import React from 'react';
 import { NavLink, useNavigate, Outlet } from 'react-router-dom';
 import {
   LayoutDashboard, Building2, ClipboardList,
-  ToggleLeft, MessageSquare, LogOut, Telescope, Menu, ChevronLeft, ChevronRight,
+  ToggleLeft, MessageSquare, LogOut, Telescope, Menu, ChevronLeft, ChevronRight, BookOpen,
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { usePharmacyStore } from '@/stores/pharmacyStore';
@@ -15,6 +15,7 @@ const NAV_ITEMS = [
   { label: 'Audit Log',     path: '/superadmin/audit',        icon: <ClipboardList size={16} /> },
   { label: 'Feature Flags', path: '/superadmin/feature-flags', icon: <ToggleLeft size={16} /> },
   { label: 'Messages',      path: '/superadmin/messages',     icon: <MessageSquare size={16} /> },
+  { label: 'Knowledge CMS', path: '/superadmin/knowledge',    icon: <BookOpen size={16} /> },
 ];
 
 export const AdminShell: React.FC = () => {

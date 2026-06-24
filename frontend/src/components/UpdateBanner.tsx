@@ -13,9 +13,11 @@ export const UpdateBanner: React.FC = () => {
   if (!show) return null;
 
   const handleUpdate = () => {
-    // Tell the waiting SW to skip waiting and activate.
+    // Must post to registration.waiting (the new SW), not .controller (the old one).
     // controllerchange in main.tsx then reloads the page.
-    navigator.serviceWorker.controller?.postMessage({ type: 'SKIP_WAITING' });
+    navigator.serviceWorker.getRegistration().then((reg) => {
+      reg?.waiting?.postMessage({ type: 'SKIP_WAITING' });
+    });
   };
 
   return (

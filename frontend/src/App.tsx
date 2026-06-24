@@ -127,6 +127,7 @@ const AdminPharmacyDetailPage = lazy(() => import('@/modules/admin/AdminPharmacy
 const AdminAuditPage = lazy(() => import('@/modules/admin/AdminAuditPage').then(m => ({ default: m.AdminAuditPage })));
 const AdminFeatureFlagsPage = lazy(() => import('@/modules/admin/AdminFeatureFlagsPage').then(m => ({ default: m.AdminFeatureFlagsPage })));
 const AdminMessagesPage = lazy(() => import('@/modules/admin/AdminMessagesPage').then(m => ({ default: m.AdminMessagesPage })));
+const AdminKnowledgePage = lazy(() => import('@/modules/admin/AdminKnowledgePage').then(m => ({ default: m.AdminKnowledgePage })));
 const WholesalerDiscoveryPage = lazy(() => import('@/modules/inventory/WholesalerDiscoveryPage').then(m => ({ default: m.WholesalerDiscoveryPage })));
 const WholesalerCataloguePage = lazy(() => import('@/modules/inventory/WholesalerCataloguePage').then(m => ({ default: m.WholesalerCataloguePage })));
 const MedicinePriceComparisonPage = lazy(() => import('@/modules/inventory/MedicinePriceComparisonPage').then(m => ({ default: m.MedicinePriceComparisonPage })));
@@ -414,6 +415,7 @@ export const App: React.FC = () => (
             <Route path="/superadmin/feature-flags" element={<Suspense fallback={<PageLoader />}><AdminFeatureFlagsPage /></Suspense>} />
             <Route path="/superadmin/messages" element={<Suspense fallback={<PageLoader />}><AdminMessagesPage /></Suspense>} />
             <Route path="/superadmin/founder" element={<Suspense fallback={<PageLoader />}><FounderDashboardPage /></Suspense>} />
+            <Route path="/superadmin/knowledge" element={<Suspense fallback={<PageLoader />}><AdminKnowledgePage /></Suspense>} />
           </Route>
         </Route>
       </Routes>

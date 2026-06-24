@@ -1,5 +1,6 @@
 import React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import {
   Building2, Users, Pill, Package, ShieldAlert, CheckCircle, Clock,
   LayoutDashboard, ClipboardList, ShieldCheck, Wallet, XCircle,
@@ -162,6 +163,7 @@ export const FounderDashboardPage: React.FC = () => {
   const [setTierTarget, setSetTierTarget] = React.useState<{ id: string; name: string } | null>(null);
   const [selectedTier, setSelectedTier] = React.useState<string>('STANDARD');
   const [analyticsDays, setAnalyticsDays] = React.useState(30);
+  const [paymentsView, setPaymentsView] = React.useState<'pending' | 'history'>('pending');
   const queryClient = useQueryClient();
   const toast = useNotificationStore(state => state.toast);
 
@@ -182,7 +184,13 @@ export const FounderDashboardPage: React.FC = () => {
     queryKey: ['founder-subscription-payments', 'PENDING'],
     queryFn: () => api.get('/founder/subscription-payments', { params: { status: 'PENDING' } }).then(r => r.data),
     staleTime: 30_000,
-    enabled: tab === 'payments',
+  });
+
+  const paymentHistoryQuery = useQuery<{ data: SubscriptionPaymentRequest[] }>({
+    queryKey: ['founder-subscription-payments-history'],
+    queryFn: () => api.get('/founder/subscription-payments').then(r => r.data),
+    staleTime: 60_000,
+    enabled: tab === 'payments' && paymentsView === 'history',
   });
 
   const growthQuery = useQuery<{ data: GrowthData }>({
@@ -303,11 +311,16 @@ export const FounderDashboardPage: React.FC = () => {
           <button
             key={id}
             onClick={() => setTab(id)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            className={`relative flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
               tab === id ? 'bg-white text-[#0D4035] shadow-sm' : 'text-[#64748B] hover:text-[#0D4035]'
             }`}
           >
             {icon}{label}
+            {id === 'payments' && paymentRequests.length > 0 && (
+              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-white">
+                {paymentRequests.length}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -323,8 +336,8 @@ export const FounderDashboardPage: React.FC = () => {
         ) : (
           <>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <StatCard label="Total Pharmacies"  value={stats.pharmacies.total}          icon={<Building2 size={20} className="text-[#1A6B5C]" />} />
-              <StatCard label="Active"             value={stats.pharmacies.active}         icon={<Building2 size={20} className="text-[#1D9E75]" />} />
+              <StatCard label="Total Pharmacies"  value={stats.pharmacies.total}          icon={<Building2 size={20} className="text-[#1A6B5C]" />} to="/superadmin/pharmacies" />
+              <StatCard label="Active"             value={stats.pharmacies.active}         icon={<Building2 size={20} className="text-[#1D9E75]" />} to="/superadmin/pharmacies?status=ACTIVE" />
               <StatCard label="Total Users"        value={stats.users.total}               icon={<Users size={20} className="text-[#1A6B5C]" />} />
               <StatCard label="Total Dispensings"  value={stats.activity.totalDispensings} icon={<Pill size={20} className="text-[#1A6B5C]" />} />
             </div>
@@ -492,7 +505,7 @@ export const FounderDashboardPage: React.FC = () => {
                     <div className="space-y-2">
                       {g.trials.expiringSoon.map(p => (
                         <div key={p.id} className="flex items-center justify-between text-sm">
-                          <span className="text-[#0D4035] font-medium truncate">{p.name}</span>
+                          <Link to={`/superadmin/pharmacies/${p.id}`} className="text-[#0D4035] font-medium truncate hover:underline hover:text-[#1A6B5C]">{p.name}</Link>
                           <span className={`text-xs font-semibold ml-2 shrink-0 ${(p.daysLeft ?? 99) <= 2 ? 'text-red-600' : 'text-amber-600'}`}>{p.daysLeft}d left</span>
                         </div>
                       ))}
@@ -529,9 +542,13 @@ export const FounderDashboardPage: React.FC = () => {
                   ) : (
                     <div className="space-y-1">
                       {g.churn.graceCount > 0 && <p className="text-xs text-amber-700 font-semibold">{g.churn.graceCount} in grace period</p>}
-                      {g.churn.gracePharmacies.map(p => <div key={p.id} className="text-xs text-[#64748B] pl-2">· {p.name} ({p.tier})</div>)}
+                      {g.churn.gracePharmacies.map(p => (
+                        <div key={p.id} className="text-xs text-[#64748B] pl-2">· <Link to={`/superadmin/pharmacies/${p.id}`} className="hover:underline hover:text-[#1A6B5C]">{p.name}</Link> ({p.tier})</div>
+                      ))}
                       {g.churn.darkCount > 0 && <p className="text-xs text-red-600 font-semibold mt-2">{g.churn.darkCount} paid — no activity 14d</p>}
-                      {g.churn.darkPharmacies.map(p => <div key={p.id} className="text-xs text-[#64748B] pl-2">· {p.name} ({p.tier})</div>)}
+                      {g.churn.darkPharmacies.map(p => (
+                        <div key={p.id} className="text-xs text-[#64748B] pl-2">· <Link to={`/superadmin/pharmacies/${p.id}`} className="hover:underline hover:text-[#1A6B5C]">{p.name}</Link> ({p.tier})</div>
+                      ))}
                     </div>
                   )}
                 </Card>
@@ -708,7 +725,7 @@ export const FounderDashboardPage: React.FC = () => {
                   ) : (
                     <div className="divide-y divide-[#D6F0E8]">
                       {a.topPharmacies.map((p, i) => (
-                        <div key={p.pharmacyId} className="px-5 py-3 flex items-center gap-4">
+                        <Link key={p.pharmacyId} to={`/superadmin/pharmacies/${p.pharmacyId}`} className="px-5 py-3 flex items-center gap-4 hover:bg-[#EDF7F3] transition-colors">
                           <span className="text-sm font-bold text-[#94A3B8] w-5 shrink-0">{i + 1}</span>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-semibold text-[#0D4035] truncate">{p.name}</p>
@@ -717,7 +734,7 @@ export const FounderDashboardPage: React.FC = () => {
                           <div className="shrink-0 text-right">
                             <p className="text-sm font-bold text-[#0D4035]">{fmtTzs(p.revenue)}</p>
                           </div>
-                        </div>
+                        </Link>
                       ))}
                     </div>
                   )}
@@ -755,7 +772,7 @@ export const FounderDashboardPage: React.FC = () => {
                           <div key={o.id} className="px-5 py-3">
                             <div className="flex items-start justify-between gap-2">
                               <div className="min-w-0">
-                                <p className="text-xs font-medium text-[#0D4035]">{o.pharmacyName ?? o.pharmacyId}</p>
+                                <Link to={`/superadmin/pharmacies/${o.pharmacyId}`} className="text-xs font-medium text-[#0D4035] hover:underline hover:text-[#1A6B5C]">{o.pharmacyName ?? o.pharmacyId}</Link>
                                 <p className="text-xs text-[#64748B] mt-0.5 truncate">{o.reason}</p>
                               </div>
                               <Badge variant="warning" size="sm">{o.alertType}</Badge>
@@ -843,6 +860,12 @@ export const FounderDashboardPage: React.FC = () => {
                         </div>
                       )}
                       <div className="flex flex-wrap justify-end gap-2">
+                        <Link
+                          to={`/superadmin/pharmacies/${r.id}`}
+                          className="inline-flex items-center rounded-lg border border-[#D6F0E8] bg-white px-3 py-1.5 text-xs font-medium text-[#1A6B5C] hover:bg-[#EDF7F3] transition-colors"
+                        >
+                          View detail
+                        </Link>
                         <Button
                           size="sm"
                           variant="secondary"
@@ -910,81 +933,146 @@ export const FounderDashboardPage: React.FC = () => {
 
       {/* ── Payments ── */}
       {tab === 'payments' && (
-        <Card padding={false} header={
-          <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <span className="text-sm font-semibold text-[#0D4035]">Pending subscription payments</span>
-              <p className="mt-1 text-xs text-[#64748B]">Confirm requests after checking M-Pesa or bank transfer records.</p>
-            </div>
-            <Badge variant="warning" size="sm">{paymentRequests.length} pending</Badge>
+        <div className="space-y-4">
+          {/* Sub-tab toggle */}
+          <div className="flex items-center gap-2">
+            {(['pending', 'history'] as const).map(v => (
+              <button
+                key={v}
+                onClick={() => setPaymentsView(v)}
+                className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  paymentsView === v ? 'bg-[#1A6B5C] text-white' : 'bg-[#EDF7F3] text-[#0D4035] hover:bg-[#D6F0E8]'
+                }`}
+              >
+                {v === 'pending' ? `Pending${paymentRequests.length > 0 ? ` (${paymentRequests.length})` : ''}` : 'History'}
+              </button>
+            ))}
           </div>
-        }>
-          {paymentsQuery.isLoading ? (
-            <div className="flex items-center justify-center py-10">
-              <div className="w-6 h-6 border-4 border-[#1A6B5C] border-t-transparent rounded-full animate-spin" />
-            </div>
-          ) : paymentRequests.length === 0 ? (
-            <div className="px-5 py-8 text-center text-sm text-[#64748B]">No pending payment requests.</div>
-          ) : (
-            <div className="divide-y divide-[#D6F0E8]">
-              {paymentRequests.map((request) => {
-                const isCurrent = reviewPaymentMutation.isPending && reviewPaymentMutation.variables?.id === request.id;
-                return (
-                  <div key={request.id} className="px-5 py-4">
-                    <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="text-sm font-semibold text-[#0D4035]">{request.pharmacy.name}</p>
-                          <Badge variant="info" size="sm">{request.requestedTier}</Badge>
-                          <Badge variant="muted" size="sm">{request.billingCycle}</Badge>
+
+          {paymentsView === 'pending' && (
+            <Card padding={false} header={
+              <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <span className="text-sm font-semibold text-[#0D4035]">Pending subscription payments</span>
+                  <p className="mt-1 text-xs text-[#64748B]">Confirm requests after checking M-Pesa or bank transfer records.</p>
+                </div>
+                <Badge variant="warning" size="sm">{paymentRequests.length} pending</Badge>
+              </div>
+            }>
+              {paymentsQuery.isLoading ? (
+                <div className="flex items-center justify-center py-10">
+                  <div className="w-6 h-6 border-4 border-[#1A6B5C] border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : paymentRequests.length === 0 ? (
+                <div className="px-5 py-8 text-center text-sm text-[#64748B]">No pending payment requests.</div>
+              ) : (
+                <div className="divide-y divide-[#D6F0E8]">
+                  {paymentRequests.map((request) => {
+                    const isCurrent = reviewPaymentMutation.isPending && reviewPaymentMutation.variables?.id === request.id;
+                    return (
+                      <div key={request.id} className="px-5 py-4">
+                        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Link to={`/superadmin/pharmacies/${request.pharmacyId}`} className="text-sm font-semibold text-[#0D4035] hover:underline hover:text-[#1A6B5C]">{request.pharmacy.name}</Link>
+                              <Badge variant="info" size="sm">{request.requestedTier}</Badge>
+                              <Badge variant="muted" size="sm">{request.billingCycle}</Badge>
+                            </div>
+                            <p className="mt-1 text-xs text-[#64748B]">
+                              {request.pharmacy.region} · current {request.pharmacy.subscriptionTier} · {request.pharmacy.status}
+                            </p>
+                            <p className="mt-2 text-sm text-[#0D4035]">
+                              Tsh {Number(request.amount).toLocaleString()} via {request.paymentMethod}
+                            </p>
+                            <p className="mt-1 text-xs text-[#64748B]">
+                              Ref {request.transactionRef} · submitted {new Date(request.createdAt).toLocaleString()}
+                            </p>
+                            <p className="mt-1 text-xs text-[#64748B]">
+                              {request.requester.firstName} {request.requester.lastName} · {request.requester.email}
+                              {request.payerPhone ? ` · payer ${request.payerPhone}` : ''}
+                            </p>
+                            {request.note && <p className="mt-2 text-xs text-[#475569]">{request.note}</p>}
+                          </div>
+                          <div className="flex shrink-0 flex-wrap gap-2">
+                            <Button
+                              size="sm"
+                              leftIcon={<CheckCircle size={14} />}
+                              loading={isCurrent && reviewPaymentMutation.variables?.status === 'CONFIRMED'}
+                              disabled={reviewPaymentMutation.isPending}
+                              onClick={() => reviewPaymentMutation.mutate({ id: request.id, status: 'CONFIRMED' })}
+                            >
+                              Confirm
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="danger"
+                              leftIcon={<XCircle size={14} />}
+                              loading={isCurrent && reviewPaymentMutation.variables?.status === 'REJECTED'}
+                              disabled={reviewPaymentMutation.isPending}
+                              onClick={() => {
+                                if (window.confirm('Reject this payment request?')) {
+                                  reviewPaymentMutation.mutate({ id: request.id, status: 'REJECTED' });
+                                }
+                              }}
+                            >
+                              Reject
+                            </Button>
+                          </div>
                         </div>
-                        <p className="mt-1 text-xs text-[#64748B]">
-                          {request.pharmacy.region} · current {request.pharmacy.subscriptionTier} · {request.pharmacy.status}
-                        </p>
-                        <p className="mt-2 text-sm text-[#0D4035]">
-                          Tsh {Number(request.amount).toLocaleString()} via {request.paymentMethod}
-                        </p>
-                        <p className="mt-1 text-xs text-[#64748B]">
-                          Ref {request.transactionRef} · submitted {new Date(request.createdAt).toLocaleString()}
-                        </p>
-                        <p className="mt-1 text-xs text-[#64748B]">
-                          {request.requester.firstName} {request.requester.lastName} · {request.requester.email}
-                          {request.payerPhone ? ` · payer ${request.payerPhone}` : ''}
-                        </p>
-                        {request.note && <p className="mt-2 text-xs text-[#475569]">{request.note}</p>}
                       </div>
-                      <div className="flex shrink-0 flex-wrap gap-2">
-                        <Button
-                          size="sm"
-                          leftIcon={<CheckCircle size={14} />}
-                          loading={isCurrent && reviewPaymentMutation.variables?.status === 'CONFIRMED'}
-                          disabled={reviewPaymentMutation.isPending}
-                          onClick={() => reviewPaymentMutation.mutate({ id: request.id, status: 'CONFIRMED' })}
-                        >
-                          Confirm
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="danger"
-                          leftIcon={<XCircle size={14} />}
-                          loading={isCurrent && reviewPaymentMutation.variables?.status === 'REJECTED'}
-                          disabled={reviewPaymentMutation.isPending}
-                          onClick={() => {
-                            if (window.confirm('Reject this payment request?')) {
-                              reviewPaymentMutation.mutate({ id: request.id, status: 'REJECTED' });
-                            }
-                          }}
-                        >
-                          Reject
-                        </Button>
+                    );
+                  })}
+                </div>
+              )}
+            </Card>
+          )}
+
+          {paymentsView === 'history' && (
+            <Card padding={false} header={
+              <span className="text-sm font-semibold text-[#0D4035]">Payment history — confirmed &amp; rejected</span>
+            }>
+              {paymentHistoryQuery.isLoading ? (
+                <div className="flex items-center justify-center py-10">
+                  <div className="w-6 h-6 border-4 border-[#1A6B5C] border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : (() => {
+                const history = (paymentHistoryQuery.data?.data ?? [])
+                  .filter(p => p.status === 'CONFIRMED' || p.status === 'REJECTED')
+                  .sort((a, b) => new Date(b.reviewedAt ?? b.createdAt).getTime() - new Date(a.reviewedAt ?? a.createdAt).getTime());
+                if (history.length === 0) {
+                  return <div className="px-5 py-8 text-center text-sm text-[#64748B]">No reviewed payments yet.</div>;
+                }
+                return (
+                  <div className="divide-y divide-[#D6F0E8]">
+                    {history.map(p => (
+                      <div key={p.id} className="px-5 py-4">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Link to={`/superadmin/pharmacies/${p.pharmacyId}`} className="text-sm font-semibold text-[#0D4035] hover:underline hover:text-[#1A6B5C]">{p.pharmacy.name}</Link>
+                              <Badge variant="info" size="sm">{p.requestedTier}</Badge>
+                              <Badge variant={p.status === 'CONFIRMED' ? 'success' : 'danger'} size="sm">{p.status}</Badge>
+                            </div>
+                            <p className="mt-1 text-xs text-[#64748B]">
+                              Tsh {Number(p.amount).toLocaleString()} via {p.paymentMethod} · Ref {p.transactionRef}
+                            </p>
+                            <p className="text-xs text-[#64748B]">
+                              Submitted {new Date(p.createdAt).toLocaleDateString()}
+                              {p.reviewedAt && ` · reviewed ${new Date(p.reviewedAt).toLocaleDateString()}`}
+                            </p>
+                            {p.reviewNote && (
+                              <p className="mt-1.5 text-xs text-[#475569] italic">{p.reviewNote}</p>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                    </div>
+                    ))}
                   </div>
                 );
-              })}
-            </div>
+              })()}
+            </Card>
           )}
-        </Card>
+        </div>
       )}
     </div>
   );
@@ -992,16 +1080,20 @@ export const FounderDashboardPage: React.FC = () => {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-const StatCard: React.FC<{ label: string; value: number; icon: React.ReactNode }> = ({ label, value, icon }) => (
-  <div className="bg-white rounded-2xl border border-[#D6F0E8] p-5">
-    <div className="flex items-start justify-between">
-      <div>
-        <p className="text-sm text-[#64748B] mb-1">{label}</p>
-        <p className="text-2xl font-bold text-[#0D4035]">{value.toLocaleString()}</p>
-      </div>
-      <div className="w-10 h-10 rounded-xl bg-[#D6F0E8] flex items-center justify-center shrink-0">
-        {icon}
+const StatCard: React.FC<{ label: string; value: number; icon: React.ReactNode; to?: string }> = ({ label, value, icon, to }) => {
+  const inner = (
+    <div className={`bg-white rounded-2xl border border-[#D6F0E8] p-5 ${to ? 'hover:border-[#1A6B5C] hover:shadow-md transition-all' : ''}`}>
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="text-sm text-[#64748B] mb-1">{label}</p>
+          <p className="text-2xl font-bold text-[#0D4035]">{value.toLocaleString()}</p>
+        </div>
+        <div className="w-10 h-10 rounded-xl bg-[#D6F0E8] flex items-center justify-center shrink-0">
+          {icon}
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+  if (to) return <Link to={to} className="block">{inner}</Link>;
+  return inner;
+};

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
-import { BookOpen, Library, Megaphone, Search } from 'lucide-react';
+import { BookOpen, Library, Megaphone, MessageSquare, Pencil, Search } from 'lucide-react';
 import { format } from 'date-fns';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -10,12 +10,15 @@ import { Input } from '@/components/ui/Input';
 import { useDebounce } from '@/hooks/useDebounce';
 import { api } from '@/lib/api';
 import { useNotificationStore } from '@/stores/notificationStore';
+import { CommunityPage } from './CommunityPage';
+import { WriteArticlePage } from './WriteArticlePage';
 import type { Article, Bulletin, Publication } from '@/types';
 
 const CATEGORIES = ['All', 'DRUG_SAFETY', 'REGULATORY', 'CLINICAL', 'BUSINESS', 'TECHNOLOGY', 'CPD', 'GENERAL'];
 
 export const KnowledgeFeedPage: React.FC = () => {
   const [searchParams] = useSearchParams();
+  const [tab, setTab]       = useState<'feed' | 'community' | 'write'>('feed');
   const [category, setCategory] = useState('All');
   const [search, setSearch] = useState(searchParams.get('q') ?? '');
   const [email, setEmail] = useState('');
@@ -63,10 +66,48 @@ export const KnowledgeFeedPage: React.FC = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-[#0D4035]">Knowledge Hub</h1>
-          <p className="text-sm text-[#64748B]">Articles, urgent bulletins, curated publications, and weekly digest updates.</p>
+          <p className="text-sm text-[#64748B]">Articles, bulletins, publications, and community discussions.</p>
         </div>
         <BookOpen size={24} className="text-[#1A6B5C]" />
       </div>
+
+      {/* Tab switcher */}
+      <div className="flex border-b border-[#D6F0E8]">
+        <button
+          onClick={() => setTab('feed')}
+          className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+            tab === 'feed'
+              ? 'border-[#1A6B5C] text-[#1A6B5C]'
+              : 'border-transparent text-[#64748B] hover:text-[#0D4035]'
+          }`}
+        >
+          <Library size={15} /> Articles & Bulletins
+        </button>
+        <button
+          onClick={() => setTab('community')}
+          className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+            tab === 'community'
+              ? 'border-[#1A6B5C] text-[#1A6B5C]'
+              : 'border-transparent text-[#64748B] hover:text-[#0D4035]'
+          }`}
+        >
+          <MessageSquare size={15} /> Community
+        </button>
+        <button
+          onClick={() => setTab('write')}
+          className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+            tab === 'write'
+              ? 'border-[#1A6B5C] text-[#1A6B5C]'
+              : 'border-transparent text-[#64748B] hover:text-[#0D4035]'
+          }`}
+        >
+          <Pencil size={15} /> Write
+        </button>
+      </div>
+
+      {tab === 'community' && <CommunityPage />}
+      {tab === 'write'     && <WriteArticlePage />}
+      {tab === 'feed' && <>
 
       <Card>
         <div className="grid gap-3 md:grid-cols-[1fr_auto]">
@@ -109,7 +150,13 @@ export const KnowledgeFeedPage: React.FC = () => {
                     </div>
                     <h3 className="text-sm font-semibold text-[#0D4035]">{article.title}</h3>
                     <p className="mt-2 text-sm text-[#64748B]">{article.summary}</p>
-                    <p className="mt-3 text-xs text-[#64748B]">{article.publishedAt ? format(new Date(article.publishedAt), 'dd MMM yyyy') : 'Draft'} · {article.readingTimeMinutes} min read</p>
+                    <p className="mt-3 text-xs text-[#64748B]">
+                      {article.author
+                        ? <><span className="font-medium text-[#0D4035]">{(article.author as any).firstName} {(article.author as any).lastName}</span> · </>
+                        : null
+                      }
+                      {article.publishedAt ? format(new Date(article.publishedAt), 'dd MMM yyyy') : 'Draft'} · {article.readingTimeMinutes} min read
+                    </p>
                   </Link>
                 ))}
               </div>
@@ -169,6 +216,7 @@ export const KnowledgeFeedPage: React.FC = () => {
           </Card>
         </div>
       </div>
+      </>}
     </div>
   );
 };

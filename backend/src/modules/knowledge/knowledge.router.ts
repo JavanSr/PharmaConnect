@@ -317,7 +317,7 @@ knowledgeRouter.get('/articles/:slug', async (req: AuthRequest, res, next) => {
   try {
     const article = await prisma.article.findUnique({
       where: { slug: req.params.slug },
-      include: { author: { select: { id: true, firstName: true, lastName: true } } },
+      include: { author: { select: { id: true, firstName: true, lastName: true, role: true } } },
     });
 
     if (!article || !article.isPublished) {
@@ -615,6 +615,147 @@ knowledgeRouter.post('/courses/:id/attempt', async (req: AuthRequest, res, next)
   } catch (error) {
     next(error);
   }
+});
+
+// ── User article submissions (Medium-like contributor model) ──────────────────
+
+const slugify = (title: string) =>
+  title.toLowerCase().replace(/[^a-z0-9\s-]/g, '').trim().replace(/\s+/g, '-').slice(0, 80) + '-' + Date.now();
+
+knowledgeRouter.get('/submissions', authenticate, enforceTrialRestrictions, async (req: AuthRequest, res, next) => {
+  try {
+    const articles = await prisma.article.findMany({
+      where: { submittedByUserId: req.user!.userId },
+      orderBy: { updatedAt: 'desc' },
+      select: {
+        id: true, slug: true, title: true, summary: true, category: true,
+        submissionStatus: true, rejectionNote: true, publishedAt: true,
+        isPublished: true, viewCount: true, createdAt: true, updatedAt: true,
+      },
+    });
+    res.json({ data: articles });
+  } catch (e) { next(e); }
+});
+
+knowledgeRouter.post('/submissions', authenticate, enforceTrialRestrictions, async (req: AuthRequest, res, next) => {
+  try {
+    const body = z.object({
+      title:    z.string().min(5).max(255),
+      summary:  z.string().max(500).optional(),
+      htmlContent: z.string().max(50_000).optional(),
+      category: z.enum(['DRUG_SAFETY','REGULATORY','CLINICAL','BUSINESS','TECHNOLOGY','CPD','GENERAL']).optional(),
+      tags:     z.array(z.string()).max(10).optional(),
+      authorBio: z.string().max(300).optional(),
+    }).parse(req.body);
+
+    const article = await prisma.article.create({
+      data: {
+        slug:             slugify(body.title),
+        title:            body.title,
+        summary:          body.summary,
+        htmlContent:      body.htmlContent ? sanitizeArticleHtml(body.htmlContent) : null,
+        category:         (body.category ?? 'GENERAL') as any,
+        tags:             body.tags ?? [],
+        authorBio:        body.authorBio,
+        submittedByUserId: req.user!.userId,
+        submissionStatus: 'DRAFT',
+        isPublished:      false,
+      },
+    });
+    res.status(201).json({ data: article });
+  } catch (e) { next(e); }
+});
+
+knowledgeRouter.get('/submissions/:id', authenticate, enforceTrialRestrictions, async (req: AuthRequest, res, next) => {
+  try {
+    const article = await prisma.article.findFirst({
+      where: { id: req.params.id, submittedByUserId: req.user!.userId },
+    });
+    if (!article) { res.status(404).json({ error: 'Not found' }); return; }
+    res.json({ data: article });
+  } catch (e) { next(e); }
+});
+
+knowledgeRouter.patch('/submissions/:id', authenticate, enforceTrialRestrictions, async (req: AuthRequest, res, next) => {
+  try {
+    const existing = await prisma.article.findFirst({
+      where: { id: req.params.id, submittedByUserId: req.user!.userId },
+    });
+    if (!existing) { res.status(404).json({ error: 'Not found' }); return; }
+    if (existing.submissionStatus === 'PENDING_REVIEW') {
+      res.status(409).json({ error: 'Cannot edit while under review. Withdraw first.' }); return;
+    }
+
+    const body = z.object({
+      title:    z.string().min(5).max(255).optional(),
+      summary:  z.string().max(500).optional(),
+      htmlContent: z.string().max(50_000).optional(),
+      category: z.enum(['DRUG_SAFETY','REGULATORY','CLINICAL','BUSINESS','TECHNOLOGY','CPD','GENERAL']).optional(),
+      tags:     z.array(z.string()).max(10).optional(),
+      authorBio: z.string().max(300).optional(),
+    }).parse(req.body);
+
+    const updated = await prisma.article.update({
+      where: { id: existing.id },
+      data: {
+        ...(body.title       && { title: body.title }),
+        ...(body.summary     !== undefined && { summary: body.summary }),
+        ...(body.htmlContent !== undefined && { htmlContent: sanitizeArticleHtml(body.htmlContent) }),
+        ...(body.category    && { category: body.category as any }),
+        ...(body.tags        && { tags: body.tags }),
+        ...(body.authorBio   !== undefined && { authorBio: body.authorBio }),
+        submissionStatus: 'DRAFT',
+        rejectionNote:    null,
+      },
+    });
+    res.json({ data: updated });
+  } catch (e) { next(e); }
+});
+
+knowledgeRouter.post('/submissions/:id/submit', authenticate, enforceTrialRestrictions, async (req: AuthRequest, res, next) => {
+  try {
+    const existing = await prisma.article.findFirst({
+      where: { id: req.params.id, submittedByUserId: req.user!.userId },
+    });
+    if (!existing) { res.status(404).json({ error: 'Not found' }); return; }
+    if (!existing.htmlContent && !existing.summary) {
+      res.status(400).json({ error: 'Article must have content before submitting' }); return;
+    }
+    if (existing.submissionStatus === 'PENDING_REVIEW') {
+      res.status(409).json({ error: 'Already submitted for review' }); return;
+    }
+    const updated = await prisma.article.update({
+      where: { id: existing.id },
+      data: { submissionStatus: 'PENDING_REVIEW', rejectionNote: null },
+    });
+    res.json({ data: updated });
+  } catch (e) { next(e); }
+});
+
+knowledgeRouter.post('/submissions/:id/withdraw', authenticate, enforceTrialRestrictions, async (req: AuthRequest, res, next) => {
+  try {
+    const existing = await prisma.article.findFirst({
+      where: { id: req.params.id, submittedByUserId: req.user!.userId },
+    });
+    if (!existing) { res.status(404).json({ error: 'Not found' }); return; }
+    const updated = await prisma.article.update({
+      where: { id: existing.id },
+      data: { submissionStatus: 'DRAFT' },
+    });
+    res.json({ data: updated });
+  } catch (e) { next(e); }
+});
+
+knowledgeRouter.delete('/submissions/:id', authenticate, enforceTrialRestrictions, async (req: AuthRequest, res, next) => {
+  try {
+    const existing = await prisma.article.findFirst({
+      where: { id: req.params.id, submittedByUserId: req.user!.userId },
+    });
+    if (!existing) { res.status(404).json({ error: 'Not found' }); return; }
+    if (existing.isPublished) { res.status(409).json({ error: 'Cannot delete a published article' }); return; }
+    await prisma.article.delete({ where: { id: existing.id } });
+    res.json({ data: { deleted: true } });
+  } catch (e) { next(e); }
 });
 
 export { knowledgeRouter };

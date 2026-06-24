@@ -288,6 +288,7 @@ model Pharmacy {
   adverseReactionReports     AdverseReactionReport[]
   stockOrders                StockOrder[]
   supplierPortalTokens       SupplierPortalToken[]
+  chatThreads                ChatThread[]
   memberships                PharmacyMembership[]
   aiCounsellingCache         AiCounsellingCache[]
   featureTelemetry           FeatureTelemetry[]
@@ -327,6 +328,9 @@ model User {
   stockMovements                     StockMovement[]
   cpdActivities                      CpdActivity[]
   articles                           Article[]                   @relation("AuthoredArticles")
+  submittedArticles                  Article[]                   @relation("SubmittedArticles")
+  chatThreads                        ChatThread[]                @relation("ChatThreadAuthor")
+  chatMessages                       ChatMessage[]               @relation("ChatMessageAuthor")
   refreshTokens                      RefreshToken[]
   resolvedSyncConflicts              SyncConflict[]              @relation("ResolvedSyncConflicts")
   uploadedComplianceDocuments        ComplianceDocument[]        @relation("UploadedComplianceDocuments")
@@ -1741,6 +1745,7 @@ model Article {
   title              String
   summary            String?
   body               Json            @default("{}")
+  htmlContent        String?         @map("html_content")
   category           ArticleCategory @default(GENERAL)
   tags               String[]        @default([])
   authorId           String?
@@ -1753,10 +1758,55 @@ model Article {
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
 
+  // User-submitted articles (Medium-like contributor model)
+  submittedByUserId  String?         @map("submitted_by_user_id")
+  submissionStatus   String?         @map("submission_status") // DRAFT | PENDING_REVIEW | APPROVED | REJECTED
+  rejectionNote      String?         @map("rejection_note")
+  authorBio          String?         @map("author_bio")
+
   author        User?         @relation("AuthoredArticles", fields: [authorId], references: [id])
+  submittedBy   User?         @relation("SubmittedArticles", fields: [submittedByUserId], references: [id])
   cpdActivities CpdActivity[]
 
   @@map("articles")
+}
+
+// ─── Community Chat ───────────────────────────────────────────────────────────
+
+model ChatThread {
+  id         String        @id @default(uuid())
+  pharmacyId String        @map("pharmacy_id")
+  authorId   String        @map("author_id")
+  title      String
+  body       String
+  category   String        @default("GENERAL")
+  isPinned   Boolean       @default(false)  @map("is_pinned")
+  isLocked   Boolean       @default(false)  @map("is_locked")
+  viewCount  Int           @default(0)      @map("view_count")
+  replyCount Int           @default(0)      @map("reply_count")
+  createdAt  DateTime      @default(now())  @map("created_at")
+  updatedAt  DateTime      @updatedAt       @map("updated_at")
+
+  pharmacy  Pharmacy      @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  author    User          @relation("ChatThreadAuthor", fields: [authorId], references: [id])
+  messages  ChatMessage[]
+
+  @@map("chat_threads")
+}
+
+model ChatMessage {
+  id         String   @id @default(uuid())
+  threadId   String   @map("thread_id")
+  authorId   String   @map("author_id")
+  body       String
+  isEdited   Boolean  @default(false) @map("is_edited")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt      @map("updated_at")
+
+  thread  ChatThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  author  User       @relation("ChatMessageAuthor", fields: [authorId], references: [id])
+
+  @@map("chat_messages")
 }
 
 // -- Supplier Portal (Tier 2 wholesaler tokenized confirmation) ----------------

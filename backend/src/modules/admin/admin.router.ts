@@ -403,6 +403,249 @@ adminRouter.get('/messages', async (req: AuthRequest, res, next) => {
   } catch (e) { next(e); }
 });
 
+// ─── Knowledge Hub CMS ───────────────────────────────────────────────────────
+
+const articleSchema = z.object({
+  title:              z.string().min(3).max(255),
+  summary:            z.string().max(500).optional(),
+  htmlContent:        z.string().optional(),
+  category:           z.enum(['DRUG_SAFETY','REGULATORY','CLINICAL','BUSINESS','TECHNOLOGY','CPD','GENERAL']).optional(),
+  tags:               z.array(z.string()).optional(),
+  readingTimeMinutes: z.coerce.number().int().min(1).max(120).optional(),
+  isSponsored:        z.boolean().optional(),
+  sponsorName:        z.string().max(120).nullable().optional(),
+});
+
+// List all articles (including unpublished)
+adminRouter.get('/knowledge/articles', async (_req: AuthRequest, res, next) => {
+  try {
+    const rows = await prisma.article.findMany({
+      orderBy: [{ publishedAt: 'desc' }, { createdAt: 'desc' }],
+      select: {
+        id: true, slug: true, title: true, summary: true, category: true,
+        tags: true, isPublished: true, isSponsored: true, sponsorName: true,
+        readingTimeMinutes: true, viewCount: true, publishedAt: true, createdAt: true,
+        author: { select: { id: true, firstName: true, lastName: true } },
+      },
+    });
+    res.json({ data: rows });
+  } catch (e) { next(e); }
+});
+
+// Get single article (full content)
+adminRouter.get('/knowledge/articles/:id', async (req: AuthRequest, res, next) => {
+  try {
+    const article = await prisma.article.findUnique({ where: { id: req.params.id } });
+    if (!article) { res.status(404).json({ error: 'Not found' }); return; }
+    res.json({ data: article });
+  } catch (e) { next(e); }
+});
+
+// Create article
+adminRouter.post('/knowledge/articles', async (req: AuthRequest, res, next) => {
+  try {
+    const body = articleSchema.parse(req.body);
+    const slug = body.title
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .trim()
+      .replace(/\s+/g, '-')
+      .slice(0, 80)
+      + '-' + Date.now();
+
+    const article = await prisma.article.create({
+      data: {
+        slug,
+        title:              body.title,
+        summary:            body.summary ?? null,
+        category:           (body.category as any) ?? 'GENERAL',
+        tags:               body.tags ?? [],
+        readingTimeMinutes: body.readingTimeMinutes ?? 5,
+        isSponsored:        body.isSponsored ?? false,
+        sponsorName:        body.sponsorName ?? null,
+        isPublished:        false,
+        authorId:           uid(req),
+        ...(body.htmlContent ? { htmlContent: body.htmlContent } as any : {}),
+      },
+    });
+
+    await writeAuditLog({ adminEmail: email(req), action: 'KNOWLEDGE_ARTICLE_CREATED', details: { articleId: article.id, title: article.title }, req });
+    res.status(201).json({ data: article });
+  } catch (e) { next(e); }
+});
+
+// Update article
+adminRouter.patch('/knowledge/articles/:id', async (req: AuthRequest, res, next) => {
+  try {
+    const body = articleSchema.partial().parse(req.body);
+    const article = await prisma.article.update({
+      where: { id: req.params.id },
+      data: {
+        ...(body.title              !== undefined ? { title: body.title }                           : {}),
+        ...(body.summary            !== undefined ? { summary: body.summary }                       : {}),
+        ...(body.category           !== undefined ? { category: body.category as any }              : {}),
+        ...(body.tags               !== undefined ? { tags: body.tags }                             : {}),
+        ...(body.readingTimeMinutes !== undefined ? { readingTimeMinutes: body.readingTimeMinutes } : {}),
+        ...(body.isSponsored        !== undefined ? { isSponsored: body.isSponsored }               : {}),
+        ...(body.sponsorName        !== undefined ? { sponsorName: body.sponsorName }               : {}),
+        ...(body.htmlContent        !== undefined ? { htmlContent: body.htmlContent } as any        : {}),
+      },
+    });
+    await writeAuditLog({ adminEmail: email(req), action: 'KNOWLEDGE_ARTICLE_UPDATED', details: { articleId: article.id }, req });
+    res.json({ data: article });
+  } catch (e) { next(e); }
+});
+
+// Publish / unpublish
+adminRouter.post('/knowledge/articles/:id/publish', async (req: AuthRequest, res, next) => {
+  try {
+    const { publish } = z.object({ publish: z.boolean() }).parse(req.body);
+    const article = await prisma.article.update({
+      where: { id: req.params.id },
+      data: { isPublished: publish, publishedAt: publish ? new Date() : null },
+    });
+    await writeAuditLog({ adminEmail: email(req), action: publish ? 'KNOWLEDGE_ARTICLE_PUBLISHED' : 'KNOWLEDGE_ARTICLE_UNPUBLISHED', details: { articleId: article.id, title: article.title }, req });
+    res.json({ data: article });
+  } catch (e) { next(e); }
+});
+
+// Delete article
+adminRouter.delete('/knowledge/articles/:id', async (req: AuthRequest, res, next) => {
+  try {
+    await prisma.article.delete({ where: { id: req.params.id } });
+    await writeAuditLog({ adminEmail: email(req), action: 'KNOWLEDGE_ARTICLE_DELETED', details: { articleId: req.params.id }, req });
+    res.json({ data: { deleted: true } });
+  } catch (e) { next(e); }
+});
+
+// ── Bulletins ─────────────────────────────────────────────────────────────────
+
+const bulletinSchema = z.object({
+  title:    z.string().min(3).max(255),
+  body:     z.any().optional(),
+  isUrgent: z.boolean().optional(),
+});
+
+adminRouter.get('/knowledge/bulletins', async (_req: AuthRequest, res, next) => {
+  try {
+    const rows = await prisma.$queryRaw<any[]>`
+      SELECT * FROM "bulletins" ORDER BY "created_at" DESC LIMIT 100
+    `;
+    res.json({ data: rows });
+  } catch (e) { next(e); }
+});
+
+adminRouter.post('/knowledge/bulletins', async (req: AuthRequest, res, next) => {
+  try {
+    const body = bulletinSchema.parse(req.body);
+    const rows = await prisma.$queryRaw<any[]>`
+      INSERT INTO "bulletins" ("title","body","is_urgent","is_published","published_at")
+      VALUES (${body.title}, ${JSON.stringify(body.body ?? {})}::jsonb, ${body.isUrgent ?? false}, true, NOW())
+      RETURNING *
+    `;
+    await writeAuditLog({ adminEmail: email(req), action: 'KNOWLEDGE_BULLETIN_CREATED', details: { title: body.title }, req });
+    res.status(201).json({ data: rows[0] });
+  } catch (e) { next(e); }
+});
+
+adminRouter.patch('/knowledge/bulletins/:id', async (req: AuthRequest, res, next) => {
+  try {
+    const body = bulletinSchema.partial().parse(req.body);
+    const sets: string[] = [];
+    if (body.title     !== undefined) sets.push(`"title" = '${body.title.replace(/'/g, "''")}'`);
+    if (body.isUrgent  !== undefined) sets.push(`"is_urgent" = ${body.isUrgent}`);
+    if (!sets.length) { res.status(400).json({ error: 'Nothing to update' }); return; }
+    const rows = await prisma.$queryRawUnsafe<any[]>(
+      `UPDATE "bulletins" SET ${sets.join(', ')} WHERE "id" = $1 RETURNING *`,
+      req.params.id,
+    );
+    res.json({ data: rows[0] });
+  } catch (e) { next(e); }
+});
+
+adminRouter.delete('/knowledge/bulletins/:id', async (req: AuthRequest, res, next) => {
+  try {
+    await prisma.$executeRaw`DELETE FROM "bulletins" WHERE "id" = ${req.params.id}`;
+    await writeAuditLog({ adminEmail: email(req), action: 'KNOWLEDGE_BULLETIN_DELETED', details: { bulletinId: req.params.id }, req });
+    res.json({ data: { deleted: true } });
+  } catch (e) { next(e); }
+});
+
+// ─── User Article Submission Review ──────────────────────────────────────────
+
+// List all user-submitted articles (pending and all)
+adminRouter.get('/knowledge/submissions', async (req: AuthRequest, res, next) => {
+  try {
+    const { status } = z.object({
+      status: z.enum(['DRAFT','PENDING_REVIEW','APPROVED','REJECTED']).optional(),
+    }).parse(req.query);
+
+    const rows = await prisma.article.findMany({
+      where: {
+        submittedByUserId: { not: null },
+        ...(status ? { submissionStatus: status } : {}),
+      },
+      orderBy: [{ submissionStatus: 'asc' }, { updatedAt: 'desc' }],
+      select: {
+        id: true, slug: true, title: true, summary: true, category: true,
+        htmlContent: true, submissionStatus: true, rejectionNote: true,
+        authorBio: true, viewCount: true, isPublished: true,
+        publishedAt: true, createdAt: true, updatedAt: true,
+        submittedBy: { select: { id: true, firstName: true, lastName: true, role: true, email: true } },
+      },
+    });
+    res.json({ data: rows });
+  } catch (e) { next(e); }
+});
+
+// Approve a submission → publishes it
+adminRouter.post('/knowledge/submissions/:id/approve', async (req: AuthRequest, res, next) => {
+  try {
+    const existing = await prisma.article.findUnique({ where: { id: req.params.id } });
+    if (!existing || !existing.submittedByUserId) { res.status(404).json({ error: 'Submission not found' }); return; }
+
+    const { readingTimeMinutes } = z.object({
+      readingTimeMinutes: z.coerce.number().int().min(1).max(120).optional(),
+    }).parse(req.body);
+
+    const article = await prisma.article.update({
+      where: { id: req.params.id },
+      data: {
+        submissionStatus:   'APPROVED',
+        rejectionNote:      null,
+        isPublished:        true,
+        publishedAt:        new Date(),
+        // The submitter is the visible author — set authorId to submittedByUserId
+        authorId:           existing.submittedByUserId,
+        readingTimeMinutes: readingTimeMinutes ?? existing.readingTimeMinutes,
+      },
+    });
+    await writeAuditLog({ adminEmail: email(req), action: 'KNOWLEDGE_SUBMISSION_APPROVED', details: { articleId: article.id, title: article.title }, req });
+    res.json({ data: article });
+  } catch (e) { next(e); }
+});
+
+// Reject a submission with optional feedback
+adminRouter.post('/knowledge/submissions/:id/reject', async (req: AuthRequest, res, next) => {
+  try {
+    const existing = await prisma.article.findUnique({ where: { id: req.params.id } });
+    if (!existing || !existing.submittedByUserId) { res.status(404).json({ error: 'Submission not found' }); return; }
+
+    const { note } = z.object({ note: z.string().max(500).optional() }).parse(req.body);
+
+    const article = await prisma.article.update({
+      where: { id: req.params.id },
+      data: {
+        submissionStatus: 'REJECTED',
+        rejectionNote:    note ?? null,
+        isPublished:      false,
+      },
+    });
+    await writeAuditLog({ adminEmail: email(req), action: 'KNOWLEDGE_SUBMISSION_REJECTED', details: { articleId: article.id, note }, req });
+    res.json({ data: article });
+  } catch (e) { next(e); }
+});
+
 // ─── Me (verify super-admin session) ─────────────────────────────────────────
 
 adminRouter.get('/me', (req: AuthRequest, res) => {
