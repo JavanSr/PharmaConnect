@@ -35,6 +35,12 @@ export abstract class BaseAgent {
         return result;
       } catch (err) {
         lastError = err as Error;
+        // 4xx errors from the Anthropic API are non-retryable: bad request,
+        // invalid API key, or content policy. Retrying wastes seconds and quota.
+        const status = (err as any)?.status ?? (err as any)?.statusCode;
+        if (typeof status === 'number' && status >= 400 && status < 500 && status !== 429) {
+          break;
+        }
         retries++;
         if (retries <= MAX_RETRIES) {
           const delay = Math.min(500 * Math.pow(2, retries) + Math.random() * 300, 8000);

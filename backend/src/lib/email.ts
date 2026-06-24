@@ -23,7 +23,13 @@ async function sendEmail(params: Parameters<Resend['emails']['send']>[0]) {
     return;
   }
 
-  await client.emails.send(params);
+  try {
+    await client.emails.send(params);
+  } catch (err) {
+    // Email delivery is a non-critical side effect. Log and continue so the
+    // primary operation (registration, password reset, etc.) is not failed.
+    console.error('[email] Failed to send email to', params.to, ':', (err as Error).message);
+  }
 }
 
 function baseLayout(bodyHtml: string): string {
