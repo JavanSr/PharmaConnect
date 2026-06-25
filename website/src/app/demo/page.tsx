@@ -281,8 +281,8 @@ function ExploreContent({ page, onNavigate }: { page: ExplorePage; onNavigate: (
 }
 
 // ── Shared UI primitives ──────────────────────────────────────────────────────
-function Card({ children, style = {} }: { children: React.ReactNode; style?: React.CSSProperties }) {
-  return <div style={{ background: 'white', borderRadius: 12, border: `1px solid ${C.border}`, padding: '20px 24px', ...style }}>{children}</div>;
+function Card({ children, style = {}, onClick }: { children: React.ReactNode; style?: React.CSSProperties; onClick?: () => void }) {
+  return <div style={{ background: 'white', borderRadius: 12, border: `1px solid ${C.border}`, padding: '20px 24px', ...style }} onClick={onClick}>{children}</div>;
 }
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: C.primaryMid, margin: '0 0 12px' }}>{children}</p>;
