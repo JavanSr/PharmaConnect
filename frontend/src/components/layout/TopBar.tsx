@@ -1,13 +1,14 @@
 import React from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Menu, Plus, WifiOff, Clock, Wifi } from 'lucide-react';
+import { ArrowLeft, Menu, Plus, WifiOff, Clock, Wifi, RefreshCw } from 'lucide-react';
 import { useConnectivityStore } from '@/stores/connectivityStore';
 import { useNotificationStore } from '@/stores/notificationStore';
 import { usePharmacyStore } from '@/stores/pharmacyStore';
 import { Button } from '@/components/ui/Button';
 import { NotificationBell } from '@/components/NotificationBell';
 import { selectMembershipPharmacy } from '@/lib/pharmacySelection';
+import { flushOfflineWrites } from '@/lib/offlineSync';
 
 interface TopBarProps {
   onMenuClick: () => void;
@@ -21,8 +22,27 @@ export const TopBar: React.FC<TopBarProps> = ({ onMenuClick, onDesktopToggle, ti
   const isOnline = useConnectivityStore(state => state.isOnline);
   const isReachable = useConnectivityStore(state => state.isReachable);
   const pendingSyncCount = useConnectivityStore(state => state.pendingSyncCount);
+  const setPendingSyncCount = useConnectivityStore(state => state.setPendingSyncCount);
   const memberships = usePharmacyStore(state => state.memberships);
   const toast = useNotificationStore(state => state.toast);
+  const [syncing, setSyncing] = React.useState(false);
+
+  const handleManualSync = async () => {
+    setSyncing(true);
+    try {
+      const result = await flushOfflineWrites();
+      setPendingSyncCount(result.remaining);
+      if (result.synced > 0) {
+        toast.success(`${result.synced} update${result.synced === 1 ? '' : 's'} synced.`);
+      } else if (result.remaining > 0) {
+        toast.error(`${result.remaining} item${result.remaining === 1 ? '' : 's'} could not sync — check your connection.`);
+      }
+    } catch {
+      toast.error('Sync failed — try again when connected.');
+    } finally {
+      setSyncing(false);
+    }
+  };
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const switchMutation = useMutation({
@@ -51,10 +71,20 @@ export const TopBar: React.FC<TopBarProps> = ({ onMenuClick, onDesktopToggle, ti
     );
 
     if (pendingSyncCount > 0) return (
-      <div className="flex min-h-[32px] items-center gap-1.5 rounded-full border border-tertiary-container/30 bg-tertiary-container/10 px-3 py-1">
-        <Clock size={13} className="text-tertiary animate-pulse" />
-        <span className="text-label-md text-tertiary font-medium">{pendingSyncCount} pending sync</span>
-      </div>
+      <button
+        type="button"
+        onClick={handleManualSync}
+        disabled={syncing}
+        title="Tap to retry sync"
+        className="flex min-h-[32px] items-center gap-1.5 rounded-full border border-tertiary-container/30 bg-tertiary-container/10 px-3 py-1 hover:bg-tertiary-container/20 transition-colors"
+      >
+        {syncing
+          ? <RefreshCw size={13} className="text-tertiary animate-spin" />
+          : <Clock size={13} className="text-tertiary animate-pulse" />}
+        <span className="text-label-md text-tertiary font-medium">
+          {syncing ? 'Syncing…' : `${pendingSyncCount} pending sync`}
+        </span>
+      </button>
     );
 
     return (
