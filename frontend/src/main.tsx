@@ -12,9 +12,19 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 );
 
 // When a dynamic import fails (stale SW serving old chunk hash after a deploy),
-// Vite fires this event. Hard-reload to pick up the fresh assets.
+// Vite fires this event. If a new SW is already waiting, activate it so the
+// reload loads fresh assets. Otherwise hard-reload from the network.
 window.addEventListener('vite:preloadError', () => {
-  window.location.reload();
+  navigator.serviceWorker?.getRegistration()
+    .then((reg) => {
+      if (reg?.waiting) {
+        // New SW is waiting — activating it will fire controllerchange → reload
+        reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+      } else {
+        window.location.reload();
+      }
+    })
+    .catch(() => window.location.reload());
 });
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) {

@@ -1,0 +1,10 @@
+{
+  "version": "1.3.0",
+  "date": "2026-06-25",
+  "notes": [
+    "Payment window: tap your M-Pesa number, get a PIN push — subscription activates instantly",
+    "My Locations: you can now remove an outlet you no longer need",
+    "Pending sync pill is now tappable — tap to retry stuck offline writes",
+    "Fixed: tier dropdown in paywall now shows readable names (Basic, Standard, etc.)"
+  ]
+}
