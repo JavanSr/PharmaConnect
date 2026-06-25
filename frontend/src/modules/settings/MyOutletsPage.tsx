@@ -11,7 +11,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { differenceInCalendarDays } from 'date-fns';
-import { Building2, Plus, Clock, CheckCircle, AlertTriangle, X, Hourglass } from 'lucide-react';
+import { Building2, Plus, Clock, CheckCircle, AlertTriangle, X, Hourglass, Trash2 } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -114,6 +114,7 @@ function statusBadge(pharmacy: OutletSummary['pharmacy']) {
 export const MyOutletsPage: React.FC = () => {
   const [showForm, setShowForm] = useState(false);
   const [limitError, setLimitError] = useState<OutletLimitError | null>(null);
+  const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
   const toast = useNotificationStore(s => s.toast);
   const qc = useQueryClient();
   const currentPharmacy = usePharmacyStore(s => s.pharmacy);
@@ -163,6 +164,20 @@ export const MyOutletsPage: React.FC = () => {
     },
   });
 
+  const removeMutation = useMutation({
+    mutationFn: (pharmacyId: string) => api.delete(`/me/pharmacies/${pharmacyId}`),
+    onSuccess: () => {
+      toast.success('Location removed');
+      setConfirmRemoveId(null);
+      void qc.invalidateQueries({ queryKey: ['my-pharmacies'] });
+    },
+    onError: (e: any) => {
+      const msg = e.response?.data?.message || e.response?.data?.error || 'Could not remove location';
+      toast.error(msg);
+      setConfirmRemoveId(null);
+    },
+  });
+
   const onSubmitStandard = (d: AddOutletForm) => addMutation.mutate(d);
   const onSubmitAddon    = (d: AddAddonOutletForm) => addMutation.mutate(d);
 
@@ -195,31 +210,70 @@ export const MyOutletsPage: React.FC = () => {
         </div>
       ) : (
         <div className="space-y-3">
-          {outlets.map(({ pharmacyId, pharmacy, role }) => (
-            <div
-              key={pharmacyId}
-              className="flex items-start justify-between gap-4 rounded-xl border border-[#D6F0E8] bg-white px-5 py-4"
-            >
-              <div className="flex items-start gap-3 min-w-0">
-                <div className="mt-0.5 flex-shrink-0 w-8 h-8 rounded-xl bg-[#EDF7F3] flex items-center justify-center">
-                  <Building2 size={16} className="text-[#1A6B5C]" />
+          {outlets.map(({ pharmacyId, pharmacy, role }) => {
+            const isCurrentOutlet = currentPharmacy?.id === pharmacyId;
+            const isConfirming    = confirmRemoveId === pharmacyId;
+            return (
+              <div
+                key={pharmacyId}
+                className="rounded-xl border border-[#D6F0E8] bg-white px-5 py-4"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className="mt-0.5 flex-shrink-0 w-8 h-8 rounded-xl bg-[#EDF7F3] flex items-center justify-center">
+                      <Building2 size={16} className="text-[#1A6B5C]" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-[#0D4035] truncate">{pharmacy.name}</p>
+                      <p className="text-xs text-[#64748B] mt-0.5">
+                        {pharmacy.region} · {pharmacy.pharmacyType} · {TIER_LABELS[pharmacy.subscriptionTier] ?? pharmacy.subscriptionTier}
+                      </p>
+                      {pharmacy.status === 'SUSPENDED' && !pharmacy.isActive && (
+                        <p className="text-xs text-[#94A3B8] mt-0.5">Awaiting founder payment confirmation</p>
+                      )}
+                      {role !== 'OWNER' && (
+                        <p className="text-xs text-[#94A3B8] mt-0.5">Your role: {role}</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    {statusBadge(pharmacy)}
+                    {!isCurrentOutlet && outlets.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => setConfirmRemoveId(pharmacyId)}
+                        className="ml-1 rounded-lg p-1.5 text-[#94A3B8] hover:bg-red-50 hover:text-red-500 transition-colors"
+                        title="Remove location"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-[#0D4035] truncate">{pharmacy.name}</p>
-                  <p className="text-xs text-[#64748B] mt-0.5">
-                    {pharmacy.region} · {pharmacy.pharmacyType} · {TIER_LABELS[pharmacy.subscriptionTier] ?? pharmacy.subscriptionTier}
-                  </p>
-                  {pharmacy.status === 'SUSPENDED' && !pharmacy.isActive && (
-                    <p className="text-xs text-[#94A3B8] mt-0.5">Awaiting founder payment confirmation</p>
-                  )}
-                  {role !== 'OWNER' && (
-                    <p className="text-xs text-[#94A3B8] mt-0.5">Your role: {role}</p>
-                  )}
-                </div>
+
+                {isConfirming && (
+                  <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
+                    <p className="text-sm font-semibold text-red-800">Remove "{pharmacy.name}"?</p>
+                    <p className="mt-0.5 text-xs text-red-700">This deactivates the location. All data is kept and can be restored by the APOTEKH team.</p>
+                    <div className="mt-3 flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="border border-red-300 text-red-700 hover:bg-red-100"
+                        loading={removeMutation.isPending}
+                        onClick={() => removeMutation.mutate(pharmacyId)}
+                      >
+                        Yes, remove
+                      </Button>
+                      <Button size="sm" variant="secondary" onClick={() => setConfirmRemoveId(null)}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
-              <div className="shrink-0">{statusBadge(pharmacy)}</div>
-            </div>
-          ))}
+            );
+          })}
 
           {outlets.length === 0 && !isLoading && (
             <div className="rounded-xl border border-dashed border-[#D6F0E8] bg-[#F8FCFA] py-10 text-center">

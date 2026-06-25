@@ -428,3 +428,59 @@ meRouter.post(
     }
   },
 );
+
+// ── Remove an outlet (OWNER only) ─────────────────────────────────────────────
+//
+// Soft-deactivates an outlet: marks the pharmacy isActive=false, status=SUSPENDED,
+// and deactivates the owner's membership. Pharmacy data is never hard-deleted.
+// Guards: cannot remove the currently selected outlet, cannot remove the last one.
+meRouter.delete(
+  '/pharmacies/:id',
+  requireRole('OWNER'),
+  async (req: AuthRequest, res, next) => {
+    try {
+      const pharmacyId = z.string().uuid().parse(req.params.id);
+      const userId     = assertUser(req).userId;
+
+      // Block removing the outlet currently active in this session
+      if (req.user?.pharmacyId === pharmacyId) {
+        res.status(400).json({ error: 'CANNOT_REMOVE_ACTIVE_OUTLET', message: 'Switch to a different outlet before removing this one.' });
+        return;
+      }
+
+      // Verify the owner actually belongs to this pharmacy
+      const membership = await prisma.pharmacyMembership.findFirst({
+        where: { userId, pharmacyId, role: 'OWNER', active: true },
+        select: { id: true },
+      });
+      if (!membership) {
+        res.status(403).json({ error: 'NOT_OWNER' });
+        return;
+      }
+
+      // Guard: must have at least one other active outlet
+      const activeCount = await prisma.pharmacyMembership.count({
+        where: { userId, role: 'OWNER', active: true },
+      });
+      if (activeCount <= 1) {
+        res.status(400).json({ error: 'CANNOT_REMOVE_LAST_OUTLET', message: 'You cannot remove your only location.' });
+        return;
+      }
+
+      await prisma.$transaction(async (tx) => {
+        await tx.pharmacy.update({
+          where: { id: pharmacyId },
+          data:  { isActive: false, status: 'SUSPENDED' },
+        });
+        await tx.pharmacyMembership.updateMany({
+          where: { userId, pharmacyId },
+          data:  { active: false },
+        });
+      });
+
+      res.json({ data: { removed: true } });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
