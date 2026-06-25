@@ -390,7 +390,7 @@ function ExploreDashboard() {
           ))}
         </Card>
         <Card>
-          <p style={{ fontSize: 13, fontWeight: 600, color: C.primaryDark, margin: '0 0 12px' }}>Today's Activity</p>
+          <p style={{ fontSize: 13, fontWeight: 600, color: C.primaryDark, margin: '0 0 12px' }}>Today&apos;s Activity</p>
           {[
             { label: 'Dispensed',    value: 2,  bg: '#D6F0E8', color: C.primary },
             { label: 'Received',     value: 1,  bg: C.mist,    color: '#1D9E75' },
@@ -1247,7 +1247,7 @@ function StepDashboardEmpty() {
           <EmptyPanel message="No movements recorded yet" />
         </Card>
         <Card>
-          <p style={{ fontSize: 13, fontWeight: 600, color: C.primaryDark, margin: '0 0 12px' }}>Today's Activity</p>
+          <p style={{ fontSize: 13, fontWeight: 600, color: C.primaryDark, margin: '0 0 12px' }}>Today&apos;s Activity</p>
           <EmptyPanel message="No activity recorded today yet." />
         </Card>
       </div>
@@ -1535,11 +1535,11 @@ function GuideSection({ label, children }: { label: string; children: React.Reac
 function GuideStep0() {
   return (
     <>
-      <GuideSection label="What you're looking at">
+      <GuideSection label="What you&apos;re looking at">
         <GuideItem>This is the <strong>Owner Dashboard</strong> — the first screen after login at BEST CARE PHARMACY.</GuideItem>
-        <GuideItem>Four summary cards: today's revenue, low stock, expiring batches, and total products. All update in real time as your dispensers work.</GuideItem>
-        <GuideItem>Below: Low Stock Alerts with progress bars, Recent Movements, Today's Activity counts, and the Expiry Countdown.</GuideItem>
-        <GuideItem>The pharmacy is new — no products, no sales yet. Let's change that.</GuideItem>
+        <GuideItem>Four summary cards: today&apos;s revenue, low stock, expiring batches, and total products. All update in real time as your dispensers work.</GuideItem>
+        <GuideItem>Below: Low Stock Alerts with progress bars, Recent Movements, Today&apos;s Activity counts, and the Expiry Countdown.</GuideItem>
+        <GuideItem>The pharmacy is new — no products, no sales yet. Let&apos;s change that.</GuideItem>
       </GuideSection>
       <GuideSection label="What to do next">
         <GuideItem>Click <strong>Next</strong> to add your first medicine from the TMDA master catalogue.</GuideItem>
@@ -1603,7 +1603,7 @@ function GuideStep4() {
     <>
       <GuideSection label="What just happened">
         <GuideItem>APOTEKH detected a <strong>CONTRAINDICATED interaction</strong> between Amoxicillin and Warfarin before the medicine left the counter.</GuideItem>
-        <GuideItem>Amoxicillin can potentiate Warfarin's anticoagulant effect — <strong>significant bleeding risk</strong>.</GuideItem>
+        <GuideItem>Amoxicillin can potentiate Warfarin&apos;s anticoagulant effect — <strong>significant bleeding risk</strong>.</GuideItem>
       </GuideSection>
       <GuideSection label="The override model">
         <GuideItem>No PIN required. No escalation. <strong>The dispenser decides.</strong></GuideItem>
@@ -1625,7 +1625,7 @@ function GuideStep5({ onExplore }: { onExplore: (p: ExplorePage) => void }) {
         <GuideItem>The drug interaction override is permanently attached to this transaction.</GuideItem>
       </GuideSection>
       <GuideSection label="What the owner sees">
-        <GuideItem>From their phone, from home, from anywhere — <strong>live revenue, the override log, and the dispenser's name</strong>.</GuideItem>
+        <GuideItem>From their phone, from home, from anywhere — <strong>live revenue, the override log, and the dispenser&apos;s name</strong>.</GuideItem>
         <GuideItem>No WhatsApp summary at end of day. No waiting for a report. It was live the moment it happened.</GuideItem>
       </GuideSection>
       <div style={{ background: C.mist, border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', marginBottom: 12 }}>
