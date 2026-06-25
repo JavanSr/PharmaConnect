@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { RefreshCw, Sparkles, X } from 'lucide-react';
 
 type ReleaseInfo = {
-  version: string;
   date: string;
   notes: string[];
 };
@@ -39,7 +38,7 @@ export const UpdateBanner: React.FC = () => {
         <div className="flex min-w-0 items-center gap-2">
           <Sparkles size={15} className="shrink-0 text-[#E8A020]" />
           <span className="text-sm text-white/90">
-            APOTEKH {release?.version ? `v${release.version}` : 'update'} is ready
+            A new version of APOTEKH is ready
             {release?.notes?.length ? ' — ' : ''}
             {release?.notes?.length ? (
               <button
