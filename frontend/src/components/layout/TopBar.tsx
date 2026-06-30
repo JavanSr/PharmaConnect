@@ -8,7 +8,7 @@ import { usePharmacyStore } from '@/stores/pharmacyStore';
 import { Button } from '@/components/ui/Button';
 import { NotificationBell } from '@/components/NotificationBell';
 import { selectMembershipPharmacy } from '@/lib/pharmacySelection';
-import { flushOfflineWrites } from '@/lib/offlineSync';
+import { flushOfflineWrites, clearAllOfflineWrites } from '@/lib/offlineSync';
 
 interface TopBarProps {
   onMenuClick: () => void;
@@ -26,22 +26,34 @@ export const TopBar: React.FC<TopBarProps> = ({ onMenuClick, onDesktopToggle, ti
   const memberships = usePharmacyStore(state => state.memberships);
   const toast = useNotificationStore(state => state.toast);
   const [syncing, setSyncing] = React.useState(false);
+  const [syncStuck, setSyncStuck] = React.useState(false);
 
   const handleManualSync = async () => {
     setSyncing(true);
+    setSyncStuck(false);
     try {
       const result = await flushOfflineWrites();
       setPendingSyncCount(result.remaining);
       if (result.synced > 0) {
         toast.success(`${result.synced} update${result.synced === 1 ? '' : 's'} synced.`);
+        setSyncStuck(false);
       } else if (result.remaining > 0) {
-        toast.error(`${result.remaining} item${result.remaining === 1 ? '' : 's'} could not sync — check your connection.`);
+        toast.error(`Could not sync — tap × to clear if stuck.`);
+        setSyncStuck(true);
       }
     } catch {
       toast.error('Sync failed — try again when connected.');
+      setSyncStuck(true);
     } finally {
       setSyncing(false);
     }
+  };
+
+  const handleForceClear = async () => {
+    await clearAllOfflineWrites();
+    setPendingSyncCount(0);
+    setSyncStuck(false);
+    toast.info('Cleared stuck sync items.');
   };
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -71,20 +83,32 @@ export const TopBar: React.FC<TopBarProps> = ({ onMenuClick, onDesktopToggle, ti
     );
 
     if (pendingSyncCount > 0) return (
-      <button
-        type="button"
-        onClick={handleManualSync}
-        disabled={syncing}
-        title="Tap to retry sync"
-        className="flex min-h-[32px] items-center gap-1.5 rounded-full border border-tertiary-container/30 bg-tertiary-container/10 px-3 py-1 hover:bg-tertiary-container/20 transition-colors"
-      >
-        {syncing
-          ? <RefreshCw size={13} className="text-tertiary animate-spin" />
-          : <Clock size={13} className="text-tertiary animate-pulse" />}
-        <span className="text-label-md text-tertiary font-medium">
-          {syncing ? 'Syncing…' : `${pendingSyncCount} pending sync`}
-        </span>
-      </button>
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          onClick={handleManualSync}
+          disabled={syncing}
+          title="Tap to retry sync"
+          className="flex min-h-[32px] items-center gap-1.5 rounded-full border border-tertiary-container/30 bg-tertiary-container/10 px-3 py-1 hover:bg-tertiary-container/20 transition-colors"
+        >
+          {syncing
+            ? <RefreshCw size={13} className="text-tertiary animate-spin" />
+            : <Clock size={13} className="text-tertiary animate-pulse" />}
+          <span className="text-label-md text-tertiary font-medium">
+            {syncing ? 'Syncing…' : `${pendingSyncCount} pending sync`}
+          </span>
+        </button>
+        {syncStuck && !syncing && (
+          <button
+            type="button"
+            onClick={handleForceClear}
+            title="Clear stuck sync items"
+            className="flex size-[28px] items-center justify-center rounded-full text-tertiary hover:bg-tertiary-container/20 transition-colors text-sm font-bold"
+          >
+            ×
+          </button>
+        )}
+      </div>
     );
 
     return (
@@ -125,7 +149,7 @@ export const TopBar: React.FC<TopBarProps> = ({ onMenuClick, onDesktopToggle, ti
       </div>
 
       <div className="flex items-center gap-2">
-        {memberships.length > 1 && (
+        {memberships.filter(m => m.active && m.pharmacy.isActive).length > 1 && (
           <div className="hidden md:flex min-h-[40px] items-center gap-2 rounded-full border border-outline-variant/30 bg-surface-container-lowest px-3 py-1.5">
             <label htmlFor="topbar-pharmacy-select" className="text-label-md text-on-surface-variant">
               Outlet
@@ -144,7 +168,7 @@ export const TopBar: React.FC<TopBarProps> = ({ onMenuClick, onDesktopToggle, ti
                 switchMutation.mutate(nextId);
               }}
             >
-              {memberships.map((membership) => (
+              {memberships.filter(m => m.active && m.pharmacy.isActive).map((membership) => (
                 <option key={membership.id} value={membership.pharmacyId}>
                   {membership.pharmacy.name}
                 </option>

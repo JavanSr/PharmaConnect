@@ -1,6 +1,6 @@
 # APOTEKH User Manual
 
-_Last updated: 13 June 2026_
+_Last updated: 25 June 2026_
 
 Cloud-based, offline-first Pharmacy Management System and digital health ecosystem for Tanzanian retail pharmacies, ADDOs, wholesale distributors, pharmacy owners, and healthcare partners.
 
@@ -268,10 +268,22 @@ The top bar includes:
 
 - Back button
 - Page title where available
-- Active pharmacy outlet selector for users with multiple memberships
-- Connectivity status: `Synced`, `Offline`, or pending sync count
+- Active pharmacy outlet selector for users with multiple active memberships (inactive or removed outlets are not shown)
+- Connectivity status: `Synced`, `Offline`, or pending sync count with tap-to-retry
 - Quick actions: `Dispense` and `Receive`
 - Notification bell
+
+### App update banner
+
+When a new version of APOTEKH is available, a dark banner appears at the top of the screen:
+
+> "A new version of APOTEKH is ready — see what's new"
+
+- Tap **see what's new** to expand the list of changes in this release.
+- Tap **Update now** to apply the update. The app reloads instantly with the new version.
+- Tap the × on the right to dismiss the banner and update later. The update applies automatically on the next page load.
+
+The update banner never applies a new version silently while you are mid-session. You must confirm with **Update now**.
 
 ![Top bar — Synced status](screenshots/03-owner-dashboard.png)
 
@@ -1465,6 +1477,53 @@ What it does:
 
 Owners can choose whether dispensers can add, edit, or remove supplier records. Dispensers can still select existing suppliers for stock work.
 
+### My Locations
+
+Where to find it: `Settings > My Locations`
+
+Who uses it: `OWNER`
+
+What it does:
+
+My Locations shows all pharmacy outlets under the owner's account. Each card shows the outlet name, region, type, and current status (Active, Trial, Pending activation, Grace period).
+
+#### Adding a new outlet
+
+ADDO owners can add additional ADDO locations at Tsh 15,000/month per location. Non-ADDO owners are directed to upgrade their subscription tier to increase the outlet limit.
+
+Typical scenario (ADDO):
+
+1. Open `Settings > My Locations`.
+2. Click **+ Add location**.
+3. Enter the outlet name, region, address, and optional licence number.
+4. Enter the M-Pesa phone number to be charged.
+5. Click **Add location**.
+6. A PIN prompt arrives on the entered phone. Enter the PIN to confirm.
+7. The new outlet appears in the list with **Pending activation** status.
+8. Once payment is confirmed, the outlet becomes Active and appears in the outlet switcher.
+
+If the STK push does not arrive, a payment reference is shown — use it to pay manually and contact the APOTEKH team.
+
+#### Removing an outlet
+
+Owners can remove an outlet they no longer need. All data is preserved and can be restored by the APOTEKH team on request.
+
+Typical scenario:
+
+1. Open `Settings > My Locations`.
+2. Click the trash icon on the outlet to remove.
+
+   Note: The trash icon does not appear on the currently active outlet. Switch to a different outlet first, then remove the unwanted one.
+
+3. A confirmation panel appears with the outlet name and a reminder that data is kept.
+4. Click **Yes, remove** to confirm. The outlet is deactivated and removed from the outlet switcher immediately.
+
+Important rules:
+
+- You cannot remove the last remaining outlet on your account.
+- You cannot remove the outlet you are currently logged into. Switch outlets first.
+- Removed outlets stop appearing in the outlet switcher and in My Locations after removal.
+
 ### Pharmacy memberships and multi-pharmacy support
 
 Where to find it:
@@ -1472,10 +1531,11 @@ Where to find it:
 - `/select-pharmacy`
 - Top bar outlet selector
 - `Settings > Profile`
+- `Settings > My Locations`
 
 What it does:
 
-Users can belong to multiple pharmacies through pharmacy memberships. The active outlet controls access, tier, analytics, and reporting scope.
+Users can belong to multiple pharmacies through pharmacy memberships. The active outlet controls access, tier, analytics, and reporting scope. The outlet switcher in the top bar shows only active outlets — pending-activation and removed outlets do not appear in the switcher.
 
 Typical scenario:
 
@@ -1545,13 +1605,22 @@ Current queued workflows include:
 ### What happens on reconnect?
 
 1. Browser fires online event.
-2. `useOfflineSync` starts flush.
-3. Expired writes are purged.
+2. `useOfflineSync` starts flush automatically.
+3. Expired writes (older than 7 days) are purged.
 4. Writes are submitted in created order.
 5. Successful writes are removed from queue.
-6. Failed server rejections may create conflict records.
-7. Remaining writes keep last error and attempt count.
+6. Permanently rejected writes (server 4xx responses) are dropped and logged as conflicts where possible.
+7. Remaining network-error writes keep their last error and attempt count.
 8. Pending sync count updates in the top bar.
+
+### Pending sync pill
+
+The top bar shows a **pending sync** pill when there are queued writes waiting to reach the server.
+
+- **Tap the pill** to manually trigger a sync retry immediately.
+- If the sync succeeds, the pill disappears and a success toast shows how many items were synced.
+- If the sync fails and items remain stuck, a **×** button appears next to the pill. Tap × to force-clear all stuck items. Use this only if the items are no longer needed (for example, a write from a deleted outlet that cannot succeed).
+- Writes that fail 10 or more times are automatically dropped to prevent the queue from blocking indefinitely.
 
 ### Conflict resolution
 
@@ -1631,11 +1700,36 @@ Subscription records include:
 - Trial countdown
 - Account status: `TRIAL`, `ACTIVE`, `SUSPENDED`, `CANCELLED`
 
-### Manual payment flow
+### Paying via M-Pesa STK push (recommended)
 
-The current Subscription page explains manual payment confirmation. Payment may be handled by mobile money or bank transfer, then access is confirmed by the APOTEKH team.
+Where to find it: `Settings > Subscription` or the trial paywall when a trial ends.
 
-The app states access is restored within 24 hours after payment confirmation.
+Who uses it: `OWNER`
+
+What it does:
+
+When an owner selects a plan and enters their M-Pesa (or Tigo/Airtel) phone number, APOTEKH sends a payment request directly to that phone. The owner enters their mobile money PIN on the phone to approve. No manual reference copying or bank transfer needed.
+
+Typical scenario:
+
+1. Open `Settings > Subscription` or the upgrade prompt when the trial ends.
+2. Select the desired plan (ADDO, BASIC, STANDARD, PREMIUM, WHOLESALE).
+3. Choose billing cycle: Monthly or Annual.
+4. Enter the M-Pesa phone number to charge.
+5. Click **Subscribe / Pay now**.
+6. A PIN prompt appears on the phone within a few seconds.
+7. Enter the M-Pesa PIN to approve.
+8. The subscription activates automatically. An in-app notification confirms activation.
+
+If the PIN prompt does not arrive within 30 seconds:
+
+- Confirm the phone number is correct and the SIM is active.
+- Check that mobile data is on (STK push requires network on the SIM).
+- Contact the APOTEKH team via the fallback reference shown on screen.
+
+### Manual payment fallback
+
+If the STK push is unavailable, the subscription page shows a payment reference code (format: `APTK-...`). Send the exact amount to the APOTEKH payment number using that reference, then contact the team to confirm. Access is restored within 24 hours of confirmation.
 
 ### Upgrading and downgrading
 
@@ -1725,7 +1819,23 @@ CPD tracking is a planned Phase 2 feature. The current sidebar shows a Coming So
 
 ### Can owners manage multiple pharmacies?
 
-Yes. Users can have multiple pharmacy memberships and switch the active outlet. The active outlet controls role, tier, analytics, and reporting scope.
+Yes. Users can have multiple pharmacy memberships and switch the active outlet using the outlet selector in the top bar. The active outlet controls role, tier, analytics, and reporting scope. Only active outlets appear in the switcher — pending-activation and removed outlets are filtered out.
+
+### How do I pay for a subscription?
+
+APOTEKH uses M-Pesa STK push. Select your plan, enter your M-Pesa number, and click Subscribe. A PIN prompt arrives on your phone. Enter your PIN to confirm — no manual transfer or reference copying needed. The subscription activates immediately after the PIN is approved.
+
+### What if I don't receive the M-Pesa PIN prompt?
+
+Check that the phone number is correct and the SIM has mobile data active. If the prompt still doesn't arrive, a payment reference code is shown on screen — use it to send the payment manually, then contact the APOTEKH team to confirm.
+
+### Can I add more outlets?
+
+ADDO owners can add unlimited ADDO locations from `Settings > My Locations`. Each additional outlet costs Tsh 15,000/month and is charged via M-Pesa STK push at the time of adding. Non-ADDO pharmacies increase their outlet allowance by upgrading their subscription tier.
+
+### Can I remove an outlet I no longer need?
+
+Yes. Go to `Settings > My Locations`, click the trash icon on the outlet, and confirm. All data is preserved and can be restored by the APOTEKH team on request. You cannot remove the outlet you are currently logged into — switch to another outlet first.
 
 ### What should sales staff say about pricing?
 
@@ -1756,9 +1866,10 @@ APOTEKH is deeper than a generic POS. It combines regulated pharmacy operations,
 11. Open Analytics and Forecasting.
 12. Open Wholesale dashboard for B2B depth — catalogue, orders, receivables aging.
 13. Open Knowledge Hub and Staff Activity (OWNER/PIC view).
-14. Open Settings for team, subscription, and payment method configuration.
-15. Mention offline mode and show top bar sync status.
-16. For investor demos, finish with Platform Admin shell at `/superadmin` — Founder Hub, payment queue, platform metrics.
+14. Open Settings for team, subscription, and payment method configuration. Show `Settings > My Locations` — demonstrate adding an outlet (STK push payment flow) and removing one (trash icon + confirm panel).
+15. Open `Settings > Subscription` — show the M-Pesa STK push checkout: select plan, enter number, explain the PIN prompt flow.
+16. Mention offline mode and show top bar sync status — tap the pending sync pill to demonstrate manual retry.
+17. For investor demos, finish with Platform Admin shell at `/superadmin` — Founder Hub, payment queue, platform metrics.
 
 ## Appendix B: Screenshot Checklist
 

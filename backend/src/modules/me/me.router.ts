@@ -72,6 +72,8 @@ meRouter.post('/pharmacies/:id/select', async (req: AuthRequest, res, next) => {
             trialEndsAt: true,
             isHybrid: true,
             hybridAddonActive: true,
+            finNumber: true,
+            isVerified: true,
             vfdEnabled: true,
             userLimit: true,
             isActive: true,

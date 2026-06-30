@@ -11,7 +11,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { differenceInCalendarDays } from 'date-fns';
-import { Building2, Plus, Clock, CheckCircle, AlertTriangle, X, Hourglass, Trash2 } from 'lucide-react';
+import { Building2, Plus, Clock, CheckCircle, AlertTriangle, X, Hourglass, Trash2, Copy } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -115,6 +115,9 @@ export const MyOutletsPage: React.FC = () => {
   const [showForm, setShowForm] = useState(false);
   const [limitError, setLimitError] = useState<OutletLimitError | null>(null);
   const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
+  const [pendingPayment, setPendingPayment] = useState<{
+    name: string; reference: string; stkSent: boolean; instructions: string;
+  } | null>(null);
   const toast = useNotificationStore(s => s.toast);
   const qc = useQueryClient();
   const currentPharmacy = usePharmacyStore(s => s.pharmacy);
@@ -140,18 +143,24 @@ export const MyOutletsPage: React.FC = () => {
     mutationFn: (payload: AddOutletForm | AddAddonOutletForm) =>
       api.post('/me/pharmacies/add-outlet', payload).then(r => r.data.data),
     onSuccess: (result) => {
+      void qc.invalidateQueries({ queryKey: ['my-pharmacies'] });
       if (result.pendingPayment) {
-        const msg = result.instructions ?? `${result.name} created — awaiting payment confirmation.`;
-        toast.success(msg, 8000);
+        setShowForm(false);
+        resetForms();
+        setPendingPayment({
+          name: result.name,
+          reference: result.reference,
+          stkSent: result.stkSent ?? false,
+          instructions: result.instructions ?? `${result.name} created — awaiting payment confirmation.`,
+        });
       } else {
         const msg = result.sharedTrial && result.trialEndsAt
           ? `${result.name} added — trial ends ${new Date(result.trialEndsAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} with your other locations`
           : `${result.name} added and active`;
         toast.success(msg);
+        setShowForm(false);
+        resetForms();
       }
-      setShowForm(false);
-      resetForms();
-      void qc.invalidateQueries({ queryKey: ['my-pharmacies'] });
     },
     onError: (e: any) => {
       const body = e.response?.data;

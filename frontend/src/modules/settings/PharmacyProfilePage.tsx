@@ -1,7 +1,7 @@
 import React from 'react';
 import { useForm } from 'react-hook-form';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Building2, Clock, MapPin, Phone, Save } from 'lucide-react';
+import { Building2, Clock, MapPin, Phone, Save, ShieldCheck, ShieldAlert } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
@@ -21,6 +21,7 @@ type ProfileForm = {
   address: string;
   region: string;
   licenceNumber: string;
+  finNumber: string;
   phone: string;
   hours: string;
 };
@@ -35,7 +36,7 @@ export const PharmacyProfilePage: React.FC = () => {
   });
 
   const { register, handleSubmit, reset, formState: { isDirty } } = useForm<ProfileForm>({
-    defaultValues: { address: '', region: '', licenceNumber: '', phone: '', hours: '' },
+    defaultValues: { address: '', region: '', licenceNumber: '', finNumber: '', phone: '', hours: '' },
   });
 
   React.useEffect(() => {
@@ -44,6 +45,7 @@ export const PharmacyProfilePage: React.FC = () => {
         address: data.address ?? '',
         region: data.region ?? '',
         licenceNumber: data.licenceNumber ?? '',
+        finNumber: data.finNumber ?? '',
         phone: data.phone ?? '',
         hours: data.hours ?? '',
       });
@@ -99,6 +101,21 @@ export const PharmacyProfilePage: React.FC = () => {
             leftIcon={<Building2 size={15} />}
             {...register('licenceNumber')}
           />
+          <div>
+            <Input
+              label="TMDA Facility Identification Number (FIN)"
+              placeholder="e.g. TZ-TMDA-00012345"
+              leftIcon={data?.isVerified
+                ? <ShieldCheck size={15} className="text-emerald-600" />
+                : <ShieldAlert size={15} className="text-amber-500" />
+              }
+              {...register('finNumber')}
+            />
+            {data?.isVerified
+              ? <p className="mt-1 text-xs text-emerald-700 font-medium">Verified — your pharmacy FIN is on record.</p>
+              : <p className="mt-1 text-xs text-amber-600">Enter your FIN to verify your pharmacy and unlock wholesale B2B ordering.</p>
+            }
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
               label="Phone Number"

@@ -9,6 +9,7 @@ import { loadMemberships } from '@/lib/pharmacySelection';
 import { TrialBanner } from '@/components/TrialBanner';
 import { TrialPaywall } from '@/components/TrialPaywall';
 import { GraceAccessBanner } from '@/components/GraceAccessBanner';
+import { FinVerificationBanner } from '@/components/FinVerificationBanner';
 import { SystemStatusWindow } from '@/components/SystemStatusWindow';
 import { OnboardingWizard } from '@/components/OnboardingWizard';
 import { Sidebar } from './Sidebar';
@@ -253,6 +254,9 @@ export const Layout: React.FC = () => {
         )}
         {!isFounderAccount && isInGrace && (
           <GraceAccessBanner graceActivatedAt={effectiveSubscription?.graceActivatedAt} />
+        )}
+        {!isFounderAccount && (
+          <FinVerificationBanner />
         )}
         <main className="flex-1 overflow-y-auto px-margin-mobile py-stack-lg sm:px-margin-tablet print:block print:overflow-visible print:p-0">
           <Outlet />

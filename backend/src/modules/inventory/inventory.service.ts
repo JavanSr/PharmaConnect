@@ -4,7 +4,7 @@ import path from 'node:path';
 import { prisma } from '../../lib/prisma';
 import { withPrismaRetry } from '../../lib/prisma-retry';
 import { clampLocalTimestamp } from '../../lib/timestamps';
-import { Prisma, type MovementType, type SyncConflictStatus } from '@prisma/client';
+import { Prisma, type MovementType } from '@prisma/client';
 
 type ProductWriteInput = {
   name: string;
@@ -526,45 +526,71 @@ async function enrichProductsWithAwarClass<T extends {
   name: string;
   genericName?: string | null;
   awarClass?: string | null;
-}>(products: T[]): Promise<Array<T & { awarClass: AwarClass | null }>> {
+}>(products: T[]): Promise<Array<T & {
+  awarClass: AwarClass | null;
+  pregnancyCategory: string | null;
+  breastfeedingSafety: string | null;
+  renalCaution: boolean;
+  hepaticCaution: boolean;
+  elderlyCaution: boolean;
+  standardAdultDose: string | null;
+}>> {
   if (products.length === 0) {
     return [];
   }
 
   const lookupNames = uniqueTruthy(products.map((product) => product.genericName ?? product.name));
-  const awarRows = lookupNames.length > 0
+  const masterRows = lookupNames.length > 0
     ? await prisma.drugDatabase.findMany({
         where: {
-          awarClass: { not: null },
           OR: lookupNames.map((name) => ({
             genericName: { equals: name, mode: 'insensitive' as const },
           })),
         },
-        select: { genericName: true, awarClass: true },
+        select: {
+          genericName: true,
+          awarClass: true,
+          pregnancyCategory: true,
+          breastfeedingSafety: true,
+          renalCaution: true,
+          hepaticCaution: true,
+          elderlyCaution: true,
+          standardAdultDose: true,
+        },
       })
     : [];
-  const awarMatches = awarRows
-    .filter((row): row is { genericName: string; awarClass: AwarClass } => isAwarClass(row.awarClass))
-    .map((row) => ({
-      genericName: normalizeCatalogSearchValue(row.genericName),
-      awarClass: row.awarClass,
-    }));
+
+  const masterByName = new Map(
+    masterRows.map((row) => [normalizeCatalogSearchValue(row.genericName), row]),
+  );
 
   return products.map((product) => {
-    const explicitAwarClass = product.awarClass ?? null;
-    if (isAwarClass(explicitAwarClass)) {
-      return { ...product, awarClass: explicitAwarClass };
-    }
-
     const productTerms = [
       normalizeCatalogSearchValue(product.genericName),
       normalizeCatalogSearchValue(product.name),
     ].filter(Boolean);
-    const match = awarMatches.find((row) =>
-      productTerms.some((term) => term === row.genericName || term.includes(row.genericName)),
+
+    const master = productTerms.reduce<typeof masterRows[number] | undefined>(
+      (found, term) => found ?? masterByName.get(term) ??
+        [...masterByName.entries()].find(([k]) => term.includes(k) || k.includes(term))?.[1],
+      undefined,
     );
 
-    return { ...product, awarClass: match?.awarClass ?? null };
+    const explicitAwarClass = product.awarClass ?? null;
+    const resolvedAwarClass = isAwarClass(explicitAwarClass)
+      ? explicitAwarClass
+      : isAwarClass(master?.awarClass ?? null) ? (master!.awarClass as AwarClass) : null;
+
+    return {
+      ...product,
+      awarClass: resolvedAwarClass,
+      pregnancyCategory: master?.pregnancyCategory ?? null,
+      breastfeedingSafety: master?.breastfeedingSafety ?? null,
+      renalCaution: master?.renalCaution ?? false,
+      hepaticCaution: master?.hepaticCaution ?? false,
+      elderlyCaution: master?.elderlyCaution ?? false,
+      standardAdultDose: master?.standardAdultDose ?? null,
+    };
   });
 }
 
@@ -2708,7 +2734,7 @@ export async function lowStockReport(pharmacyId: string) {
     .sort((a, b) => (a.currentStock ?? 0) - (b.currentStock ?? 0));
 }
 
-export async function listSyncConflicts(pharmacyId: string, status?: SyncConflictStatus) {
+export async function listSyncConflicts(pharmacyId: string, status?: string) {
   return prisma.syncConflict.findMany({
     where: {
       pharmacyId,

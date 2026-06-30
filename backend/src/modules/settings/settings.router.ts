@@ -613,7 +613,7 @@ settingsRouter.get('/pharmacy-profile', requireRole('OWNER', 'SUPER_ADMIN'), asy
   try {
     const pharmacy = await prisma.pharmacy.findUnique({
       where: { id: pid(req) },
-      select: { id: true, name: true, licenceNumber: true, address: true, region: true },
+      select: { id: true, name: true, licenceNumber: true, address: true, region: true, finNumber: true, isVerified: true },
     });
     if (!pharmacy) { res.status(404).json({ error: 'Pharmacy not found' }); return; }
 
@@ -639,6 +639,7 @@ settingsRouter.patch('/pharmacy-profile', requireRole('OWNER', 'SUPER_ADMIN'), a
       address: z.string().trim().min(2).optional(),
       region: z.string().trim().min(1).optional(),
       licenceNumber: z.string().trim().min(1).optional(),
+      finNumber: z.string().trim().optional(),
       phone: z.string().trim().optional(),
       hours: z.string().trim().optional(),
     });
@@ -646,10 +647,14 @@ settingsRouter.patch('/pharmacy-profile', requireRole('OWNER', 'SUPER_ADMIN'), a
     const pharmacyId = pid(req);
     const userId = uid(req);
 
-    const updateData: Record<string, string> = {};
+    const updateData: Record<string, unknown> = {};
     if (data.address) updateData.address = data.address;
     if (data.region) updateData.region = data.region;
     if (data.licenceNumber) updateData.licenceNumber = data.licenceNumber;
+    if (data.finNumber !== undefined) {
+      updateData.finNumber = data.finNumber || null;
+      updateData.isVerified = Boolean(data.finNumber);
+    }
 
     if (Object.keys(updateData).length > 0) {
       await prisma.pharmacy.update({ where: { id: pharmacyId }, data: updateData });

@@ -156,10 +156,6 @@ enum NotificationChannel {
   WHATSAPP
 }
 
-enum SyncConflictStatus {
-  OPEN
-  RESOLVED
-}
 
 enum SourceDocumentType {
   PRODUCT_REGISTER
@@ -259,6 +255,8 @@ model Pharmacy {
   isHybrid              Boolean               @default(false) @map("is_hybrid")
   hybridAddonActive     Boolean               @default(false) @map("hybrid_addon_active")
   hybridEnabledAt       DateTime?             @map("hybrid_enabled_at")
+  finNumber             String?               @map("fin_number")
+  isVerified            Boolean               @default(false) @map("is_verified")
   renewalYear           Int                   @default(2026) @map("renewal_year")
   vfdEnabled            Boolean               @default(false) @map("vfd_enabled")
   timezone              String                @default("Africa/Nairobi")
@@ -788,7 +786,7 @@ model SyncConflict {
   conflictType  String             @map("conflict_type")
   localPayload  Json               @default("{}") @map("local_payload")
   serverPayload Json               @default("{}") @map("server_payload")
-  status        SyncConflictStatus @default(OPEN)
+  status        String             @default("OPEN")
   resolvedBy    String?            @map("resolved_by")
   resolvedAt    DateTime?          @map("resolved_at")
   createdAt     DateTime           @default(now()) @map("created_at")

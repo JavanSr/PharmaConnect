@@ -27,6 +27,24 @@ adminRouter.get('/dashboard/at-risk', async (_req, res, next) => {
   } catch (e) { next(e); }
 });
 
+adminRouter.get('/dashboard/clinical-safety', async (_req, res, next) => {
+  try {
+    res.json({ data: await svc.getClinicalSafetyMetrics() });
+  } catch (e) { next(e); }
+});
+
+adminRouter.get('/dashboard/trial-funnel', async (_req, res, next) => {
+  try {
+    res.json({ data: await svc.getTrialFunnel() });
+  } catch (e) { next(e); }
+});
+
+adminRouter.get('/dashboard/network-activity', async (_req, res, next) => {
+  try {
+    res.json({ data: await svc.getNetworkActivity() });
+  } catch (e) { next(e); }
+});
+
 // ─── Pharmacy list ────────────────────────────────────────────────────────────
 
 adminRouter.get('/pharmacies', async (req: AuthRequest, res, next) => {

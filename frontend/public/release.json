@@ -1,9 +1,10 @@
 {
-  "date": "2026-06-25",
+  "date": "2026-06-23",
   "notes": [
     "Payment window: tap your M-Pesa number, get a PIN push — subscription activates instantly",
     "My Locations: you can now remove an outlet you no longer need",
     "Pending sync pill is now tappable — tap to retry stuck offline writes",
+    "Fixed: pending sync no longer stays stuck after removing a location",
     "Fixed: tier dropdown in paywall now shows readable names (Basic, Standard, etc.)"
   ]
 }

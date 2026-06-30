@@ -51,6 +51,8 @@ export interface Pharmacy {
   trialEndsAt?: string;
   isHybrid?: boolean;
   hybridAddonActive?: boolean;
+  finNumber?: string | null;
+  isVerified?: boolean;
   vfdEnabled?: boolean;
   userLimit?: number;
   isActive: boolean;
@@ -361,6 +363,12 @@ export interface Product {
   manufacturer?: string | null;
   therapeuticCategory?: string | null;
   awarClass?: 'ACCESS' | 'WATCH' | 'RESERVE' | null;
+  pregnancyCategory?: string | null;
+  breastfeedingSafety?: string | null;
+  renalCaution?: boolean;
+  hepaticCaution?: boolean;
+  elderlyCaution?: boolean;
+  standardAdultDose?: string | null;
   drugMasterId?: string | null;
   masterCatalogMatched?: boolean;
   pendingReview?: boolean;

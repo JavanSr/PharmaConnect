@@ -648,6 +648,238 @@ export async function getAtRiskPharmacies() {
     }));
 }
 
+// ─── Clinical safety metrics ──────────────────────────────────────────────────
+
+export async function getClinicalSafetyMetrics() {
+  const demoIds = await getDemoPharmacyIds();
+  const since30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const since7  = new Date(Date.now() -  7 * 24 * 60 * 60 * 1000);
+
+  const excludeSql = demoIds.length > 0
+    ? Prisma.sql`AND "pharmacy_id" NOT IN (${Prisma.join(demoIds)})`
+    : Prisma.empty;
+
+  const [
+    alertsBySeverity,
+    alertsByType,
+    overrides30d,
+    overrides7d,
+    topDrugClasses,
+    topOverrideReasons,
+    alertsTotal30d,
+    alertsTotal7d,
+  ] = await Promise.all([
+    // Alerts by severity in last 30 days
+    prisma.$queryRaw<Array<{ severity: string; count: bigint }>>(Prisma.sql`
+      SELECT severity, COUNT(*)::bigint AS count
+      FROM safety_events
+      WHERE created_at >= ${since30} ${excludeSql}
+      GROUP BY severity
+      ORDER BY count DESC
+    `).catch(() => [] as Array<{ severity: string; count: bigint }>),
+
+    // Alerts by event type in last 30 days
+    prisma.$queryRaw<Array<{ event_type: string; count: bigint }>>(Prisma.sql`
+      SELECT event_type, COUNT(*)::bigint AS count
+      FROM safety_events
+      WHERE created_at >= ${since30} ${excludeSql}
+      GROUP BY event_type
+      ORDER BY count DESC
+      LIMIT 8
+    `).catch(() => [] as Array<{ event_type: string; count: bigint }>),
+
+    // Overrides in last 30 days
+    prisma.$queryRaw<Array<{ count: bigint }>>(Prisma.sql`
+      SELECT COUNT(*)::bigint AS count FROM override_log
+      WHERE created_at >= ${since30} ${excludeSql}
+    `).catch(() => [{ count: 0n }]),
+
+    // Overrides in last 7 days
+    prisma.$queryRaw<Array<{ count: bigint }>>(Prisma.sql`
+      SELECT COUNT(*)::bigint AS count FROM override_log
+      WHERE created_at >= ${since7} ${excludeSql}
+    `).catch(() => [{ count: 0n }]),
+
+    // Top flagged drug classes (unnest the array column)
+    prisma.$queryRaw<Array<{ drug_class: string; count: bigint }>>(Prisma.sql`
+      SELECT UNNEST(drug_classes) AS drug_class, COUNT(*)::bigint AS count
+      FROM safety_events
+      WHERE created_at >= ${since30} ${excludeSql}
+        AND array_length(drug_classes, 1) > 0
+      GROUP BY drug_class
+      ORDER BY count DESC
+      LIMIT 10
+    `).catch(() => [] as Array<{ drug_class: string; count: bigint }>),
+
+    // Top override reasons
+    prisma.$queryRaw<Array<{ reason: string; count: bigint }>>(Prisma.sql`
+      SELECT reason, COUNT(*)::bigint AS count FROM override_log
+      WHERE created_at >= ${since30} ${excludeSql}
+      GROUP BY reason
+      ORDER BY count DESC
+      LIMIT 6
+    `).catch(() => [] as Array<{ reason: string; count: bigint }>),
+
+    // Total alerts 30d
+    prisma.$queryRaw<Array<{ count: bigint }>>(Prisma.sql`
+      SELECT COUNT(*)::bigint AS count FROM safety_events
+      WHERE created_at >= ${since30} ${excludeSql}
+    `).catch(() => [{ count: 0n }]),
+
+    // Total alerts 7d
+    prisma.$queryRaw<Array<{ count: bigint }>>(Prisma.sql`
+      SELECT COUNT(*)::bigint AS count FROM safety_events
+      WHERE created_at >= ${since7} ${excludeSql}
+    `).catch(() => [{ count: 0n }]),
+  ]);
+
+  const totalAlerts30d  = Number(alertsTotal30d[0]?.count  ?? 0);
+  const totalAlerts7d   = Number(alertsTotal7d[0]?.count   ?? 0);
+  const totalOverrides30d = Number(overrides30d[0]?.count  ?? 0);
+  const totalOverrides7d  = Number(overrides7d[0]?.count   ?? 0);
+
+  const overrideRate30d = totalAlerts30d > 0
+    ? Math.round((totalOverrides30d / totalAlerts30d) * 100)
+    : 0;
+
+  const complianceRate30d = totalAlerts30d > 0
+    ? Math.round(((totalAlerts30d - totalOverrides30d) / totalAlerts30d) * 100)
+    : 0;
+
+  const severityMap = Object.fromEntries(
+    alertsBySeverity.map((r) => [r.severity, Number(r.count)]),
+  );
+
+  return {
+    totalAlerts30d,
+    totalAlerts7d,
+    totalOverrides30d,
+    totalOverrides7d,
+    overrideRate30d,
+    complianceRate30d,
+    severityBreakdown: {
+      high:     (severityMap['HIGH'] ?? 0) + (severityMap['MAJOR'] ?? 0) + (severityMap['SEVERE'] ?? 0),
+      moderate: (severityMap['MODERATE'] ?? 0) + (severityMap['MEDIUM'] ?? 0),
+      info:     (severityMap['INFO'] ?? 0) + (severityMap['INFORMATIONAL'] ?? 0) + (severityMap['LOW'] ?? 0),
+    },
+    alertsByType: alertsByType.map((r) => ({ type: r.event_type, count: Number(r.count) })),
+    topDrugClasses: topDrugClasses.map((r) => ({ drugClass: r.drug_class, count: Number(r.count) })),
+    topOverrideReasons: topOverrideReasons.map((r) => ({ reason: r.reason, count: Number(r.count) })),
+  };
+}
+
+// ─── Trial funnel ─────────────────────────────────────────────────────────────
+
+export async function getTrialFunnel() {
+  const demoIds = await getDemoPharmacyIds();
+  const excludeDemo = demoIds.length > 0 ? { id: { notIn: demoIds } } : {};
+
+  const [registered, activated, converted, neverActivated] = await Promise.all([
+    // Total pharmacies ever registered (excluding demo)
+    prisma.pharmacy.count({ where: excludeDemo }),
+
+    // Pharmacies that have at least one dispensing transaction
+    prisma.pharmacy.count({
+      where: {
+        ...excludeDemo,
+        dispensingTransactions: { some: {} },
+      },
+    }),
+
+    // Pharmacies that converted to ACTIVE
+    prisma.pharmacy.count({
+      where: { status: 'ACTIVE', ...excludeDemo },
+    }),
+
+    // On trial, created > 3 days ago, zero dispensing transactions (cold leads)
+    prisma.pharmacy.findMany({
+      where: {
+        status: 'TRIAL',
+        isActive: true,
+        createdAt: { lte: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000) },
+        dispensingTransactions: { none: {} },
+        ...excludeDemo,
+      },
+      select: { id: true, name: true, region: true, subscriptionTier: true, createdAt: true },
+      orderBy: { createdAt: 'asc' },
+      take: 20,
+    }),
+  ]);
+
+  const activationRate = registered > 0 ? Math.round((activated / registered) * 100) : 0;
+  const conversionRate = activated > 0  ? Math.round((converted  / activated) * 100) : 0;
+
+  return {
+    registered,
+    activated,
+    converted,
+    activationRate,
+    conversionRate,
+    neverActivated: {
+      count: neverActivated.length,
+      pharmacies: neverActivated.map((p) => ({
+        id: p.id,
+        name: p.name,
+        region: p.region,
+        tier: p.subscriptionTier,
+        daysSinceRegistered: Math.floor((Date.now() - p.createdAt.getTime()) / 86_400_000),
+      })),
+    },
+  };
+}
+
+// ─── Network activity / feature adoption ──────────────────────────────────────
+
+export async function getNetworkActivity() {
+  const demoIds = await getDemoPharmacyIds();
+  const since30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+  const excludeSql = demoIds.length > 0
+    ? Prisma.sql`AND "pharmacy_id" NOT IN (${Prisma.join(demoIds)})`
+    : Prisma.empty;
+
+  const [featureUsage, dispensingPharmacies, totalPharmacies] = await Promise.all([
+    // Top features by usage count in last 30 days
+    prisma.$queryRaw<Array<{ feature_key: string; count: bigint }>>(Prisma.sql`
+      SELECT feature_key, COUNT(*)::bigint AS count
+      FROM feature_telemetry
+      WHERE created_at >= ${since30} ${excludeSql}
+      GROUP BY feature_key
+      ORDER BY count DESC
+      LIMIT 12
+    `).catch(() => [] as Array<{ feature_key: string; count: bigint }>),
+
+    // Distinct pharmacies that dispensed in last 30 days
+    prisma.$queryRaw<Array<{ count: bigint }>>(Prisma.sql`
+      SELECT COUNT(DISTINCT pharmacy_id)::bigint AS count
+      FROM dispensing_events
+      WHERE created_at >= ${since30}
+        ${demoIds.length > 0 ? Prisma.sql`AND pharmacy_id NOT IN (${Prisma.join(demoIds)})` : Prisma.empty}
+    `).catch(() => [{ count: 0n }]),
+
+    // Total active + trial pharmacies
+    prisma.pharmacy.count({
+      where: {
+        status: { in: ['ACTIVE', 'TRIAL'] },
+        isActive: true,
+        ...(demoIds.length > 0 ? { id: { notIn: demoIds } } : {}),
+      },
+    }),
+  ]);
+
+  const activeDispensingCount = Number(dispensingPharmacies[0]?.count ?? 0);
+  const dispensingEngagementRate = totalPharmacies > 0
+    ? Math.round((activeDispensingCount / totalPharmacies) * 100)
+    : 0;
+
+  return {
+    featureUsage: featureUsage.map((r) => ({ featureKey: r.feature_key, count: Number(r.count) })),
+    activeDispensingCount,
+    totalPharmacies,
+    dispensingEngagementRate,
+  };
+}
+
 // ─── Audit log ────────────────────────────────────────────────────────────────
 
 export async function listAuditLog(params: {

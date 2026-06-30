@@ -41,6 +41,7 @@ import { subscriptionRouter } from './modules/subscription/subscription.router';
 import { catalogueImportRouter } from './modules/catalogue-import/catalogue-import.router';
 import { sourceSyncRouter } from './modules/source-sync/source-sync.router';
 import { agentsRouter } from './modules/agents/agents.router';
+import { telemetryRouter } from './modules/telemetry/telemetry.router';
 import { supplierPortalRouter } from './modules/inventory/supplier-portal.router';
 import { azamPayRouter } from './modules/azampay/azampay.router';
 import { realtimeRouter } from './modules/realtime/realtime.router';
@@ -325,6 +326,7 @@ app.use(`${v1}/subscription-payments`, subscriptionRouter);
 app.use(`${v1}/catalogue-import`,  catalogueImportRouter);
 app.use(`${v1}/source-sync`,       sourceSyncRouter);
 app.use(`${v1}/agents`,            authenticate, agentsRouter);
+app.use(`${v1}/telemetry`,         telemetryRouter);
 
 // ── AzamPay (initiate is authenticated; callback is public) ───────────────────
 app.use(`${v1}/azampay`, azamPayRouter);

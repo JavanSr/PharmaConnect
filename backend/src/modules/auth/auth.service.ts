@@ -293,6 +293,7 @@ export async function loginService(email: string, password: string, preferredPha
 export async function registerService(payload: {
   pharmacyName: string;
   licenceNumber?: string;
+  finNumber?: string;
   address: string;
   region: string;
   pharmacyType: RegistrationPharmacyType;
@@ -322,6 +323,8 @@ export async function registerService(payload: {
       data: {
         name: payload.pharmacyName,
         licenceNumber: payload.licenceNumber?.trim() || generatePendingLicenceNumber(),
+        finNumber: payload.finNumber?.trim() || null,
+        isVerified: Boolean(payload.finNumber?.trim()),
         address: payload.address,
         region: payload.region,
         pharmacyType: savedPharmacyType,

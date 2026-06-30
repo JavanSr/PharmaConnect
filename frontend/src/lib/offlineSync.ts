@@ -194,6 +194,12 @@ export async function removeOfflineWrite(id: string): Promise<void> {
   emitQueueChange();
 }
 
+export async function clearAllOfflineWrites(): Promise<void> {
+  if (!supportsIndexedDb()) return;
+  await withStore('readwrite', (store) => requestToPromise(store.clear()));
+  emitQueueChange();
+}
+
 export async function purgeExpiredOfflineWrites(now = Date.now()): Promise<number> {
   if (!supportsIndexedDb()) {
     return 0;
@@ -289,6 +295,9 @@ async function _doFlush(): Promise<FlushResult> {
       const lastError = error?.message || 'Sync failed';
 
       if (status && status >= 400 && status < 500) {
+        // 4xx = server permanently rejected the write. Always drop it from the
+        // queue — retrying would loop forever. Attempt conflict recording for
+        // inventory writes but do not block removal on its success.
         try {
           await api.post('/inventory/conflicts', {
             entityType: queuedWrite.entityType,
@@ -297,25 +306,24 @@ async function _doFlush(): Promise<FlushResult> {
             localPayload: queuedWrite.body,
             serverPayload: error?.response?.data ?? { status, message: lastError },
           });
-          conflicts += 1;
         } catch {
-          await updateOfflineWrite({
-            ...queuedWrite,
-            attempts: queuedWrite.attempts + 1,
-            lastError,
-          });
-          continue;
+          console.warn('[offlineSync] conflict recording failed for', queuedWrite.entityType, queuedWrite.entityId, lastError);
         }
-
+        conflicts += 1;
         await removeOfflineWrite(queuedWrite.id);
         continue;
       }
 
-      await updateOfflineWrite({
-        ...queuedWrite,
-        attempts: queuedWrite.attempts + 1,
-        lastError,
-      });
+      const nextAttempts = queuedWrite.attempts + 1;
+      if (nextAttempts >= 10) {
+        // After 10 failed attempts the write is permanently broken — drop it
+        // rather than blocking the queue forever.
+        console.warn('[offlineSync] dropping write after 10 failed attempts', queuedWrite.url, lastError);
+        conflicts += 1;
+        await removeOfflineWrite(queuedWrite.id);
+      } else {
+        await updateOfflineWrite({ ...queuedWrite, attempts: nextAttempts, lastError });
+      }
     }
   }
 

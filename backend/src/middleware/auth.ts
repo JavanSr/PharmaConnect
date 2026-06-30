@@ -132,6 +132,7 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
                 trialEndsAt: true,
                 isHybrid: true,
                 hybridAddonActive: true,
+                isVerified: true,
                 isActive: true,
                 graceActivatedAt: true,
               },

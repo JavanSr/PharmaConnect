@@ -13,6 +13,7 @@ import { api } from '@/lib/api';
 
 const schema = z.object({
   pharmacyName: z.string().min(2, 'Pharmacy name is required'),
+  finNumber: z.string().optional(),
   address: z.string().min(5, 'Address is required'),
   region: z.string().min(1, 'Region is required'),
   pharmacyType: z.enum(['RETAIL', 'ADDO', 'WHOLESALE', 'RETAIL_WHOLESALE']),
@@ -105,6 +106,15 @@ export const RegisterPage: React.FC = () => {
                 <Select label="Region" options={REGIONS.map(r => ({value:r,label:r}))} placeholder="Select region" {...register('region')} error={errors.region?.message} required />
                 <div className="sm:col-span-2">
                   <Input label="Address" placeholder="Sokoine Road, Arusha Central" {...register('address')} error={errors.address?.message} required />
+                </div>
+                <div className="sm:col-span-2">
+                  <Input
+                    label="TMDA Facility Identification Number (FIN)"
+                    placeholder="e.g. TZ-TMDA-00012345 — optional, can be added later"
+                    {...register('finNumber')}
+                    error={errors.finNumber?.message}
+                  />
+                  <p className="mt-1 text-xs text-[#64748B]">Providing your FIN verifies your pharmacy and unlocks wholesale B2B ordering.</p>
                 </div>
               </div>
             </div>

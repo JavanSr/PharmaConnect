@@ -28,6 +28,7 @@ import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { api } from '@/lib/api';
+import { trackEvent } from '@/lib/telemetry';
 import { applyInventoryDeltaToProduct, applyInventoryDeltasToProducts, recordInventoryDelta } from '@/lib/offlineInventory';
 import { cacheProducts, getCachedProductById, searchCachedProducts } from '@/lib/offlineProducts';
 import { enqueueDispensingSession, registerOfflineSync } from '@/lib/offlineSync';
@@ -89,61 +90,317 @@ const isWeakConnectionCheckoutFailure = (error: any) => {
   return [408, 500, 502, 503, 504].includes(error.response.status);
 };
 
-/** Returns one or two plain-language sentences describing what a medicine is used for.
- *  Priority: product.description → generic-name lookup → category mapping → fallback.
- */
 const getMedicineIndication = (product: Product): string => {
   if (product.description?.trim()) return product.description.trim();
 
   const g = (product.genericName || product.name || '').toLowerCase();
   const cat = (product.therapeuticCategory || '').toLowerCase();
 
-  // Generic-name specific overrides (most common Tanzania ADDO/pharmacy medicines)
+  // ── Antibiotics ──
+  if (g.includes('amoxicillin') && g.includes('clavulan')) return 'Used for bacterial infections resistant to standard antibiotics — sinusitis, chest infections, dental infections, skin infections.';
   if (g.includes('amoxicillin')) return 'Used for bacterial infections — chest infections, ear infections, throat infections, and urinary tract infections (UTI).';
   if (g.includes('metronidazole') || g.includes('flagyl')) return 'Used for bacterial and parasitic infections — abdominal infections, dental infections, and vaginal infections.';
   if (g.includes('ciprofloxacin')) return 'Used for bacterial infections — urinary tract infections, respiratory infections, and skin infections.';
   if (g.includes('cotrimoxazole') || g.includes('trimethoprim')) return 'Used for urinary tract infections, chest infections, and as HIV/AIDS prophylaxis.';
   if (g.includes('doxycycline')) return 'Used for bacterial infections, malaria prevention, and sexually transmitted infections (STIs).';
   if (g.includes('azithromycin')) return 'Used for respiratory infections, throat infections, and sexually transmitted infections (STIs).';
+  if (g.includes('erythromycin')) return 'Used for chest infections, skin infections, and whooping cough — alternative for penicillin allergy.';
+  if (g.includes('clindamycin')) return 'Used for serious bacterial skin infections, bone infections, and dental infections.';
+  if (g.includes('tetracycline')) return 'Used for bacterial skin infections, acne, and sexually transmitted infections.';
+  if (g.includes('ampicillin')) return 'Used for bacterial infections — urinary tract infections, respiratory infections, and meningitis.';
+  if (g.includes('ceftriaxone')) return 'Used for serious bacterial infections — pneumonia, meningitis, gonorrhoea, and surgical prophylaxis (injection).';
+  if (g.includes('cefuroxime') || g.includes('cefalexin') || g.includes('cephalexin')) return 'Used for bacterial infections — skin infections, urinary tract infections, and respiratory infections.';
+  if (g.includes('nitrofurantoin')) return 'Used specifically for urinary tract infections (UTI). Not effective for infections elsewhere in the body.';
+  if (g.includes('linezolid')) return 'Used for serious drug-resistant bacterial infections — hospital-acquired infections, MRSA.';
+  if (g.includes('gentamicin')) return 'Used for serious bacterial infections (injection) — sepsis, urinary infections, and eye infections.';
+
+  // ── Antimalarials ──
+  if (g.includes('artemether') || g.includes('lumefantrine') || g.includes('coartem')) return 'Used for the treatment of malaria, including uncomplicated falciparum malaria.';
+  if (g.includes('artesunate')) return 'Used for severe malaria — given by injection or suppository in hospital settings.';
+  if (g.includes('quinine')) return 'Used for the treatment of severe malaria and malaria in pregnancy.';
+  if (g.includes('sulfadoxine') || g.includes('fansidar')) return 'Used for malaria prevention in pregnancy (IPTp) and treatment of uncomplicated malaria.';
+  if (g.includes('chloroquine')) return 'Used for malaria prevention and treatment of certain rheumatic conditions.';
+  if (g.includes('mefloquine')) return 'Used for malaria prevention in travellers and treatment of chloroquine-resistant malaria.';
+
+  // ── Analgesics / Anti-inflammatory ──
   if (g.includes('paracetamol') || g.includes('acetaminophen')) return 'Used for pain relief and fever — headache, body ache, and high temperature.';
   if (g.includes('ibuprofen')) return 'Used for pain, fever, and inflammation — headache, toothache, and joint or muscle pain.';
   if (g.includes('diclofenac')) return 'Used for pain and inflammation — joint pain, back pain, and muscle pain.';
-  if (g.includes('loratadine') || g.includes('cetirizine') || g.includes('chlorphenamine') || g.includes('promethazine')) return 'Used for allergies — hay fever, itchy skin, hives, runny nose, and allergic reactions.';
-  if (g.includes('omeprazole') || g.includes('pantoprazole') || g.includes('ranitidine')) return 'Used for stomach acid problems — heartburn, ulcers, and acid reflux (GERD).';
-  if (g.includes('metformin')) return 'Used to control blood sugar in Type 2 diabetes.';
-  if (g.includes('amlodipine') || g.includes('nifedipine')) return 'Used to lower high blood pressure and treat chest pain (angina).';
-  if (g.includes('enalapril') || g.includes('lisinopril') || g.includes('captopril')) return 'Used to lower high blood pressure and protect the heart and kidneys.';
-  if (g.includes('artemether') || g.includes('lumefantrine') || g.includes('coartem')) return 'Used for the treatment of malaria, including uncomplicated falciparum malaria.';
-  if (g.includes('quinine')) return 'Used for the treatment of severe malaria.';
-  if (g.includes('fluconazole') || g.includes('clotrimazole') || g.includes('miconazole')) return 'Used for fungal infections — vaginal candidiasis (thrush), oral thrush, and skin fungal infections.';
-  if (g.includes('oral rehydration') || g.includes('ors')) return 'Used to replace fluids and salts lost through diarrhoea or vomiting. Mix with clean water before use.';
-  if (g.includes('zinc')) return 'Used as a supplement for diarrhoea management in children, and for general immune support.';
-  if (g.includes('folic acid')) return 'Used to prevent neural tube defects in pregnancy and to treat certain types of anaemia.';
-  if (g.includes('ferrous') || g.includes('iron')) return 'Used to treat and prevent iron-deficiency anaemia. May cause dark stools — this is normal.';
-  if (g.includes('salbutamol') || g.includes('albuterol')) return 'Used to relieve asthma attacks and breathing difficulty — opens the airways quickly.';
+  if (g.includes('aspirin') && !g.includes('co-')) return 'Used for pain, fever, and inflammation. Low dose used to prevent heart attacks and strokes. Avoid in children.';
+  if (g.includes('tramadol')) return 'Used for moderate to severe pain. A controlled opioid medicine — use exactly as directed.';
+  if (g.includes('morphine') || g.includes('pethidine') || g.includes('codeine')) return 'Controlled opioid analgesic — used for severe pain under close medical supervision.';
+  if (g.includes('naproxen')) return 'Used for pain, inflammation, and fever — arthritis, menstrual cramps, and muscle pain.';
+  if (g.includes('meloxicam')) return 'Used for pain and inflammation in arthritis and musculoskeletal conditions.';
+  if (g.includes('celecoxib')) return 'Used for pain and inflammation in arthritis — gentler on the stomach than standard NSAIDs.';
 
-  // Category-based fallbacks
-  if (cat.includes('antibiotic') || cat.includes('antibacterial')) return 'Used for bacterial infections such as respiratory infections (URTI/LRTI), urinary tract infections, and skin infections.';
+  // ── Antihypertensives ──
+  if (g.includes('amlodipine') || g.includes('nifedipine')) return 'Used to lower high blood pressure and treat chest pain (angina).';
+  if (g.includes('enalapril') || g.includes('lisinopril') || g.includes('captopril') || g.includes('ramipril')) return 'Used to lower high blood pressure and protect the heart and kidneys.';
+  if (g.includes('losartan') || g.includes('valsartan') || g.includes('telmisartan')) return 'Used to lower high blood pressure and protect the kidneys, especially in diabetes.';
+  if (g.includes('atenolol') || g.includes('metoprolol') || g.includes('propranolol') || g.includes('bisoprolol')) return 'Used to lower high blood pressure, slow a fast heart rate, and protect the heart after a heart attack.';
+  if (g.includes('hydrochlorothiazide') || g.includes('indapamide')) return 'Used to lower high blood pressure and reduce fluid retention.';
+  if (g.includes('furosemide') || g.includes('frusemide')) return 'Used to remove excess fluid — helps heart failure, high blood pressure, and kidney disease.';
+  if (g.includes('spironolactone')) return 'Used for heart failure, high blood pressure, and hormonal conditions (e.g. polycystic ovary syndrome).';
+  if (g.includes('methyldopa')) return 'Used to lower high blood pressure — safe for use in pregnancy.';
+  if (g.includes('nifedipine')) return 'Used for high blood pressure and chest pain (angina). Extended-release form used in pregnancy-related hypertension.';
+
+  // ── Antidiabetics ──
+  if (g.includes('metformin')) return 'Used to control blood sugar in Type 2 diabetes. Usually the first-choice medicine for diabetes.';
+  if (g.includes('glibenclamide') || g.includes('glimepiride') || g.includes('glipizide')) return 'Used to stimulate insulin release and lower blood sugar in Type 2 diabetes.';
+  if (g.includes('insulin')) return 'Used to control blood sugar in Type 1 and Type 2 diabetes. Injection required — must be stored cold.';
+  if (g.includes('sitagliptin') || g.includes('linagliptin') || g.includes('saxagliptin')) return 'Used to lower blood sugar in Type 2 diabetes — works by increasing insulin release after meals.';
+
+  // ── Stomach / GI ──
+  if (g.includes('omeprazole') || g.includes('pantoprazole') || g.includes('esomeprazole') || g.includes('rabeprazole')) return 'Used for stomach acid problems — heartburn, ulcers, and acid reflux (GERD).';
+  if (g.includes('ranitidine') || g.includes('famotidine') || g.includes('cimetidine')) return 'Used to reduce stomach acid — heartburn, peptic ulcers, and acid reflux.';
+  if (g.includes('antacid') || g.includes('magnesium') || g.includes('aluminium hydroxide') || g.includes('aluminum hydroxide')) return 'Used for immediate relief of heartburn and indigestion by neutralising stomach acid.';
+  if (g.includes('metoclopramide') || g.includes('domperidone')) return 'Used for nausea, vomiting, and to speed up stomach emptying.';
+  if (g.includes('ondansetron')) return 'Used for nausea and vomiting — especially after surgery or chemotherapy.';
+  if (g.includes('loperamide')) return 'Used for diarrhoea — slows bowel movements. Do not use in children under 2 years.';
+  if (g.includes('oral rehydration') || g.includes('ors') || g.includes('rehydration salt')) return 'Used to replace fluids and salts lost through diarrhoea or vomiting. Mix with clean water before use.';
+  if (g.includes('bisacodyl') || g.includes('sennosides') || g.includes('senna')) return 'Used for constipation — stimulates bowel movement.';
+  if (g.includes('lactulose')) return 'Used for constipation and liver disease — softens stools and draws fluid into the bowel.';
+  if (g.includes('mebeverine') || g.includes('hyoscine butylbromide') || g.includes('buscopan')) return 'Used for stomach cramps and irritable bowel syndrome (IBS) — relieves spasms.';
+
+  // ── Antihistamines / Allergy ──
+  if (g.includes('loratadine') || g.includes('cetirizine') || g.includes('fexofenadine') || g.includes('levocetirizine')) return 'Used for allergies — hay fever, itchy skin, hives, and runny nose. Non-drowsy.';
+  if (g.includes('chlorphenamine') || g.includes('chlorpheniramine') || g.includes('promethazine') || g.includes('diphenhydramine')) return 'Used for allergies, hay fever, itchy skin, and as a sleep aid. Causes drowsiness.';
+  if (g.includes('hydrocortisone') && (g.includes('cream') || g.includes('topical'))) return 'Used topically for skin redness, itching, and mild inflammation.';
+
+  // ── Antifungals ──
+  if (g.includes('fluconazole')) return 'Used for fungal infections — vaginal thrush, oral thrush, and systemic fungal infections.';
+  if (g.includes('clotrimazole') || g.includes('miconazole')) return 'Used for skin and vaginal fungal infections — athlete\'s foot, ringworm, and vaginal thrush.';
+  if (g.includes('nystatin')) return 'Used for oral thrush and intestinal fungal infections. Not absorbed into the blood.';
+  if (g.includes('griseofulvin')) return 'Used for fungal infections of the scalp, skin, and nails.';
+  if (g.includes('ketoconazole')) return 'Used for fungal skin infections — ringworm, dandruff, and skin candidiasis.';
+
+  // ── Antiparasitics / Deworming ──
+  if (g.includes('albendazole') || g.includes('mebendazole')) return 'Used to treat intestinal worms — roundworms, hookworms, and threadworms.';
+  if (g.includes('praziquantel')) return 'Used to treat tapeworms and schistosomiasis (bilharzia).';
+  if (g.includes('ivermectin')) return 'Used to treat intestinal and skin parasites — strongyloides, onchocerciasis, and scabies.';
+  if (g.includes('permethrin') || g.includes('lindane') || g.includes('benzyl benzoate')) return 'Used topically for scabies and head lice.';
+
+  // ── Respiratory ──
+  if (g.includes('salbutamol') || g.includes('albuterol')) return 'Used to relieve asthma attacks and breathing difficulty — opens the airways quickly.';
+  if (g.includes('beclometasone') || g.includes('budesonide') || g.includes('fluticasone')) return 'Inhaled steroid for asthma and COPD prevention — reduces airway inflammation. Not for acute attacks.';
+  if (g.includes('ipratropium') || g.includes('tiotropium')) return 'Used for COPD — opens the airways and reduces mucus production.';
+  if (g.includes('theophylline') || g.includes('aminophylline')) return 'Used for asthma and COPD — opens the airways. Requires monitoring of blood levels.';
+  if (g.includes('prednisolone') || g.includes('prednisone')) return 'Used for severe inflammation — asthma attacks, allergic reactions, autoimmune conditions, and arthritis.';
+  if (g.includes('dexamethasone') || g.includes('betamethasone')) return 'Strong corticosteroid — used for inflammation, severe allergies, lung maturity in preterm birth.';
+  if (g.includes('pholcodine') || g.includes('dextromethorphan')) return 'Used for dry, irritating coughs — suppresses the cough reflex.';
+  if (g.includes('guaifenesin') || g.includes('bromhexine') || g.includes('ambroxol')) return 'Used for productive coughs with mucus — helps thin and clear chest secretions.';
+
+  // ── HIV / ARVs ──
+  if (g.includes('efavirenz') || g.includes('nevirapine') || g.includes('tenofovir') || g.includes('lamivudine') || g.includes('zidovudine') || g.includes('emtricitabine') || g.includes('dolutegravir') || g.includes('lopinavir') || g.includes('ritonavir') || g.includes('atazanavir')) return 'Antiretroviral therapy (ART) for HIV — must be taken daily without missing doses.';
+
+  // ── TB ──
+  if (g.includes('rifampicin') || g.includes('rifampin')) return 'Used for tuberculosis (TB) and other mycobacterial infections. Turns body fluids orange-red.';
+  if (g.includes('isoniazid')) return 'Used for tuberculosis (TB) treatment and prevention.';
+  if (g.includes('pyrazinamide')) return 'Used in the initial phase of tuberculosis (TB) treatment.';
+  if (g.includes('ethambutol')) return 'Used in tuberculosis (TB) treatment. Can affect vision — report any visual changes immediately.';
+
+  // ── Cardiovascular ──
+  if (g.includes('digoxin')) return 'Used for heart failure and irregular heartbeat (atrial fibrillation). Narrow safety margin — dose must be exact.';
+  if (g.includes('warfarin')) return 'Used to prevent blood clots and strokes. Requires regular blood tests (INR). Many drug and food interactions.';
+  if (g.includes('aspirin') && g.includes('low')) return 'Low-dose aspirin used to prevent heart attacks and strokes in high-risk patients.';
+  if (g.includes('clopidogrel')) return 'Used to prevent blood clots after heart attack or stroke. Often used with low-dose aspirin.';
+  if (g.includes('simvastatin') || g.includes('atorvastatin') || g.includes('rosuvastatin')) return 'Used to lower cholesterol and reduce the risk of heart attack and stroke.';
+  if (g.includes('nitrate') || g.includes('glyceryl trinitrate') || g.includes('isosorbide')) return 'Used to relieve and prevent chest pain (angina) — relaxes blood vessels.';
+
+  // ── Mental health ──
+  if (g.includes('diazepam') || g.includes('lorazepam') || g.includes('clonazepam')) return 'Used for anxiety, seizures, and muscle spasm. Controlled medicine — risk of dependence.';
+  if (g.includes('amitriptyline') || g.includes('imipramine') || g.includes('clomipramine')) return 'Used for depression, nerve pain, and bedwetting in children. Takes 2–4 weeks to work.';
+  if (g.includes('fluoxetine') || g.includes('sertraline') || g.includes('citalopram') || g.includes('escitalopram')) return 'Used for depression, anxiety, and obsessive-compulsive disorder. Takes 2–4 weeks to work.';
+  if (g.includes('haloperidol') || g.includes('chlorpromazine') || g.includes('fluphenazine')) return 'Used for psychosis, schizophrenia, and severe agitation. Controlled medicine.';
+  if (g.includes('risperidone') || g.includes('olanzapine') || g.includes('quetiapine')) return 'Used for schizophrenia, bipolar disorder, and severe psychiatric conditions.';
+  if (g.includes('phenobarb') || g.includes('phenytoin') || g.includes('carbamazepine') || g.includes('valproate') || g.includes('sodium valproate')) return 'Used for epilepsy — prevents seizures. Do not stop suddenly. Regular blood tests required.';
+
+  // ── Nutritional / Supplements ──
+  if (g.includes('folic acid')) return 'Used to prevent neural tube defects in pregnancy and to treat certain types of anaemia.';
+  if (g.includes('ferrous') || (g.includes('iron') && !g.includes('irony'))) return 'Used to treat and prevent iron-deficiency anaemia. May cause dark stools and constipation — this is normal.';
+  if (g.includes('zinc')) return 'Used as a supplement for diarrhoea management in children, and for immune support.';
+  if (g.includes('vitamin a') || g.includes('retinol')) return 'Used to prevent and treat vitamin A deficiency — protects eyesight and immune function.';
+  if (g.includes('vitamin b') || g.includes('thiamine') || g.includes('pyridoxine') || g.includes('cyanocobalamin') || g.includes('b12')) return 'Used to treat or prevent B-vitamin deficiency — supports nerve function and energy metabolism.';
+  if (g.includes('vitamin c') || g.includes('ascorbic acid')) return 'Used to prevent and treat vitamin C deficiency (scurvy) and support immune function.';
+  if (g.includes('vitamin d') || g.includes('cholecalciferol') || g.includes('calciferol')) return 'Used for vitamin D deficiency — supports bone strength and immune function.';
+  if (g.includes('calcium') && !g.includes('calci')) return 'Used for calcium deficiency, bone health, and muscle cramps. Also used alongside vitamin D.';
+  if (g.includes('multivitamin')) return 'Nutritional supplement — provides a range of vitamins and minerals for general health.';
+
+  // ── Women\'s health / Hormonal ──
+  if (g.includes('combined oral contraceptive') || (g.includes('ethinyl') && g.includes('levonorgestrel'))) return 'Combined oral contraceptive pill — prevents pregnancy. Take daily at the same time.';
+  if (g.includes('progestogen') || g.includes('norethisterone') || g.includes('medroxyprogesterone') || g.includes('depot') || g.includes('depo-provera')) return 'Hormonal contraceptive — prevents pregnancy. Injection form lasts 2–3 months.';
+  if (g.includes('levonorgestrel') && !g.includes('ethinyl')) return 'Emergency contraceptive — take within 72 hours of unprotected sex. Not for regular use.';
+  if (g.includes('misoprostol')) return 'Used to prevent and treat postpartum haemorrhage, and as part of medical abortion treatment.';
+  if (g.includes('oxytocin')) return 'Used to stimulate labour and prevent/treat postpartum haemorrhage. Hospital use only.';
+
+  // ── Eye / Ear ──
+  if (g.includes('chloramphenicol') && g.includes('eye')) return 'Antibiotic eye drops or ointment for bacterial eye infections (conjunctivitis).';
+  if (g.includes('timolol') || g.includes('latanoprost') || g.includes('dorzolamide')) return 'Used as eye drops to reduce pressure in the eye and treat glaucoma.';
+
+  // ── Skin ──
+  if (g.includes('calamine')) return 'Used topically to soothe itchy skin — chickenpox, insect bites, and mild rashes.';
+  if (g.includes('whitfield') || g.includes('benzoic acid')) return 'Used for ringworm and athlete\'s foot skin infections.';
+
+  // ── Category-based fallbacks ──
+  if (cat.includes('antibiotic') || cat.includes('antibacterial')) return 'Used for bacterial infections — complete the full prescribed course.';
   if (cat.includes('antihistamine') || cat.includes('anti-allergy') || cat.includes('allergy')) return 'Used for allergies — hay fever, itchy skin, hives, and allergic reactions.';
-  if (cat.includes('antifungal')) return 'Used for fungal infections — skin rashes, oral thrush, vaginal infections, and nail infections.';
+  if (cat.includes('antifungal')) return 'Used for fungal infections — skin, nails, or mucous membranes.';
   if (cat.includes('analgesic') || cat.includes('pain') || cat.includes('nsaid')) return 'Used for pain relief and fever reduction.';
-  if (cat.includes('antihypertensive') || cat.includes('hypertension') || cat.includes('blood pressure')) return 'Used to lower high blood pressure (hypertension) and protect the heart.';
-  if (cat.includes('antidiabetic') || cat.includes('diabetes')) return 'Used to control blood sugar levels in diabetes (Type 2).';
-  if (cat.includes('antimalarial') || cat.includes('malaria')) return 'Used for treatment and prevention of malaria.';
+  if (cat.includes('antihypertensive') || cat.includes('hypertension') || cat.includes('blood pressure')) return 'Used to lower high blood pressure and protect the heart and kidneys.';
+  if (cat.includes('antidiabetic') || cat.includes('diabetes') || cat.includes('hypoglycaemic')) return 'Used to control blood sugar levels in diabetes.';
+  if (cat.includes('antimalarial') || cat.includes('malaria')) return 'Used for treatment or prevention of malaria.';
   if (cat.includes('antacid') || cat.includes('ulcer') || cat.includes('gastric') || cat.includes('proton pump')) return 'Used for stomach acid problems — heartburn, ulcers, and acid reflux.';
-  if (cat.includes('antiretroviral') || cat.includes('arv') || cat.includes('hiv')) return 'Used for HIV/AIDS treatment and management (antiretroviral therapy).';
+  if (cat.includes('antiretroviral') || cat.includes('arv') || cat.includes('hiv')) return 'Antiretroviral therapy (ART) for HIV — must be taken daily without missing doses.';
   if (cat.includes('tuberculosis') || cat.includes('tb')) return 'Used for tuberculosis (TB) treatment.';
-  if (cat.includes('diuretic')) return 'Used to remove excess fluid from the body — helps with high blood pressure and heart conditions.';
+  if (cat.includes('diuretic')) return 'Used to remove excess fluid from the body — supports heart and blood pressure management.';
   if (cat.includes('antiparasitic') || cat.includes('anthelmintic') || cat.includes('deworming')) return 'Used for parasitic infections and intestinal worms.';
   if (cat.includes('antidiarrhoeal') || cat.includes('diarrhoea') || cat.includes('diarrhea')) return 'Used for diarrhoea and loose stools.';
   if (cat.includes('antiemetic') || cat.includes('nausea')) return 'Used for nausea and vomiting.';
-  if (cat.includes('bronchodilator') || cat.includes('asthma') || cat.includes('respiratory')) return 'Used for asthma and breathing difficulties — opens the airways.';
+  if (cat.includes('bronchodilator') || cat.includes('asthma') || cat.includes('respiratory')) return 'Used for asthma and breathing difficulties.';
   if (cat.includes('corticosteroid') || cat.includes('steroid')) return 'Used for inflammation, allergic reactions, and autoimmune conditions.';
-  if (cat.includes('vitamin') || cat.includes('supplement') || cat.includes('mineral')) return 'Nutritional supplement — supports health and corrects vitamin or mineral deficiency.';
-  if (cat.includes('oral rehydration') || cat.includes('ors') || cat.includes('rehydration')) return 'Used to replace fluids and electrolytes lost through diarrhoea or vomiting.';
-  if (cat.includes('antifungal')) return 'Used for fungal infections of the skin, nails, or mouth.';
+  if (cat.includes('vitamin') || cat.includes('supplement') || cat.includes('mineral')) return 'Nutritional supplement — supports health and corrects deficiency.';
+  if (cat.includes('rehydration')) return 'Used to replace fluids and electrolytes lost through diarrhoea or vomiting.';
+  if (cat.includes('anticoagulant') || cat.includes('blood thinner')) return 'Used to prevent blood clots. Requires regular monitoring.';
+  if (cat.includes('antiepileptic') || cat.includes('seizure')) return 'Used to prevent seizures — do not stop suddenly.';
+  if (cat.includes('antipsychotic')) return 'Used for schizophrenia and serious psychiatric conditions.';
+  if (cat.includes('antidepressant')) return 'Used for depression and anxiety. Takes several weeks to take full effect.';
+  if (cat.includes('cardiovascular') || cat.includes('cardiac')) return 'Used for heart conditions and cardiovascular disease management.';
+  if (cat.includes('cholesterol') || cat.includes('lipid') || cat.includes('statin')) return 'Used to lower cholesterol and reduce cardiovascular risk.';
+  if (cat.includes('hormonal') || cat.includes('contraceptive')) return 'Hormonal medicine — used for contraception or hormonal regulation.';
+  if (cat.includes('oxytocic') || cat.includes('uterotonic')) return 'Used to manage labour and prevent postpartum bleeding.';
 
   return 'No indication recorded for this medicine. Refer to the package insert or prescriber.';
+};
+
+type CartWarning = { text: string; severity: 'high' | 'moderate' };
+
+const getCartWarnings = (product: Product): CartWarning[] => {
+  const all: CartWarning[] = [];
+  const g = (product.genericName || product.name || '').toLowerCase();
+
+  // Controlled drug — always highest priority
+  if (product.drugClass === 'CONTROLLED' || product.drugClass === 'NARCOTIC' ||
+    g.includes('tramadol') || g.includes('morphine') || g.includes('pethidine') ||
+    g.includes('fentanyl') || g.includes('codeine') || g.includes('diazepam') ||
+    g.includes('lorazepam') || g.includes('midazolam')) {
+    all.push({ severity: 'high', text: 'Controlled medicine — prescription required' });
+  }
+
+  // Allergy risks
+  if (g.includes('amoxicillin') || g.includes('ampicillin') || g.includes('cloxacillin') ||
+    g.includes('benzylpenicillin') || g.includes('phenoxymethyl') || g.includes('piperacillin')) {
+    all.push({ severity: 'high', text: 'Penicillin allergy — check before dispensing' });
+  }
+  if (g.includes('ceftriaxone') || g.includes('cefuroxime') || g.includes('cefalexin') || g.includes('cephalexin')) {
+    all.push({ severity: 'moderate', text: 'Possible cross-sensitivity with penicillin allergy' });
+  }
+  if (g.includes('sulfonamide') || g.includes('cotrimoxazole') || g.includes('sulfamethoxazole')) {
+    all.push({ severity: 'high', text: 'Sulfa allergy risk — Stevens-Johnson risk if allergic' });
+  }
+  if (g.includes('aspirin') || g.includes('ibuprofen') || g.includes('diclofenac') ||
+    g.includes('naproxen') || g.includes('meloxicam') || g.includes('celecoxib')) {
+    all.push({ severity: 'moderate', text: 'Avoid in aspirin-sensitive asthma' });
+  }
+
+  // Pregnancy
+  const pregCat = product.pregnancyCategory?.toUpperCase();
+  if (pregCat === 'X') {
+    all.push({ severity: 'high', text: 'Contraindicated in pregnancy (Cat X)' });
+  } else if (pregCat === 'D') {
+    all.push({ severity: 'high', text: 'Avoid in pregnancy — foetal risk (Cat D)' });
+  } else if (pregCat === 'C') {
+    all.push({ severity: 'moderate', text: 'Use with caution in pregnancy (Cat C)' });
+  } else {
+    if (g.includes('doxycycline') || g.includes('tetracycline') ||
+      g.includes('ciprofloxacin') || g.includes('metronidazole') ||
+      g.includes('trimethoprim') || g.includes('cotrimoxazole')) {
+      all.push({ severity: 'high', text: 'Avoid in pregnancy' });
+    }
+    if (g.includes('ibuprofen') || g.includes('diclofenac') ||
+      g.includes('naproxen') || g.includes('meloxicam')) {
+      all.push({ severity: 'high', text: 'Avoid in pregnancy >20 weeks' });
+    }
+    if (g.includes('warfarin')) all.push({ severity: 'high', text: 'Contraindicated in pregnancy' });
+    if (g.includes('sodium valproate') || g.includes('valproate') ||
+      g.includes('carbamazepine') || g.includes('phenytoin')) {
+      all.push({ severity: 'high', text: 'High birth defect risk — caution in women of childbearing age' });
+    }
+    if (g.includes('misoprostol') || g.includes('oxytocin')) {
+      all.push({ severity: 'high', text: 'Uterotonic — confirm indication before dispensing' });
+    }
+    if (g.includes('atenolol') || g.includes('metoprolol') || g.includes('propranolol')) {
+      all.push({ severity: 'moderate', text: 'Caution in pregnancy — methyldopa preferred' });
+    }
+  }
+
+  // Breastfeeding
+  if (product.breastfeedingSafety) {
+    const bs = product.breastfeedingSafety.toLowerCase();
+    if (bs.includes('avoid') || bs.includes('contraindicated') || bs.includes('unsafe')) {
+      all.push({ severity: 'high', text: 'Avoid while breastfeeding' });
+    } else if (bs.includes('caution') || bs.includes('monitor')) {
+      all.push({ severity: 'moderate', text: 'Caution while breastfeeding' });
+    }
+  } else {
+    if (g.includes('doxycycline') || g.includes('tetracycline') || g.includes('chloramphenicol')) {
+      all.push({ severity: 'high', text: 'Avoid while breastfeeding' });
+    }
+    if (g.includes('codeine') || g.includes('morphine')) {
+      all.push({ severity: 'high', text: 'Avoid while breastfeeding — infant sedation risk' });
+    }
+    if (g.includes('ciprofloxacin') || g.includes('metronidazole')) {
+      all.push({ severity: 'moderate', text: 'Caution while breastfeeding' });
+    }
+  }
+
+  // Renal impairment
+  if (g.includes('metformin')) {
+    all.push({ severity: 'high', text: 'Contraindicated in severe kidney disease' });
+  } else if (g.includes('nitrofurantoin') || g.includes('gentamicin') || g.includes('amikacin')) {
+    all.push({ severity: 'high', text: 'Avoid in kidney disease' });
+  } else if (product.renalCaution || g.includes('enalapril') || g.includes('lisinopril') ||
+    g.includes('captopril') || g.includes('ramipril') || g.includes('losartan') || g.includes('valsartan')) {
+    all.push({ severity: 'moderate', text: 'Caution in kidney disease — dose adjustment may be needed' });
+  }
+
+  // Hepatic impairment
+  if (g.includes('isoniazid') || g.includes('rifampicin') || g.includes('pyrazinamide')) {
+    all.push({ severity: 'high', text: 'Hepatotoxic — caution in liver disease' });
+  } else if (g.includes('sodium valproate') || g.includes('valproate')) {
+    all.push({ severity: 'high', text: 'Contraindicated in significant liver disease' });
+  } else if (product.hepaticCaution || g.includes('paracetamol') || g.includes('ketoconazole') || g.includes('fluconazole')) {
+    all.push({ severity: 'moderate', text: 'Caution in liver disease' });
+  }
+
+  // Duration limits
+  if (g.includes('paracetamol') || g.includes('acetaminophen')) {
+    all.push({ severity: 'moderate', text: 'Max 4g/day · avoid with alcohol' });
+  }
+  if (g.includes('ibuprofen') || g.includes('diclofenac') || g.includes('naproxen') || g.includes('meloxicam')) {
+    all.push({ severity: 'moderate', text: 'Do not use >7 days without clinical review' });
+  }
+  if (g.includes('xylometazoline') || g.includes('oxymetazoline') || g.includes('nasal decongestant')) {
+    all.push({ severity: 'moderate', text: 'Do not use >3 days — causes rebound congestion' });
+  }
+  if (g.includes('loperamide')) {
+    all.push({ severity: 'moderate', text: 'Do not use >2 days in children under 12' });
+  }
+
+  // Elderly fall risk
+  if (product.elderlyCaution || g.includes('diazepam') || g.includes('lorazepam') ||
+    g.includes('nitrazepam') || g.includes('promethazine') ||
+    g.includes('chlorphenamine') || g.includes('diphenhydramine')) {
+    all.push({ severity: 'moderate', text: 'Fall risk in elderly — use with caution' });
+  }
+
+  // Deduplicate, sort high before moderate, return top 2
+  const seen = new Set<string>();
+  const unique = all.filter((w) => {
+    if (seen.has(w.text)) return false;
+    seen.add(w.text);
+    return true;
+  });
+  return unique.sort((a, b) => (a.severity === 'high' ? 0 : 1) - (b.severity === 'high' ? 0 : 1)).slice(0, 2);
 };
 
 type SessionShortcut = {
@@ -1479,8 +1736,12 @@ export const DispensingScreen: React.FC = () => {
                               onClick={() =>
                                 setExpandedInfo((prev) => {
                                   const next = new Set(prev);
-                                  if (next.has(item.id)) next.delete(item.id);
-                                  else next.add(item.id);
+                                  if (next.has(item.id)) {
+                                    next.delete(item.id);
+                                  } else {
+                                    next.add(item.id);
+                                    trackEvent('medicine_info_view', 'USED', { productId: item.product.id });
+                                  }
                                   return next;
                                 })
                               }
@@ -1520,6 +1781,25 @@ export const DispensingScreen: React.FC = () => {
                                 <p className="text-[#475569]">
                                   Active ingredient: {p.genericName}{p.strength ? ` ${p.strength}` : ''}
                                 </p>
+                              )}
+                              {/* Standard adult dose */}
+                              {p.standardAdultDose && (
+                                <p className="text-[#374151]"><span className="font-semibold">Usual adult dose:</span> {p.standardAdultDose}</p>
+                              )}
+                              {/* Pregnancy safety */}
+                              {p.pregnancyCategory && (
+                                <p className={`font-medium ${['D','X'].includes(p.pregnancyCategory.toUpperCase()) ? 'text-[#DC2626]' : 'text-[#92400E]'}`}>
+                                  Pregnancy category {p.pregnancyCategory.toUpperCase()}
+                                  {p.pregnancyCategory.toUpperCase() === 'X' && ' — contraindicated in pregnancy'}
+                                  {p.pregnancyCategory.toUpperCase() === 'D' && ' — evidence of foetal risk; use only if benefit outweighs risk'}
+                                  {p.pregnancyCategory.toUpperCase() === 'C' && ' — risk cannot be ruled out; use with caution'}
+                                  {p.pregnancyCategory.toUpperCase() === 'B' && ' — no evidence of foetal risk in animal studies'}
+                                  {p.pregnancyCategory.toUpperCase() === 'A' && ' — adequate studies show no risk to the foetus'}
+                                </p>
+                              )}
+                              {/* Breastfeeding safety */}
+                              {p.breastfeedingSafety && (
+                                <p className="text-[#374151]"><span className="font-semibold">Breastfeeding:</span> {p.breastfeedingSafety}</p>
                               )}
                               {/* AWaRe antibiotic stewardship — plain language */}
                               {p.awarClass === 'RESERVE' && (
@@ -1561,6 +1841,25 @@ export const DispensingScreen: React.FC = () => {
                               EXPIRED — remove this item before dispensing
                             </div>
                           )}
+                          {/* Static medicine warnings — contraindications and key cautions */}
+                          {(() => {
+                            const warnings = getCartWarnings(p);
+                            if (warnings.length === 0) return null;
+                            return (
+                              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                                {warnings.map((w, idx) => (
+                                  <span
+                                    key={idx}
+                                    className={`text-[10px] font-medium ${
+                                      w.severity === 'high' ? 'text-[#B91C1C]' : 'text-[#92400E]'
+                                    }`}
+                                  >
+                                    {w.severity === 'high' ? '▲' : '●'} {w.text}
+                                  </span>
+                                ))}
+                              </div>
+                            );
+                          })()}
                           <p className="mt-0.5 text-xs text-[#64748B]">
                             {item.quantity} × {money(item.unitPrice)}
                             {!isExpired && fefoUrgent && fefoExpiryDays !== null && (
