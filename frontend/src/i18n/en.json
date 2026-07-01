@@ -1,0 +1,44 @@
+{
+  "nav": {
+    "dashboard": "Dashboard",
+    "inventory": "Inventory",
+    "dispensing": "Dispensing",
+    "compliance": "Compliance",
+    "analytics": "Analytics",
+    "settings": "Settings",
+    "help": "Help",
+    "logout": "Log out"
+  },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "search": "Search",
+    "loading": "Loading...",
+    "error": "Something went wrong",
+    "noResults": "No results found",
+    "back": "Back"
+  },
+  "dispensing": {
+    "title": "Dispensing",
+    "addToCart": "Add to cart",
+    "checkout": "Checkout",
+    "paymentMethod": "Payment method",
+    "total": "Total",
+    "reference": "Reference number"
+  },
+  "inventory": {
+    "title": "Inventory",
+    "addProduct": "Add product",
+    "stockLevel": "Stock level",
+    "expiryDate": "Expiry date",
+    "reorderLevel": "Reorder level"
+  },
+  "errors": {
+    "networkError": "Connection error — check your internet",
+    "unauthorized": "You don't have permission to do this",
+    "notFound": "Page not found",
+    "sessionExpired": "Your session has expired — please log in again"
+  }
+}

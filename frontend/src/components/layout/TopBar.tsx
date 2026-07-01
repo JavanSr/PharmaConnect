@@ -1,6 +1,7 @@
 import React from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { ArrowLeft, Menu, Plus, WifiOff, Clock, Wifi, RefreshCw } from 'lucide-react';
 import { useConnectivityStore } from '@/stores/connectivityStore';
 import { useNotificationStore } from '@/stores/notificationStore';
@@ -17,6 +18,13 @@ interface TopBarProps {
 }
 
 export const TopBar: React.FC<TopBarProps> = ({ onMenuClick, onDesktopToggle, title }) => {
+  const { i18n } = useTranslation();
+  const currentLang = i18n.language === 'sw' ? 'sw' : 'en';
+  const toggleLang = () => {
+    const next = currentLang === 'en' ? 'sw' : 'en';
+    void i18n.changeLanguage(next);
+    try { localStorage.setItem('apotekh_lang', next); } catch { /* storage unavailable */ }
+  };
   const pharmacy = usePharmacyStore(state => state.pharmacy);
   const isWholesalePharmacy = pharmacy?.pharmacyType === 'WHOLESALE';
   const isOnline = useConnectivityStore(state => state.isOnline);
@@ -194,6 +202,19 @@ export const TopBar: React.FC<TopBarProps> = ({ onMenuClick, onDesktopToggle, ti
             Receive
           </Button>
         </div>
+
+        {/* Language toggle */}
+        <button
+          type="button"
+          onClick={toggleLang}
+          title={currentLang === 'en' ? 'Switch to Swahili' : 'Switch to English'}
+          aria-label={currentLang === 'en' ? 'Switch to Swahili' : 'Switch to English'}
+          className="hidden sm:flex items-center px-2 py-1 rounded text-label-md text-on-surface-variant hover:bg-surface-container-high transition-colors font-medium tracking-wide"
+        >
+          {currentLang === 'en' ? 'EN' : 'SW'}
+          <span className="mx-0.5 text-outline-variant">|</span>
+          {currentLang === 'en' ? 'SW' : 'EN'}
+        </button>
 
         {/* Notifications */}
         <NotificationBell />

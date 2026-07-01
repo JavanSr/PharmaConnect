@@ -952,6 +952,117 @@ export async function getProfitReport(pharmacyId: string, dateFrom?: string, dat
   };
 }
 
+// ── Stock Sourcing Report ─────────────────────────────────────────────────────
+// Percentage of stock received from each supplier over the last 90 days,
+// derived from stock_movements (type=RECEIVED) joined to batches → suppliers.
+export async function getStockSourcingReport(pharmacyId: string) {
+  const cutoff = new Date(Date.now() - 90 * 86400000);
+
+  const rows = await prisma.$queryRaw<Array<{
+    supplier_id: string | null;
+    supplier_name: string | null;
+    units: number;
+  }>>(Prisma.sql`
+    SELECT
+      s.id AS supplier_id,
+      s.name AS supplier_name,
+      SUM(sm.quantity)::int AS units
+    FROM stock_movements sm
+    LEFT JOIN batches b ON b.id = sm."batchId"
+    LEFT JOIN suppliers s ON s.id = b."supplierId"
+    WHERE sm."pharmacyId" = ${pharmacyId}
+      AND sm.type = 'RECEIVED'
+      AND sm."createdAt" >= ${cutoff}
+    GROUP BY s.id, s.name
+    ORDER BY units DESC
+  `);
+
+  const totalUnitsReceived = rows.reduce((sum, r) => sum + Number(r.units), 0);
+
+  return {
+    period: '90d',
+    generatedAt: new Date().toISOString(),
+    totalUnitsReceived,
+    bySupplier: rows.map((r) => ({
+      supplierId: r.supplier_id ?? null,
+      supplierName: r.supplier_name ?? 'Unknown Supplier',
+      units: Number(r.units),
+      percentage: totalUnitsReceived > 0
+        ? Math.round((Number(r.units) / totalUnitsReceived) * 1000) / 10
+        : 0,
+    })),
+  };
+}
+
+// ── TFDA Dispensing Log ───────────────────────────────────────────────────────
+// Returns rows for a TFDA-inspection-ready CSV of controlled/prescription drugs.
+export async function getTfdaDispensingLog(
+  pharmacyId: string,
+  dateFrom?: string,
+  dateTo?: string,
+) {
+  const from = dateFrom ? new Date(dateFrom) : new Date(Date.now() - 30 * 86400000);
+  const to   = dateTo   ? new Date(dateTo)   : new Date();
+
+  // The dispensing_events table stores items as a JSONB array. We cross-join
+  // each item to extract per-line drug details. Products are joined from the
+  // products table via the productId stored in each item JSON element.
+  const rows = await prisma.$queryRaw<Array<{
+    dispensed_date: Date;
+    reference_number: string;
+    product_name: string;
+    generic_name: string | null;
+    strength: string | null;
+    dosage_form: string | null;
+    drug_class: string | null;
+    quantity: number;
+    batch_number: string | null;
+    prescription_ref: string | null;
+    dispensed_by: string | null;
+  }>>(Prisma.sql`
+    SELECT
+      de.created_at AS dispensed_date,
+      de.reference_number,
+      COALESCE(p.name, item.value->>'productName', item.value->>'genericName', 'Unknown') AS product_name,
+      COALESCE(p."genericName", item.value->>'genericName') AS generic_name,
+      p.strength,
+      CAST(p."dosageForm" AS TEXT) AS dosage_form,
+      CAST(p."drugClass" AS TEXT) AS drug_class,
+      COALESCE((item.value->>'quantity')::int, 1) AS quantity,
+      item.value->>'batchNumber' AS batch_number,
+      de.prescription_ref,
+      CONCAT(u."firstName", ' ', u."lastName") AS dispensed_by
+    FROM dispensing_events de
+    CROSS JOIN LATERAL jsonb_array_elements(de.items) AS item(value)
+    LEFT JOIN products p ON p.id = (item.value->>'productId')::uuid
+    LEFT JOIN users u ON u.id = de.dispensed_by
+    WHERE de.pharmacy_id = ${pharmacyId}
+      AND de.status = 'COMPLETED'
+      AND de.created_at >= ${from}
+      AND de.created_at <= ${to}
+      AND (
+        p."drugClass" IN ('CONTROLLED', 'NARCOTIC', 'PRESCRIPTION_ONLY')
+        OR item.value->>'requiresPrescription' = 'true'
+      )
+    ORDER BY de.created_at ASC
+    LIMIT 50000
+  `);
+
+  return rows.map((r) => ({
+    date: r.dispensed_date.toISOString().slice(0, 10),
+    referenceNumber: r.reference_number,
+    productName: r.product_name,
+    genericName: r.generic_name ?? '',
+    strength: r.strength ?? '',
+    dosageForm: r.dosage_form ?? '',
+    drugClass: r.drug_class ?? '',
+    quantity: Number(r.quantity),
+    batchNumber: r.batch_number ?? '',
+    prescriptionRef: r.prescription_ref ?? '',
+    dispensedBy: r.dispensed_by ?? '',
+  }));
+}
+
 // ── Payment method breakdown ──────────────────────────────────────────────────
 export async function getPaymentBreakdownReport(pharmacyId: string, dateFrom?: string, dateTo?: string) {
   const from = dateFrom ? new Date(dateFrom) : new Date(Date.now() - 30 * 86400000);

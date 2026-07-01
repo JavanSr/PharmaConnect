@@ -18,6 +18,8 @@ import {
   getPaymentBreakdownReport,
   getSalesReport,
   getProfitReport,
+  getStockSourcingReport,
+  getTfdaDispensingLog,
 } from './reports.service';
 
 function ensureFinancialReportAccess(req: AuthRequest) {
@@ -227,6 +229,28 @@ reportsRouter.get('/profit', requireRole('OWNER', 'SUPER_ADMIN'), async (req: Au
     }
 
     res.json({ data: report });
+  } catch (error) { next(error); }
+});
+
+// ── Stock Sourcing Report ─────────────────────────────────────────────────────
+reportsRouter.get('/stock-sourcing', requireRole('OWNER', 'PHARMACIST_IN_CHARGE', 'SUPER_ADMIN'), async (req: AuthRequest, res, next) => {
+  try {
+    res.json({ data: await getStockSourcingReport(pid(req)) });
+  } catch (error) { next(error); }
+});
+
+// ── TFDA Dispensing Log ───────────────────────────────────────────────────────
+reportsRouter.get('/tfda-log', requireRole('OWNER', 'PHARMACIST_IN_CHARGE', 'SUPER_ADMIN'), async (req: AuthRequest, res, next) => {
+  try {
+    const { from, to } = z.object({ from: z.string().optional(), to: z.string().optional() }).parse(req.query);
+    const rows = await getTfdaDispensingLog(pid(req), from, to);
+
+    const fromLabel = (from ?? new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)).slice(0, 10);
+    const toLabel   = (to ?? new Date().toISOString().slice(0, 10)).slice(0, 10);
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="tfda-log-${fromLabel}-${toLabel}.csv"`);
+    streamCsv(rows).pipe(res);
   } catch (error) { next(error); }
 });
 

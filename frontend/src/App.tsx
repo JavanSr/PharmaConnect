@@ -132,6 +132,7 @@ const WholesalerDiscoveryPage = lazy(() => import('@/modules/inventory/Wholesale
 const WholesalerCataloguePage = lazy(() => import('@/modules/inventory/WholesalerCataloguePage').then(m => ({ default: m.WholesalerCataloguePage })));
 const MedicinePriceComparisonPage = lazy(() => import('@/modules/inventory/MedicinePriceComparisonPage').then(m => ({ default: m.MedicinePriceComparisonPage })));
 const WholesalerCSVUploadPage = lazy(() => import('@/modules/inventory/WholesalerCSVUploadPage').then(m => ({ default: m.WholesalerCSVUploadPage })));
+const HelpPage = lazy(() => import('@/modules/help/HelpPage').then(m => ({ default: m.HelpPage })));
 
 const PageLoader = () => (
   <SystemStatusWindow
@@ -402,6 +403,7 @@ export const App: React.FC = () => (
           <Route path="/settings/source-updates" element={page(<SourceUpdatesPage />, ['SUPER_ADMIN'])} />
           <Route path="/settings/features" element={page(<FeaturesPage />, ['OWNER', 'PHARMACIST_IN_CHARGE'])} />
           <Route path="/settings/my-locations" element={page(<MyOutletsPage />, ['OWNER'])} />
+          <Route path="/help" element={page(<HelpPage />)} />
           <Route path="/founder" element={<Navigate to="/superadmin/founder" replace />} />
         </Route>
 

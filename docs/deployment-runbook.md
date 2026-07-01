@@ -105,3 +105,61 @@ For the first 30 minutes after promotion:
 - Confirm reports load, including safety impact reporting.
 
 Rollback immediately if checkout/dispensing is broken, login is broken, `/api/v1/ready` fails, or error rate rises and does not settle within five minutes.
+
+---
+
+## Backup & Recovery
+
+### Automated backups
+
+**Railway PostgreSQL** provides automated daily backups with a 7-day retention window. To restore:
+
+1. Go to Railway dashboard → your PostgreSQL service → **Backups** tab
+2. Select the restore point, click **Restore**
+3. Railway creates a new database instance — update `DATABASE_URL` in your Railway backend service variables and redeploy
+
+**Supabase** (if used instead of Railway PostgreSQL):
+
+- Free tier: daily backups, 7-day retention (manual restore via Supabase dashboard)
+- Pro tier: point-in-time recovery (PITR) — restore to any second within the retention window
+
+### Manual backup
+
+Run on any machine with PostgreSQL client tools and a direct DB connection (use `DIRECT_URL`, not the pooler):
+
+```bash
+# Create a compressed backup
+pg_dump "$DIRECT_URL" -Fc -f "backup-$(date +%Y%m%d-%H%M).dump"
+
+# Restore from backup
+pg_restore -d "$DIRECT_URL" -1 backup-20260630-1430.dump
+```
+
+### What else to back up
+
+| Asset | Location | Backup method |
+|-------|----------|---------------|
+| Uploaded files (prescriptions, compliance docs) | Supabase Storage or S3 | Storage provider automated backup |
+| Environment variables | `.env` files (never in git) | Encrypted copy in password manager (1Password / Bitwarden) |
+| Schema migrations | `backend/prisma/migrations/` | Git history |
+
+### Recovery time targets
+
+| Target | Value |
+|--------|-------|
+| **RPO** (max data loss) | < 24 hours (daily backup) |
+| **RTO** (restore time) | < 2 hours (Railway restore) |
+
+### Recovery runbook
+
+1. Confirm the affected time window from Railway logs
+2. Identify the last known-good backup point
+3. Restore via Railway dashboard (or `pg_restore` for manual backups)
+4. Run `npm run db:migrate` after restore to ensure migrations are current
+5. Restart backend service
+6. Verify `/api/v1/ready` returns `status: "ready"`
+7. Test login, dispensing checkout, and stock level read
+
+### Security note on backups
+
+Backups contain patient-adjacent data (dispensing logs, override logs). Treat backup files with the same security as production credentials. Never store unencrypted backup files in cloud storage buckets without access control. Use Railway's built-in backup system rather than manual dumps wherever possible.

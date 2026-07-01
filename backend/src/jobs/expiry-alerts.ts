@@ -1,6 +1,7 @@
 import cron, { type ScheduledTask } from 'node-cron';
 import { prisma } from '../lib/prisma';
 import { alertAlreadySentToday } from '../modules/inventory/inventory.service';
+import { isSmsConfigured, sendExpiryAlert } from '../services/sms.service';
 
 // ── Expiry alert thresholds (days before expiry) ──────────────────────────────
 // Formula: daysUntilExpiry = Math.ceil((expiryDate - today) / 86_400_000)
@@ -94,6 +95,22 @@ export async function runExpiryAlerts(): Promise<{ queued: number }> {
     });
 
     queued += 1;
+
+    // ── SMS alert to pharmacy owner ───────────────────────────────────────────
+    if (isSmsConfigured()) {
+      try {
+        const owner = await prisma.user.findFirst({
+          where: { pharmacyId: batch.pharmacyId, role: 'OWNER' },
+          select: { phone: true },
+        });
+        if (owner?.phone) {
+          const productName = batch.product.brandName || batch.product.name;
+          await sendExpiryAlert(owner.phone, batch.pharmacy.name, [productName]);
+        }
+      } catch (smsErr) {
+        console.error('[expiry-alerts] SMS send failed (non-fatal)', smsErr);
+      }
+    }
   }
 
   return { queued };

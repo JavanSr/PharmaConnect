@@ -1,0 +1,44 @@
+{
+  "nav": {
+    "dashboard": "Dashibodi",
+    "inventory": "Hesabu ya Dawa",
+    "dispensing": "Utoaji wa Dawa",
+    "compliance": "Utiifu",
+    "analytics": "Uchambuzi",
+    "settings": "Mipangilio",
+    "help": "Msaada",
+    "logout": "Toka"
+  },
+  "common": {
+    "save": "Hifadhi",
+    "cancel": "Ghairi",
+    "delete": "Futa",
+    "edit": "Hariri",
+    "search": "Tafuta",
+    "loading": "Inapakia...",
+    "error": "Hitilafu imetokea",
+    "noResults": "Hakuna matokeo",
+    "back": "Rudi"
+  },
+  "dispensing": {
+    "title": "Utoaji wa Dawa",
+    "addToCart": "Ongeza kwenye mkoba",
+    "checkout": "Lipa",
+    "paymentMethod": "Njia ya malipo",
+    "total": "Jumla",
+    "reference": "Nambari ya rejista"
+  },
+  "inventory": {
+    "title": "Hesabu ya Dawa",
+    "addProduct": "Ongeza dawa",
+    "stockLevel": "Kiwango cha stoki",
+    "expiryDate": "Tarehe ya kumalizika",
+    "reorderLevel": "Kiwango cha kuagiza tena"
+  },
+  "errors": {
+    "networkError": "Hitilafu ya mtandao — angalia muunganisho wako",
+    "unauthorized": "Huna ruhusa ya kufanya hivi",
+    "notFound": "Ukurasa haukupatikana",
+    "sessionExpired": "Kipindi chako kimeisha — tafadhali ingia tena"
+  }
+}

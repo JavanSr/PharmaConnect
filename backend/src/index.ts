@@ -113,7 +113,27 @@ const corsOptions: cors.CorsOptions = {
 // ── Security & middleware ─────────────────────────────────────────────────────
 app.set('trust proxy', 1);
 
-app.use(helmet());
+// helmet sets X-Frame-Options, X-Content-Type-Options, Strict-Transport-Security,
+// X-XSS-Protection, and more. CSRF is mitigated by design: auth tokens are stored
+// in localStorage and sent via Authorization header — browsers never auto-attach them
+// to cross-origin requests, so CSRF is not a realistic attack vector on this API.
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],  // Tailwind inline styles
+        imgSrc: ["'self'", 'data:', 'blob:'],
+        connectSrc: ["'self'", ...(process.env.ALLOWED_ORIGINS?.split(',') ?? [])],
+        fontSrc: ["'self'", 'https://fonts.gstatic.com'],
+        frameSrc: ["'none'"],
+        objectSrc: ["'none'"],
+      },
+    },
+    crossOriginEmbedderPolicy: false, // allow PDF rendering in iframes on receipts
+  }),
+);
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 app.use(compression());

@@ -20,6 +20,10 @@ import {
   isSubscriptionWebhookConfigured,
   subscriptionProviderName,
 } from '../subscription/subscription-payments.service';
+import {
+  getSubscriptionInvoice,
+  listSubscriptionInvoices,
+} from '../subscription/subscription-invoice.service';
 import { initiateAzamPayCheckout, isAzamPayConfigured, detectProvider } from '../azampay/azampay.service';
 
 export const settingsRouter = Router();
@@ -482,9 +486,17 @@ settingsRouter.post('/team/invite', requirePermission('settings.manage_team'), a
       mustChangePassword: z.boolean().optional(),
     });
     const data = schema.parse(req.body);
-    const exists = await prisma.user.findUnique({ where: { email: data.email.toLowerCase() } });
+    const [exists, pharmacy, currentUserCount] = await Promise.all([
+      prisma.user.findUnique({ where: { email: data.email.toLowerCase() } }),
+      prisma.pharmacy.findUnique({ where: { id: pid(req) }, select: { userLimit: true } }),
+      prisma.user.count({ where: { pharmacyId: pid(req) } }),
+    ]);
     if (exists) {
       res.status(409).json({ error: 'Email already registered' });
+      return;
+    }
+    if (pharmacy?.userLimit && currentUserCount >= pharmacy.userLimit) {
+      res.status(403).json({ error: 'USER_LIMIT_REACHED', limit: pharmacy.userLimit, current: currentUserCount });
       return;
     }
     const hashed = await bcrypt.hash(data.password, 12);
@@ -730,6 +742,26 @@ settingsRouter.post('/onboarding/complete', requireRole('OWNER'), async (req: Au
     });
 
     res.json({ data: { completed: true } });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// ── Subscription Invoices ─────────────────────────────────────────────────────
+
+settingsRouter.get('/invoices', requireRole('OWNER', 'SUPER_ADMIN'), async (req: AuthRequest, res, next) => {
+  try {
+    const invoices = await listSubscriptionInvoices(pid(req));
+    res.json({ data: invoices });
+  } catch (e) {
+    next(e);
+  }
+});
+
+settingsRouter.get('/invoices/:id', requireRole('OWNER', 'SUPER_ADMIN'), async (req: AuthRequest, res, next) => {
+  try {
+    const invoice = await getSubscriptionInvoice(req.params.id, pid(req));
+    res.json({ data: invoice });
   } catch (e) {
     next(e);
   }

@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { authenticate, assertUser, requireRole, type AuthRequest } from '../../middleware/auth';
 import { signAccess } from '../../lib/jwt';
@@ -569,13 +570,12 @@ adminRouter.post('/knowledge/bulletins', async (req: AuthRequest, res, next) => 
 adminRouter.patch('/knowledge/bulletins/:id', async (req: AuthRequest, res, next) => {
   try {
     const body = bulletinSchema.partial().parse(req.body);
-    const sets: string[] = [];
-    if (body.title     !== undefined) sets.push(`"title" = '${body.title.replace(/'/g, "''")}'`);
-    if (body.isUrgent  !== undefined) sets.push(`"is_urgent" = ${body.isUrgent}`);
-    if (!sets.length) { res.status(400).json({ error: 'Nothing to update' }); return; }
-    const rows = await prisma.$queryRawUnsafe<any[]>(
-      `UPDATE "bulletins" SET ${sets.join(', ')} WHERE "id" = $1 RETURNING *`,
-      req.params.id,
+    const setParts: Prisma.Sql[] = [];
+    if (body.title    !== undefined) setParts.push(Prisma.sql`"title" = ${body.title}`);
+    if (body.isUrgent !== undefined) setParts.push(Prisma.sql`"is_urgent" = ${body.isUrgent}`);
+    if (!setParts.length) { res.status(400).json({ error: 'Nothing to update' }); return; }
+    const rows = await prisma.$queryRaw<any[]>(
+      Prisma.sql`UPDATE "bulletins" SET ${Prisma.join(setParts, ', ')} WHERE "id" = ${req.params.id} RETURNING *`,
     );
     res.json({ data: rows[0] });
   } catch (e) { next(e); }

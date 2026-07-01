@@ -1,6 +1,7 @@
 import cron, { type ScheduledTask } from 'node-cron';
 import { prisma } from '../lib/prisma';
 import { alertAlreadySentToday, lowStockReport } from '../modules/inventory/inventory.service';
+import { isSmsConfigured, sendLowStockAlert } from '../services/sms.service';
 
 export async function runLowStockAlerts(): Promise<{ queued: number }> {
   const pharmacies = await prisma.pharmacy.findMany({
@@ -50,6 +51,22 @@ export async function runLowStockAlerts(): Promise<{ queued: number }> {
     });
 
     queued += toCreate.length;
+
+    // ── SMS alert to pharmacy owner ───────────────────────────────────────────
+    if (isSmsConfigured() && toCreate.length > 0) {
+      try {
+        const owner = await prisma.user.findFirst({
+          where: { pharmacyId: pharmacy.id, role: 'OWNER' },
+          select: { phone: true },
+        });
+        if (owner?.phone) {
+          const productNames = toCreate.map((p) => (p as any).brandName || p.name);
+          await sendLowStockAlert(owner.phone, pharmacy.name, productNames);
+        }
+      } catch (smsErr) {
+        console.error('[low-stock-alerts] SMS send failed (non-fatal)', smsErr);
+      }
+    }
   }
 
   return { queued };

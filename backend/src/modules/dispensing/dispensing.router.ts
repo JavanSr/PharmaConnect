@@ -509,11 +509,13 @@ async function completeDispensingCheckout(input: {
     // eliminating the race window that caused spurious 409s under concurrent load.
     // Single batched query for all items (no N+1).
     const uniqueProductIds = [...new Set(payload.items.map((item) => item.productId))];
+    const _now = new Date();
     const allBatches = await tx.batch.findMany({
       where: {
         pharmacyId,
         productId: { in: uniqueProductIds },
         quantityRemaining: { gt: 0 },
+        expiryDate: { gt: _now },
       },
       orderBy: [{ expiryDate: 'asc' }, { receivedAt: 'asc' }],
     });
@@ -863,11 +865,13 @@ dispensingRouter.post('/checkout', requirePermission('dispensing.access'), uploa
       // FEFO batch selection inside transaction — read and write are now atomic.
       // Single batched query for all items replaces the previous N per-item queries.
       const uniqueProductIds = [...new Set(payload.items.map((item) => item.productId))];
+      const now = new Date();
       const allBatches = await tx.batch.findMany({
         where: {
           pharmacyId,
           productId: { in: uniqueProductIds },
           quantityRemaining: { gt: 0 },
+          expiryDate: { gt: now },
         },
         orderBy: [{ expiryDate: 'asc' }, { receivedAt: 'asc' }],
       });
@@ -890,7 +894,7 @@ dispensingRouter.post('/checkout', requirePermission('dispensing.access'), uploa
         const productBatches = batchesByProduct.get(item.productId) ?? [];
         const batch = productBatches.find((b) => b.quantityRemaining >= item.quantity);
         if (!batch) {
-          throw Object.assign(new Error('No FEFO batch has enough stock for this request'), { status: 409 });
+          throw Object.assign(new Error(`No available stock for ${product.name} — check expiry dates and stock levels`), { status: 409, code: 'NO_AVAILABLE_STOCK' });
         }
 
         const unitPrice = Number(item.unitPrice);

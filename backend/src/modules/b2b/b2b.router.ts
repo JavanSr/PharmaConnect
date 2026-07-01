@@ -9,16 +9,25 @@ import { prisma } from '../../lib/prisma';
 import {
   ORDER_STATUSES,
   confirmDelivery,
+  createDispute,
   createOrder,
+  dissolvePharmacyLink,
   getOrder,
   getDemandInsights,
+  getPharmacyLink,
+  hasActiveLink,
   listCreditLimits,
+  listDisputes,
   listOrders,
+  listPharmacyLinks,
   listReceivablesAging,
   listVatInvoices,
   listWholesaleCatalogue,
   pickOrderItems,
   removeCatalogueItem,
+  requestPharmacyLink,
+  resolveDispute,
+  respondToPharmacyLink,
   scheduleDelivery,
   updateOrderStatus,
   upsertCreditLimit,
@@ -178,6 +187,23 @@ b2bRouter.post('/orders', requireRole('OWNER', 'PHARMACIST_IN_CHARGE', 'WHOLESAL
         quantity: z.coerce.number().int().positive(),
       })).min(1),
     }).parse(req.body);
+
+    // Gate orders on active link — skip for SUPER_ADMIN
+    const callerRole = assertUser(req).normalizedRole;
+    if (callerRole !== 'SUPER_ADMIN') {
+      const buyerPharmacyId = pid(req);
+      const linkActive = await hasActiveLink(buyerPharmacyId, payload.sellerPharmacyId);
+      const pendingLink = !linkActive
+        ? await (prisma as any).pharmacyLink.findFirst({
+            where: { retailId: buyerPharmacyId, wholesaleId: payload.sellerPharmacyId, status: 'PENDING' },
+            select: { id: true },
+          })
+        : null;
+      if (!linkActive && !pendingLink) {
+        res.status(403).json({ error: 'NO_ACTIVE_LINK', message: 'Request a link with this wholesale pharmacy first' });
+        return;
+      }
+    }
 
     res.status(201).json({
       data: await createOrder({
@@ -935,6 +961,166 @@ b2bRouter.post('/payments', requireRole(...sellerOnlyRoles), async (req: AuthReq
 
     res.status(201).json({
       data: await recordWholesalePayment({ sellerPharmacyId: pid(req), recordedBy: uid(req), ...payload }),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ─── Pharmacy links ───────────────────────────────────────────────────────────
+
+b2bRouter.post('/links', async (req: AuthRequest, res, next) => {
+  try {
+    const payload = z.object({
+      wholesaleId: z.string().min(1),
+    }).parse(req.body);
+
+    res.status(201).json({
+      data: await requestPharmacyLink(pid(req), payload.wholesaleId, uid(req)),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+b2bRouter.get('/links', async (req: AuthRequest, res, next) => {
+  try {
+    const query = z.object({
+      role: z.enum(['buyer', 'seller']).default('buyer'),
+      status: z.string().optional(),
+    }).parse(req.query);
+
+    res.json({
+      data: await listPharmacyLinks(pid(req), query.role, query.status),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+b2bRouter.get('/links/:id', async (req: AuthRequest, res, next) => {
+  try {
+    // id parameter is the wholesaleId for a buyer looking up a specific pair,
+    // or use the linkId directly. Support both forms via retailId+wholesaleId query.
+    const { retailId, wholesaleId } = z.object({
+      retailId: z.string().optional(),
+      wholesaleId: z.string().optional(),
+    }).parse(req.query);
+
+    const link = await getPharmacyLink(
+      retailId ?? pid(req),
+      wholesaleId ?? req.params.id,
+    );
+
+    if (!link) {
+      res.status(404).json({ error: 'Link not found' });
+      return;
+    }
+
+    res.json({ data: link });
+  } catch (error) {
+    next(error);
+  }
+});
+
+b2bRouter.patch('/links/:id/respond', async (req: AuthRequest, res, next) => {
+  try {
+    const payload = z.object({
+      accept: z.boolean(),
+      rejectionReason: z.string().max(500).optional(),
+    }).parse(req.body);
+
+    res.json({
+      data: await respondToPharmacyLink(
+        req.params.id,
+        pid(req),
+        payload.accept,
+        uid(req),
+        payload.rejectionReason,
+      ),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+b2bRouter.delete('/links/:id', async (req: AuthRequest, res, next) => {
+  try {
+    res.json({
+      data: await dissolvePharmacyLink(req.params.id, pid(req), uid(req)),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ─── Delivery disputes ────────────────────────────────────────────────────────
+
+b2bRouter.post('/disputes', async (req: AuthRequest, res, next) => {
+  try {
+    const payload = z.object({
+      orderId: z.string().min(1),
+      description: z.string().min(1).max(2000),
+      lineItems: z.array(z.object({
+        productId: z.string().min(1),
+        productName: z.string().min(1),
+        quantityOrdered: z.coerce.number().int().positive(),
+        quantityReceived: z.coerce.number().int().nonnegative(),
+        quantityDisputed: z.coerce.number().int().positive(),
+        unitPrice: z.coerce.number().nonnegative(),
+        notes: z.string().max(500).optional(),
+      })).min(1),
+    }).parse(req.body);
+
+    // Resolve sellerPharmacyId from the order
+    const orderRows = await prisma.$queryRawUnsafe<Array<{ seller_pharmacy_id: string; buyer_pharmacy_id: string | null }>>(
+      `SELECT "seller_pharmacy_id", "buyer_pharmacy_id" FROM "orders" WHERE "id" = $1 LIMIT 1`,
+      payload.orderId,
+    ).catch(() => []);
+
+    const order = orderRows[0];
+    if (!order) {
+      res.status(404).json({ error: 'Order not found' });
+      return;
+    }
+
+    const buyerPharmacyId = pid(req);
+
+    res.status(201).json({
+      data: await createDispute({
+        orderId: payload.orderId,
+        buyerPharmacyId,
+        sellerPharmacyId: order.seller_pharmacy_id,
+        description: payload.description,
+        reportedBy: uid(req),
+        lineItems: payload.lineItems,
+      }),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+b2bRouter.get('/disputes', async (req: AuthRequest, res, next) => {
+  try {
+    const { role } = z.object({
+      role: z.enum(['buyer', 'seller']).default('buyer'),
+    }).parse(req.query);
+
+    res.json({ data: await listDisputes(pid(req), role) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+b2bRouter.patch('/disputes/:id/resolve', requireRole('OWNER', 'WHOLESALE_MANAGER', 'SUPER_ADMIN'), async (req: AuthRequest, res, next) => {
+  try {
+    const payload = z.object({
+      resolution: z.string().min(1).max(2000),
+    }).parse(req.body);
+
+    res.json({
+      data: await resolveDispute(req.params.id, payload.resolution, uid(req)),
     });
   } catch (error) {
     next(error);

@@ -1214,3 +1214,215 @@ export async function getDemandInsights(sellerPharmacyId: string) {
     topProducts,
   };
 }
+
+// ─── Pharmacy Link functions ──────────────────────────────────────────────────
+
+export async function requestPharmacyLink(
+  retailId: string,
+  wholesaleId: string,
+  requestedBy: string,
+) {
+  const existing = await (prisma as any).pharmacyLink.findFirst({
+    where: {
+      retailId,
+      wholesaleId,
+      status: { in: ['PENDING', 'ACTIVE'] },
+    },
+  });
+
+  if (existing) {
+    throw Object.assign(new Error('LINK_ALREADY_EXISTS'), {
+      status: 409,
+      code: 'LINK_ALREADY_EXISTS',
+    });
+  }
+
+  return (prisma as any).pharmacyLink.create({
+    data: { retailId, wholesaleId, requestedBy },
+  });
+}
+
+export async function respondToPharmacyLink(
+  linkId: string,
+  wholesaleId: string,
+  accept: boolean,
+  respondedBy: string,
+  rejectionReason?: string,
+) {
+  const link = await (prisma as any).pharmacyLink.findFirst({
+    where: { id: linkId, wholesaleId },
+  });
+
+  if (!link) {
+    throw Object.assign(new Error('Link not found'), { status: 404 });
+  }
+
+  if (link.status !== 'PENDING') {
+    throw Object.assign(new Error('LINK_NOT_PENDING'), {
+      status: 400,
+      code: 'LINK_NOT_PENDING',
+    });
+  }
+
+  return (prisma as any).pharmacyLink.update({
+    where: { id: linkId },
+    data: {
+      status: accept ? 'ACTIVE' : 'REJECTED',
+      respondedBy,
+      rejectionReason: accept ? null : (rejectionReason ?? null),
+    },
+  });
+}
+
+export async function dissolvePharmacyLink(
+  linkId: string,
+  pharmacyId: string,
+  dissolvedBy: string,
+) {
+  const link = await (prisma as any).pharmacyLink.findFirst({
+    where: {
+      id: linkId,
+      status: 'ACTIVE',
+      OR: [{ retailId: pharmacyId }, { wholesaleId: pharmacyId }],
+    },
+  });
+
+  if (!link) {
+    throw Object.assign(new Error('Active link not found'), { status: 404 });
+  }
+
+  return (prisma as any).pharmacyLink.update({
+    where: { id: linkId },
+    data: {
+      status: 'DISSOLVED',
+      dissolvedBy,
+      dissolvedAt: new Date(),
+    },
+  });
+}
+
+export async function listPharmacyLinks(
+  pharmacyId: string,
+  role: 'buyer' | 'seller',
+  status?: string,
+) {
+  const where: Record<string, unknown> = role === 'buyer'
+    ? { retailId: pharmacyId }
+    : { wholesaleId: pharmacyId };
+
+  if (status) {
+    where.status = status;
+  }
+
+  return (prisma as any).pharmacyLink.findMany({
+    where,
+    include: {
+      retailPharmacy: { select: { id: true, name: true, pharmacyType: true } },
+      wholesalePharmacy: { select: { id: true, name: true, pharmacyType: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+}
+
+export async function getPharmacyLink(
+  retailId: string,
+  wholesaleId: string,
+) {
+  return (prisma as any).pharmacyLink.findUnique({
+    where: { retailId_wholesaleId: { retailId, wholesaleId } },
+  });
+}
+
+export async function hasActiveLink(
+  retailId: string,
+  wholesaleId: string,
+): Promise<boolean> {
+  const link = await (prisma as any).pharmacyLink.findFirst({
+    where: { retailId, wholesaleId, status: 'ACTIVE' },
+    select: { id: true },
+  });
+
+  return link !== null;
+}
+
+// ─── Dispute functions ────────────────────────────────────────────────────────
+
+export async function createDispute(input: {
+  orderId: string;
+  buyerPharmacyId: string;
+  sellerPharmacyId: string;
+  description: string;
+  reportedBy: string;
+  lineItems: Array<{
+    productId: string;
+    productName: string;
+    quantityOrdered: number;
+    quantityReceived: number;
+    quantityDisputed: number;
+    unitPrice: number;
+    notes?: string;
+  }>;
+}) {
+  return (prisma as any).wholesaleDispute.create({
+    data: {
+      orderId: input.orderId,
+      buyerPharmacyId: input.buyerPharmacyId,
+      sellerPharmacyId: input.sellerPharmacyId,
+      description: input.description,
+      reportedBy: input.reportedBy,
+      lineItems: {
+        create: input.lineItems.map((item) => ({
+          productId: item.productId,
+          productName: item.productName,
+          quantityOrdered: item.quantityOrdered,
+          quantityReceived: item.quantityReceived,
+          quantityDisputed: item.quantityDisputed,
+          unitPrice: item.unitPrice,
+          notes: item.notes ?? null,
+        })),
+      },
+    },
+    include: { lineItems: true },
+  });
+}
+
+export async function listDisputes(
+  pharmacyId: string,
+  role: 'buyer' | 'seller',
+) {
+  const where = role === 'buyer'
+    ? { buyerPharmacyId: pharmacyId }
+    : { sellerPharmacyId: pharmacyId };
+
+  return (prisma as any).wholesaleDispute.findMany({
+    where,
+    include: { lineItems: true },
+    orderBy: { createdAt: 'desc' },
+  });
+}
+
+export async function resolveDispute(
+  disputeId: string,
+  resolution: string,
+  resolvedBy: string,
+) {
+  const dispute = await (prisma as any).wholesaleDispute.findUnique({
+    where: { id: disputeId },
+    select: { id: true },
+  });
+
+  if (!dispute) {
+    throw Object.assign(new Error('Dispute not found'), { status: 404 });
+  }
+
+  return (prisma as any).wholesaleDispute.update({
+    where: { id: disputeId },
+    data: {
+      status: 'RESOLVED',
+      resolution,
+      resolvedBy,
+      resolvedAt: new Date(),
+    },
+    include: { lineItems: true },
+  });
+}

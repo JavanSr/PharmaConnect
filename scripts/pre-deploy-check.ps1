@@ -48,6 +48,11 @@ if (-not $SkipPrismaGenerate) {
   }
 }
 
+Invoke-Step "Dependency security audit" {
+  Invoke-Npm (Join-Path $root "backend") @("audit", "--audit-level=high")
+  Invoke-Npm (Join-Path $root "frontend") @("audit", "--audit-level=high")
+}
+
 Invoke-Step "Backend build" {
   Invoke-Npm (Join-Path $root "backend") @("run", "build")
 }

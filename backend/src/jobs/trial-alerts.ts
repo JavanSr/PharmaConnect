@@ -2,6 +2,7 @@ import cron, { type ScheduledTask } from 'node-cron';
 import { NotificationChannel } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { NotificationService } from '../services/NotificationService';
+import { isWhatsAppConfigured, sendWhatsAppTrialExpiryWarning } from '../services/whatsapp.service';
 
 function daysRemaining(trialEndsAt: Date) {
   const today = new Date();
@@ -83,6 +84,14 @@ export async function runTrialAlerts() {
 
     if (Object.values(result).some((entry: any) => entry?.sent)) {
       alertsSent += 1;
+    }
+
+    if (isWhatsAppConfigured() && owner.phone && remaining > 0) {
+      try {
+        await sendWhatsAppTrialExpiryWarning(owner.phone, owner.pharmacy.name, remaining);
+      } catch (err) {
+        console.error('[trial-alerts] WhatsApp send failed', err);
+      }
     }
   }
 
