@@ -5,6 +5,7 @@ import {
   Plus, Send, Trash2, XCircle, AlertTriangle, RotateCcw,
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
+import DOMPurify from 'dompurify';
 import { api } from '@/lib/api';
 import { useNotificationStore } from '@/stores/notificationStore';
 
@@ -153,7 +154,7 @@ function ArticleEditor({
           {content ? (
             <div
               className="prose prose-sm max-w-none text-[#0D4035] prose-headings:text-[#0D4035] prose-a:text-[#1A6B5C]"
-              dangerouslySetInnerHTML={{ __html: content }}
+              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(content) }}
             />
           ) : (
             <p className="text-sm text-[#64748B] italic">No content yet — switch back to edit to write your article body.</p>

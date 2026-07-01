@@ -977,12 +977,78 @@ export async function verifyOrderItems(input: {
   return { matched, unmatched, shortfall };
 }
 
-export async function confirmDelivery(input: { orderId: string; pharmacyId: string }) {
-  return updateOrderStatus({
+export async function confirmDelivery(input: { orderId: string; pharmacyId: string; userId: string }) {
+  const result = await updateOrderStatus({
     orderId: input.orderId,
     pharmacyId: input.pharmacyId,
     nextStatus: 'DELIVERED',
   });
+
+  const order = result.order;
+  const stockUpdated: string[] = [];
+  const stockSkipped: string[] = [];
+
+  if (order.buyerPharmacyId && Array.isArray(order.items) && order.items.length > 0) {
+    const buyerPharmacyId = order.buyerPharmacyId;
+    const lines = order.items as OrderLine[];
+
+    for (const line of lines) {
+      const qty = line.verifiedQuantity ?? line.pickedQuantity ?? line.quantity;
+      if (qty <= 0) continue;
+
+      const buyerProduct = await prisma.product.findFirst({
+        where: { pharmacyId: buyerPharmacyId, name: { equals: line.productName, mode: 'insensitive' } },
+        select: { id: true },
+      });
+
+      if (!buyerProduct) {
+        stockSkipped.push(line.productName);
+        continue;
+      }
+
+      // Approximate expiry from seller's earliest valid batch; fall back to 1 year
+      const sellerBatch = await prisma.batch.findFirst({
+        where: {
+          pharmacyId: order.sellerPharmacyId,
+          productId: line.productId,
+          quantityRemaining: { gt: 0 },
+          expiryDate: { gt: new Date() },
+        },
+        orderBy: { expiryDate: 'asc' },
+        select: { expiryDate: true },
+      });
+      const expiryDate = sellerBatch?.expiryDate ?? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+      const batchNumber = `B2B-${order.orderNumber}-${line.productId.slice(-4).toUpperCase()}`;
+
+      await prisma.$transaction(async (tx) => {
+        const batch = await tx.batch.create({
+          data: {
+            productId: buyerProduct.id,
+            pharmacyId: buyerPharmacyId,
+            batchNumber,
+            expiryDate,
+            quantityRemaining: qty,
+            purchasePrice: line.unitPrice,
+          },
+        });
+        await tx.stockMovement.create({
+          data: {
+            pharmacyId: buyerPharmacyId,
+            productId: buyerProduct.id,
+            batchId: batch.id,
+            userId: input.userId,
+            type: 'RECEIVED',
+            quantity: qty,
+            notes: `B2B delivery — order ${order.orderNumber}`,
+          },
+        });
+      });
+
+      stockUpdated.push(line.productName);
+    }
+  }
+
+  return { ...result, stockUpdated, stockSkipped };
 }
 
 export async function scheduleDelivery(input: {

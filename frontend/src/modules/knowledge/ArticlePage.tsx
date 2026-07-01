@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, Clock, Eye, GraduationCap } from 'lucide-react';
 import { format } from 'date-fns';
+import DOMPurify from 'dompurify';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { api } from '@/lib/api';
@@ -76,7 +77,7 @@ export const ArticlePage: React.FC = () => {
 
         <div
           className="prose prose-sm max-w-none text-[#0D4035] [&_h2]:mb-3 [&_h2]:mt-6 [&_h2]:text-lg [&_h2]:font-bold [&_p]:mb-4"
-          dangerouslySetInnerHTML={{ __html: renderBody(article.body) }}
+          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(renderBody(article.body)) }}
         />
 
         <div className="border-t border-[#D6F0E8] pt-5">

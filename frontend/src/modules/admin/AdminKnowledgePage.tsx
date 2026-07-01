@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
+import DOMPurify from 'dompurify';
 import {
   BookOpen, Megaphone, Plus, Pencil, Trash2, Eye, EyeOff,
   CheckCircle2, AlertTriangle, X, ChevronDown, ChevronUp,
@@ -585,7 +586,7 @@ export const AdminKnowledgePage: React.FC = () => {
                                   <p className="font-semibold text-[#0D4035] mb-1">Content preview</p>
                                   <div
                                     className="prose prose-sm max-w-none text-[#0D4035] opacity-70 line-clamp-3"
-                                    dangerouslySetInnerHTML={{ __html: article.htmlContent.slice(0, 400) + '…' }}
+                                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(article.htmlContent.slice(0, 400) + '…') }}
                                   />
                                 </div>
                               )}
@@ -738,7 +739,7 @@ function SubmissionsPanel({
               {preview.htmlContent ? (
                 <div
                   className="prose prose-sm max-w-none text-[#0D4035]"
-                  dangerouslySetInnerHTML={{ __html: preview.htmlContent }}
+                  dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(preview.htmlContent) }}
                 />
               ) : (
                 <p className="text-sm text-[#64748B] italic">No article body — only summary submitted.</p>

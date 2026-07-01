@@ -1,3 +1,4 @@
+import { BillingCycle, SubscriptionTier } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 
 // ── Subscription Invoice Service ──────────────────────────────────────────────
@@ -33,8 +34,8 @@ function addOneYear(date: Date): Date {
 export async function generateSubscriptionInvoice(input: {
   pharmacyId: string;
   paymentRequestId?: string;
-  tier: string;
-  billingCycle: string;
+  tier: SubscriptionTier;
+  billingCycle: BillingCycle;
   amount: number;
 }): Promise<{ id: string; invoiceNumber: string }> {
   const now = new Date();
@@ -53,7 +54,7 @@ export async function generateSubscriptionInvoice(input: {
 
   const invoiceNumber = generateInvoiceNumber(input.pharmacyId);
 
-  const invoice = await (prisma as any).subscriptionInvoice.create({
+  const invoice = await prisma.subscriptionInvoice.create({
     data: {
       pharmacyId: input.pharmacyId,
       paymentRequestId: input.paymentRequestId ?? null,
@@ -76,7 +77,7 @@ export async function generateSubscriptionInvoice(input: {
 }
 
 export async function getSubscriptionInvoice(invoiceId: string, pharmacyId: string) {
-  const invoice = await (prisma as any).subscriptionInvoice.findFirst({
+  const invoice = await prisma.subscriptionInvoice.findFirst({
     where: {
       id: invoiceId,
       pharmacyId,
@@ -91,7 +92,7 @@ export async function getSubscriptionInvoice(invoiceId: string, pharmacyId: stri
 }
 
 export async function listSubscriptionInvoices(pharmacyId: string) {
-  const invoices = await (prisma as any).subscriptionInvoice.findMany({
+  const invoices = await prisma.subscriptionInvoice.findMany({
     where: { pharmacyId },
     orderBy: { createdAt: 'desc' },
   });

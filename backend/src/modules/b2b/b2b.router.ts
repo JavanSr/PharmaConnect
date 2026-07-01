@@ -798,7 +798,7 @@ b2bRouter.post('/orders/:id/verify-items', requireRole('WHOLESALE_COUNTER_STAFF'
 
 b2bRouter.patch('/orders/:id/confirm-delivery', requireRole('WHOLESALE_COUNTER_STAFF', 'WHOLESALE_MANAGER', 'DELIVERY_STAFF', 'SUPER_ADMIN'), async (req: AuthRequest, res, next) => {
   try {
-    res.json({ data: await confirmDelivery({ orderId: req.params.id, pharmacyId: pid(req) }) });
+    res.json({ data: await confirmDelivery({ orderId: req.params.id, pharmacyId: pid(req), userId: req.user!.userId }) });
   } catch (error) {
     next(error);
   }
