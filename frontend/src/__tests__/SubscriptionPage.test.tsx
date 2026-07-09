@@ -89,14 +89,16 @@ describe('SubscriptionPage', () => {
     renderPage();
 
     await waitFor(() => {
-      expect(screen.getByText('ADDO')).toBeInTheDocument();
+      // ADDO appears both as a tier card and in the billing-cycle tier <select>
+      expect(screen.getAllByText('ADDO').length).toBeGreaterThan(0);
     });
 
-    expect(screen.getByText('Tsh 15,000')).toBeInTheDocument();
-    expect(screen.getByText('Tsh 39,000')).toBeInTheDocument();
-    expect(screen.getByText('Tsh 55,000')).toBeInTheDocument();
-    expect(screen.getByText('Tsh 75,000')).toBeInTheDocument();
-    expect(screen.getByText('Tsh 100,000')).toBeInTheDocument();
-    expect(screen.getByText('Negotiated')).toBeInTheDocument();
+    // Prices may render both on the tier card and in the billing-cycle checkout panel
+    expect(screen.getAllByText('Tsh 15,000').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Tsh 39,000').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Tsh 55,000').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Tsh 75,000').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Tsh 100,000').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Negotiated').length).toBeGreaterThan(0);
   });
 });

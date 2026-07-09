@@ -85,10 +85,13 @@ export default defineConfig(({ mode }) => {
       sourcemap: false,
       rollupOptions: {
         output: {
-          manualChunks: {
-            vendor: ['react', 'react-dom', 'react-router-dom'],
-            query: ['@tanstack/react-query'],
-            ui: ['lucide-react', 'framer-motion'],
+          // Vite 8 (rolldown) only supports the function form of manualChunks
+          manualChunks(id: string) {
+            if (!id.includes('node_modules')) return undefined;
+            if (/[\\/]node_modules[\\/](react|react-dom|react-router-dom|scheduler)[\\/]/.test(id)) return 'vendor';
+            if (id.includes('@tanstack/react-query')) return 'query';
+            if (/[\\/]node_modules[\\/](lucide-react|framer-motion)[\\/]/.test(id)) return 'ui';
+            return undefined;
           },
         },
       },
