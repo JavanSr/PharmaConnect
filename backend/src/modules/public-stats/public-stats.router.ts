@@ -33,10 +33,23 @@ function friendlyFloor(value: number): number {
 }
 
 async function computeStats(): Promise<PublicStat[]> {
+  // Integration tests run against this database and create pharmacies with a
+  // LIC-pharmacy-* licence (tests/helpers.ts). Exclude them — this number is
+  // published on the marketing site and must never be inflated by test data.
   const [pharmacies, dispensings, safetyEvents] = await Promise.all([
-    prisma.pharmacy.count({ where: { isActive: true, status: { in: ['ACTIVE', 'TRIAL'] } } }),
-    prisma.dispensingTransaction.count(),
-    prisma.safetyEvent.count(),
+    prisma.pharmacy.count({
+      where: {
+        isActive: true,
+        status: { in: ['ACTIVE', 'TRIAL'] },
+        NOT: { licenceNumber: { startsWith: 'LIC-pharmacy-' } },
+      },
+    }),
+    prisma.dispensingTransaction.count({
+      where: { pharmacy: { NOT: { licenceNumber: { startsWith: 'LIC-pharmacy-' } } } },
+    }),
+    prisma.safetyEvent.count({
+      where: { pharmacy: { NOT: { licenceNumber: { startsWith: 'LIC-pharmacy-' } } } },
+    }),
   ]);
 
   const candidates: (PublicStat & { threshold: number })[] = [

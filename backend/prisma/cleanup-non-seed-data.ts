@@ -41,6 +41,7 @@ const REAL_CUSTOMER_LICENCE_NUMBERS = [
   'PENDING-1780910434672', // Pharmacy 23
   'PENDING-1780910625157', // Pharmacy 23 (duplicate registration)
   'PENDING-fe043fbc-19de-4e94-a496-7e1105dfc743', // Mwandemele pharmacy
+  'PENDING-ae1468e3-e9e7-417a-b17d-a734ad6e66c3', // Redeemer's Medics (charlesiman38@gmail.com, TRIAL since 2026-06-25)
 ];
 
 const DRY_RUN = process.env.DRY_RUN === 'true';
