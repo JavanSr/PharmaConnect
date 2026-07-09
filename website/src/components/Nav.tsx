@@ -43,8 +43,7 @@ export default function Nav() {
       >
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
           <Link href="/" aria-label="APOTEKH home">
-            <Logo className="hidden lg:inline-flex" size="md" variant="full" />
-            <Logo className="inline-flex lg:hidden" size="md" variant="mark" />
+            <Logo size="md" variant="full" />
           </Link>
 
           <nav className="hidden items-center gap-6 lg:flex">
@@ -89,7 +88,7 @@ export default function Nav() {
       {open ? (
         <div className="fixed inset-0 z-50 bg-white lg:hidden">
           <div className="flex items-center justify-between px-4 py-4 sm:px-6">
-            <Logo size="md" variant="mark" />
+            <Logo size="md" variant="full" />
             <button
               aria-label="Close navigation"
               className="flex h-11 w-11 items-center justify-center rounded-lg border border-slate/10 text-slate"

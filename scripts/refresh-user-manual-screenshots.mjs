@@ -23,10 +23,13 @@ const activePharmacy = {
   status: 'ACTIVE',
   trialActive: false,
   trialStartsAt: '2026-01-01T00:00:00.000Z',
-  trialEndsAt: '2026-06-30T00:00:00.000Z',
+  // Keep paid-through date in the future — a past date flips the app into
+  // grace mode and every capture shows a "Subscription lapsed" banner.
+  trialEndsAt: '2027-12-31T00:00:00.000Z',
   isHybrid: false,
   hybridAddonActive: false,
   vfdEnabled: true,
+  isVerified: true,
   userLimit: 12,
 };
 
@@ -216,7 +219,7 @@ const screenshotTargets = [
   { file: '23-team-management.png', path: '/settings/team', user: users.owner, pharmacy: activePharmacy, readyText: 'Team Management' },
   { file: '24-subscription.png', path: '/settings/subscription', user: users.owner, pharmacy: activePharmacy, readyText: 'Subscription' },
   { file: '25-founder-dashboard.png', path: '/founder', user: users.superAdmin, pharmacy: activePharmacy, readyText: 'Founder Dashboard' },
-  { file: '26-reports.png', path: '/reports', user: users.owner, pharmacy: activePharmacy, readyText: 'Pharmacy Safety Impact' },
+  { file: '26-reports.png', path: '/reports', user: users.owner, pharmacy: activePharmacy, readyText: 'Sales Report' },
 ];
 
 function membershipsFor(pharmacy, user, selectorMode = false) {
@@ -782,11 +785,17 @@ async function openScanner(page) {
 }
 
 async function addDispensingItem(page) {
-  const medicine = page.getByLabel('Medicine');
-  await medicine.fill('amox');
-  await page.getByRole('button', { name: /Amoxicillin/i }).first().click();
-  await page.getByRole('button', { name: 'Add to basket' }).click();
-  await page.getByText('Rule-triggered patient checks').waitFor({ state: 'visible', timeout: 5000 }).catch(() => undefined);
+  // Best-effort: search UI drifts; an empty dispensing screen is still a valid
+  // capture, so never fail the whole run here.
+  try {
+    const medicine = page.getByLabel('Medicine');
+    await medicine.fill('amox', { timeout: 5000 });
+    await page.getByRole('button', { name: /Amoxicillin/i }).first().click({ timeout: 8000 });
+    await page.getByRole('button', { name: 'Add to basket' }).click({ timeout: 5000 });
+    await page.getByText('Rule-triggered patient checks').waitFor({ state: 'visible', timeout: 5000 }).catch(() => undefined);
+  } catch {
+    console.warn('addDispensingItem: basket flow skipped (selector drift) — capturing bare dispensing screen');
+  }
 }
 
 async function openInspectionChecklist(page) {

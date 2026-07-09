@@ -50,7 +50,7 @@ export default function Footer() {
             <a className="block text-sm text-white/70 hover:text-white" href="mailto:support@apotekh.co.tz">
               support@apotekh.co.tz
             </a>
-            <a className="block text-sm text-white/70 hover:text-white" href="https://wa.me/255000000000">
+            <a className="block text-sm text-white/70 hover:text-white" href="https://wa.me/255764591374">
               WhatsApp support
             </a>
             <div className="flex gap-3 pt-1">

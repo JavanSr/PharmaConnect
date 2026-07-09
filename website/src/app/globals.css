@@ -241,8 +241,8 @@ textarea {
     gap: 32px !important;
   }
 
-  /* Dashboard browser mockup is desktop-only — too complex to reflow on mobile */
-  .dashboard-mockup { display: none; }
+  /* Dashboard browser mockup scrolls horizontally on mobile (inner grid keeps its min width) */
+  .dashboard-mockup { -webkit-overflow-scrolling: touch; }
 }
 
 @media (max-width: 640px) {
@@ -285,6 +285,12 @@ textarea {
 @media (max-width: 640px) {
   .three-col { grid-template-columns: 1fr !important; }
   .four-col  { grid-template-columns: 1fr 1fr !important; }
+}
+@media (max-width: 480px) {
+  /* 2-up cards are too cramped on phones — stack them */
+  .four-col { grid-template-columns: 1fr !important; }
+  /* Announcement bar: drop the brand prefix so the motto never truncates */
+  .topbar-brand { display: none; }
 }
 
 /* ── CTA button system ─────────────────────────────────────────────────────── */

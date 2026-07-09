@@ -223,7 +223,7 @@ export default function AboutPage() {
               ["Registration", "Tanzania Companies Act Cap 212 — registration underway"],
               ["PDPC", "Data protection registration — pending April 2026"],
               ["BRELA", "Business registration — underway"],
-              ["VFD integration", "TRA Electronic Fiscal Device — underway for compliant digital dispensing"],
+              ["Operating base", "Dodoma, Tanzania — serving retail pharmacies and ADDOs nationwide"],
             ].map(([label, value]) => (
               <div key={label} className="rounded-lg border border-white/10 bg-white/5 p-5">
                 <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-white/40">

@@ -1,20 +1,24 @@
 "use client";
 
 import { useState } from "react";
-import PricingCard from "@/components/PricingCard";
+import PricingCard, { type Billing } from "@/components/PricingCard";
 import { TIERS } from "@/lib/data/pricing";
 import { cn } from "@/lib/utils";
 
+const OPTIONS: { label: string; value: Billing; badge?: string }[] = [
+  { label: "Monthly", value: "monthly" },
+  { label: "3 months", value: "quarterly" },
+  { label: "6 months", value: "semiannual", badge: "Save 8%" },
+  { label: "Annual", value: "annual", badge: "2 months free" },
+];
+
 export default function PricingToggle() {
-  const [billing, setBilling] = useState<"monthly" | "annual">("monthly");
+  const [billing, setBilling] = useState<Billing>("monthly");
 
   return (
     <div>
-      <div className="inline-flex rounded-full border border-slate/10 bg-white p-1">
-        {[
-          { label: "Monthly", value: "monthly" as const },
-          { label: "Annual", value: "annual" as const },
-        ].map((option) => {
+      <div className="inline-flex max-w-full flex-wrap rounded-full border border-slate/10 bg-white p-1">
+        {OPTIONS.map((option) => {
           const active = option.value === billing;
           return (
             <button
@@ -27,17 +31,18 @@ export default function PricingToggle() {
               type="button"
             >
               {option.label}
-              {option.value === "annual" ? (
-                <span className={cn("ml-2 rounded-full px-2 py-0.5 text-xs", active ? "bg-white/20" : "bg-primary-light text-primary")}>
-                  Save ~9%
+              {option.badge ? (
+                <span className={cn("ml-2 hidden rounded-full px-2 py-0.5 text-xs sm:inline", active ? "bg-white/20" : "bg-primary-light text-primary")}>
+                  {option.badge}
                 </span>
               ) : null}
             </button>
           );
         })}
       </div>
-      <div className="mt-8 overflow-x-auto pb-4 pt-5">
-        <div className="flex snap-x snap-mandatory gap-5 lg:grid lg:grid-cols-4 lg:overflow-visible">
+      <p className="mt-4 text-xs text-slate/50 lg:hidden">Swipe to compare all four plans →</p>
+      <div className="mt-4 snap-x snap-mandatory overflow-x-auto pb-4 pt-5 lg:mt-8 lg:overflow-visible">
+        <div className="flex gap-5 lg:grid lg:grid-cols-4">
           {TIERS.map((tier) => (
             <PricingCard billing={billing} key={tier.id} tier={tier} />
           ))}

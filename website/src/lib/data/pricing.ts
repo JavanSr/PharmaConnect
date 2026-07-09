@@ -1,7 +1,16 @@
 export interface Tier {
   id: string;
   name: string;
+  /** One-line positioning used on tier cards */
+  desc: string;
+  outlets: number;
+  users: number;
   price: number | null;
+  /** 3 months, paid upfront — 3× monthly (no discount, commitment-lite) */
+  quarterlyPrice: number | null;
+  /** 6 months, paid upfront — 5.5× monthly (~8% off) */
+  semiAnnualPrice: number | null;
+  /** 12 months, paid upfront — 10× monthly (2 months free) */
   annualPrice: number | null;
   currency: "Tsh";
   period: "month";
@@ -26,13 +35,17 @@ export const TIERS: Tier[] = [
   {
     id: "addo",
     name: "ADDO",
+    desc: "For ADDOs and small pharmacies starting with digital operations.",
+    outlets: 1,
+    users: 3,
     price: 15_000,
+    quarterlyPrice: 45_000,
+    semiAnnualPrice: 82_500,
     annualPrice: 150_000,
     currency: "Tsh",
     period: "month",
     trialDays: 14,
     features: [
-      "1 outlet · 3 users · 14-day trial",
       "FEFO inventory · expiry alerts (5 thresholds) · bulk Excel import",
       "Basic POS & dispensing · customer database · sales reports",
       "Owner Dashboard - live revenue + stock from any device",
@@ -40,6 +53,7 @@ export const TIERS: Tier[] = [
       "DLDM compliance tracker · document storage · inspection checklist",
       "TMDA bulletins & recall feed · SMS/WhatsApp notifications",
       "Full Clinical Decision Support Suite",
+      "Covers 1 outlet · 3 staff accounts",
     ],
     isPopular: false,
     cta: "Start 14-day trial",
@@ -47,18 +61,23 @@ export const TIERS: Tier[] = [
   {
     id: "basic",
     name: "Basic",
+    desc: "For growing pharmacies that need visibility, roles, and full compliance.",
+    outlets: 2,
+    users: 5,
     price: 39_000,
+    quarterlyPrice: 117_000,
+    semiAnnualPrice: 214_500,
     annualPrice: 390_000,
     currency: "Tsh",
     period: "month",
     trialDays: 14,
     features: [
-      "Up to 2 outlets · 5 users · 14-day trial",
+      "Everything in ADDO, plus:",
       "Multi-outlet Owner Dashboard - live revenue + stock from any device",
-      "Multi-outlet consolidated dashboard",
       "Receipts, proformas, PDF export · discount management",
       "Roles & permissions · void/reissue workflow with audit trail",
       "Full pharmacy compliance tracker (TMDA + PC licence types)",
+      "Room to grow: a second outlet and up to 5 staff at no extra cost",
     ],
     isPopular: false,
     cta: "Start 14-day trial",
@@ -66,18 +85,24 @@ export const TIERS: Tier[] = [
   {
     id: "standard",
     name: "Standard",
+    desc: "For pharmacies that want full operations, reporting, and patient access.",
+    outlets: 3,
+    users: 10,
     price: 55_000,
+    quarterlyPrice: 165_000,
+    semiAnnualPrice: 302_500,
     annualPrice: 550_000,
     currency: "Tsh",
     period: "month",
     trialDays: 14,
     features: [
-      "Up to 3 outlets · 10 users · 14-day trial",
+      "Everything in Basic, plus:",
       "Accounting module · customer purchase history & loyalty",
       "Multi-shop consolidated reporting",
       "Patient Ordering Portal (optional, customer-facing)",
       "Basic marketing campaigns",
       "Knowledge Hub full access",
+      "Room to grow: up to 3 outlets · 10 staff accounts",
     ],
     isPopular: true,
     cta: "Start 14-day trial",
@@ -85,19 +110,25 @@ export const TIERS: Tier[] = [
   {
     id: "premium",
     name: "Premium",
+    desc: "For high-performing pharmacies that want full intelligence and growth tools.",
+    outlets: 5,
+    users: 20,
     price: 75_000,
+    quarterlyPrice: 225_000,
+    semiAnnualPrice: 412_500,
     annualPrice: 750_000,
     currency: "Tsh",
     period: "month",
     trialDays: 14,
     features: [
-      "Up to 5 outlets · 20 users · 14-day trial",
+      "Everything in Standard, plus:",
       "Predictive low-stock alerts (7–14 days) · demand forecasting (top 50 products)",
       "Seasonal demand patterns (12-month rolling) · dead stock risk scoring",
       "Revenue trend projection · peak hour & staffing analysis",
       "Peer benchmarking (anonymized, opt-in) · push notifications",
-      "Custom landing page (on request) · custom domain · dedicated support",
       "Full Knowledge Hub including courses · advanced compliance reporting",
+      "Dedicated support",
+      "Room to grow: up to 5 outlets · 20 staff accounts",
     ],
     isPopular: false,
     cta: "Start 14-day trial",

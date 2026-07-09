@@ -1,12 +1,16 @@
-# CODEX.md — PharmaConnect
+# CODEX.md — APOTEKH (PharmaConnect repo)
 
 > **For AI coding assistants (Claude Code, GitHub Copilot, Cursor, etc.)**
-> Read this before generating any code. It contains the non-negotiable product decisions,
-> current build state, and what to build next. Violations of the constraints here produce
-> code that will be rejected regardless of technical quality.
+> Read this before generating any code. It contains the non-negotiable product decisions.
+> Violations of the constraints here produce code that will be rejected regardless of
+> technical quality.
 >
-> For product direction, phase scope, and architecture rules, see `CLAUDE.md`.
-> For safe editing behaviour and execution workflow, see `AGENTS.md`.
+> **Precedence:** `CLAUDE.md` is the source of truth for product direction, phase scope,
+> pricing, and architecture. This file is the short, hard-constraint digest of it.
+> If the two ever disagree, `CLAUDE.md` wins — and flag the disagreement.
+> For safe editing behaviour and execution workflow, see `AGENTS.MD`.
+>
+> Last reconciled against CLAUDE.md and the live codebase: 2026-07-05.
 
 ---
 
@@ -16,258 +20,192 @@ These constraints override any other design consideration.
 
 ### OFFLINE-FIRST
 
-Every core function must work with zero internet connectivity. Data syncs to the server when
-a connection is detected. There is no "offline mode" — offline IS the default mode.
+Every core function must work with degraded or no connectivity. Reads are served
+from Service Worker cache (stale-while-revalidate for dashboards, network-first for
+stock/dispensing); failed writes queue in IndexedDB (7-day TTL) and sync when the
+server is reachable again.
 
 ```
-// Pattern: write to local DB first, queue sync event, resolve sync when online
-// Never: write to remote API, then update local state
+// Pattern: fire the request (networkMode: 'offlineFirst'), let SW serve cache,
+//          queue failed writes, replay on reconnect
 // Never: show "no connection" error for core features
+// Never queue: auth/*, dispensing/checkout, inventory/conflicts, health
+//   — these must complete or fail immediately
 ```
 
 ### EFDMS RUNS SILENTLY — NO UI EXPOSURE
 
-EFDMS/VFD compliance is built into every transaction. It must never surface in the UI.
-No labels, badges, icons, status messages, notifications, or receipt numbers that reference
-TRA, EFDMS, VFD, or fiscal receipts — including after a successful sale.
+EFDMS/VFD compliance is built into every transaction (BASIC tier upward). It must
+never surface in the UI. No labels, badges, icons, status messages, notifications,
+or receipt wording that reference TRA, EFDMS, VFD, or fiscal receipts — including
+after a successful sale. Owner can view it under "Compliance" after 60–90 days;
+never in onboarding or sales conversations.
 
 ```
 // Wrong: <Badge>EFDMS Compliant</Badge>
 // Wrong: toast("TRA receipt generated")
-// Wrong: <p>Receipt number: {receiptNo}</p>
 // Right: efdmsModule.recordTransaction(txn) — called internally, no UI feedback
 ```
 
 ### NO PERSISTENT PATIENT DATA
 
-Patient safety features are session-based only. No patient table, no patient UUID, no
-persistent patient records of any kind.
+Patient safety features are session-based only. No patient table, no patient UUID,
+no persistent patient records of any kind. Persistent patient data is Phase 3+
+(requires PDPC registration + MOH MOU). If you find patient tables in legacy DB
+generations (see `docs/audits/AUDIT-2026-04-13.md`), flag them — do not
+auto-refactor, do not write to them.
 
 ```
 // Wrong: await db.patient.create({ data: { uuid, allergyFlags } })
-// Wrong: const patient = await db.patient.findUnique({ where: { id } })
 // Right: const sessionFlags = { pregnancy: true, renalImpairment: false }
 //        — flags live only in the active dispensing session
 ```
 
-Persistent patient data is Phase 3+ (requires PDPC registration + MOH MOU). If current code
-has a patient table, flag it — do not auto-refactor.
+### CLINICAL DECISION SUPPORT IS NEVER TIER-GATED
+
+The full clinical suite — drug interaction checker (4 severity levels), dose
+calculator, contraindication alerts (8 flags), NCD hints, diagnosis-drug matching,
+therapeutic equivalence, override logging — is identical across ADDO, BASIC,
+STANDARD, and PREMIUM. Do not gate any clinical safety feature behind a tier.
+(WHOLESALE is a separate product with no clinical suite at all.)
+
+### OVERRIDE MODEL — ACKNOWLEDGE, PROCEED, LOG. NO PIN GATE.
+
+When a drug interaction, contraindication, or AWaRe RESERVE alert fires, the
+dispenser sees a clear warning and may acknowledge and proceed. **Do NOT implement
+a PIC/Superintendent PIN escalation gate for any alert severity level.** The warning
+is the protection; the log is the accountability.
+
+Every override is logged immutably: timestamp (server time), drug pair, severity,
+overriding user ID, session ID, optional reason. The `override_log` table has a
+database-level trigger preventing DELETE — from any role, including superadmin.
+This is a permanent medical record. Never weaken or remove that trigger.
 
 ### NHIF/UHI — PLACEHOLDER ONLY
 
-No NHIF claim submission, UHI integration, or insurance-related business logic. Render a
-"coming soon" placeholder page only. Do not build the underlying data model or API routes.
+No NHIF claim submission, UHI integration, or insurance business logic. Render the
+`DeferredFeaturePage` placeholder only. Blocked on NHIF reimbursement reform, not
+on tech. Legacy `nhif_claims` tables in old DB generations are dead — do not build
+on them.
 
-### PIN OVERRIDE LOGGING — NON-NEGOTIABLE
+### PAYMENTS GO THROUGH AZAMPAY — DON'T ADD A SECOND GATEWAY
 
-Drug interaction overrides for MAJOR and CONTRAINDICATED severity must log:
-timestamp, drug pair, severity level, overriding user ID, session ID. This log cannot be
-deleted or edited by any user. The `override_log` table has a database-level trigger
-preventing DELETE.
+Subscription billing is self-service via AzamPay MNO STK push
+(`backend/src/modules/azampay/` + `settings/subscription/checkout`), with
+automatic activation on the AzamPay callback. The admin manual-payments endpoint
+is the founder-side fallback (bank transfers, edge cases) — the paywall's manual
+submission form was deliberately removed.
 
-```typescript
-interface InteractionOverrideLog {
-  id: string;           // UUID
-  timestamp: Date;      // server time, not device time
-  drugA: string;        // drug name or code
-  drugB: string;        // drug name or code
-  severity: 'MAJOR' | 'CONTRAINDICATED';
-  overriddenBy: string; // user ID of Pharmacist In-Charge
-  sessionId: string;    // dispensing session ID
-  reason?: string;      // optional — shown as text input in UI
-}
+```
+// Right: POST /settings/subscription/checkout → STK push → callback activates
+// Wrong: reintroducing a manual payment form in the paywall
+// Wrong: adding Flutterwave/Stripe/DPO alongside AzamPay without instruction
+// Wrong: activating a subscription outside activateSubscriptionFromPayment
 ```
 
-### ENGLISH ONLY
+### LANGUAGE — ENGLISH FIRST, THIN SWAHILI LAYER
 
-No Swahili translations, locale toggles, or i18n infrastructure in the pharmacy app UI.
-The marketing website (`/website/`) is separate — do not confuse the two.
+The app has a deliberately thin i18next layer (`frontend/src/i18n/`, `en.json` +
+`sw.json`: nav, common actions, key labels, errors — with a TopBar toggle).
+English is default and fallback. Do not mass-translate the app or expand
+`sw.json` beyond high-traffic strings without founder instruction. The marketing
+website (`/website/`) is English.
 
 ---
 
-## Subscription Tiers — Reference
+## Subscription Tiers — Reference (fixed; do not change without explicit instruction)
 
-| Tier | Tsh/month | User Seats | Outlets |
-|---|---|---|---|
-| ADDO / DLDM | 20,000 | 3 | 1 |
-| Essential | 35,000 | 4 | 1 |
-| Standard | 55,000 | 7 | Up to 3 |
-| Premium | 75,000 | 12 | Up to 5 |
-| Wholesale | 100,000 | 10+ | 1 wholesale outlet |
-| Enterprise | Custom | Unlimited | Unlimited |
+| Marketing name | Prisma enum | Tsh/month | Users | Outlets | Trial |
+|---|---|---|---|---|---|
+| ADDO | `ADDO` | 15,000 | 3 | 1 | 14 days |
+| BASIC | `ESSENTIAL` | 39,000 | 5 | 2 | 14 days |
+| STANDARD | `STANDARD` | 55,000 | 10 | 3 | 14 days |
+| PREMIUM | `PREMIUM` | 75,000 | 20 | 5 | 14 days |
+| WHOLESALE | `WHOLESALE` | 100,000 | 10 + delivery staff | 1 wholesale outlet | — |
+| ENTERPRISE | `ENTERPRISE` | Negotiated | Unlimited | 6+ | — |
 
-Annual billing = 10x monthly (2 months free). Trial = 14 days, hard end date, no extensions.
-
-Feature gates are enforced server-side, not just client-side.
-
-### ADDO tier clinical feature boundary
-
-ADDO gets contraindication alerts (8 patient flags) — and nothing else from the clinical
-suite. The full drug interaction checker, dose calculator, and NCD usage hints are
-Standard/Premium only.
-
-```
-// ADDO dispensing check — contraindication only
-if (tier === 'ADDO') {
-  checkContraindications(sessionFlags, drug);  // ✅ allowed
-  checkDrugInteractions(drugs);                // ❌ block — Standard+ only
-  runDoseCalculator(weight, drug);             // ❌ block — Standard+ only
-}
-```
+- Annual billing = 10× monthly (2 months free).
+- In UI copy the 39,000 tier is always **BASIC**, never "ESSENTIAL". `ADDO_PLUS`
+  and `FREE` are legacy enum values only — never sell or surface them.
+- Trial is 14 days with a hard end date and grace-mode enforcement (see
+  `trial.ts` middleware in CLAUDE.md). Only the founder (SUPER_ADMIN) may extend
+  an expiry, via `PATCH /admin/pharmacies/:id/expiry`. Never build self-serve
+  trial extensions.
+- Feature gates are enforced server-side (`tier.ts` → `TIER_INSUFFICIENT`), not
+  just client-side.
 
 ---
 
 ## What's Built (Do Not Re-architect)
 
+See CLAUDE.md "Module architecture" and "Architecture overview" for the full,
+current list. Highlights that assistants keep trying to rebuild — don't:
+
 | Module | Status |
 |---|---|
-| Offline inventory: FEFO, expiry at 5 thresholds, barcode via camera, SMS alerts | ✅ Built |
-| Drug interaction checker: 4 severity levels, PIN override for MAJOR/CONTRAINDICATED | ✅ Built |
-| Contraindication alerts: 8 patient flags (Standard/Premium + ADDO alerts-only) | ✅ Built |
-| Dose calculator: Clark's rule + weight-based (Standard/Premium only) | ✅ Built |
-| NCD usage hints: 9 disease areas (Standard/Premium only) | ✅ Built |
-| Diagnosis-drug matching | ✅ Built |
-| EFDMS/VFD: silent background compliance on every transaction | ✅ Built |
-| Owner revenue dashboard: real-time, remote access — all tiers | ✅ Built |
-| B2B ordering: closed retail→wholesale network | ✅ Built (closed) |
-| Knowledge Hub: TMDA bulletins, recalls, reference content | ✅ Built (content layer only) |
-| Dispensing workflow: Full POS + records + void/reissue + discount (Standard/Premium/Wholesale); Basic POS for ADDO | ✅ Built |
-| Subscription tiers with feature gating | ✅ Built |
-| 14-day trial mechanic: hard end date | ✅ Built |
+| Offline inventory: FEFO, expiry urgency ladder, barcode via camera, alerts | ✅ Built |
+| Clinical suite: interactions, contraindications, dose calc, NCD hints — all tiers | ✅ Built |
+| Override logging: immutable `override_log` with DB delete-prevention trigger | ✅ Built (verified live) |
+| EFDMS/VFD: silent background compliance + retry job | ✅ Built |
+| Owner dashboard, analytics, reports (CSV/PDF) | ✅ Built |
+| Forecasting: stockout risk, dead stock, seasonality (PREMIUM) | ✅ Built |
+| Peer benchmarking endpoint (`/reports/benchmarking/peer`) | ✅ Built |
+| B2B ordering: closed retail→wholesale network + Tier 2 supplier portal | ✅ Built (closed) |
+| AzamPay self-service checkout: STK push, callback auto-activation | ✅ Built |
+| Subscription tiers, trial + grace enforcement, admin manual-payment fallback | ✅ Built |
+| Swahili language toggle (thin i18next layer) | ✅ Built |
+| SUPER_ADMIN shell: pharmacy management, impersonation, feature flags, audit log | ✅ Built |
+
+If a task file asks for something in this table, the correct move is to extend the
+existing module — not to write a parallel one.
 
 ---
 
-## Build Queue — Ordered by Priority
+## Blocked — Do Not Build
 
-### P1 — Trial Onboarding Flow
-
-A new pharmacy owner must complete full setup in under 30 minutes.
-
-Required screens:
-1. Pharmacy profile setup (name, tier, owner contact, location)
-2. Staff user creation with role assignment
-3. Stock import: CSV upload OR manual entry with barcode scanning
-4. Pricing configuration per stock item
-5. Setup completion confirmation + first-login checklist
-
-Constraints:
-- Must work offline from step 1
-- No EFDMS/TRA messaging at any point
-
----
-
-### P2 — Premium Tier Dashboard Features
-
-All four must be complete before Premium tier is actively sold at Tsh 75,000/month.
-
-**2a. Predictive low-stock (7–14 day forecast)**
-```
-Logic:
-- Calculate average daily sales velocity per product (rolling 30-day window)
-- Flag products where: (current_stock / avg_daily_velocity) < 14 days
-- Alert threshold configurable: 7 days (critical) / 14 days (warning)
-- Must work offline using local transaction history
-```
-
-**2b. Demand forecasting (top 50 products)**
-```
-Logic:
-- Rank products by total units sold in trailing 90 days
-- For top 50: show monthly sales trend + projected next-month demand
-- Flag seasonal patterns where month-over-month variance > 25%
-- Display as simple chart + reorder suggestion
-```
-
-**2c. Dead stock risk scoring**
-```
-Logic:
-- Flag products where: last_sale_date > 30 days AND expiry_date < 90 days
-- Risk score: days_since_last_sale × (1 / days_to_expiry)
-- Display ranked list: highest risk at top, with expiry date and estimated write-off value
-```
-
-**2d. Peer benchmarking (opt-in, anonymized)**
-```
-Privacy rules:
-- Opt-in only — pharmacy must explicitly enable in settings
-- Data aggregated before comparison: never show raw data from another pharmacy
-- Show: gross margin vs Arusha average (anonymized)
-- Show: top-selling categories vs network average
-- Never identify specific pharmacies in comparisons
-- Requires 10+ opted-in pharmacies to activate (show placeholder until threshold)
-```
-
----
-
-### P3 — Internal Trial Management Dashboard (founder-only)
-
-Not customer-facing. Access: founder login only. Not linked from customer navigation.
-
-Required fields per trial pharmacy:
-- Pharmacy name, tier, owner contact
-- Trial start date, day count (auto-calculated), conversion deadline
-- Feature usage: which modules accessed in last 7 days
-- Conversion status: ACTIVE TRIAL / CONVERTED / CHURNED
-- Notes field (founder's qualitative observations)
-- Alert: highlight any trial pharmacy at day 25+ without conversion action
-
----
-
-### P4 — [BLOCKED] CPD Credit Tracking
-
-Do not build. The CPD credit-tracking sub-module lives inside Knowledge Hub and is
-structurally ready to be activated, but cannot go live until a formal MOU is signed with
-the Pharmacy Council of Tanzania. Without that agreement, credits issued carry no official
-standing — which would actively mislead pharmacists about their compliance status.
-
-- **What is live:** Knowledge Hub content (TMDA bulletins, recalls, reference articles)
-- **What is blocked:** Credit tracking, CPD logs, progress bars, PDF CPD record export
-
-Do not build or activate any of this until the founder confirms the Pharmacy Council
-agreement is in place.
+| Item | Why | Unblocks when |
+|---|---|---|
+| CPD credit tracking (logs, points, progress bars, PDF export) | Credits carry no official standing without a Pharmacy Council MOU — would mislead pharmacists | Founder confirms PC MOU signed |
+| NHIF claims | Deferred pending NHIF Breeze API accreditation; `modules/nhif/` is a placeholder only | NHIF accreditation + reimbursement reform |
+| A second payment gateway (Flutterwave, Stripe, DPO…) | AzamPay is live and sufficient | Explicit founder instruction |
+| Open B2B marketplace | Legal restriction + phase gating | Phase 2 (50 paying pharmacies) |
+| Persistent patient records | PDPC + MOH requirements | Phase 3+ |
 
 ---
 
 ## Clinical Safety Module — Drug Data Requirements
 
-The drug interaction checker requires a drug database. Confirm the current drug data source
-with the founder before modifying. If drug data needs to be updated or expanded:
+Confirm the current drug data source with the founder before modifying. If drug
+data needs updating or expanding:
 
 - Prioritise drugs on Tanzania's Essential Medicines List (EML)
-- Prioritise drug classes with high interaction frequency: anticoagulants, antiepileptics,
-  antibiotics (especially fluoroquinolones), antidiabetics, antihypertensives
-- NCD usage hints cover 9 disease areas:
-  diabetes, hypertension, epilepsy, asthma/COPD, HIV/ARV interactions, malaria, TB, anaemia, pregnancy
-- Contraindication flags (8):
-  pregnancy, breastfeeding, renal impairment, hepatic impairment, paediatric (<12 years),
-  elderly (>65 years), allergy (penicillin, sulfa, aspirin), G6PD deficiency
+- Prioritise high-interaction classes: anticoagulants, antiepileptics, antibiotics
+  (especially fluoroquinolones), antidiabetics, antihypertensives
+- NCD usage hints cover 9 disease areas: diabetes, hypertension, epilepsy,
+  asthma/COPD, HIV/ARV interactions, malaria, TB, anaemia, pregnancy
+- Contraindication flags (8): pregnancy, breastfeeding, renal impairment, hepatic
+  impairment, paediatric (<12), elderly (>65), allergy (penicillin, sulfa,
+  aspirin), G6PD deficiency
+- All new catalogue/safety data goes through the Review Queue
+  (`PENDING_REVIEW` → platform pharmacist approval) — never straight to live.
 
-Do not expand the drug interaction database beyond what can be maintained accurately.
+Do not expand the interaction database beyond what can be maintained accurately.
 Inaccurate interaction data is clinically worse than no interaction data.
 
 ---
 
 ## Data Architecture Principles
 
-### Local-first storage
-
-- All transactional data writes to local storage first
-- Sync queue: every write event is added to a queue
-- Sync worker: processes queue when online, handles conflicts
-- Conflict resolution:
-  - Transaction logs are append-only (no conflicts)
-  - Inventory levels resolve to server state when online (server is source of truth)
-  - Last-write-wins for inventory, merge for logs
-
-### Privacy
-
-- Pharmacy-level data: owned by that pharmacy, accessible only to their users and the
-  founder's admin view
-- Peer benchmarking: only aggregated, never row-level, only when opted in
-- Drug interaction override logs: available to pharmacy owner and Pharmacist In-Charge,
-  exportable as PDF
-- No patient identifiable data stored — dispensing records reference session-only flags
-  (pregnancy, renal impairment, etc.) but not patient names, IDs, or UUIDs
+- **Local-first storage:** transactional writes hit local storage first; sync queue
+  replays when online. Transaction logs are append-only (no conflicts); inventory
+  levels resolve to server state (server is source of truth); last-write-wins for
+  inventory, merge for logs.
+- **Privacy:** pharmacy-level data is owned by that pharmacy (their users + founder
+  admin view only). Peer benchmarking is opt-in, aggregated, never row-level, and
+  never identifies another pharmacy. Safety-impact analytics are anonymous
+  operational signals only — no patient-identifying data, ever.
+- **Override logs:** visible to pharmacy OWNER and PHARMACIST_IN_CHARGE,
+  exportable as PDF, never deletable.
 
 ---
 
@@ -275,12 +213,14 @@ Inaccurate interaction data is clinically worse than no interaction data.
 
 | Decision | Rationale |
 |---|---|
-| Offline-first (local DB + sync) | Tanzania connectivity reality. Non-negotiable. |
-| Barcode scanning via phone camera | No external hardware dependency. Works on any Android phone. |
-| SMS alerts for low-stock | Reliable in low-internet environments. Does not require app to be open. |
-| EFDMS in background with no UI exposure | Legal shield is real, but never surface it to users. |
-| Hard trial end date (no extensions) | Reveals genuine value seekers. Soft trials produce tolerators who never convert. |
-| Session-based patient safety | PDPC and MOH compliance. Persistent patient data is Phase 3+. |
+| Offline-first (SW cache + IndexedDB queue + sync) | Tanzania connectivity reality. Non-negotiable. |
+| Barcode scanning via phone camera | No external hardware. Works on any Android phone. |
+| SMS/WhatsApp alerts for critical events | Reliable in low-internet environments. |
+| EFDMS in background, zero UI exposure | Legal shield is real; never surface it to users. |
+| Hard trial end (founder-only extensions) | Reveals genuine value seekers; soft trials produce tolerators. |
+| Session-based patient safety | PDPC and MOH compliance. Persistent data is Phase 3+. |
+| AzamPay as the single payment rail | One gateway, one activation path, one callback to secure. |
+| English-first with a thin Swahili layer | High-traffic labels translated; full translation deferred. |
 
 ---
 
@@ -288,14 +228,15 @@ Inaccurate interaction data is clinically worse than no interaction data.
 
 | Phase | Trigger | What unlocks |
 |---|---|---|
-| Phase 1 | Now → 50 paying pharmacies | Subscription revenue only. Closed B2B. Knowledge Hub content only. No CPD credit tracking. No NHIF. No open marketplace. |
-| Phase 2 | 50 paying pharmacies | NHIF Claims. Open B2B marketplace. CPD sponsorship conversations. Academic MOU. Embedded lending MVP. |
-| Phase 3 | 200+ paying pharmacies | Data licensing. Open API. AI clinical decision support. Patient-facing features. Dar es Salaam expansion. |
+| Phase 1 | Now → 50 paying pharmacies | Subscription revenue via AzamPay self-service. Closed B2B (wholesale openly marketed). Knowledge Hub content. No CPD credits. No NHIF. No open marketplace. |
+| Phase 2 | 50 paying pharmacies | NHIF claims (if accredited + reformed). Open B2B marketplace. CPD sponsorship conversations. Stock Exchange. Tier 3 wholesaler ERP/API. |
+| Phase 3 | 200+ paying pharmacies | Data licensing. Open API. Patient-facing features. Persistent patient records (with PDPC/MOH). Dar es Salaam expansion. |
 
-Building Phase 2 or 3 features in Phase 1 is a resource allocation failure. Bootstrap
-capital is Tsh 2.4M. Every build hour spent on Phase 3 features is an hour not spent
-getting to 10 paying pharmacies.
+Building Phase 2 or 3 features in Phase 1 is a resource allocation failure. Every
+build hour spent ahead of the phase gate is an hour not spent getting to the next
+paying pharmacy.
 
 ---
 
-*Last updated: April 2026 · Elihaki M. Y. Javan · PharmaConnect · Arusha, Tanzania*
+*Maintained by Elihaki M. Y. Javan · APOTEKH · Dodoma, Tanzania · Reconcile this
+file against CLAUDE.md whenever pricing, tiers, or phase gates change.*

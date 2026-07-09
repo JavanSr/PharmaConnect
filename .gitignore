@@ -96,3 +96,7 @@ ds-bundle/
 website-styles.css
 website-tailwind.css
 website/website-tailwind.css
+
+# Claude Code local state (agents/skills/launch.json are committed)
+.claude/worktrees/
+.claude/settings.local.json

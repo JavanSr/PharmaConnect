@@ -4,6 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 # APOTEKH — Claude Code Guidance
 
+> **Precedence:** When this file conflicts with `CODEX.md`, `AGENTS.MD`, or any
+> task file, **this file wins**. `CODEX.md` holds coding-assistant constraints
+> reconciled to this file. Audit reports live in `docs/audits/` — they are
+> historical records, not instructions. If you find a contradiction between this
+> file and the codebase, flag it — do not silently pick a side.
+
 ## What this project is
 
 APOTEKH is a pharmacy-side operating system for Tanzania. It handles
@@ -11,10 +17,13 @@ inventory management, patient safety, regulatory compliance, dispensing,
 CPD tracking (Phase 2), and analytics. The system is live in Phase 1 and designed
 to grow through four phases.
 
-Registered in Tanzania. Primary market: independent retail pharmacies and ADDOs
-in Arusha, expanding nationally. Wholesale module exists in the codebase and can
-serve wholesale customers who come to us — but it is not actively sold or marketed
-in Phase 1. Pilot focus is retail only.
+Registered in Tanzania. **Operating base and current launch focus: Dodoma**
+(the Arusha pilot was Phase 1's starting point and remains in the About-page
+timeline as history; seeds/tests still use Arusha data). Primary market:
+independent retail pharmacies and ADDOs, expanding nationally. Wholesale is a
+separate product and **is now openly marketed** — the pricing page carries a
+featured Wholesale section with its own problem/feature list and a "Discuss
+wholesale" CTA. Retail remains the primary motion.
 
 ---
 
@@ -69,6 +78,9 @@ npm run lint         # eslint-config-next
 ```
 
 All six release gates must pass before promoting to production (see `docs/deployment-runbook.md`).
+The `/release` skill (`.claude/skills/release/`) runs the full go/no-go gate —
+builds, hardening tests, migration status, forbidden-string scan, price-drift
+check — and is the standard pre-deploy step.
 
 ---
 
@@ -100,7 +112,7 @@ Errors thrown from services must carry a `.status` property; `errorHandler` midd
   - `settings.manage_subscription`, `settings.manage_team`
   - `wholesale.view_dashboard`, `wholesale.view_catalogue_read_only`, `wholesale.manage_catalogue`, `wholesale.pick_order`, `wholesale.confirm_delivery`, `wholesale.set_credit_limits`, `wholesale.view_financial_reports`
 - `requireWholesaleAccess.ts` -- compound check: passes only if `role === 'WHOLESALE_MANAGER'` OR `(role === 'OWNER' AND subscriptionTier === 'WHOLESALE')`.
-- `pic-pin.ts` -- PIC PIN verification for high-severity overrides. Rate-limited to 5 attempts per 15 minutes per pharmacy.
+- `pic-pin.ts` -- PIC PIN verification helpers (`verifyPicPinForPharmacy`, `picPinLimiter`, rate-limited to 5 attempts per 15 minutes per pharmacy). NOT a gate on safety overrides — overrides are acknowledge-and-proceed with logging (see Tier feature matrix "Override model"). A PIN supplied voluntarily on a dispensing request is rate-limit-checked; the middleware also backs non-safety flows.
 - `errorHandler.ts` -- catches thrown errors with `.status` property and returns `{ error: message }` with the correct HTTP code.
 
 ### Background jobs
@@ -206,6 +218,50 @@ AI-powered PDF catalogue ingestion. SUPER_ADMIN or staff uploads a supplier PDF 
 `backend/src/modules/telemetry/feature-telemetry.service.ts`
 
 Lightweight usage tracking. `trackFeatureTelemetry({ pharmacyId, userId, featureKey, eventType })` writes a row to the `feature_telemetry` table. Event types: `ACTIVATED` (first use), `USED` (subsequent). Used by Forecasting, AI Agents, and other premium features. Data surfaces in the admin pharmacy usage view.
+
+### AzamPay + Subscription modules
+
+`backend/src/modules/azampay/` + `backend/src/modules/subscription/`.
+
+Self-service subscription payments via AzamPay MNO checkout (STK push):
+
+- `POST /api/v1/settings/subscription/checkout` (OWNER) — creates a
+  `SubscriptionPaymentRequest` (`paymentMethod: 'SELF_SERVICE_CHECKOUT'`, unique
+  `APTK-…` reference) and, when AzamPay is configured, fires the STK push
+  immediately. Falls back to a `SUBSCRIPTION_PAYMENT_LINK_TEMPLATE` checkout URL
+  when it is not.
+- `POST /api/v1/azampay/initiate` (authenticated) — re-trigger the STK push for a
+  PENDING checkout reference. Scoped to the owning pharmacy (foreign references
+  return 404) and rate-limited (8 per 15 min per pharmacy) so a leaked reference
+  can't be used to spam someone's phone.
+- `POST /api/v1/azampay/callback` (public) — AzamPay confirmation webhook.
+  **Authenticated by `AZAMPAY_CALLBACK_SECRET`** (register the callback URL with
+  `?secret=<value>` in the AzamPay dashboard; `x-callback-secret` header also
+  accepted; timing-safe compare). Unset secret = unauthenticated callback, logged
+  loudly — never ship production without it. When the payload carries an amount,
+  it must match the request amount or activation is refused. Legitimate flows
+  answer 200 (so AzamPay doesn't retry a possibly-activated payment); forged
+  requests get 401. Matches on `transactionRef`, activates inside a
+  `$transaction` via a conditional PENDING→CONFIRMED update (race-safe /
+  idempotent — a replayed callback cannot double-extend), and writes a
+  `SUBSCRIPTION_ACTIVATED` in-app `Notification`.
+- Price table lives in `subscription-payments.service.ts`
+  (`SUBSCRIPTION_PRICE_TABLE`) — monthly and annual (10×) per tier. This is the
+  authoritative machine-readable price list; keep it in sync with the pricing
+  section below and `website/src/lib/data/pricing.ts`.
+- `SELF_SERVICE_TIERS` includes `ADDO_PLUS` (Tsh 45,000/mo) for legacy accounts,
+  but the frontend paywall and SubscriptionPage intentionally exclude it — it is
+  not a marketed tier. WHOLESALE **is** self-service purchasable.
+
+### Realtime, Founder, NHIF stub modules
+
+- `backend/src/modules/realtime/` — lightweight realtime router/service (small;
+  check source before extending).
+- `backend/src/modules/founder/` — founder-hub endpoints backing
+  `/superadmin/founder` (payment queue, registrations, overrides).
+- `backend/src/modules/nhif/` — deferred-feature placeholder only
+  (`deferredFeatureHandler`, "pending NHIF Breeze API accreditation"). No claim
+  logic. Same pattern for `patients/` (session-based safety; placeholder router).
 
 ### Waitlist module
 
@@ -498,12 +554,24 @@ CANNOT:
 ### Subscription tiers — fixed pricing (do not change without explicit instruction)
 
 **Retail tiers:**
-| Tier | Price | Outlets | Users | Trial |
-|------|-------|---------|-------|-------|
-| ADDO | Tsh 15,000/month | 1 | 3 | 14 days |
-| BASIC | Tsh 39,000/month | 2 | 5 | 14 days |
-| STANDARD | Tsh 55,000/month | 3 | 10 | 14 days |
-| PREMIUM | Tsh 75,000/month | 5 | 20 | 14 days |
+| Tier (marketing name) | Prisma enum value | Price | Outlets | Users | Trial |
+|------|-------|-------|---------|-------|-------|
+| ADDO | `ADDO` | Tsh 15,000/month | 1 | 3 | 14 days |
+| BASIC | `ESSENTIAL` | Tsh 39,000/month | 2 | 5 | 14 days |
+| STANDARD | `STANDARD` | Tsh 55,000/month | 3 | 10 | 14 days |
+| PREMIUM | `PREMIUM` | Tsh 75,000/month | 5 | 20 | 14 days |
+
+**Enum ↔ marketing name mapping (do not confuse the two):**
+The `SubscriptionTier` Prisma enum is `FREE, ADDO, ESSENTIAL, ADDO_PLUS, STANDARD,
+PREMIUM, WHOLESALE, ENTERPRISE`. In code, the 39,000 tier is `ESSENTIAL`; in all
+UI, marketing, and docs it is called **BASIC**. `ADDO_PLUS` is a **legacy tier for
+existing accounts only**: it keeps a renewal price (Tsh 45,000/mo in
+`SUBSCRIPTION_PRICE_TABLE`) so legacy pharmacies can self-service renew, and
+`SubscriptionPage` displays it as "ADDO Plus" — but it is deliberately excluded
+from the paywall and all tier-selection UI ("not a marketed tier"), and
+`backend/src/types/roles.ts` normalises its permission level. Never offer
+ADDO_PLUS to new customers, never show "ESSENTIAL" as a tier name in UI, and
+never add it to the website pricing page.
 
 **Wholesale / distributor tiers (separate product/page):**
 | Tier | Price | Notes |
@@ -511,7 +579,11 @@ CANNOT:
 | WHOLESALE | Tsh 100,000/month | 1 wholesale outlet, 10 users + delivery staff |
 | ENTERPRISE | Negotiated | 6+ outlets, chains, hospital pharmacies |
 
-Annual billing: 10× monthly (2 months free).
+**Billing cycles** (`BillingCycle` enum: `MONTHLY, QUARTERLY, SEMI_ANNUAL, ANNUAL`):
+- Monthly: base price
+- Quarterly (3 months): 3× monthly — no discount, commitment-lite
+- Semi-annual (6 months): 5.5× monthly — "save 8%"
+- Annual: 10× monthly — "2 months free" (~17%, always the best rate; keep the gradient)
 
 **UI naming conventions (enforce strictly):**
 - "Clinical Decision Support" — suite name (never "Patient Safety Suite")
@@ -561,8 +633,8 @@ All retail CSV/PDF exports use `streamCsv()` and `renderReportPdf()` from `repor
 | 2     | CPD Tracker        | Coming soon |
 | 2     | NHIF Claims        | Coming soon — blocked on NHIF reimbursement reform, not a tech problem |
 | 2     | Stock Exchange     | Coming soon — pharmacy-to-pharmacy stock trading within the APOTEKH network |
-| 2     | Wholesale / B2B    | Built — not actively marketed in Phase 1; serve wholesale customers who approach us but do not pitch or prioritise |
-| 3     | B2B Platform       | Coming soon |
+| 2     | Wholesale / B2B    | Built and openly marketed (featured section on the pricing page); retail remains the primary sales motion |
+| 3     | B2B Platform (open marketplace — distinct from the closed Wholesale/B2B module above) | Coming soon |
 | 3     | Patient App        | Coming soon |
 | 4     | AI Safety          | Coming soon |
 | 4     | Data Products      | Coming soon |
@@ -752,7 +824,7 @@ wa.me/{phone}?text=*APOTEKH Purchase Order -- {orderNumber}*%0AFrom: {pharmacyNa
 
 APOTEKH Wholesale is a separate B2B operations system for wholesale pharmacies and distributors. It runs on the same platform backbone (auth, users, catalogue, outlet data) as retail but has independent workflows: catalogues with tiered pricing, buyer orders, credit management, delivery logistics, VAT invoicing, and demand insights.
 
-**Key principle:** Wholesale is not actively marketed in Phase 1. Serve wholesale customers who approach you, but do not pitch or prioritise.
+**Key principle (updated):** Wholesale is now openly marketed — `website/src/lib/data/pricing.ts` carries a featured WHOLESALE tier (Tsh 100,000/month, "Discuss wholesale" CTA) with a problem-led pitch. Note the deliberate nuance: wholesale marketing may reference **TRA-compliant VAT invoicing** (B2B buyers need it), while retail UI/onboarding still never mentions EFDMS/TRA/VFD. Do not copy TRA language into any retail-facing surface.
 
 ### Registration & Setup (SUPER_ADMIN)
 
@@ -829,13 +901,15 @@ Catalogues support per-tier price overrides. When a buyer from STANDARD tier vie
 2. STANDARD-specific override if set, OR
 3. Base price (fallback)
 
-**Tiers with pricing control:**
-- ADDO (Tsh 15,000/month)
-- ESSENTIAL (Tsh 39,000/month)
-- ADDO_PLUS (Tsh 55,000/month)
-- STANDARD (Tsh 55,000/month)
-- PREMIUM (Tsh 75,000/month)
-- ENTERPRISE (negotiated)
+**Tiers with pricing control** (these are the `SubscriptionTier` enum values the
+`tierPrices` map accepts — see `b2b.router.ts` Zod schema):
+- `ADDO` (marketing: ADDO, Tsh 15,000/month)
+- `ESSENTIAL` (marketing: BASIC, Tsh 39,000/month)
+- `STANDARD` (Tsh 55,000/month)
+- `PREMIUM` (Tsh 75,000/month)
+- `WHOLESALE` / `ENTERPRISE` (negotiated)
+- `ADDO_PLUS` is accepted for backward compatibility only — treated as ESSENTIAL
+  level. Do not set new tier prices against it.
 
 **Example catalogue item:**
 ```json
@@ -911,17 +985,36 @@ These mirror the analytics approach of systems like Unleashed, TradeGecko/QuickB
 
 ### Wholesale Phase 2 Roadmap
 
+**Shipped since this roadmap was first written** (do not rebuild — extend the
+existing implementations):
+
+- **RMA / returns workflow** — returns with approval step and auto-generated
+  credit note numbers (`CN-YYYY-#####`): `createWholesaleReturn` /
+  `approveWholesaleReturn` in `b2b.extensions.service.ts`, `ReturnsPage.tsx`.
+- **Client-level custom pricing** — per-client price overrides layered over tier
+  pricing: `upsertClientPriceOverride` / `listClientEffectivePrices`,
+  `ClientPricingPage.tsx`, `/b2b/clients/:clientPharmacyId/prices` endpoints.
+- **Discount schemes** — `FREE_GOODS`, `PERCENTAGE_DISCOUNT`, `FIXED_DISCOUNT`
+  scheme types with `WholesaleSchemesPage.tsx`.
+- **Buyer auto stock update on delivery confirmation** — `confirmDelivery()` in
+  `b2b.service.ts` creates buyer `Batch` + `StockMovement` rows. Known
+  limitation: matches buyer products by case-insensitive name (skipped lines
+  reported in `stockSkipped`) and approximates expiry from the seller's earliest
+  batch — carrying real batch data on order lines is a follow-up.
+- **Supplier purchase orders** with AI delivery-note extraction
+  (`/b2b/purchase-orders/*`), **wholesale payments/collections**
+  (`/b2b/payments`, `WholesaleCollectionsPage.tsx`), **delivery manifests**,
+  **buyer-seller links** with order gating, and **delivery disputes**.
+
 The following features are **not yet built** and are candidates for Phase 2. They represent the gap between "functional wholesale MVP" and "enterprise-grade distributor platform."
 
 | Feature | Current Status | Phase 2 Rationale | Complexity |
 |---------|---|---|---|
 | **Partial Fulfilment & Backorders** | Order creation exists; ship-what-you-have logic missing | Distributors run out of stock mid-order; need to ship available items and queue the rest. Backorder queue must be visible to both sides and auto-fulfilled when stock arrives. | Medium |
 | **Multi-Warehouse Stock Consolidation** | Stock is pharmacy-level only; no warehouse model | Distributors have multiple physical locations. Need unified stock view before committing to buyer order, and ability to pull from any warehouse. | High |
-| **Payment Terms & Aging** | Credit limits exist; no term scheduling | Buyers need net-30, net-60, net-90 terms. System must auto-calculate payment due date, track aging (30/60/90+), and flag overdue. | Medium |
-| **Return Merchandise Authorisation (RMA)** | Basic return reasons exist; no full RMA workflow | Returns need RMA number, approval step, reason tracking, credit note generation tied to original invoice. Inventory must reinstate or write-off. | Medium |
+| **Payment Terms & Aging** | `payment_terms_days` stored on credit limits; aging buckets exist; no due-date calculation or overdue flagging | Buyers need net-30, net-60, net-90 terms. System must auto-calculate payment due date from `payment_terms_days` and flag overdue invoices. | Medium |
 | **Wholesale Licence Management** | Compliance tracks retail licences only | Wholesalers have separate dealer licences. System must track expiry and warn before license lapses. | Low |
 | **Suspicious Order Monitoring (SOM)** | Not implemented | Regulators require flagging of unusually large controlled-substance orders. System must alert if order quantity > threshold for that product. | Medium |
-| **Client-Level Custom Pricing** | Tier pricing exists; no per-client overrides | Volume contracts, preferred-partner rates, negotiated pricing per buyer (distinct from subscription tier pricing). | Low |
 | **Stock Movement Reports** | Raw audit log exists; no formatted reports | Warehouse managers and regulators need stock in/out by product, by warehouse, by time period. Need exportable format (CSV/PDF). | Low |
 | **Lot/Batch Traceability Audit Trail** | Batch data exists; no formal regulatory report | Regulator requests: "Show me all batches of this product from supplier X to dispenser Y." System must generate on demand. | Medium |
 | **Controlled Substance Dispensing Logs (Wholesale)** | Exists for retail only | Wholesalers distributing controlled items must log dispatch to each buyer. Separate from retail controlled register. | Medium |
@@ -934,14 +1027,13 @@ The following features are **not yet built** and are candidates for Phase 2. The
 3. Payment terms & aging — credit risk visibility for wholesalers
 
 **Medium impact, lower effort (quick wins):**
-4. RMA workflow — reduces manual refund handling
-5. Suspicious order monitoring — compliance requirement
-6. Stock movement reports — regulatory audit readiness
+4. Suspicious order monitoring — compliance requirement
+5. Stock movement reports — regulatory audit readiness
 
 **Lower priority (Phase 2.5+):**
-7. Wholesale licence management — only for multi-territory expansion
-8. Client-level custom pricing — UX nicety; tier pricing covers 80%
-9. Lot traceability report — rarely requested; batch data already exists for manual audit
+6. Wholesale licence management — only for multi-territory expansion
+7. Lot traceability report — rarely requested; batch data already exists for manual audit
+8. Controlled substance dispatch log (wholesale) — pending real controlled-item wholesale volume
 
 ---
 
@@ -971,6 +1063,20 @@ These are the target standards for new code:
 - **Sync doesn't block UI:** Offline sync happens in the background. Don't show modal dialogs or block navigation during sync — use toast notifications and connectivity store updates.
 - **Don't queue risky operations:** Auth (login, refresh), payments, and conflict resolution never queue. These must complete or fail immediately.
 - **Inventory deltas persisted separately:** Stock adjustments made offline are tracked in the `inventoryDeltas` store with source ID and timestamp, separate from write queue. On sync, deltas are replayed in order and then cleared.
+
+### Language / i18n
+
+The app has a **lightweight i18n layer**: `frontend/src/i18n/` (i18next,
+`en.json` + `sw.json`, language persisted in `localStorage.apotekh_lang`,
+toggle surfaced in `TopBar`). Coverage is deliberately thin — nav, common
+actions, dispensing/inventory labels, error messages — not a full translation.
+Rules:
+- English is the fallback and the default; new features ship in English first.
+- When touching a string that already has a key in `en.json`, keep using the
+  key — don't hardcode a raw string next to a translated sibling.
+- Do not mass-translate the app or grow `sw.json` beyond high-traffic UI
+  strings without explicit founder instruction.
+- The marketing website (`website/`) remains English.
 
 ### Staff Activity rules
 
@@ -1040,7 +1146,13 @@ These are the target standards for new code:
 - UI: High-severity alerts show as full alert strips (border + background); moderate shows as dots or condensed rows; informational as text only
 - `severitySummary` object tracks counts: { high, moderate, informational }
 - Colors: high = red/danger, moderate = amber/warning, informational = blue/info
-- Override logging requires PIC PIN when high-severity alerts are present
+- Overrides at ANY severity are acknowledge-and-proceed, logged against the
+  dispenser's account — **no PIC PIN gate** (see "Override model" in the Tier
+  feature matrix; `patient-safety.router.ts` had `requirePicPin` removed for this
+  reason). The `pic-pin.ts` middleware still exists: a PIN may be supplied
+  *voluntarily* on dispensing requests (rate-limited when present) and is used for
+  other flows (e.g. admin PIN reset), but it must never be required to clear a
+  safety alert.
 
 **Trial paywall & expiration:**
 - Layout component listens for `TRIAL_EXPIRED_EVENT` and shows `<TrialPaywall>` modal
@@ -1081,9 +1193,17 @@ These are the target standards for new code:
 - Demo accounts in `LoginPage.tsx` are opt-in only with
   `VITE_SHOW_DEMO_ACCOUNTS=true`. Local dev on port 5173 should default to
   production-like login UI unless that flag is explicitly enabled.
-- Payment gateway (M-Pesa, Flutterwave) is Phase 2. Phase 1 uses manual
-  payment confirmation by the founder after receiving M-Pesa or bank transfer.
-  Do not build payment gateway integration until explicitly instructed.
+- **Payment gateway is LIVE: AzamPay** (`backend/src/modules/azampay/`).
+  Self-service subscription checkout: owner enters phone → MNO STK push
+  (provider auto-detected from prefix: M-Pesa/Tigo Pesa/Airtel Money/Halopesa/
+  TTCL/Azampesa) → AzamPay callback hits `POST /api/v1/azampay/callback` →
+  `activateSubscriptionFromPayment` flips the subscription ACTIVE and notifies
+  the owner in-app. Requires `AZAMPAY_APP_NAME`, `AZAMPAY_CLIENT_ID`,
+  `AZAMPAY_CLIENT_SECRET`, `AZAMPAY_ENVIRONMENT` (sandbox|production).
+  The manual admin payments endpoint (`POST /admin/pharmacies/:id/payments`)
+  remains as the founder-side fallback for bank transfers and edge cases —
+  the paywall's manual submission form was removed. Do not reintroduce
+  manual-first payment flows.
 - Patient safety module is session-based only. No patient table. No patient UUID.
   No persistent patient data of any kind.
 - Long-term safety impact data may be retained only as anonymous operational
@@ -1095,7 +1215,11 @@ These are the target standards for new code:
 - The override_log table must have a database-level trigger preventing DELETE
   from any role including superadmin. This is a permanent medical record.
 - The B2B ordering network is closed. Retail pharmacies can only order from
-  wholesal
+  wholesale pharmacies registered on APOTEKH (Tier 1) or via the tokenized
+  Supplier Portal (Tier 2). There is no open marketplace, no public catalogue
+  browsing without auth, and no peer-to-peer retail-to-retail trading —
+  Tanzanian law restricts open pharmacy marketplaces, and the open B2B
+  marketplace is gated behind Phase 2 (50 paying pharmacies).
 
 - SUPER_ADMIN login now routes to `/superadmin` (the dark admin shell), NOT `/founder`. The `/founder` route redirects to `/superadmin/founder`. Do not revert this. The FounderDashboardPage (payment queue, registrations, overrides) is accessible at `/superadmin/founder` inside the AdminShell. The AdminShell sidebar includes "Founder Hub" as the second nav item.
 - When SUPER_ADMIN is in the pharmacy layout (e.g. directly navigating to `/dashboard`), the `Sidebar` component renders a dark `FounderSidebarContent` that shows "Platform Admin" identity and a direct link back to `/superadmin`. No pharmacy nav items are shown to SUPER_ADMIN in the pharmacy sidebar.

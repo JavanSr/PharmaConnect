@@ -1,4 +1,5 @@
 import PricingToggle from "@/components/PricingToggle";
+import FeatureComparisonTable from "@/components/FeatureComparisonTable";
 import FaqAccordion from "@/components/FaqAccordion";
 import Button from "@/components/ui/Button";
 import { WHOLESALE_TIERS } from "@/lib/data/pricing";
@@ -31,11 +32,14 @@ export default function PricingPage() {
         </h1>
         <p className="mt-5 max-w-3xl text-slate/70">
           Four retail tiers for pharmacies and ADDOs. Wholesale and enterprise pricing listed separately below.
-          Annual billing saves two months.
+          Pay monthly or commit for 3, 6, or 12 months — annual billing saves two months.
         </p>
         <div className="mt-10">
           <PricingToggle />
         </div>
+
+        {/* Full feature comparison */}
+        <FeatureComparisonTable />
 
         {/* Wholesale — full-width featured section */}
         {WHOLESALE_TIERS.filter((t) => t.id === "wholesale").map((tier) => (
