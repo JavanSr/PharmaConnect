@@ -5,6 +5,7 @@ import {
   createProductAndBatch,
   createUser,
   disconnectTestDb,
+  linkPharmacies,
   login,
 } from './helpers';
 
@@ -19,6 +20,7 @@ describe('wholesale operations extensions', () => {
     const buyer = await createUser({ pharmacyId: buyerPharmacy.id, role: 'OWNER' });
     const seller = await createUser({ pharmacyId: sellerPharmacy.id, role: 'OWNER' });
     const seeded = await createProductAndBatch({ pharmacyId: sellerPharmacy.id, userId: seller.user.id, sellingPrice: 1000 });
+    await linkPharmacies({ retailPharmacyId: buyerPharmacy.id, wholesalePharmacyId: sellerPharmacy.id, requestedBy: buyer.user.id });
 
     const buyerAuth = await login(buyer.user.email, buyer.password);
     const sellerAuth = await login(seller.user.email, seller.password);
@@ -99,6 +101,7 @@ describe('wholesale operations extensions', () => {
     const buyer = await createUser({ pharmacyId: buyerPharmacy.id, role: 'OWNER' });
     const seller = await createUser({ pharmacyId: sellerPharmacy.id, role: 'OWNER' });
     const seeded = await createProductAndBatch({ pharmacyId: sellerPharmacy.id, userId: seller.user.id, sellingPrice: 1200 });
+    await linkPharmacies({ retailPharmacyId: buyerPharmacy.id, wholesalePharmacyId: sellerPharmacy.id, requestedBy: buyer.user.id });
 
     const buyerAuth = await login(buyer.user.email, buyer.password);
     const sellerAuth = await login(seller.user.email, seller.password);
@@ -157,6 +160,12 @@ describe('wholesale operations extensions', () => {
     expect(aging.status).toBe(200);
     expect(aging.body.data.totalOpenAmount).toBeGreaterThan(0);
     expect(aging.body.data.invoices[0].buyerName).toBe(buyerPharmacy.name);
+    // Payment terms: no credit limit configured for this buyer → default net-30, freshly issued → not overdue
+    expect(aging.body.data.invoices[0].paymentTermsDays).toBe(30);
+    expect(aging.body.data.invoices[0].isOverdue).toBe(false);
+    expect(new Date(aging.body.data.invoices[0].dueDate).getTime()).toBeGreaterThan(Date.now());
+    expect(aging.body.data.overdueCount).toBe(0);
+    expect(aging.body.data.overdueAmount).toBe(0);
 
     const insights = await request(app)
       .get('/api/v1/b2b/demand-insights')

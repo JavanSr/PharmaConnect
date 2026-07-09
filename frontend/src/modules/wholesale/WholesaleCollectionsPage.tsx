@@ -1,12 +1,12 @@
 import React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CreditCard, Plus } from 'lucide-react';
+import { CreditCard, FileText, Plus } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { useAuthStore } from '@/stores/authStore';
 import { useNotificationStore } from '@/stores/notificationStore';
-import type { WholesalePayment, PaginatedResponse } from '@/types';
+import type { WholesalePayment, WholesaleReceivableInvoice, WholesaleReceivablesAging, PaginatedResponse } from '@/types';
 import { WholesaleShell } from './WholesaleShell';
 
 const PAYMENT_METHODS = ['CASH', 'MPESA', 'TIGOPESA', 'AIRTEL_MONEY', 'BANK_TRANSFER', 'CHEQUE', 'OTHER'];
@@ -27,16 +27,31 @@ function fmt(iso: string) {
 
 // ─── Record payment form ──────────────────────────────────────────────────────
 
-const RecordPaymentForm: React.FC<{ onRecorded: () => void }> = ({ onRecorded }) => {
+interface PaymentPrefill {
+  buyer: { id: string; name: string };
+  invoiceId: string;
+  amount: number;
+}
+
+const RecordPaymentForm: React.FC<{
+  onRecorded: () => void;
+  openInvoices: WholesaleReceivableInvoice[];
+  prefill?: PaymentPrefill | null;
+}> = ({ onRecorded, openInvoices, prefill }) => {
   const toast = useNotificationStore((s) => s.toast);
   const queryClient = useQueryClient();
 
   const [buyerSearch, setBuyerSearch] = React.useState('');
-  const [selectedBuyer, setSelectedBuyer] = React.useState<{ id: string; name: string } | null>(null);
-  const [amount, setAmount] = React.useState('');
+  const [selectedBuyer, setSelectedBuyer] = React.useState<{ id: string; name: string } | null>(prefill?.buyer ?? null);
+  const [invoiceId, setInvoiceId] = React.useState<string>(prefill?.invoiceId ?? '');
+  const [amount, setAmount] = React.useState(prefill ? String(prefill.amount) : '');
   const [method, setMethod] = React.useState('CASH');
   const [ref, setRef] = React.useState('');
   const [notes, setNotes] = React.useState('');
+
+  const buyerInvoices = selectedBuyer
+    ? openInvoices.filter((inv) => inv.buyerPharmacyId === selectedBuyer.id)
+    : [];
 
   const searchQuery = useQuery({
     queryKey: ['pharmacy-search', buyerSearch],
@@ -51,6 +66,7 @@ const RecordPaymentForm: React.FC<{ onRecorded: () => void }> = ({ onRecorded })
     mutationFn: () =>
       api.post('/b2b/payments', {
         buyerPharmacyId: selectedBuyer!.id,
+        invoiceId: invoiceId || null,
         amountTzs: parseFloat(amount),
         paymentMethod: method,
         paymentRef: ref.trim() || null,
@@ -59,8 +75,10 @@ const RecordPaymentForm: React.FC<{ onRecorded: () => void }> = ({ onRecorded })
     onSuccess: () => {
       toast.success('Payment recorded');
       queryClient.invalidateQueries({ queryKey: ['wholesale-payments'] });
+      queryClient.invalidateQueries({ queryKey: ['wholesale-receivables-aging'] });
       setSelectedBuyer(null);
       setBuyerSearch('');
+      setInvoiceId('');
       setAmount('');
       setRef('');
       setNotes('');
@@ -81,7 +99,7 @@ const RecordPaymentForm: React.FC<{ onRecorded: () => void }> = ({ onRecorded })
             <div className="flex items-center justify-between rounded-xl border border-[#D6F0E8] bg-[#EDF7F3] px-3 py-2">
               <span className="text-sm font-medium text-[#0D4035]">{selectedBuyer.name}</span>
               <button
-                onClick={() => { setSelectedBuyer(null); setBuyerSearch(''); }}
+                onClick={() => { setSelectedBuyer(null); setBuyerSearch(''); setInvoiceId(''); }}
                 className="text-xs text-[#64748B] hover:text-[#0D4035]"
               >
                 Change
@@ -106,7 +124,7 @@ const RecordPaymentForm: React.FC<{ onRecorded: () => void }> = ({ onRecorded })
                   {(searchQuery.data ?? []).map((p) => (
                     <button
                       key={p.id}
-                      onClick={() => { setSelectedBuyer({ id: p.id, name: p.name }); setBuyerSearch(''); }}
+                      onClick={() => { setSelectedBuyer({ id: p.id, name: p.name }); setBuyerSearch(''); setInvoiceId(''); }}
                       className="flex w-full items-start gap-2 px-3 py-2 text-left hover:bg-[#EDF7F3]"
                     >
                       <div>
@@ -120,6 +138,30 @@ const RecordPaymentForm: React.FC<{ onRecorded: () => void }> = ({ onRecorded })
             </div>
           )}
         </div>
+
+        {selectedBuyer && buyerInvoices.length > 0 && (
+          <div>
+            <label className={labelCls}>Link to invoice (optional — settles the receivable)</label>
+            <select
+              value={invoiceId}
+              onChange={(e) => {
+                const nextId = e.target.value;
+                setInvoiceId(nextId);
+                const invoice = buyerInvoices.find((inv) => inv.invoiceId === nextId);
+                if (invoice && !amount) setAmount(String(invoice.openAmount));
+              }}
+              className={inputCls}
+            >
+              <option value="">Not linked to an invoice</option>
+              {buyerInvoices.map((inv) => (
+                <option key={inv.invoiceId} value={inv.invoiceId}>
+                  {inv.invoiceNumber} — Tsh {inv.openAmount.toLocaleString()} open
+                  {inv.isOverdue ? ` (${inv.daysOverdue}d overdue)` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
@@ -196,6 +238,7 @@ export const WholesaleCollectionsPage: React.FC = () => {
   const user = useAuthStore((s) => s.user);
   const isManager = ['OWNER', 'WHOLESALE_MANAGER', 'SUPER_ADMIN'].includes(user?.role ?? '');
   const [showForm, setShowForm] = React.useState(false);
+  const [prefill, setPrefill] = React.useState<PaymentPrefill | null>(null);
   const [page, setPage] = React.useState(1);
 
   const paymentsQuery = useQuery({
@@ -203,6 +246,14 @@ export const WholesaleCollectionsPage: React.FC = () => {
     queryFn: () =>
       api.get('/b2b/payments', { params: { page, limit: 20 } }).then((r) => r.data.data as PaginatedResponse<WholesalePayment>),
   });
+
+  const receivablesQuery = useQuery({
+    queryKey: ['wholesale-receivables-aging'],
+    queryFn: () => api.get('/b2b/receivables-aging').then((r) => r.data.data as WholesaleReceivablesAging),
+    enabled: isManager,
+  });
+
+  const openInvoices = receivablesQuery.data?.invoices ?? [];
 
   const result = paymentsQuery.data;
   const payments = result?.data ?? [];
@@ -217,14 +268,76 @@ export const WholesaleCollectionsPage: React.FC = () => {
             <p className="text-sm text-[#64748B]">Payments received from buyer pharmacies</p>
           </div>
           {isManager && (
-            <Button size="sm" leftIcon={<Plus size={13} />} onClick={() => setShowForm((s) => !s)}>
+            <Button size="sm" leftIcon={<Plus size={13} />} onClick={() => { setPrefill(null); setShowForm((s) => !s); }}>
               {showForm ? 'Cancel' : 'Record payment'}
             </Button>
           )}
         </div>
 
         {showForm && isManager && (
-          <RecordPaymentForm onRecorded={() => setShowForm(false)} />
+          <RecordPaymentForm
+            key={prefill?.invoiceId ?? 'blank'}
+            openInvoices={openInvoices}
+            prefill={prefill}
+            onRecorded={() => { setShowForm(false); setPrefill(null); }}
+          />
+        )}
+
+        {isManager && openInvoices.length > 0 && (
+          <Card header={
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-semibold text-[#0D4035]">Open invoices</h2>
+              <span className="text-xs text-[#64748B]">
+                Tsh {(receivablesQuery.data?.totalOpenAmount ?? 0).toLocaleString()} outstanding
+                {(receivablesQuery.data?.overdueCount ?? 0) > 0 && (
+                  <span className="ml-1 font-semibold text-red-600">
+                    · {receivablesQuery.data!.overdueCount} overdue
+                  </span>
+                )}
+              </span>
+            </div>
+          }>
+            <div className="space-y-2">
+              {openInvoices.map((inv) => (
+                <div key={inv.invoiceId} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#D6F0E8] px-3 py-2">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <FileText size={14} className="shrink-0 text-[#1A6B5C]" />
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-semibold text-[#0D4035]">{inv.buyerName}</p>
+                      <p className="text-[10px] text-[#94A3B8]">
+                        {inv.invoiceNumber} · due {fmt(inv.dueDate)} (net {inv.paymentTermsDays})
+                        {inv.isOverdue && (
+                          <span className="ml-1 font-semibold text-red-600">· {inv.daysOverdue}d overdue</span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-3">
+                    <div className="text-right">
+                      <p className="text-xs font-semibold text-[#0D4035]">Tsh {inv.openAmount.toLocaleString()}</p>
+                      {inv.paidAmount > 0 && (
+                        <p className="text-[10px] text-[#64748B]">Tsh {inv.paidAmount.toLocaleString()} paid</p>
+                      )}
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => {
+                        setPrefill({
+                          buyer: { id: inv.buyerPharmacyId, name: inv.buyerName },
+                          invoiceId: inv.invoiceId,
+                          amount: inv.openAmount,
+                        });
+                        setShowForm(true);
+                      }}
+                    >
+                      Record payment
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
         )}
 
         <div className="space-y-3">

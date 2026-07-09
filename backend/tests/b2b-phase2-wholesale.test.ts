@@ -7,6 +7,7 @@ import {
   createProductAndBatch,
   createUser,
   disconnectTestDb,
+  linkPharmacies,
   login,
 } from './helpers';
 
@@ -23,6 +24,7 @@ describe('b2b phase 2 wholesale extensions', () => {
       quantity: 20,
       sellingPrice: 1200,
     });
+    await linkPharmacies({ retailPharmacyId: buyerPharmacy.id, wholesalePharmacyId: sellerPharmacy.id, requestedBy: buyer.user.id });
 
     const [buyerAuth, sellerManagerAuth, sellerCounterAuth] = await Promise.all([
       login(buyer.user.email, buyer.password),
@@ -174,6 +176,7 @@ describe('b2b phase 2 wholesale extensions', () => {
       quantity: 20,
       sellingPrice: 1000,
     });
+    await linkPharmacies({ retailPharmacyId: buyerPharmacy.id, wholesalePharmacyId: sellerPharmacy.id, requestedBy: buyer.user.id });
 
     const [buyerAuth, sellerManagerAuth, driverAuth] = await Promise.all([
       login(buyer.user.email, buyer.password),

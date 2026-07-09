@@ -77,6 +77,21 @@ export async function createUser(input: {
   return { user, password };
 }
 
+export async function linkPharmacies(input: {
+  retailPharmacyId: string;
+  wholesalePharmacyId: string;
+  requestedBy: string;
+}) {
+  return prisma.pharmacyLink.create({
+    data: {
+      retailId: input.retailPharmacyId,
+      wholesaleId: input.wholesalePharmacyId,
+      status: 'ACTIVE',
+      requestedBy: input.requestedBy,
+    },
+  });
+}
+
 export async function login(email: string, password: string) {
   const response = await request(app)
     .post('/api/v1/auth/login')

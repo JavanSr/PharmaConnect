@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { authenticate, assertUser, requireRole, type AuthRequest } from '../../middleware/auth';
 import { applyWholesaleCounterStaffOrderFilter, requirePermission } from '../../middleware/permissions';
 import { enforceTrialRestrictions } from '../../middleware/trial';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 import {
   ORDER_STATUSES,
@@ -1073,9 +1074,8 @@ b2bRouter.post('/disputes', async (req: AuthRequest, res, next) => {
     }).parse(req.body);
 
     // Resolve sellerPharmacyId from the order
-    const orderRows = await prisma.$queryRawUnsafe<Array<{ seller_pharmacy_id: string; buyer_pharmacy_id: string | null }>>(
-      `SELECT "seller_pharmacy_id", "buyer_pharmacy_id" FROM "orders" WHERE "id" = $1 LIMIT 1`,
-      payload.orderId,
+    const orderRows = await prisma.$queryRaw<Array<{ seller_pharmacy_id: string; buyer_pharmacy_id: string | null }>>(
+      Prisma.sql`SELECT "seller_pharmacy_id", "buyer_pharmacy_id" FROM "orders" WHERE "id" = ${payload.orderId} LIMIT 1`,
     ).catch(() => []);
 
     const order = orderRows[0];

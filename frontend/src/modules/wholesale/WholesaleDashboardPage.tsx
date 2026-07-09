@@ -150,8 +150,10 @@ export const WholesaleDashboardPage: React.FC = () => {
     {
       label: 'Open receivables',
       value: `Tsh ${(receivablesQuery.data?.totalOpenAmount ?? 0).toLocaleString()}`,
-      sub: blockedClients.length > 0 ? `${blockedClients.length} client${blockedClients.length > 1 ? 's' : ''} blocked` : 'No clients blocked',
-      subColor: blockedClients.length > 0 ? 'text-red-600' : 'text-[#64748B]',
+      sub: (receivablesQuery.data?.overdueCount ?? 0) > 0
+        ? `${receivablesQuery.data!.overdueCount} overdue · Tsh ${receivablesQuery.data!.overdueAmount.toLocaleString()}`
+        : blockedClients.length > 0 ? `${blockedClients.length} client${blockedClients.length > 1 ? 's' : ''} blocked` : 'No clients blocked',
+      subColor: (receivablesQuery.data?.overdueCount ?? 0) > 0 || blockedClients.length > 0 ? 'text-red-600' : 'text-[#64748B]',
       icon: <CreditCard size={20} />,
       color: 'bg-surface-container-low',
       iconColor: (receivablesQuery.data?.totalOpenAmount ?? 0) > 0 ? 'bg-amber-50 text-amber-700' : 'bg-[#D6F0E8] text-[#1A6B5C]',
@@ -311,7 +313,12 @@ export const WholesaleDashboardPage: React.FC = () => {
                     <div key={inv.invoiceId} className="flex items-center justify-between gap-3 rounded-xl border border-[#D6F0E8] px-3 py-2">
                       <div className="min-w-0">
                         <p className="truncate text-xs font-semibold text-[#0D4035]">{inv.buyerName}</p>
-                        <p className="text-[10px] text-[#94A3B8]">{inv.invoiceNumber} · {inv.daysOutstanding}d</p>
+                        <p className="text-[10px] text-[#94A3B8]">
+                          {inv.invoiceNumber} · {inv.daysOutstanding}d
+                          {inv.isOverdue && (
+                            <span className="ml-1 font-semibold text-red-600">· {inv.daysOverdue}d overdue</span>
+                          )}
+                        </p>
                       </div>
                       <p className="shrink-0 text-xs font-semibold text-[#0D4035]">Tsh {inv.openAmount.toLocaleString()}</p>
                     </div>

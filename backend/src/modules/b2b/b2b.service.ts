@@ -586,11 +586,11 @@ async function checkStockAvailability(sellerPharmacyId: string, items: Array<{ p
   for (const item of items) {
     const rows = await prisma.$queryRaw<Array<{ available: number }>>(Prisma.sql`
       SELECT
-        COALESCE(SUM(b."quantityOnHand"), 0) -
+        COALESCE(SUM(b."quantityRemaining"), 0) -
         COALESCE((
           SELECT SUM(r."reserved_qty")
           FROM "b2b_stock_reservations" r
-          INNER JOIN "orders" o ON o."id" = r."order_id"
+          INNER JOIN "orders" o ON o."id" = r."order_id"::text
           WHERE r."seller_pharmacy_id" = ${sellerPharmacyId}
             AND r."product_id" = ${item.productId}
             AND o."status" NOT IN ('CANCELLED', 'COMPLETED', 'DISPUTED')
@@ -598,7 +598,7 @@ async function checkStockAvailability(sellerPharmacyId: string, items: Array<{ p
       FROM "batches" b
       WHERE b."pharmacyId" = ${sellerPharmacyId}
         AND b."productId" = ${item.productId}
-        AND b."quantityOnHand" > 0
+        AND b."quantityRemaining" > 0
         AND b."expiryDate" > NOW()
     `);
 
@@ -1123,6 +1123,9 @@ export async function listVatInvoices(pharmacyId: string) {
   }));
 }
 
+// Applied when the seller has not set payment terms on the buyer's credit limit.
+const DEFAULT_PAYMENT_TERMS_DAYS = 30;
+
 export async function listReceivablesAging(sellerPharmacyId: string) {
   const rows = await prisma.$queryRaw<Array<{
     invoice_id: string;
@@ -1132,6 +1135,8 @@ export async function listReceivablesAging(sellerPharmacyId: string) {
     buyer_name: string;
     total_amount: Prisma.Decimal | string | number;
     issued_at: Date;
+    payment_terms_days: number | null;
+    paid_amount: Prisma.Decimal | string | number | null;
   }>>(Prisma.sql`
     SELECT
       vi."id" AS invoice_id,
@@ -1140,10 +1145,22 @@ export async function listReceivablesAging(sellerPharmacyId: string) {
       o."buyer_pharmacy_id",
       p."name" AS buyer_name,
       vi."total_amount",
-      vi."issued_at"
+      vi."issued_at",
+      cl."payment_terms_days",
+      pay."paid_amount"
     FROM "vat_invoices" vi
     INNER JOIN "orders" o ON o."id" = vi."order_id"
     INNER JOIN "pharmacies" p ON p."id" = o."buyer_pharmacy_id"
+    LEFT JOIN "client_credit_limits" cl
+      ON cl."seller_pharmacy_id" = o."seller_pharmacy_id"
+     AND cl."client_pharmacy_id" = o."buyer_pharmacy_id"
+     AND cl."is_active" = true
+    LEFT JOIN (
+      SELECT "invoice_id", SUM("amount_tzs") AS paid_amount
+      FROM "wholesale_payments"
+      WHERE "invoice_id" IS NOT NULL
+      GROUP BY "invoice_id"
+    ) pay ON pay."invoice_id" = vi."id"
     WHERE o."seller_pharmacy_id" = ${sellerPharmacyId}
     ORDER BY vi."issued_at" DESC
   `);
@@ -1155,12 +1172,20 @@ export async function listReceivablesAging(sellerPharmacyId: string) {
     over90: 0,
   };
 
-  const invoices = rows.map((row) => {
-    const openAmount = asNumber(row.total_amount);
+  const invoices = rows.flatMap((row) => {
+    const totalAmount = asNumber(row.total_amount);
+    const paidAmount = asNumber(row.paid_amount);
+    const openAmount = Math.max(0, totalAmount - paidAmount);
+    if (openAmount <= 0) return [];
+
     const daysOutstanding = Math.max(
       0,
       Math.floor((Date.now() - row.issued_at.getTime()) / 86_400_000),
     );
+
+    const paymentTermsDays = row.payment_terms_days ?? DEFAULT_PAYMENT_TERMS_DAYS;
+    const dueDate = new Date(row.issued_at.getTime() + paymentTermsDays * 86_400_000);
+    const daysOverdue = Math.max(0, Math.floor((Date.now() - dueDate.getTime()) / 86_400_000));
 
     if (daysOutstanding <= 30) {
       buckets.current += openAmount;
@@ -1172,20 +1197,30 @@ export async function listReceivablesAging(sellerPharmacyId: string) {
       buckets.over90 += openAmount;
     }
 
-    return {
+    return [{
       invoiceId: row.invoice_id,
       invoiceNumber: row.invoice_number,
       orderId: row.order_id,
       buyerPharmacyId: row.buyer_pharmacy_id,
       buyerName: row.buyer_name,
+      totalAmount,
+      paidAmount,
       openAmount,
       daysOutstanding,
+      paymentTermsDays,
+      dueDate: dueDate.toISOString(),
+      isOverdue: daysOverdue > 0,
+      daysOverdue,
       issuedAt: row.issued_at.toISOString(),
-    };
+    }];
   });
+
+  const overdueInvoices = invoices.filter((invoice) => invoice.isOverdue);
 
   return {
     totalOpenAmount: invoices.reduce((sum, invoice) => sum + invoice.openAmount, 0),
+    overdueAmount: overdueInvoices.reduce((sum, invoice) => sum + invoice.openAmount, 0),
+    overdueCount: overdueInvoices.length,
     buckets,
     invoices,
   };
