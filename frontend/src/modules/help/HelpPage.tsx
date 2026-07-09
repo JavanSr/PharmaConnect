@@ -84,12 +84,12 @@ const FAQ_SECTIONS: FaqSection[] = [
           <span>
             Chat with our support team on WhatsApp:{' '}
             <a
-              href="https://wa.me/255764000000?text=Hi%20APOTEKH%20Support%2C%20I%20need%20help"
+              href="https://wa.me/255764591374?text=Hi%20APOTEKH%20Support%2C%20I%20need%20help"
               target="_blank"
               rel="noopener noreferrer"
               className="text-pc-600 font-medium hover:underline"
             >
-              +255 764 000 000
+              +255 764 591 374
             </a>
             . Available Monday–Saturday, 8am–8pm EAT.
           </span>
@@ -170,7 +170,7 @@ export const HelpPage: React.FC = () => (
         Our support team is available Monday–Saturday, 8am–8pm EAT.
       </p>
       <a
-        href="https://wa.me/255764000000?text=Hi%20APOTEKH%20Support%2C%20I%20need%20help"
+        href="https://wa.me/255764591374?text=Hi%20APOTEKH%20Support%2C%20I%20need%20help"
         target="_blank"
         rel="noopener noreferrer"
         className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium text-white transition-opacity hover:opacity-90"

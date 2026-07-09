@@ -383,7 +383,7 @@ founderRouter.patch('/registrations/:pharmacyId/set-tier', async (req: AuthReque
     const { tier, paidUntil, billingCycle } = z.object({
       tier: z.enum(['ADDO', 'BASIC', 'STANDARD', 'PREMIUM', 'WHOLESALE', 'ENTERPRISE']),
       paidUntil: z.coerce.date().optional(),
-      billingCycle: z.enum(['MONTHLY', 'ANNUAL']).optional(),
+      billingCycle: z.enum(['MONTHLY', 'QUARTERLY', 'SEMI_ANNUAL', 'ANNUAL']).optional(),
     }).parse(req.body);
 
     const pharmacy = await prisma.pharmacy.findUnique({

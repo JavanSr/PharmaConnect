@@ -45,6 +45,7 @@ import { telemetryRouter } from './modules/telemetry/telemetry.router';
 import { supplierPortalRouter } from './modules/inventory/supplier-portal.router';
 import { azamPayRouter } from './modules/azampay/azampay.router';
 import { realtimeRouter } from './modules/realtime/realtime.router';
+import { publicStatsRouter } from './modules/public-stats/public-stats.router';
 import { registerExpiryAlertsJob } from './jobs/expiry-alerts';
 import { registerLowStockAlertsJob } from './jobs/low-stock-alerts';
 import { registerComplianceAlertsJob, registerComplianceHealthJob } from './jobs/compliance-alerts';
@@ -354,6 +355,9 @@ app.use(`${v1}/azampay`, azamPayRouter);
 // ── Realtime SSE (pharmacy-scoped stock/dispensing push) ─────────────────────
 app.use(`${v1}/realtime`, realtimeRouter);
 
+// ── Public platform stats (website proof strip — anonymous aggregates only) ──
+app.use(`${v1}/public-stats`, publicStatsRouter);
+
 // ── Supplier Portal (public, no auth — short URL for WhatsApp links) ──────────
 app.use('/supplier-portal', supplierPortalRouter);
 
@@ -394,3 +398,4 @@ if (process.env.NODE_ENV !== 'test') {
 }
 
 export { app };
+export default app;

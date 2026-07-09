@@ -46,6 +46,11 @@ export async function generateSubscriptionInvoice(input: {
   if (input.billingCycle === 'ANNUAL') {
     periodFrom = now;
     periodTo = addOneYear(now);
+  } else if (input.billingCycle === 'QUARTERLY' || input.billingCycle === 'SEMI_ANNUAL') {
+    // Fixed-length period starting today (3 or 6 months)
+    periodFrom = now;
+    periodTo = new Date(now);
+    periodTo.setMonth(periodTo.getMonth() + (input.billingCycle === 'QUARTERLY' ? 3 : 6));
   } else {
     // MONTHLY — current calendar month
     periodFrom = startOfMonth(now);

@@ -28,12 +28,24 @@ const isPaymentRequestTier = (tier?: string | null): tier is PaymentRequestTier 
   Boolean(tier && TIER_OPTIONS.some((option) => option === tier));
 
 const planPriceTable: Record<PaymentRequestTier, Record<BillingCycle, number>> = {
-  ADDO: { MONTHLY: 15_000, ANNUAL: 150_000 },
-  ESSENTIAL: { MONTHLY: 39_000, ANNUAL: 390_000 },
-  STANDARD: { MONTHLY: 55_000, ANNUAL: 550_000 },
-  PREMIUM: { MONTHLY: 75_000, ANNUAL: 750_000 },
-  WHOLESALE: { MONTHLY: 100_000, ANNUAL: 1_000_000 },
+  ADDO: { MONTHLY: 15_000, QUARTERLY: 45_000, SEMI_ANNUAL: 82_500, ANNUAL: 150_000 },
+  ESSENTIAL: { MONTHLY: 39_000, QUARTERLY: 117_000, SEMI_ANNUAL: 214_500, ANNUAL: 390_000 },
+  STANDARD: { MONTHLY: 55_000, QUARTERLY: 165_000, SEMI_ANNUAL: 302_500, ANNUAL: 550_000 },
+  PREMIUM: { MONTHLY: 75_000, QUARTERLY: 225_000, SEMI_ANNUAL: 412_500, ANNUAL: 750_000 },
+  WHOLESALE: { MONTHLY: 100_000, QUARTERLY: 300_000, SEMI_ANNUAL: 550_000, ANNUAL: 1_000_000 },
 };
+
+const BILLING_CYCLES: readonly BillingCycle[] = ['MONTHLY', 'QUARTERLY', 'SEMI_ANNUAL', 'ANNUAL'];
+
+const BILLING_CYCLE_LABEL: Record<BillingCycle, string> = {
+  MONTHLY: 'Monthly',
+  QUARTERLY: '3 months',
+  SEMI_ANNUAL: '6 months — save 8%',
+  ANNUAL: 'Annual — 2 months free',
+};
+
+const toBillingCycle = (value: string): BillingCycle =>
+  (BILLING_CYCLES as readonly string[]).includes(value) ? (value as BillingCycle) : 'MONTHLY';
 
 type SubscriptionPaymentRequest = {
   id: string;
@@ -121,7 +133,7 @@ export const TrialPaywall: React.FC<{ currentTier?: string | null }> = ({ curren
   const retryCheckout = (request: SubscriptionPaymentRequest) => {
     setCheckoutDraft((current) => ({
       requestedTier: isPaymentRequestTier(request.requestedTier) ? request.requestedTier : current.requestedTier,
-      billingCycle: request.billingCycle === 'ANNUAL' ? 'ANNUAL' : 'MONTHLY',
+      billingCycle: toBillingCycle(request.billingCycle),
       payerPhone: request.payerPhone || current.payerPhone,
     }));
     setCheckoutResult(null);
@@ -181,12 +193,13 @@ export const TrialPaywall: React.FC<{ currentTier?: string | null }> = ({ curren
                       value={checkoutDraft.billingCycle}
                       onChange={(event) => setCheckoutDraft((current) => ({
                         ...current,
-                        billingCycle: event.target.value === 'ANNUAL' ? 'ANNUAL' : 'MONTHLY',
+                        billingCycle: toBillingCycle(event.target.value),
                       }))}
                       className="h-10 w-full rounded-xl border border-[#D6F0E8] bg-white px-3 text-sm text-[#0D4035] outline-none focus:border-[#1A6B5C] focus:ring-2 focus:ring-[#1A6B5C]/20"
                     >
-                      <option value="MONTHLY">Monthly</option>
-                      <option value="ANNUAL">Annual</option>
+                      {BILLING_CYCLES.map((cycle) => (
+                        <option key={cycle} value={cycle}>{BILLING_CYCLE_LABEL[cycle]}</option>
+                      ))}
                     </select>
                   </div>
                   <Input

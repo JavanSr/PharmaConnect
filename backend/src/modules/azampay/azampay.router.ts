@@ -5,7 +5,9 @@
  *   POST /api/v1/azampay/callback  — public, called by AzamPay on payment confirmation
  */
 
-import { Router } from 'express';
+import crypto from 'crypto';
+import { Router, type Request } from 'express';
+import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { prisma } from '../../lib/prisma';
 import { authenticate, type AuthRequest } from '../../middleware/auth';
@@ -17,10 +19,43 @@ import {
 
 export const azamPayRouter = Router();
 
+// STK pushes ring a real person's phone — cap re-initiation attempts per pharmacy.
+const initiateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 8,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'TOO_MANY_PAYMENT_ATTEMPTS' },
+  keyGenerator: (req) => {
+    const r = req as AuthRequest;
+    return `azampay-initiate:${r.user?.pharmacyId ?? r.user?.userId ?? 'anonymous'}`;
+  },
+});
+
+/**
+ * Callback authentication. Set AZAMPAY_CALLBACK_SECRET and register the callback
+ * URL in the AzamPay dashboard as:
+ *   https://<backend>/api/v1/azampay/callback?secret=<AZAMPAY_CALLBACK_SECRET>
+ * (an `x-callback-secret` header is also accepted). Without the secret configured,
+ * anyone who learns a pending APTK reference could forge a "success" POST.
+ */
+function callbackSecretConfigured(): boolean {
+  return Boolean((process.env.AZAMPAY_CALLBACK_SECRET || '').trim());
+}
+
+function callbackSecretOk(req: Request): boolean {
+  const expected = (process.env.AZAMPAY_CALLBACK_SECRET || '').trim();
+  if (!expected) return true; // not configured — allowed, but logged loudly below
+  const provided = String(req.query.secret ?? req.headers['x-callback-secret'] ?? '');
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
 // ── POST /azampay/initiate ────────────────────────────────────────────────────
 // Called by the frontend when user clicks "Pay via mobile money".
 // Looks up the pending checkout request by reference and triggers STK push.
-azamPayRouter.post('/initiate', authenticate, async (req: AuthRequest, res, next) => {
+azamPayRouter.post('/initiate', authenticate, initiateLimiter, async (req: AuthRequest, res, next) => {
   try {
     if (!isAzamPayConfigured()) {
       res.status(503).json({ error: 'AZAMPAY_NOT_CONFIGURED' });
@@ -48,6 +83,14 @@ azamPayRouter.post('/initiate', authenticate, async (req: AuthRequest, res, next
     });
 
     if (!paymentRequest) {
+      res.status(404).json({ error: 'CHECKOUT_NOT_FOUND' });
+      return;
+    }
+
+    // Only the owning pharmacy (or SUPER_ADMIN) may re-trigger the STK push —
+    // knowing a reference must not let another account ring someone's phone.
+    // 404 (not 403) so foreign references are indistinguishable from unknown ones.
+    if (req.user?.role !== 'SUPER_ADMIN' && paymentRequest.pharmacyId !== req.user?.pharmacyId) {
       res.status(404).json({ error: 'CHECKOUT_NOT_FOUND' });
       return;
     }
@@ -97,6 +140,24 @@ azamPayRouter.post('/initiate', authenticate, async (req: AuthRequest, res, next
 // AzamPay POSTs JSON with reference (our externalId), transactionStatus, etc.
 azamPayRouter.post('/callback', async (req, res) => {
   try {
+    // Authenticate the callback before touching anything. Forged requests get 401
+    // (only legitimate AzamPay calls carry the registered secret, so 401 here
+    // never interferes with real payment confirmations).
+    if (!callbackSecretOk(req)) {
+      console.warn('[azampay] callback rejected — missing/invalid callback secret', {
+        ip: req.ip,
+        reference: (req.body as Record<string, unknown>)?.reference,
+      });
+      res.status(401).json({ error: 'UNAUTHORIZED' });
+      return;
+    }
+    if (!callbackSecretConfigured()) {
+      console.warn(
+        '[azampay] AZAMPAY_CALLBACK_SECRET is not set — the payment callback is UNAUTHENTICATED. ' +
+        'Set it and re-register the callback URL with ?secret=<value> in the AzamPay dashboard.',
+      );
+    }
+
     // AzamPay callback payload varies slightly by provider; capture all fields
     const body = req.body as Record<string, unknown>;
 
@@ -134,13 +195,29 @@ azamPayRouter.post('/callback', async (req, res) => {
         transactionRef: reference,
         status: 'PENDING',
       },
-      select: { id: true, pharmacyId: true },
+      select: { id: true, pharmacyId: true, amount: true },
     });
 
     if (!paymentRequest) {
       console.warn('[azampay] callback — no matching PENDING request for reference', reference);
       res.json({ received: true });
       return;
+    }
+
+    // When the callback carries an amount, it must match what we asked for —
+    // a confirmed 1,000 TZS payment must not activate a 75,000 TZS subscription.
+    const callbackAmount = Number(body.amount ?? body.Amount ?? NaN);
+    if (Number.isFinite(callbackAmount) && callbackAmount > 0) {
+      const expectedAmount = Number(paymentRequest.amount);
+      if (Math.abs(callbackAmount - expectedAmount) > 0.01) {
+        console.warn('[azampay] callback amount mismatch — NOT activating', {
+          reference,
+          expected: expectedAmount,
+          received: callbackAmount,
+        });
+        res.json({ received: true });
+        return;
+      }
     }
 
     // Activate the subscription

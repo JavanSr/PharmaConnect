@@ -48,6 +48,8 @@ enum SubscriptionTier {
 
 enum BillingCycle {
   MONTHLY
+  QUARTERLY
+  SEMI_ANNUAL
   ANNUAL
 }
 

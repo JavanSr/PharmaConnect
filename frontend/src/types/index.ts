@@ -33,7 +33,7 @@ export interface AuthTokens {
 
 export type PharmacyType = 'RETAIL' | 'ADDO' | 'WHOLESALE';
 export type SubscriptionTier = 'FREE' | 'ADDO' | 'ESSENTIAL' | 'ADDO_PLUS' | 'STANDARD' | 'PREMIUM' | 'WHOLESALE' | 'ENTERPRISE';
-export type BillingCycle = 'MONTHLY' | 'ANNUAL';
+export type BillingCycle = 'MONTHLY' | 'QUARTERLY' | 'SEMI_ANNUAL' | 'ANNUAL';
 export type PharmacyAccountStatus = 'TRIAL' | 'ACTIVE' | 'GRACE' | 'SUSPENDED' | 'CANCELLED';
 
 export interface Pharmacy {
@@ -167,13 +167,21 @@ export interface WholesaleReceivableInvoice {
   orderId: string;
   buyerPharmacyId: string;
   buyerName: string;
+  totalAmount: number;
+  paidAmount: number;
   openAmount: number;
   daysOutstanding: number;
+  paymentTermsDays: number;
+  dueDate: string;
+  isOverdue: boolean;
+  daysOverdue: number;
   issuedAt: string;
 }
 
 export interface WholesaleReceivablesAging {
   totalOpenAmount: number;
+  overdueAmount: number;
+  overdueCount: number;
   buckets: {
     current: number;
     days31To60: number;

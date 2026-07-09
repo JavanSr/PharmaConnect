@@ -268,7 +268,7 @@ export const Layout: React.FC = () => {
       {/* WhatsApp support floating button — only for logged-in non-admin users */}
       {user && !location.pathname.startsWith('/superadmin') && (
         <a
-          href="https://wa.me/255764000000?text=Hi%20APOTEKH%20Support%2C%20I%20need%20help"
+          href="https://wa.me/255764591374?text=Hi%20APOTEKH%20Support%2C%20I%20need%20help"
           target="_blank"
           rel="noopener noreferrer"
           title="Chat with Support"

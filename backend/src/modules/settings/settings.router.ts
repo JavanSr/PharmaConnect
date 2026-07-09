@@ -130,7 +130,7 @@ settingsRouter.post('/subscription/payment-requests', requireRole('OWNER', 'SUPE
   try {
     const data = z.object({
       requestedTier: z.enum(['ADDO', 'ESSENTIAL', 'ADDO_PLUS', 'STANDARD', 'PREMIUM', 'WHOLESALE', 'ENTERPRISE']),
-      billingCycle: z.enum(['MONTHLY', 'ANNUAL']),
+      billingCycle: z.enum(['MONTHLY', 'QUARTERLY', 'SEMI_ANNUAL', 'ANNUAL']),
       amount: z.coerce.number().positive(),
       paymentMethod: z.string().trim().min(2).max(80),
       transactionRef: z.string().trim().min(3).max(120),
@@ -167,7 +167,7 @@ settingsRouter.post('/subscription/checkout', requireRole('OWNER', 'SUPER_ADMIN'
   try {
     const data = z.object({
       requestedTier: z.string().trim(),
-      billingCycle: z.enum(['MONTHLY', 'ANNUAL']),
+      billingCycle: z.enum(['MONTHLY', 'QUARTERLY', 'SEMI_ANNUAL', 'ANNUAL']),
       payerPhone: z.string().trim().min(7).max(40),
     }).parse(req.body);
 
