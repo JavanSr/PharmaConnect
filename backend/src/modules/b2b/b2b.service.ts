@@ -582,8 +582,9 @@ async function releaseStockReservation(orderId: string) {
   `);
 }
 
-async function checkStockAvailability(sellerPharmacyId: string, items: Array<{ productId: string; quantity: number }>) {
-  for (const item of items) {
+export async function getStockAvailability(sellerPharmacyId: string, productIds: string[]) {
+  const availability = new Map<string, number>();
+  for (const productId of productIds) {
     const rows = await prisma.$queryRaw<Array<{ available: number }>>(Prisma.sql`
       SELECT
         COALESCE(SUM(b."quantityRemaining"), 0) -
@@ -592,17 +593,24 @@ async function checkStockAvailability(sellerPharmacyId: string, items: Array<{ p
           FROM "b2b_stock_reservations" r
           INNER JOIN "orders" o ON o."id" = r."order_id"::text
           WHERE r."seller_pharmacy_id" = ${sellerPharmacyId}
-            AND r."product_id" = ${item.productId}
+            AND r."product_id" = ${productId}
             AND o."status" NOT IN ('CANCELLED', 'COMPLETED', 'DISPUTED')
         ), 0) AS available
       FROM "batches" b
       WHERE b."pharmacyId" = ${sellerPharmacyId}
-        AND b."productId" = ${item.productId}
+        AND b."productId" = ${productId}
         AND b."quantityRemaining" > 0
         AND b."expiryDate" > NOW()
     `);
+    availability.set(productId, Number(rows[0]?.available ?? 0));
+  }
+  return availability;
+}
 
-    const available = Number(rows[0]?.available ?? 0);
+async function checkStockAvailability(sellerPharmacyId: string, items: Array<{ productId: string; quantity: number }>) {
+  const availability = await getStockAvailability(sellerPharmacyId, items.map((item) => item.productId));
+  for (const item of items) {
+    const available = availability.get(item.productId) ?? 0;
     if (available < item.quantity) {
       throw Object.assign(new Error('INSUFFICIENT_STOCK'), {
         status: 422,
@@ -621,7 +629,10 @@ export async function createOrder(input: {
   sellerPharmacyId: string;
   notes?: string;
   items: Array<{ productId: string; quantity: number }>;
+  allowPartialFulfilment?: boolean;
+  enforceMoq?: boolean;
 }) {
+  const enforceMoq = input.enforceMoq ?? true;
   await assertPlatformWholesaleSeller(input.sellerPharmacyId);
   if (!input.buyerPharmacyId && !input.walkinBuyerName) {
     throw Object.assign(new Error('Either buyerPharmacyId or walkinBuyerName is required'), { status: 422 });
@@ -660,13 +671,13 @@ export async function createOrder(input: {
     : new Map<string, number>();
 
   const pricingMap = new Map(pricingRows.map((row) => [row.product_id, row]));
-  const lines: OrderLine[] = input.items.map((item) => {
+  const pricedItems = input.items.map((item) => {
     const pricing = pricingMap.get(item.productId);
     if (!pricing) {
       throw Object.assign(new Error('CATALOGUE_ITEM_NOT_FOUND'), { status: 404, code: 'CATALOGUE_ITEM_NOT_FOUND' });
     }
 
-    if (item.quantity < pricing.min_order_quantity) {
+    if (enforceMoq && item.quantity < pricing.min_order_quantity) {
       throw Object.assign(new Error('MIN_ORDER_QUANTITY_NOT_MET'), { status: 422, code: 'MIN_ORDER_QUANTITY_NOT_MET' });
     }
 
@@ -677,24 +688,62 @@ export async function createOrder(input: {
     const unitPrice =
       overridePriceMap.get(pricing.product_id) ??
       resolveTierPrice(asNumber(pricing.price), parseTierPrices(pricing.tier_prices), buyer?.subscriptionTier);
-    return {
-      productId: pricing.product_id,
-      productName: pricing.product_name,
-      genericName: pricing.generic_name,
-      barcode: pricing.barcode,
-      quantity: item.quantity,
-      unitPrice,
-      lineTotal: Number((unitPrice * item.quantity).toFixed(2)),
+    return { pricing, requestedQuantity: item.quantity, unitPrice };
+  });
+
+  // Partial fulfilment: clamp lines to available stock and queue the shortfall
+  // as backorders. Requested-quantity checks (MOQ/max) above still apply.
+  type BackorderDraft = { productId: string; productName: string; quantity: number; unitPrice: number };
+  const backorderDrafts: BackorderDraft[] = [];
+
+  if (input.allowPartialFulfilment && input.buyerPharmacyId) {
+    const availability = await getStockAvailability(
+      input.sellerPharmacyId,
+      pricedItems.map((item) => item.pricing.product_id),
+    );
+    for (const item of pricedItems) {
+      const available = Math.max(0, availability.get(item.pricing.product_id) ?? 0);
+      if (available < item.requestedQuantity) {
+        backorderDrafts.push({
+          productId: item.pricing.product_id,
+          productName: item.pricing.product_name,
+          quantity: item.requestedQuantity - available,
+          unitPrice: item.unitPrice,
+        });
+        item.requestedQuantity = available;
+      }
+    }
+    if (pricedItems.every((item) => item.requestedQuantity <= 0)) {
+      throw Object.assign(new Error('INSUFFICIENT_STOCK'), {
+        status: 422,
+        code: 'INSUFFICIENT_STOCK',
+        detail: 'No items in stock — nothing to ship. Order not created; try again when the seller restocks.',
+      });
+    }
+  }
+
+  const lines: OrderLine[] = pricedItems
+    .filter((item) => item.requestedQuantity > 0)
+    .map((item) => ({
+      productId: item.pricing.product_id,
+      productName: item.pricing.product_name,
+      genericName: item.pricing.generic_name,
+      barcode: item.pricing.barcode,
+      quantity: item.requestedQuantity,
+      unitPrice: item.unitPrice,
+      lineTotal: Number((item.unitPrice * item.requestedQuantity).toFixed(2)),
       pickedQuantity: 0,
       verifiedQuantity: 0,
-    };
-  });
+    }));
 
   const subtotalAmount = Number(lines.reduce((sum, line) => sum + line.lineTotal, 0).toFixed(2));
   const { totalSavings, appliedSchemeIds } = await resolveSchemeDiscounts(input.sellerPharmacyId, lines);
   const totalAmount = Number((subtotalAmount - totalSavings).toFixed(2));
 
-  await checkStockAvailability(input.sellerPharmacyId, input.items);
+  await checkStockAvailability(
+    input.sellerPharmacyId,
+    lines.map((line) => ({ productId: line.productId, quantity: line.quantity })),
+  );
   if (input.buyerPharmacyId) {
     await validateCreditLimit(input.sellerPharmacyId, input.buyerPharmacyId, totalAmount);
   }
@@ -733,7 +782,269 @@ export async function createOrder(input: {
   `);
 
   await reserveStockForOrder(orderId, input.sellerPharmacyId, lines);
-  return mapOrder(rows[0]);
+
+  let backorders: Awaited<ReturnType<typeof prisma.b2bBackorder.create>>[] = [];
+  if (backorderDrafts.length > 0 && input.buyerPharmacyId) {
+    const buyerPharmacyId = input.buyerPharmacyId;
+    const orderNumber = rows[0].order_number;
+    backorders = await prisma.$transaction(
+      backorderDrafts.map((draft) =>
+        prisma.b2bBackorder.create({
+          data: {
+            orderId,
+            orderNumber,
+            sellerPharmacyId: input.sellerPharmacyId,
+            buyerPharmacyId,
+            productId: draft.productId,
+            productName: draft.productName,
+            quantity: draft.quantity,
+            unitPrice: draft.unitPrice,
+          },
+        }),
+      ),
+    );
+
+    const summary = backorderDrafts
+      .map((draft) => `${draft.productName} ×${draft.quantity}`)
+      .join(', ');
+    await prisma.notification.create({
+      data: {
+        pharmacyId: input.sellerPharmacyId,
+        type: 'B2B_BACKORDER_CREATED',
+        title: `Backorder queued on order ${orderNumber}`,
+        body: `Short stock on: ${summary}. Fulfil from the backorder queue once stock arrives.`,
+        metadata: { orderId, orderNumber, backorderIds: backorders.map((b) => b.id) },
+      },
+    }).catch(() => undefined);
+  }
+
+  const buyerLabel = input.walkinBuyerName
+    ?? (input.buyerPharmacyId
+      ? (await prisma.pharmacy.findUnique({ where: { id: input.buyerPharmacyId }, select: { name: true } }))?.name ?? 'a buyer'
+      : 'a buyer');
+  void flagSuspiciousControlledOrder({
+    orderId,
+    orderNumber: rows[0].order_number,
+    sellerPharmacyId: input.sellerPharmacyId,
+    buyerLabel,
+    lines,
+  });
+
+  return { ...mapOrder(rows[0]), backorders: backorders.map(mapBackorder) };
+}
+
+function mapBackorder(row: {
+  id: string;
+  orderId: string;
+  orderNumber: string;
+  sellerPharmacyId: string;
+  buyerPharmacyId: string;
+  productId: string;
+  productName: string;
+  quantity: number;
+  unitPrice: Prisma.Decimal | number;
+  status: string;
+  fulfilledOrderId: string | null;
+  fulfilledAt: Date | null;
+  createdAt: Date;
+}) {
+  return {
+    id: row.id,
+    orderId: row.orderId,
+    orderNumber: row.orderNumber,
+    sellerPharmacyId: row.sellerPharmacyId,
+    buyerPharmacyId: row.buyerPharmacyId,
+    productId: row.productId,
+    productName: row.productName,
+    quantity: row.quantity,
+    unitPrice: asNumber(row.unitPrice),
+    status: row.status,
+    fulfilledOrderId: row.fulfilledOrderId,
+    fulfilledAt: row.fulfilledAt?.toISOString() ?? null,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
+export async function listBackorders(input: { pharmacyId: string; side: 'seller' | 'buyer'; status?: 'OPEN' | 'FULFILLED' | 'CANCELLED' }) {
+  const rows = await prisma.b2bBackorder.findMany({
+    where: {
+      ...(input.side === 'seller'
+        ? { sellerPharmacyId: input.pharmacyId }
+        : { buyerPharmacyId: input.pharmacyId }),
+      ...(input.status ? { status: input.status } : {}),
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 200,
+  });
+
+  const counterpartIds = [...new Set(rows.map((row) => (input.side === 'seller' ? row.buyerPharmacyId : row.sellerPharmacyId)))];
+  const names = counterpartIds.length > 0
+    ? await prisma.pharmacy.findMany({ where: { id: { in: counterpartIds } }, select: { id: true, name: true } })
+    : [];
+  const nameMap = new Map(names.map((p) => [p.id, p.name]));
+
+  return rows.map((row) => ({
+    ...mapBackorder(row),
+    counterpartName: nameMap.get(input.side === 'seller' ? row.buyerPharmacyId : row.sellerPharmacyId) ?? null,
+  }));
+}
+
+export async function cancelBackorder(input: { backorderId: string; pharmacyId: string; userId: string }) {
+  const result = await prisma.b2bBackorder.updateMany({
+    where: {
+      id: input.backorderId,
+      status: 'OPEN',
+      OR: [{ sellerPharmacyId: input.pharmacyId }, { buyerPharmacyId: input.pharmacyId }],
+    },
+    data: { status: 'CANCELLED', cancelledBy: input.userId },
+  });
+  if (result.count === 0) {
+    throw Object.assign(new Error('Backorder not found or not open'), { status: 404 });
+  }
+  const row = await prisma.b2bBackorder.findUnique({ where: { id: input.backorderId } });
+  return row ? mapBackorder(row) : null;
+}
+
+export async function fulfilBackorder(input: { backorderId: string; sellerPharmacyId: string; userId: string }) {
+  const backorder = await prisma.b2bBackorder.findFirst({
+    where: { id: input.backorderId, sellerPharmacyId: input.sellerPharmacyId, status: 'OPEN' },
+  });
+  if (!backorder) {
+    throw Object.assign(new Error('Backorder not found or not open'), { status: 404 });
+  }
+
+  // MOQ is waived: the buyer already committed to this quantity on the original order.
+  const order = await createOrder({
+    buyerPharmacyId: backorder.buyerPharmacyId,
+    sellerPharmacyId: input.sellerPharmacyId,
+    items: [{ productId: backorder.productId, quantity: backorder.quantity }],
+    notes: `Backorder fulfilment for order ${backorder.orderNumber}`,
+    enforceMoq: false,
+  });
+
+  // Guard against double-fulfilment: only flip if still OPEN.
+  const updated = await prisma.b2bBackorder.updateMany({
+    where: { id: backorder.id, status: 'OPEN' },
+    data: { status: 'FULFILLED', fulfilledOrderId: order.id, fulfilledAt: new Date() },
+  });
+  if (updated.count === 0) {
+    throw Object.assign(new Error('Backorder was already fulfilled or cancelled'), { status: 409 });
+  }
+
+  await prisma.notification.create({
+    data: {
+      pharmacyId: backorder.buyerPharmacyId,
+      type: 'B2B_BACKORDER_FULFILLED',
+      title: `Backordered item now shipping — ${backorder.productName}`,
+      body: `${backorder.productName} ×${backorder.quantity} from order ${backorder.orderNumber} has been placed as order ${order.orderNumber}.`,
+      metadata: { backorderId: backorder.id, originalOrderId: backorder.orderId, fulfilledOrderId: order.id },
+    },
+  }).catch(() => undefined);
+
+  return { backorder: (await prisma.b2bBackorder.findUnique({ where: { id: backorder.id } }))!, order };
+}
+
+/**
+ * Suspicious Order Monitoring (SOM): flag unusually large orders of
+ * CONTROLLED/NARCOTIC products so the wholesaler can review before dispatch.
+ * Threshold per product: max(SOM floor, 3 × the product's average ordered
+ * quantity at this seller over the past 90 days). Alert-only — never blocks
+ * the order. Fire-and-forget: must never break order creation.
+ */
+const SOM_QTY_FLOOR = Number(process.env.SOM_CONTROLLED_QTY_THRESHOLD ?? 100);
+
+export async function flagSuspiciousControlledOrder(input: {
+  orderId: string;
+  orderNumber: string;
+  sellerPharmacyId: string;
+  buyerLabel: string;
+  lines: OrderLine[];
+}) {
+  try {
+    const controlled = await prisma.product.findMany({
+      where: {
+        id: { in: input.lines.map((line) => line.productId) },
+        drugClass: { in: ['CONTROLLED', 'NARCOTIC'] },
+      },
+      select: { id: true, name: true, drugClass: true },
+    });
+    if (controlled.length === 0) return;
+
+    const flagged: Array<{ productId: string; productName: string; drugClass: string; quantity: number; threshold: number }> = [];
+    for (const product of controlled) {
+      const line = input.lines.find((l) => l.productId === product.id);
+      if (!line) continue;
+
+      const historyRows = await prisma.$queryRaw<Array<{ avg_qty: number | null; cnt: bigint | number }>>(Prisma.sql`
+        SELECT AVG((item->>'quantity')::numeric) AS avg_qty, COUNT(*) AS cnt
+        FROM "orders" o, jsonb_array_elements(o."items") AS item
+        WHERE o."seller_pharmacy_id" = ${input.sellerPharmacyId}
+          AND item->>'productId' = ${product.id}
+          AND o."created_at" >= NOW() - INTERVAL '90 days'
+          AND o."id" <> ${input.orderId}
+          AND o."status" NOT IN ('CANCELLED')
+      `);
+      const historyCount = Number(historyRows[0]?.cnt ?? 0);
+      const avgQty = Number(historyRows[0]?.avg_qty ?? 0);
+      const threshold = historyCount >= 3
+        ? Math.max(SOM_QTY_FLOOR, Math.ceil(avgQty * 3))
+        : SOM_QTY_FLOOR;
+
+      if (line.quantity > threshold) {
+        flagged.push({
+          productId: product.id,
+          productName: product.name,
+          drugClass: product.drugClass,
+          quantity: line.quantity,
+          threshold,
+        });
+      }
+    }
+    if (flagged.length === 0) return;
+
+    const summary = flagged
+      .map((f) => `${f.productName} ×${f.quantity} (threshold ${f.threshold})`)
+      .join(', ');
+    await prisma.notification.create({
+      data: {
+        pharmacyId: input.sellerPharmacyId,
+        type: 'SUSPICIOUS_ORDER_ALERT',
+        title: `Review order ${input.orderNumber} — unusually large controlled quantity`,
+        body: `Order from ${input.buyerLabel} includes ${summary}. Verify legitimacy before dispatch; controlled-substance orders above the usual pattern must be reviewed.`,
+        metadata: { orderId: input.orderId, orderNumber: input.orderNumber, flagged: JSON.parse(JSON.stringify(flagged)) },
+      },
+    });
+  } catch {
+    // alert-only; never break order creation
+  }
+}
+
+/**
+ * Called from stock intake: when a wholesale pharmacy receives stock for a
+ * product with OPEN backorders, notify them the backorders can now be fulfilled.
+ * Fire-and-forget — must never break the intake flow.
+ */
+export async function notifyFulfillableBackorders(pharmacyId: string, productId: string) {
+  try {
+    const open = await prisma.b2bBackorder.findMany({
+      where: { sellerPharmacyId: pharmacyId, productId, status: 'OPEN' },
+      take: 20,
+    });
+    if (open.length === 0) return;
+
+    const totalQty = open.reduce((sum, row) => sum + row.quantity, 0);
+    await prisma.notification.create({
+      data: {
+        pharmacyId,
+        type: 'B2B_BACKORDER_STOCK_ARRIVED',
+        title: `Stock arrived for backordered ${open[0].productName}`,
+        body: `${open.length} open backorder${open.length > 1 ? 's' : ''} (${totalQty} units) can now be fulfilled from the backorder queue.`,
+        metadata: { productId, backorderIds: open.map((row) => row.id) },
+      },
+    });
+  } catch {
+    // never block stock intake on notification failures
+  }
 }
 
 export async function listOrders(input: {
@@ -993,7 +1304,13 @@ export async function confirmDelivery(input: { orderId: string; pharmacyId: stri
     const lines = order.items as OrderLine[];
 
     for (const line of lines) {
-      const qty = line.verifiedQuantity ?? line.pickedQuantity ?? line.quantity;
+      // 0 means "step not performed" (createOrder initializes both to 0), so
+      // fall through to the ordered quantity rather than delivering nothing.
+      const qty = (line.verifiedQuantity || 0) > 0
+        ? line.verifiedQuantity!
+        : (line.pickedQuantity || 0) > 0
+          ? line.pickedQuantity!
+          : line.quantity;
       if (qty <= 0) continue;
 
       const buyerProduct = await prisma.product.findFirst({
@@ -1006,45 +1323,99 @@ export async function confirmDelivery(input: { orderId: string; pharmacyId: stri
         continue;
       }
 
-      // Approximate expiry from seller's earliest valid batch; fall back to 1 year
-      const sellerBatch = await prisma.batch.findFirst({
-        where: {
-          pharmacyId: order.sellerPharmacyId,
-          productId: line.productId,
-          quantityRemaining: { gt: 0 },
-          expiryDate: { gt: new Date() },
-        },
-        orderBy: { expiryDate: 'asc' },
-        select: { expiryDate: true },
-      });
-      const expiryDate = sellerBatch?.expiryDate ?? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
-      const batchNumber = `B2B-${order.orderNumber}-${line.productId.slice(-4).toUpperCase()}`;
-
+      // FEFO-allocate the delivered quantity across the seller's real batches:
+      // decrement seller stock (goods physically left) and mirror each consumed
+      // batch on the buyer side with its true batch number and expiry date.
+      // Generous timeout: many sequential statements against a remote DB.
       await prisma.$transaction(async (tx) => {
-        const batch = await tx.batch.create({
-          data: {
-            productId: buyerProduct.id,
-            pharmacyId: buyerPharmacyId,
-            batchNumber,
-            expiryDate,
-            quantityRemaining: qty,
-            purchasePrice: line.unitPrice,
+        const sellerBatches = await tx.batch.findMany({
+          where: {
+            pharmacyId: order.sellerPharmacyId,
+            productId: line.productId,
+            quantityRemaining: { gt: 0 },
+            expiryDate: { gt: new Date() },
           },
+          orderBy: { expiryDate: 'asc' },
         });
-        await tx.stockMovement.create({
-          data: {
-            pharmacyId: buyerPharmacyId,
-            productId: buyerProduct.id,
-            batchId: batch.id,
-            userId: input.userId,
-            type: 'RECEIVED',
-            quantity: qty,
-            notes: `B2B delivery — order ${order.orderNumber}`,
-          },
-        });
-      });
+
+        let remaining = qty;
+        const allocations: Array<{ batchNumber: string; expiryDate: Date; quantity: number }> = [];
+
+        for (const sellerBatch of sellerBatches) {
+          if (remaining <= 0) break;
+          const take = Math.min(remaining, sellerBatch.quantityRemaining);
+          await tx.batch.update({
+            where: { id: sellerBatch.id },
+            data: { quantityRemaining: { decrement: take } },
+          });
+          await tx.stockMovement.create({
+            data: {
+              pharmacyId: order.sellerPharmacyId,
+              productId: line.productId,
+              batchId: sellerBatch.id,
+              userId: input.userId,
+              type: 'TRANSFERRED',
+              quantity: take,
+              notes: `B2B dispatch — order ${order.orderNumber}`,
+            },
+          });
+          allocations.push({ batchNumber: sellerBatch.batchNumber, expiryDate: sellerBatch.expiryDate, quantity: take });
+          remaining -= take;
+        }
+
+        // Seller's recorded stock ran out (e.g. sold off-system) but the goods
+        // were physically delivered — still receive them on the buyer side,
+        // under a synthetic batch flagged for manual expiry verification.
+        if (remaining > 0) {
+          allocations.push({
+            batchNumber: `B2B-${order.orderNumber}-${line.productId.slice(-4).toUpperCase()}`,
+            expiryDate: allocations[allocations.length - 1]?.expiryDate ?? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+            quantity: remaining,
+          });
+        }
+
+        for (const allocation of allocations) {
+          const batch = await tx.batch.create({
+            data: {
+              productId: buyerProduct.id,
+              pharmacyId: buyerPharmacyId,
+              batchNumber: allocation.batchNumber,
+              expiryDate: allocation.expiryDate,
+              quantityRemaining: allocation.quantity,
+              purchasePrice: line.unitPrice,
+            },
+          });
+          await tx.stockMovement.create({
+            data: {
+              pharmacyId: buyerPharmacyId,
+              productId: buyerProduct.id,
+              batchId: batch.id,
+              userId: input.userId,
+              type: 'RECEIVED',
+              quantity: allocation.quantity,
+              notes: `B2B delivery — order ${order.orderNumber}, batch ${allocation.batchNumber}`,
+            },
+          });
+        }
+      }, { maxWait: 15_000, timeout: 60_000 });
 
       stockUpdated.push(line.productName);
+    }
+
+    // Physical stock has left the seller — the batch decrement now represents
+    // it, so drop the order's availability reservation to avoid double-counting.
+    await releaseStockReservation(order.id);
+
+    if (stockSkipped.length > 0) {
+      await prisma.notification.create({
+        data: {
+          pharmacyId: buyerPharmacyId,
+          type: 'B2B_STOCK_UPDATE_SKIPPED',
+          title: `${stockSkipped.length} delivered item${stockSkipped.length > 1 ? 's' : ''} not added to your inventory`,
+          body: `No matching product found for: ${stockSkipped.join(', ')}. Create the product${stockSkipped.length > 1 ? 's' : ''} and receive the stock via Stock Intake (order ${order.orderNumber}).`,
+          metadata: { orderId: order.id, orderNumber: order.orderNumber, skippedProducts: stockSkipped },
+        },
+      }).catch(() => undefined);
     }
   }
 

@@ -127,8 +127,26 @@ export interface WholesaleOrder {
   deliveryNote?: string | null;
   schemeSavingsTzs?: number;
   appliedSchemeIds?: string[];
+  backorders?: WholesaleBackorder[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface WholesaleBackorder {
+  id: string;
+  orderId: string;
+  orderNumber: string;
+  sellerPharmacyId: string;
+  buyerPharmacyId: string;
+  productId: string;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  status: 'OPEN' | 'FULFILLED' | 'CANCELLED';
+  fulfilledOrderId: string | null;
+  fulfilledAt: string | null;
+  createdAt: string;
+  counterpartName?: string | null;
 }
 
 export interface VatInvoice {

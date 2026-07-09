@@ -24,6 +24,7 @@ export const BuyerOrderPage: React.FC = () => {
   const [sellerFilter, setSellerFilter] = React.useState('');
   const [cart, setCart] = React.useState<Map<string, CartItem>>(new Map());
   const [notes, setNotes] = React.useState('');
+  const [allowPartial, setAllowPartial] = React.useState(true);
   const [results, setResults] = React.useState<SubmitResult[] | null>(null);
 
   const catalogueQuery = useQuery({
@@ -81,6 +82,7 @@ export const BuyerOrderPage: React.FC = () => {
           api.post('/b2b/orders', {
             sellerPharmacyId,
             notes: notes || undefined,
+            allowPartialFulfilment: allowPartial,
             items: lines.map((l) => ({ productId: l.productId, quantity: l.qty })),
           }).then((r) => r.data.data as WholesaleOrder)
         )
@@ -159,6 +161,18 @@ export const BuyerOrderPage: React.FC = () => {
                     <span>Total</span>
                     <span>Tsh {r.order!.totalAmount.toLocaleString()}</span>
                   </div>
+                  {(r.order!.backorders ?? []).length > 0 && (
+                    <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
+                      <p className="text-xs font-semibold text-amber-800">Backordered — supplier short on stock</p>
+                      <div className="mt-1.5 space-y-1">
+                        {r.order!.backorders!.map((backorder) => (
+                          <p key={backorder.id} className="text-xs text-amber-800">
+                            {backorder.productName} × {backorder.quantity} — will ship when restocked
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
 
@@ -327,6 +341,20 @@ export const BuyerOrderPage: React.FC = () => {
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                 />
+
+                <label className="flex items-start gap-2 rounded-xl border border-[#D6F0E8] bg-[#F7FCFA] p-3">
+                  <input
+                    type="checkbox"
+                    checked={allowPartial}
+                    onChange={(e) => setAllowPartial(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 accent-[#1A6B5C]"
+                  />
+                  <span className="text-xs text-[#0D4035]">
+                    <span className="font-semibold">Accept partial delivery.</span>{' '}
+                    If the supplier is short on stock, ship what's available now and backorder the rest.
+                    Unchecked, short orders are rejected outright.
+                  </span>
+                </label>
 
                 <Button
                   className="w-full"

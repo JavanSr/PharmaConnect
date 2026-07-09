@@ -8,10 +8,11 @@ import {
   createUser,
   createWholesaleCatalogue,
   disconnectTestDb,
+  linkPharmacies,
   login,
 } from './helpers';
 
-describe.skip('b2b, reports, and vfd flows', () => {
+describe('b2b, reports, and vfd flows', () => {
   afterAll(async () => {
     await disconnectTestDb();
   });
@@ -26,6 +27,9 @@ describe.skip('b2b, reports, and vfd flows', () => {
     const wcs = await createUser({ pharmacyId: sellerPharmacy.id, role: 'WHOLESALE_COUNTER_STAFF', password: 'WcsPass!123' });
     const sellerProduct = await createProductAndBatch({ pharmacyId: sellerPharmacy.id, userId: seller.user.id, sellingPrice: 1000 });
     await createWholesaleCatalogue({ pharmacyId: sellerPharmacy.id, productId: sellerProduct.product.id, price: 1000 });
+    // Links must exist so the link gate lets the deeper checks fire
+    await linkPharmacies({ retailPharmacyId: buyerPharmacy.id, wholesalePharmacyId: sellerPharmacy.id, requestedBy: buyer.user.id });
+    await linkPharmacies({ retailPharmacyId: buyerPharmacy.id, wholesalePharmacyId: nonPlatformSeller.id, requestedBy: buyer.user.id });
 
     const buyerAuth = await login(buyer.user.email, buyer.password);
     const sellerAuth = await login(seller.user.email, seller.password);

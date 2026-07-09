@@ -9,11 +9,14 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 import {
   ORDER_STATUSES,
+  cancelBackorder,
   confirmDelivery,
   createDispute,
   createOrder,
   dissolvePharmacyLink,
+  fulfilBackorder,
   getOrder,
+  listBackorders,
   getDemandInsights,
   getPharmacyLink,
   hasActiveLink,
@@ -183,6 +186,7 @@ b2bRouter.post('/orders', requireRole('OWNER', 'PHARMACIST_IN_CHARGE', 'WHOLESAL
     const payload = z.object({
       sellerPharmacyId: z.string(),
       notes: z.string().optional(),
+      allowPartialFulfilment: z.boolean().optional(),
       items: z.array(z.object({
         productId: z.string(),
         quantity: z.coerce.number().int().positive(),
@@ -212,6 +216,7 @@ b2bRouter.post('/orders', requireRole('OWNER', 'PHARMACIST_IN_CHARGE', 'WHOLESAL
         sellerPharmacyId: payload.sellerPharmacyId,
         notes: payload.notes,
         items: payload.items,
+        allowPartialFulfilment: payload.allowPartialFulfilment,
       }),
     });
   } catch (error) {
@@ -242,6 +247,36 @@ b2bRouter.post('/orders/manual', requireRole(...sellerOnlyRoles), async (req: Au
         items: payload.items,
       }),
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ─── Backorders (partial-fulfilment shortfall queue) ─────────────────────────
+
+b2bRouter.get('/backorders', async (req: AuthRequest, res, next) => {
+  try {
+    const query = z.object({
+      side: z.enum(['seller', 'buyer']).default('buyer'),
+      status: z.enum(['OPEN', 'FULFILLED', 'CANCELLED']).optional(),
+    }).parse(req.query);
+    res.json({ data: await listBackorders({ pharmacyId: pid(req), side: query.side, status: query.status }) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+b2bRouter.patch('/backorders/:id/cancel', requireRole('OWNER', 'PHARMACIST_IN_CHARGE', 'WHOLESALE_MANAGER', 'SUPER_ADMIN'), async (req: AuthRequest, res, next) => {
+  try {
+    res.json({ data: await cancelBackorder({ backorderId: req.params.id, pharmacyId: pid(req), userId: uid(req) }) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+b2bRouter.post('/backorders/:id/fulfil', requireRole(...sellerOnlyRoles), async (req: AuthRequest, res, next) => {
+  try {
+    res.status(201).json({ data: await fulfilBackorder({ backorderId: req.params.id, sellerPharmacyId: pid(req), userId: uid(req) }) });
   } catch (error) {
     next(error);
   }
@@ -797,7 +832,7 @@ b2bRouter.post('/orders/:id/verify-items', requireRole('WHOLESALE_COUNTER_STAFF'
   }
 });
 
-b2bRouter.patch('/orders/:id/confirm-delivery', requireRole('WHOLESALE_COUNTER_STAFF', 'WHOLESALE_MANAGER', 'DELIVERY_STAFF', 'SUPER_ADMIN'), async (req: AuthRequest, res, next) => {
+b2bRouter.patch('/orders/:id/confirm-delivery', requireRole('OWNER', 'WHOLESALE_COUNTER_STAFF', 'WHOLESALE_MANAGER', 'DELIVERY_STAFF', 'SUPER_ADMIN'), async (req: AuthRequest, res, next) => {
   try {
     res.json({ data: await confirmDelivery({ orderId: req.params.id, pharmacyId: pid(req), userId: req.user!.userId }) });
   } catch (error) {

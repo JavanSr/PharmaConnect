@@ -997,10 +997,32 @@ existing implementations):
 - **Discount schemes** — `FREE_GOODS`, `PERCENTAGE_DISCOUNT`, `FIXED_DISCOUNT`
   scheme types with `WholesaleSchemesPage.tsx`.
 - **Buyer auto stock update on delivery confirmation** — `confirmDelivery()` in
-  `b2b.service.ts` creates buyer `Batch` + `StockMovement` rows. Known
-  limitation: matches buyer products by case-insensitive name (skipped lines
-  reported in `stockSkipped`) and approximates expiry from the seller's earliest
-  batch — carrying real batch data on order lines is a follow-up.
+  `b2b.service.ts` FEFO-allocates the delivered quantity across the seller's
+  real batches: decrements seller stock (`TRANSFERRED` movements), mirrors each
+  consumed batch on the buyer side with its true batch number and expiry date,
+  and releases the order's stock reservation. Buyer products are matched by
+  case-insensitive name; unmatched lines are reported in `stockSkipped` and
+  raise a `B2B_STOCK_UPDATE_SKIPPED` in-app notification telling the buyer to
+  create the product and receive via Stock Intake.
+- **Partial fulfilment & backorders** — `POST /b2b/orders` accepts
+  `allowPartialFulfilment: true`: lines are clamped to available stock and the
+  shortfall lands in `b2b_backorders` (a real Prisma model, `B2bBackorder`).
+  Queue endpoints: `GET /b2b/backorders?side=seller|buyer`,
+  `PATCH /b2b/backorders/:id/cancel`, `POST /b2b/backorders/:id/fulfil`
+  (creates a follow-up order; MOQ waived). Stock intake (`receiveBatch`)
+  notifies the seller when a backordered product arrives. Buyer UI: checkbox on
+  `BuyerOrderPage`; seller UI: queue panel on `WholesaleDashboardPage`.
+  Tests: `tests/b2b-backorders.test.ts`.
+- **Suspicious Order Monitoring (SOM)** — `flagSuspiciousControlledOrder()` in
+  `b2b.service.ts` runs on every B2B order: CONTROLLED/NARCOTIC lines above
+  max(`SOM_CONTROLLED_QTY_THRESHOLD` env, default 100; 3× the product's 90-day
+  average at that seller) raise a `SUSPICIOUS_ORDER_ALERT` in-app notification
+  to the seller. Alert-only — never blocks the order.
+- **Payment terms & overdue receivables** — `listReceivablesAging` joins
+  `client_credit_limits.payment_terms_days` (default net-30) for per-invoice
+  `dueDate`/`isOverdue`/`daysOverdue`, and nets `wholesale_payments` (linked by
+  `invoice_id`) against invoices. Collections page lists open invoices and can
+  link payments to them.
 - **Supplier purchase orders** with AI delivery-note extraction
   (`/b2b/purchase-orders/*`), **wholesale payments/collections**
   (`/b2b/payments`, `WholesaleCollectionsPage.tsx`), **delivery manifests**,
@@ -1010,30 +1032,24 @@ The following features are **not yet built** and are candidates for Phase 2. The
 
 | Feature | Current Status | Phase 2 Rationale | Complexity |
 |---------|---|---|---|
-| **Partial Fulfilment & Backorders** | Order creation exists; ship-what-you-have logic missing | Distributors run out of stock mid-order; need to ship available items and queue the rest. Backorder queue must be visible to both sides and auto-fulfilled when stock arrives. | Medium |
 | **Multi-Warehouse Stock Consolidation** | Stock is pharmacy-level only; no warehouse model | Distributors have multiple physical locations. Need unified stock view before committing to buyer order, and ability to pull from any warehouse. | High |
-| **Payment Terms & Aging** | `payment_terms_days` stored on credit limits; aging buckets exist; no due-date calculation or overdue flagging | Buyers need net-30, net-60, net-90 terms. System must auto-calculate payment due date from `payment_terms_days` and flag overdue invoices. | Medium |
 | **Wholesale Licence Management** | Compliance tracks retail licences only | Wholesalers have separate dealer licences. System must track expiry and warn before license lapses. | Low |
-| **Suspicious Order Monitoring (SOM)** | Not implemented | Regulators require flagging of unusually large controlled-substance orders. System must alert if order quantity > threshold for that product. | Medium |
 | **Stock Movement Reports** | Raw audit log exists; no formatted reports | Warehouse managers and regulators need stock in/out by product, by warehouse, by time period. Need exportable format (CSV/PDF). | Low |
 | **Lot/Batch Traceability Audit Trail** | Batch data exists; no formal regulatory report | Regulator requests: "Show me all batches of this product from supplier X to dispenser Y." System must generate on demand. | Medium |
-| **Controlled Substance Dispensing Logs (Wholesale)** | Exists for retail only | Wholesalers distributing controlled items must log dispatch to each buyer. Separate from retail controlled register. | Medium |
+| **Controlled Substance Dispensing Logs (Wholesale)** | Retail register exists; SOM alerts exist; no formal wholesale dispatch log | Wholesalers distributing controlled items must log dispatch to each buyer. Separate from retail controlled register. | Medium |
 
 ### Wholesale Phase 2 Implementation Priority
 
-**High impact, medium effort (do first):**
-1. Partial fulfilment & backorders — unblocks real-world order scenarios
-2. Multi-warehouse consolidation — enabler for distributor use case
-3. Payment terms & aging — credit risk visibility for wholesalers
+**High impact (do first):**
+1. Multi-warehouse consolidation — enabler for distributor use case
 
 **Medium impact, lower effort (quick wins):**
-4. Suspicious order monitoring — compliance requirement
-5. Stock movement reports — regulatory audit readiness
+2. Stock movement reports — regulatory audit readiness
 
 **Lower priority (Phase 2.5+):**
-6. Wholesale licence management — only for multi-territory expansion
-7. Lot traceability report — rarely requested; batch data already exists for manual audit
-8. Controlled substance dispatch log (wholesale) — pending real controlled-item wholesale volume
+3. Wholesale licence management — only for multi-territory expansion
+4. Lot traceability report — rarely requested; batch data already exists for manual audit
+5. Controlled substance dispatch log (wholesale) — pending real controlled-item wholesale volume
 
 ---
 

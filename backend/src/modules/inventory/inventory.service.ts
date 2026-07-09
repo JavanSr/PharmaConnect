@@ -5,6 +5,7 @@ import { prisma } from '../../lib/prisma';
 import { withPrismaRetry } from '../../lib/prisma-retry';
 import { clampLocalTimestamp } from '../../lib/timestamps';
 import { Prisma, type MovementType } from '@prisma/client';
+import { notifyFulfillableBackorders } from '../b2b/b2b.service';
 
 type ProductWriteInput = {
   name: string;
@@ -1662,7 +1663,7 @@ export async function receiveBatch(
     localTimestamp?: string;
   },
 ) {
-  return withPrismaRetry(() => prisma.$transaction(async (tx) => {
+  const batch = await withPrismaRetry(() => prisma.$transaction(async (tx) => {
     const supplierId = data.supplierId?.trim() || undefined;
 
     const product = await tx.product.findFirst({
@@ -1729,6 +1730,11 @@ export async function receiveBatch(
 
     return batch;
   }));
+
+  // Wholesale sellers with open backorders on this product get a heads-up.
+  void notifyFulfillableBackorders(pharmacyId, data.productId);
+
+  return batch;
 }
 
 export async function listMovements(

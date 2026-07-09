@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertCircle,
   ArrowRight,
@@ -10,13 +10,17 @@ import {
   CreditCard,
   FileText,
   Package,
+  PackagePlus,
   TrendingDown,
   TrendingUp,
 } from 'lucide-react';
 import { api } from '@/lib/api';
+import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { useNotificationStore } from '@/stores/notificationStore';
 import type {
   VatInvoice,
+  WholesaleBackorder,
   WholesaleCatalogueItem,
   WholesaleCreditLimit,
   WholesaleDemandInsights,
@@ -48,6 +52,8 @@ function fmt(iso: string) {
 }
 
 export const WholesaleDashboardPage: React.FC = () => {
+  const toast = useNotificationStore((s) => s.toast);
+  const queryClient = useQueryClient();
   const catalogueQuery = useQuery({
     queryKey: ['wholesale-catalogue'],
     queryFn: () => api.get('/b2b/catalogue').then((r) => r.data.data as WholesaleCatalogueItem[]),
@@ -71,6 +77,22 @@ export const WholesaleDashboardPage: React.FC = () => {
   const demandInsightsQuery = useQuery({
     queryKey: ['wholesale-demand-insights'],
     queryFn: () => api.get('/b2b/demand-insights').then((r) => r.data.data as WholesaleDemandInsights),
+  });
+  const backordersQuery = useQuery({
+    queryKey: ['wholesale-backorders'],
+    queryFn: () => api.get('/b2b/backorders', { params: { side: 'seller', status: 'OPEN' } }).then((r) => r.data.data as WholesaleBackorder[]),
+  });
+  const fulfilBackorderMutation = useMutation({
+    mutationFn: (backorderId: string) => api.post(`/b2b/backorders/${backorderId}/fulfil`),
+    onSuccess: () => {
+      toast.success('Backorder placed as a new order');
+      queryClient.invalidateQueries({ queryKey: ['wholesale-backorders'] });
+      queryClient.invalidateQueries({ queryKey: ['wholesale-orders'] });
+    },
+    onError: (error: any) => {
+      const code = error?.response?.data?.error;
+      toast.error(code === 'INSUFFICIENT_STOCK' ? 'Still not enough stock to fulfil this backorder' : code ?? 'Could not fulfil backorder');
+    },
   });
 
   const hasCatalogue = (catalogueQuery.data?.length ?? 0) > 0;
@@ -326,6 +348,42 @@ export const WholesaleDashboardPage: React.FC = () => {
                 </div>
               )}
             </Card>
+
+            {/* Open backorders */}
+            {(backordersQuery.data ?? []).length > 0 && (
+              <Card header={
+                <div className="flex items-center gap-2">
+                  <PackagePlus size={16} className="text-amber-600" />
+                  <h2 className="text-base font-semibold text-[#0D4035]">Backorders awaiting stock</h2>
+                </div>
+              }>
+                <div className="space-y-2">
+                  {(backordersQuery.data ?? []).map((backorder) => (
+                    <div key={backorder.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50/50 px-3 py-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-xs font-semibold text-[#0D4035]">
+                          {backorder.productName} × {backorder.quantity}
+                        </p>
+                        <p className="text-[10px] text-[#64748B]">
+                          {backorder.counterpartName ?? 'Buyer'} · order {backorder.orderNumber} · {fmt(backorder.createdAt)}
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => fulfilBackorderMutation.mutate(backorder.id)}
+                        loading={fulfilBackorderMutation.isPending}
+                      >
+                        Fulfil now
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-2 text-[10px] text-[#94A3B8]">
+                  Fulfilling creates a new order for the outstanding quantity. You'll be notified when stock intake covers a backordered product.
+                </p>
+              </Card>
+            )}
 
             {/* In-progress orders */}
             <Card header={
