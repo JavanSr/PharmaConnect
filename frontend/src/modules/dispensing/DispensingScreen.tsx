@@ -47,7 +47,8 @@ import { useNotificationStore } from '@/stores/notificationStore';
 import { usePaymentMethodStore } from '@/stores/paymentMethodStore';
 import { usePharmacyStore } from '@/stores/pharmacyStore';
 import type { PaymentMethod, Product } from '@/types';
-import type { DispensingCartItem, DispensingReceipt, SafetyReviewResponse, SafetySessionPayload } from './types';
+import type { DispensingCartItem, DispensingReceipt, SafetyReviewResponse, SafetySessionPayload, StewardshipIndication } from './types';
+import { STEWARDSHIP_INDICATION_OPTIONS } from './types';
 
 const BarcodeScanner = lazy(() => import('@/components/BarcodeScanner').then((module) => ({ default: module.BarcodeScanner })));
 const DoseCalculator = lazy(() => import('./DoseCalculator').then((module) => ({ default: module.DoseCalculator })));
@@ -426,6 +427,7 @@ type CheckoutPayload = {
     productId: string;
     quantity: number;
     unitPrice: number;
+    indication?: StewardshipIndication;
   }>;
 };
 
@@ -481,6 +483,115 @@ const AwarDot: React.FC<{ awarClass?: Product['awarClass'] }> = ({ awarClass }) 
 
   return (
     <span aria-hidden="true" className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${colorClass}`} />
+  );
+};
+
+// Optional, non-blocking AMR stewardship indication picker — only rendered for
+// AWaRe WATCH/RESERVE antibiotics. Leaving it blank is the default and does not
+// affect checkout in any way; it just means no indication was recorded.
+const IndicationPicker: React.FC<{
+  value: StewardshipIndication | undefined;
+  onChange: (value: StewardshipIndication | undefined) => void;
+}> = ({ value, onChange }) => (
+  <select
+    value={value ?? ''}
+    onChange={(e) => onChange((e.target.value || undefined) as StewardshipIndication | undefined)}
+    className="h-7 rounded-md border border-[#E2EDE8] bg-white px-2 text-[11px] text-[#374151] outline-none focus:border-[#1A6B5C]"
+  >
+    <option value="">Indication? (optional)</option>
+    {STEWARDSHIP_INDICATION_OPTIONS.map((opt) => (
+      <option key={opt.value} value={opt.value}>{opt.label}</option>
+    ))}
+  </select>
+);
+
+// Non-blocking "did you mean" suggestion — fetched only once an indication is
+// selected. Renders nothing while loading or when no reviewed alternative
+// exists, so the common case (no match, or indication left blank) has zero
+// visual footprint.
+const StewardshipHint: React.FC<{ genericName: string; indication: StewardshipIndication }> = ({ genericName, indication }) => {
+  const [dismissed, setDismissed] = useState(false);
+  const { data } = useQuery({
+    queryKey: ['stewardship-suggestion', genericName, indication],
+    queryFn: () =>
+      api
+        .get('/patient-safety/stewardship-suggestion', { params: { genericName, indication } })
+        .then((r) => r.data.data as { suggestedGenericName: string; rationale: string; sourceCitation: string } | null),
+    staleTime: 10 * 60_000,
+  });
+
+  useEffect(() => {
+    setDismissed(false);
+  }, [genericName, indication]);
+
+  if (!data || dismissed) {
+    return null;
+  }
+
+  return (
+    <div className="mt-1.5 flex items-start gap-2 rounded-lg bg-[#EDF7F3] px-2.5 py-1.5 text-[11px] text-[#145748]">
+      <span className="flex-1">
+        Consider <span className="font-semibold">{data.suggestedGenericName}</span> (Access) — {data.rationale} Per {data.sourceCitation}.
+      </span>
+      <button
+        type="button"
+        onClick={() => setDismissed(true)}
+        className="shrink-0 text-[#1A6B5C] hover:text-[#0D4035]"
+        aria-label="Dismiss suggestion"
+      >
+        <X size={12} />
+      </button>
+    </div>
+  );
+};
+
+interface StockoutAlternative {
+  suggestedGenericName: string;
+  rationale: string;
+  sourceCitation: string;
+  products: Array<{ id: string; name: string; currentStock: number }>;
+}
+
+// Shown when a search match has zero stock. Reviewed, in-stock alternatives
+// only — see getStockoutAlternatives() on the backend. Renders nothing while
+// loading or when no reviewed alternative exists, so most out-of-stock
+// searches show just the "out of stock" line with no extra noise.
+const StockoutAlternatives: React.FC<{ genericName: string; onPick: (productId: string) => void }> = ({ genericName, onPick }) => {
+  const { data } = useQuery({
+    queryKey: ['stockout-alternatives', genericName],
+    queryFn: () =>
+      api
+        .get('/inventory/products/stockout-alternatives', { params: { genericName } })
+        .then((r) => r.data.data as StockoutAlternative[]),
+    staleTime: 60_000,
+  });
+
+  if (!data || data.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="border-t border-[#F0F5F3] bg-[#F7FBF8] px-4 py-2.5">
+      {data.map((alt) => (
+        <div key={alt.suggestedGenericName} className="mb-1.5 last:mb-0">
+          <p className="text-[11px] text-[#516965]">
+            Consider <span className="font-semibold text-[#0D4035]">{alt.suggestedGenericName}</span> — {alt.rationale}
+          </p>
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            {alt.products.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => onPick(p.id)}
+                className="rounded-full border border-[#AFDFD3] bg-white px-2.5 py-1 text-[11px] font-medium text-[#1A6B5C] hover:bg-[#EDF7F3]"
+              >
+                {p.name} · {p.currentStock} in stock
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
   );
 };
 
@@ -709,6 +820,22 @@ export const DispensingScreen: React.FC = () => {
     // allProductsLoaded → startup fetch landed; stockSnapshotVersion → 5s live sync updated stock
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [immediateDrugSearch, allProductsLoaded, stockSnapshotVersion]);
+
+  // Products that match the search but have zero stock — hidden from
+  // visibleProducts above. Surfaced separately with "out of stock" styling
+  // plus any reviewed, in-stock alternative, instead of just disappearing
+  // from the search with no explanation.
+  const outOfStockMatches = useMemo(() => {
+    if (visibleProducts.length > 0) return [];
+    const pool = allProductsRef.current;
+    const q = immediateDrugSearch.trim();
+    if (!q || pool.length === 0) return [];
+    return pool
+      .filter((product) => productMatchesSearch(product, q))
+      .filter((product) => (product.currentStock ?? 0) === 0)
+      .slice(0, 5);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [immediateDrugSearch, allProductsLoaded, stockSnapshotVersion, visibleProducts.length]);
   const serverPaymentMethods = (paymentMethodsQuery.data?.data?.methods ?? []) as DispensingPaymentMethodOption[];
   const availablePaymentMethods =
     serverPaymentMethods.length > 0
@@ -810,6 +937,7 @@ export const DispensingScreen: React.FC = () => {
       productId: item.product.id,
       quantity: item.quantity,
       unitPrice: item.unitPrice,
+      indication: item.indication,
     })),
   });
 
@@ -1611,7 +1739,38 @@ export const DispensingScreen: React.FC = () => {
                       </button>
                     ))}
                   {allProductsLoaded && visibleProducts.length === 0 && !isProductSuggestionsFetching && (
-                    <div className="px-4 py-3 text-sm text-[#64748B]">No matching medicine found</div>
+                    outOfStockMatches.length > 0 ? (
+                      <div>
+                        {outOfStockMatches.map((product) => (
+                          <div key={product.id} className="border-b border-[#D6F0E8] last:border-b-0">
+                            <div className="px-4 py-2.5">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="text-sm font-semibold text-[#0D4035]">{product.genericName || product.name}</p>
+                                <span className="rounded-full bg-[#FEF2F2] px-2 py-0.5 text-[10px] font-semibold text-[#DC2626]">
+                                  Out of stock
+                                </span>
+                              </div>
+                              <p className="mt-0.5 text-xs text-[#64748B]">{[product.name, product.strength].filter(Boolean).join(' | ')}</p>
+                            </div>
+                            <StockoutAlternatives
+                              genericName={product.genericName || product.name}
+                              onPick={(productId) => {
+                                api.get(`/inventory/products/${productId}`).then(async (r) => {
+                                  if (r.data?.data && !Array.isArray(r.data.data)) {
+                                    const fresh = await applyInventoryDeltaToProduct(r.data.data as Product);
+                                    setSelectedDrug(fresh);
+                                    setDrugSearch('');
+                                    setShowDrugDropdown(false);
+                                  }
+                                }).catch(() => toast.error('Could not load that product'));
+                              }}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="px-4 py-3 text-sm text-[#64748B]">No matching medicine found</div>
+                    )
                   )}
                 </div>
               )}
@@ -1750,6 +1909,18 @@ export const DispensingScreen: React.FC = () => {
                             >
                               <Info size={13} />
                             </button>
+                            {(p.awarClass === 'WATCH' || p.awarClass === 'RESERVE') && (
+                              <IndicationPicker
+                                value={item.indication}
+                                onChange={(indication) =>
+                                  setCartItems((current) =>
+                                    current.map((cartItem) =>
+                                      cartItem.id === item.id ? { ...cartItem, indication } : cartItem,
+                                    ),
+                                  )
+                                }
+                              />
+                            )}
                             {(isModerate || isMinor) && (
                               <button
                                 type="button"
@@ -1772,6 +1943,9 @@ export const DispensingScreen: React.FC = () => {
                               </button>
                             )}
                           </div>
+                          {(p.awarClass === 'WATCH' || p.awarClass === 'RESERVE') && item.indication && (p.genericName || p.name) && (
+                            <StewardshipHint genericName={p.genericName || p.name} indication={item.indication} />
+                          )}
                           {isInfoExpanded && (
                             <div className="mt-2 rounded-lg bg-[#EDF7F3] px-3 py-2.5 text-xs text-[#374151] space-y-1.5">
                               {/* Plain-language indication */}

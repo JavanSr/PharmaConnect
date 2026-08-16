@@ -12,7 +12,8 @@ import { enforceTrialRestrictions } from '../../middleware/trial';
 import { picPinLimiter } from '../../middleware/pic-pin';
 import { prisma } from '../../lib/prisma';
 import { clampLocalTimestamp } from '../../lib/timestamps';
-import { recordAnonymousSafetyEvents, sessionReview } from '../patient-safety/patient-safety.service';
+import { recordAmrIndicationEvents, recordAnonymousSafetyEvents, sessionReview } from '../patient-safety/patient-safety.service';
+import { enrichProductsWithAwarClass } from '../inventory/inventory.service';
 import { ensurePaymentMethodConfig } from '../settings/payment-method-config';
 import { trackFeatureTelemetry } from '../telemetry/feature-telemetry.service';
 
@@ -80,6 +81,9 @@ const lineItemSchema = z.object({
   quantity: z.number().int().positive(),
   unitPrice: z.number().nonnegative(),
   dose: z.string().trim().max(200).optional(),
+  // Optional AMR stewardship indication — only meaningful for AWaRe WATCH/RESERVE
+  // antibiotics, never required, never blocks checkout. See patient-safety.service.ts.
+  indication: z.enum(['URTI', 'PNEUMONIA', 'UTI', 'STI', 'OTHER']).optional(),
 });
 
 const safetyContextSchema = z.object({
@@ -407,6 +411,14 @@ async function persistAnonymousSafetyEvents(input: Parameters<typeof recordAnony
   }
 }
 
+async function persistAmrIndicationEvents(input: Parameters<typeof recordAmrIndicationEvents>[0]) {
+  try {
+    await recordAmrIndicationEvents(input);
+  } catch (error) {
+    console.warn('Failed to record AMR indication events', error);
+  }
+}
+
 async function completeDispensingCheckout(input: {
   payload: CheckoutPayload;
   pharmacyId: string;
@@ -491,7 +503,7 @@ async function completeDispensingCheckout(input: {
     where: { id: pharmacyId },
     select: { vfdEnabled: true },
   });
-  const products = await prisma.product.findMany({
+  const productsRaw = await prisma.product.findMany({
     where: {
       pharmacyId,
       id: { in: payload.items.map((item) => item.productId) },
@@ -502,6 +514,7 @@ async function completeDispensingCheckout(input: {
       genericName: true,
     },
   });
+  const products = await enrichProductsWithAwarClass(productsRaw);
   const productMap = new Map(products.map((product) => [product.id, product]));
 
   const checkoutResult = await prisma.$transaction(async (tx) => {
@@ -736,6 +749,22 @@ async function completeDispensingCheckout(input: {
     overrideEntered: Boolean(payload.override),
   });
 
+  await persistAmrIndicationEvents({
+    pharmacyId,
+    userId: currentUserId,
+    dispensingEventId: checkoutResult.event.id,
+    referenceNumber,
+    items: payload.items.map((item) => {
+      const product = productMap.get(item.productId);
+      return {
+        genericName: product?.genericName ?? null,
+        productName: product?.name ?? 'Unknown product',
+        awarClass: product?.awarClass ?? null,
+        indication: item.indication ?? null,
+      };
+    }),
+  });
+
   await prisma.$executeRaw(Prisma.sql`
     INSERT INTO "audit_log" ("pharmacy_id", "table_name", "record_id", "action", "acted_by", "new_data")
     VALUES (
@@ -839,7 +868,7 @@ dispensingRouter.post('/checkout', requirePermission('dispensing.access'), uploa
       where: { id: pharmacyId },
       select: { vfdEnabled: true },
     });
-    const products = await prisma.product.findMany({
+    const productsRaw = await prisma.product.findMany({
       where: {
         pharmacyId,
         id: { in: payload.items.map((item) => item.productId) },
@@ -850,6 +879,7 @@ dispensingRouter.post('/checkout', requirePermission('dispensing.access'), uploa
         genericName: true,
       },
     });
+    const products = await enrichProductsWithAwarClass(productsRaw);
     const productMap = new Map(products.map((product) => [product.id, product]));
     // Prescription photo upload must happen before the transaction — it's
     // external I/O and must not hold a DB connection open while it runs.
@@ -1054,6 +1084,22 @@ dispensingRouter.post('/checkout', requirePermission('dispensing.access'), uploa
     context: safetyContext,
     source: 'DISPENSING_CHECKOUT',
     overrideEntered: Boolean(payload.override),
+  });
+
+  await persistAmrIndicationEvents({
+    pharmacyId,
+    userId: currentUserId,
+    dispensingEventId: checkoutResult.event.id,
+    referenceNumber,
+    items: payload.items.map((item) => {
+      const product = productMap.get(item.productId);
+      return {
+        genericName: product?.genericName ?? null,
+        productName: product?.name ?? 'Unknown product',
+        awarClass: product?.awarClass ?? null,
+        indication: item.indication ?? null,
+      };
+    }),
   });
 
   await prisma.$executeRaw(Prisma.sql`

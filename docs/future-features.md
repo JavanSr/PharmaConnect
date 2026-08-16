@@ -23,16 +23,16 @@ Never delete entries — mark them SHIPPED or CANCELLED with a reason.
 
 ## Regulatory & Compliance
 
-| Feature | Status | Blocker / Dependency | Agreed |
-|---|---|---|---|
-| NHIF Claims Module — full Breeze API submission | PLACEHOLDER | NHIF Breeze API accreditation from NHIF for PharmaConnect | Session 1 |
-| Controlled Substances TMDA Reporting | PLACEHOLDER | TMDA notification and electronic reporting approval | Session 1 |
-| Prescription Management (digital Rx) | PLACEHOLDER | PC + TMDA joint digital prescription framework | Session 1 |
-| UHI / NHIF dispensing data fields (patientNidaId, prescriberId, facilityCode on DispensingItem) | DEFERRED | UHI integration spec from TIRA; add optional fields to dispensing schema before Phase 2 NHIF build | Apr 2026 |
-| EFDMS Protocol 2.1 VFD upgrade | DEFERRED | Current VFD integration must be verified against Protocol 2.1 spec (QR + verification code) before go-live | Apr 2026 |
-| PDPC registration as data controller | DEFERRED | Founder action — register at pdpc.go.tz before scaling paying customers; not a code task | Apr 2026 |
-| Pharmacovigilance — ADR form and TMDA submission | SCHEMA READY · PLACEHOLDER | TMDA electronic ADR reporting system integration; schema and placeholder shipped | Apr 2026 |
-| AWaRe antibiotic classification display | SHIPPED | — | Apr 2026 |
+| Feature                                                                                         | Status                     | Blocker / Dependency                                                                                       | Agreed    |
+| ----------------------------------------------------------------------------------------------- | -------------------------- | ---------------------------------------------------------------------------------------------------------- | --------- |
+| NHIF Claims Module — full Breeze API submission                                                 | PLACEHOLDER                | NHIF Breeze API accreditation from NHIF for PharmaConnect                                                  | Session 1 |
+| Controlled Substances TMDA Reporting                                                            | PLACEHOLDER                | TMDA notification and electronic reporting approval                                                        | Session 1 |
+| Prescription Management (digital Rx)                                                            | PLACEHOLDER                | PC + TMDA joint digital prescription framework                                                             | Session 1 |
+| UHI / NHIF dispensing data fields (patientNidaId, prescriberId, facilityCode on DispensingItem) | DEFERRED                   | UHI integration spec from TIRA; add optional fields to dispensing schema before Phase 2 NHIF build         | Apr 2026  |
+| EFDMS Protocol 2.1 VFD upgrade                                                                  | DEFERRED                   | Current VFD integration must be verified against Protocol 2.1 spec (QR + verification code) before go-live | Apr 2026  |
+| PDPC registration as data controller                                                            | DEFERRED                   | Founder action — register at pdpc.go.tz before scaling paying customers; not a code task                   | Apr 2026  |
+| Pharmacovigilance — ADR form and TMDA submission                                                | SCHEMA READY · PLACEHOLDER | TMDA electronic ADR reporting system integration; schema and placeholder shipped                           | Apr 2026  |
+| AWaRe antibiotic classification display                                                         | SHIPPED                    | —                                                                                                          | Apr 2026  |
 
 ---
 
@@ -67,7 +67,13 @@ Never delete entries — mark them SHIPPED or CANCELLED with a reason.
 
 ## Wholesale
 
-**Decision: Entire wholesale module is DEFERRED. MVP targets retail pharmacies and ADDOs only. Wholesale code exists in the codebase but is not actively sold or maintained as Phase 1 scope. No wholesale development work until at least 20 paying retail pharmacies are live.**
+**Decision superseded Aug 2026: wholesale is live and openly marketed** (see
+CLAUDE.md "Wholesale System" — featured tier on the pricing page, Tsh
+100,000/month, full B2B operations built). The rows below predate that
+decision and are largely stale re: wholesale-as-a-whole; treat CLAUDE.md's
+"Wholesale Phase 2 Roadmap" as the authoritative list of what's shipped vs.
+outstanding in wholesale. Not re-auditing row-by-row here — see new
+monetization rows under Financial & Billing instead.
 
 | Feature | Status | Blocker / Dependency | Agreed |
 |---|---|---|---|
@@ -102,10 +108,13 @@ Never delete entries — mark them SHIPPED or CANCELLED with a reason.
 
 | Feature | Status | Blocker / Dependency | Agreed |
 |---|---|---|---|
-| Payment gateway — M-Pesa and Flutterwave for subscription billing | DEFERRED | Phase 2; manual payment by founder for Phase 1 | Session 1 |
-| Automated subscription renewal and suspension | DEFERRED | Phase 2; depends on payment gateway | Session 1 |
+| Payment gateway — M-Pesa and Flutterwave for subscription billing | SHIPPED | AzamPay MNO checkout live (see CLAUDE.md AzamPay + Subscription modules) | Session 1 |
+| Automated subscription renewal and suspension | SHIPPED | AzamPay callback activates/extends subscription automatically | Session 1 |
 | VAT invoicing for wholesale (VFD-compliant) | DEFERRED | EFDMS Protocol 2.1 integration required first | Apr 2026 |
 | NHIF reimbursement reconciliation | DEFERRED | Requires live NHIF claims module (Phase 2) | Session 1 |
+| Retail freemium / metered-access model — non-paying pharmacies get capped access per feature instead of a hard lock (dispensing/inventory/scanner always free; interaction alerts, stewardship, chat read-only, knowledge, analytics, compliance each capped-then-degraded; forecasting stays fully locked) | DEFERRED | Policy agreed, see CLAUDE.md "Freemium / metered-access model"; metering/degradation enforcement not yet built for any of the listed features | Aug 2026 |
+| Wholesale monetization — transition from flat Tsh 100,000/month subscription to ~1% order-volume commission | DEFERRED | Policy agreed, see CLAUDE.md "Wholesale monetization roadmap"; commission calculation, invoicing-against-volume, and dispute handling not built — billing is flat-fee only today | Aug 2026 |
+| Lapsed/non-paying wholesaler catalogue access — catalogue stays visible to retail buyers, order button disabled, contact-only | DEFERRED | Depends on wholesale commission model above; reuses existing Supplier Discovery / Tier 2 Supplier Portal contact-only pattern rather than new UX | Aug 2026 |
 
 ---
 

@@ -1,6 +1,16 @@
 -- Migration: knowledge_cms_and_chat
 -- Run: npx prisma migrate dev --name knowledge_cms_and_chat
 -- Or apply manually against your Railway/Supabase PostgreSQL database.
+--
+-- SUPERSEDED 2026-08-16 — DO NOT RUN. Investigated after discovering this
+-- file was never actually applied: step 1 (articles.html_content) is already
+-- live in the database via a different path. Steps 2-5 (chat_threads /
+-- chat_messages) built the "Community" feature, which was removed from the
+-- app the same day the gap was found — it shipped with a frontend tab and a
+-- live router, but this table-creation step never ran, so it 500'd on every
+-- use since it was built. Replaced by ChatRoom / ChatRoomMessage (see
+-- 20260816_130000_chat_room_v1), which now lives inside Knowledge Hub.
+-- Left in place as a historical record rather than deleted.
 
 -- 1. Add html_content column to articles (if not already present)
 ALTER TABLE "articles" ADD COLUMN IF NOT EXISTS "html_content" TEXT;

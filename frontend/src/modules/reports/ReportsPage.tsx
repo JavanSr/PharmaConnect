@@ -433,6 +433,32 @@ function SafetyReport() {
           ))}
         </div>
       )}
+      {data && Array.isArray(data.amrStewardship) && data.amrStewardship.length > 0 && (
+        <div className="rounded-2xl border border-[#D6F0E8] bg-white p-5">
+          <p className="text-sm font-semibold text-[#0D4035]">AMR Stewardship</p>
+          <p className="mt-1 text-xs text-[#64748B]">
+            AWaRe WATCH/RESERVE antibiotics dispensed with an indication recorded, last 30 days.
+            Optional field — this is a training signal for the PIC, not a compliance check.
+          </p>
+          <div className="mt-4 space-y-2">
+            {data.amrStewardship.map((row: { name: string; withIndication: number; withoutIndication: number }) => {
+              const total = row.withIndication + row.withoutIndication;
+              const pct = total > 0 ? Math.round((row.withIndication / total) * 100) : 0;
+              return (
+                <div key={row.name} className="flex items-center justify-between gap-3 text-xs">
+                  <span className="min-w-0 flex-1 truncate font-medium text-[#0D4035]">{row.name}</span>
+                  <span className="shrink-0 text-[#64748B]">
+                    {total} sale{total === 1 ? '' : 's'} — {row.withIndication} with indication, {row.withoutIndication} without
+                  </span>
+                  <div className="h-1.5 w-20 shrink-0 rounded-full bg-[#EDF7F3]">
+                    <div className="h-full rounded-full bg-[#1A6B5C]" style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

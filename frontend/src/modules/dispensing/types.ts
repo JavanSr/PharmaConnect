@@ -1,5 +1,15 @@
 import type { PaymentMethod, Product } from '@/types';
 
+export type StewardshipIndication = 'URTI' | 'PNEUMONIA' | 'UTI' | 'STI' | 'OTHER';
+
+export const STEWARDSHIP_INDICATION_OPTIONS: Array<{ value: StewardshipIndication; label: string }> = [
+  { value: 'URTI', label: 'URTI (upper respiratory)' },
+  { value: 'PNEUMONIA', label: 'Pneumonia' },
+  { value: 'UTI', label: 'UTI' },
+  { value: 'STI', label: 'STI' },
+  { value: 'OTHER', label: 'Other' },
+];
+
 export interface DispensingCartItem {
   id: string;
   product: Product;
@@ -7,6 +17,9 @@ export interface DispensingCartItem {
   dose?: string;
   unitPrice: number;
   lineTotal: number;
+  /** Optional AMR stewardship indication — only relevant for AWaRe WATCH/RESERVE
+   *  antibiotics. Never required; leaving it blank does not block checkout. */
+  indication?: StewardshipIndication;
 }
 
 export interface SafetySessionPayload {

@@ -184,6 +184,19 @@ inventoryRouter.get('/products/stock-snapshot', requirePermission('inventory.vie
   }
 });
 
+// Non-blocking stockout alternative lookup — called when a dispenser
+// searches for a product that has zero available stock. Returns [] (not a
+// 404) when no reviewed alternative exists so the frontend can render
+// nothing.
+inventoryRouter.get('/products/stockout-alternatives', requirePermission('inventory.view_products'), async (req: AuthRequest, res, next) => {
+  try {
+    const { genericName } = z.object({ genericName: z.string().min(1) }).parse(req.query);
+    res.json({ data: await svc.getStockoutAlternatives(pid(req), genericName) });
+  } catch (e) {
+    next(e);
+  }
+});
+
 inventoryRouter.get('/products/:id', requirePermission('inventory.view_products'), async (req: AuthRequest, res, next) => {
   try {
     res.json({ data: await svc.getProduct(req.params.id, pid(req)) });

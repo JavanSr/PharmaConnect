@@ -1466,6 +1466,92 @@ export async function recordAnonymousSafetyEvents(input: {
   return prisma.safetyEvent.createMany({ data });
 }
 
+// ─── AMR stewardship (AWaRe indication capture) ────────────────────────────────
+//
+// Optional, non-blocking: a dispenser may record why a WATCH/RESERVE antibiotic
+// was dispensed. If they don't, the sale proceeds exactly as before — there is
+// no gate here, only an opportunity to surface a reviewed Access-tier
+// alternative. See CLAUDE.md "Override model" — same acknowledge-and-proceed
+// philosophy, applied to stewardship instead of interaction/contraindication
+// alerts.
+
+const STEWARDSHIP_INDICATIONS = ['URTI', 'PNEUMONIA', 'UTI', 'STI', 'OTHER'] as const;
+export type StewardshipIndicationValue = (typeof STEWARDSHIP_INDICATIONS)[number];
+
+export function isStewardshipIndication(value: unknown): value is StewardshipIndicationValue {
+  return typeof value === 'string' && (STEWARDSHIP_INDICATIONS as readonly string[]).includes(value);
+}
+
+export async function getStewardshipSuggestion(genericName: string, indication: StewardshipIndicationValue) {
+  const normalized = genericName.trim();
+  if (!normalized) {
+    return null;
+  }
+
+  const suggestion = await prisma.stewardshipSuggestion.findFirst({
+    where: {
+      indication,
+      reviewStatus: 'APPROVED',
+      triggerGenericName: { equals: normalized, mode: 'insensitive' },
+    },
+    orderBy: { updatedAt: 'desc' },
+  });
+
+  if (!suggestion) {
+    return null;
+  }
+
+  return {
+    suggestedGenericName: suggestion.suggestedGenericName,
+    rationale: suggestion.rationale,
+    sourceCitation: suggestion.sourceCitation,
+  };
+}
+
+export async function recordAmrIndicationEvents(input: {
+  pharmacyId: string;
+  userId?: string | null;
+  dispensingEventId?: string | null;
+  referenceNumber?: string | null;
+  items: Array<{
+    genericName: string | null;
+    productName: string;
+    awarClass: string | null;
+    indication?: string | null;
+  }>;
+}) {
+  const watchOrReserve = input.items.filter(
+    (item) => item.awarClass === 'WATCH' || item.awarClass === 'RESERVE',
+  );
+
+  if (watchOrReserve.length === 0) {
+    return { count: 0 };
+  }
+
+  const data: Prisma.SafetyEventCreateManyInput[] = watchOrReserve.map((item) => {
+    const drugName = item.genericName?.trim() || item.productName;
+    return {
+      pharmacyId: input.pharmacyId,
+      userId: input.userId ?? null,
+      dispensingEventId: input.dispensingEventId ?? null,
+      referenceNumber: input.referenceNumber ?? null,
+      eventType: 'AMR_INDICATION_CAPTURED',
+      severity: 'INFO',
+      actionTaken: item.indication ? 'INDICATION_RECORDED' : 'WARNING_SHOWN',
+      drugNames: [drugName],
+      drugClasses: [item.awarClass ?? ''].filter(Boolean),
+      productIds: [],
+      source: 'DISPENSING_CHECKOUT',
+      metadata: {
+        awarClass: item.awarClass,
+        indication: item.indication ?? null,
+      },
+    };
+  });
+
+  return prisma.safetyEvent.createMany({ data });
+}
+
 function parseReportDate(value: string | undefined, fallback: Date): Date {
   if (!value) {
     return fallback;
@@ -1513,6 +1599,7 @@ export async function getSafetyImpactReport(input: SafetyReportDateRange & {
     topDrugs,
     contextFlags,
     officePharmacies,
+    amrStewardshipRows,
   ] = await Promise.all([
     prisma.safetyEvent.count({ where }),
     prisma.safetyEvent.groupBy({
@@ -1570,6 +1657,17 @@ export async function getSafetyImpactReport(input: SafetyReportDateRange & {
           LIMIT 8
         `)
       : Promise.resolve([]),
+    prisma.$queryRaw<Array<{ name: string; withIndication: bigint; withoutIndication: bigint }>>(Prisma.sql`
+      SELECT
+        drug_name AS "name",
+        COUNT(*) FILTER (WHERE ("metadata"->>'indication') IS NOT NULL) AS "withIndication",
+        COUNT(*) FILTER (WHERE ("metadata"->>'indication') IS NULL) AS "withoutIndication"
+      FROM "safety_events", UNNEST("drug_names") AS drug_name
+      WHERE "event_type" = 'AMR_INDICATION_CAPTURED' AND "created_at" >= ${from} AND "created_at" <= ${to} ${sqlScope}
+      GROUP BY drug_name
+      ORDER BY (COUNT(*) FILTER (WHERE ("metadata"->>'indication') IS NOT NULL) + COUNT(*) FILTER (WHERE ("metadata"->>'indication') IS NULL)) DESC, drug_name ASC
+      LIMIT 10
+    `),
   ]);
 
   const highRiskCount = bySeverity
@@ -1598,6 +1696,14 @@ export async function getSafetyImpactReport(input: SafetyReportDateRange & {
       pharmacyId: row.pharmacyId,
       pharmacyName: row.pharmacyName,
       count: Number(row.count),
+    })),
+    // AMR stewardship insight — not an error list, a training signal for the PIC.
+    // "40 sales, 10 with indication, 30 without" tells them where to coach, not
+    // who to punish (optional indication capture is never a compliance gate).
+    amrStewardship: amrStewardshipRows.map((row) => ({
+      name: row.name,
+      withIndication: Number(row.withIndication),
+      withoutIndication: Number(row.withoutIndication),
     })),
   };
 }

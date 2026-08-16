@@ -23,7 +23,6 @@ import { patientsRouter } from './modules/patients/patients.router';
 import { nhifRouter } from './modules/nhif/nhif.router';
 import { cpdRouter } from './modules/cpd/cpd.router';
 import { knowledgeRouter } from './modules/knowledge/knowledge.router';
-import { knowledgeChatRouter } from './modules/knowledge/knowledge-chat.router';
 import { analyticsRouter } from './modules/analytics/analytics.router';
 import { forecastingRouter } from './modules/forecasting/forecasting.router';
 import { settingsRouter } from './modules/settings/settings.router';
@@ -45,6 +44,7 @@ import { telemetryRouter } from './modules/telemetry/telemetry.router';
 import { supplierPortalRouter } from './modules/inventory/supplier-portal.router';
 import { azamPayRouter } from './modules/azampay/azampay.router';
 import { realtimeRouter } from './modules/realtime/realtime.router';
+import { chatRouter } from './modules/chat/chat.router';
 import { publicStatsRouter } from './modules/public-stats/public-stats.router';
 import { registerExpiryAlertsJob } from './jobs/expiry-alerts';
 import { registerLowStockAlertsJob } from './jobs/low-stock-alerts';
@@ -330,7 +330,6 @@ app.use(`${v1}/patients`,   patientsRouter);
 app.use(`${v1}/nhif`,       nhifRouter);
 app.use(`${v1}/cpd`,        cpdRouter);
 app.use(`${v1}/knowledge`,  knowledgeRouter);
-app.use(`${v1}/knowledge/chat`, knowledgeChatRouter);
 app.use(`${v1}/analytics`,  analyticsRouter);
 app.use(`${v1}/forecasting`, forecastingRouter);
 app.use(`${v1}/settings`,   settingsRouter);
@@ -354,6 +353,9 @@ app.use(`${v1}/azampay`, azamPayRouter);
 
 // ── Realtime SSE (pharmacy-scoped stock/dispensing push) ─────────────────────
 app.use(`${v1}/realtime`, realtimeRouter);
+
+// ── Chat Room (cross-pharmacy regional community, V1) ─────────────────────────
+app.use(`${v1}/chat`, chatRouter);
 
 // ── Public platform stats (website proof strip — anonymous aggregates only) ──
 app.use(`${v1}/public-stats`, publicStatsRouter);

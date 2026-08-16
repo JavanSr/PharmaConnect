@@ -10,6 +10,8 @@ import {
   calculateDose,
   createOverrideLog,
   getDrugDetails,
+  getStewardshipSuggestion,
+  isStewardshipIndication,
   matchDiagnosis,
   searchReviewedDrugs,
   sessionReview,
@@ -91,6 +93,28 @@ patientSafetyRouter.get('/drugs/details', async (req, res, next) => {
       res.status(404).json({ error: 'Drug not found' });
       return;
     }
+    res.json({ data });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Non-blocking AMR stewardship suggestion — called when a dispenser voluntarily
+// selects an indication for a WATCH/RESERVE antibiotic. Returns null (not a 404)
+// when no reviewed alternative exists so the frontend can render nothing.
+patientSafetyRouter.get('/stewardship-suggestion', async (req, res, next) => {
+  try {
+    const { genericName, indication } = z.object({
+      genericName: z.string().min(1),
+      indication: z.string(),
+    }).parse(req.query);
+
+    if (!isStewardshipIndication(indication)) {
+      res.json({ data: null });
+      return;
+    }
+
+    const data = await getStewardshipSuggestion(genericName, indication);
     res.json({ data });
   } catch (error) {
     next(error);

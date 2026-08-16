@@ -34,7 +34,7 @@ type ProductWriteInput = {
 };
 
 type ProductVerificationStatus = 'MASTER_CATALOG_MATCHED' | 'UNVERIFIED';
-type AwarClass = 'ACCESS' | 'WATCH' | 'RESERVE';
+export type AwarClass = 'ACCESS' | 'WATCH' | 'RESERVE';
 
 type SupplierWriteInput = {
   name: string;
@@ -523,12 +523,20 @@ function isAwarClass(value: string | null): value is AwarClass {
   return value === 'ACCESS' || value === 'WATCH' || value === 'RESERVE';
 }
 
-async function enrichProductsWithAwarClass<T extends {
+// Resolution order for the AWaRe badge: an explicit per-product override (rare)
+// wins outright; otherwise Tanzania's own STG/NEMLIT classification is primary,
+// falling back to the WHO 2023 global classification only when Tanzania's STG
+// doesn't classify that drug. WHO's value is also returned separately
+// (whoAwareClass) as a secondary reference field — not shown as the primary
+// badge, per the "Tanzania status is the default view" data model.
+export async function enrichProductsWithAwarClass<T extends {
   name: string;
   genericName?: string | null;
   awarClass?: string | null;
 }>(products: T[]): Promise<Array<T & {
   awarClass: AwarClass | null;
+  whoAwareClass: AwarClass | null;
+  nemlitListed: boolean;
   pregnancyCategory: string | null;
   breastfeedingSafety: string | null;
   renalCaution: boolean;
@@ -551,6 +559,8 @@ async function enrichProductsWithAwarClass<T extends {
         select: {
           genericName: true,
           awarClass: true,
+          tanzaniaAwareClass: true,
+          nemlitListed: true,
           pregnancyCategory: true,
           breastfeedingSafety: true,
           renalCaution: true,
@@ -578,13 +588,19 @@ async function enrichProductsWithAwarClass<T extends {
     );
 
     const explicitAwarClass = product.awarClass ?? null;
+    const whoAwareClass = isAwarClass(master?.awarClass ?? null) ? (master!.awarClass as AwarClass) : null;
+    const tanzaniaAwareClass = isAwarClass(master?.tanzaniaAwareClass ?? null)
+      ? (master!.tanzaniaAwareClass as AwarClass)
+      : null;
     const resolvedAwarClass = isAwarClass(explicitAwarClass)
       ? explicitAwarClass
-      : isAwarClass(master?.awarClass ?? null) ? (master!.awarClass as AwarClass) : null;
+      : tanzaniaAwareClass ?? whoAwareClass;
 
     return {
       ...product,
       awarClass: resolvedAwarClass,
+      whoAwareClass,
+      nemlitListed: master?.nemlitListed ?? false,
       pregnancyCategory: master?.pregnancyCategory ?? null,
       breastfeedingSafety: master?.breastfeedingSafety ?? null,
       renalCaution: master?.renalCaution ?? false,
@@ -2996,4 +3012,81 @@ export async function alertAlreadySentToday(
       },
     },
   });
+}
+
+// ─── Stockout alternatives ──────────────────────────────────────────────────
+//
+// Non-blocking, dispensing-time suggestion: "this drug has zero stock — here
+// is an in-stock, reviewed alternative." Contrast with the AMR stewardship
+// suggestions (patient-safety module), which are antibiotic-indication-
+// specific. A reviewed alternative is only ever returned if the pharmacy
+// actually has real, unexpired stock of it right now — otherwise there is
+// nothing useful to suggest, so nothing is returned.
+export async function getStockoutAlternatives(pharmacyId: string, genericName: string) {
+  const normalized = genericName.trim();
+  if (!normalized) {
+    return [];
+  }
+
+  const reviewed = await prisma.therapeuticAlternative.findMany({
+    where: {
+      triggerGenericName: { equals: normalized, mode: 'insensitive' },
+      reviewStatus: 'APPROVED',
+    },
+  });
+
+  if (reviewed.length === 0) {
+    return [];
+  }
+
+  const now = new Date();
+  const results: Array<{
+    suggestedGenericName: string;
+    rationale: string;
+    sourceCitation: string;
+    products: Array<{ id: string; name: string; currentStock: number }>;
+  }> = [];
+
+  for (const alt of reviewed) {
+    const candidateProducts = await prisma.product.findMany({
+      where: {
+        pharmacyId,
+        isActive: true,
+        OR: [
+          { genericName: { equals: alt.suggestedGenericName, mode: 'insensitive' } },
+          { name: { contains: alt.suggestedGenericName, mode: 'insensitive' } },
+        ],
+      },
+      select: { id: true, name: true, genericName: true },
+    });
+
+    if (candidateProducts.length === 0) continue;
+
+    const stockRows = await prisma.batch.groupBy({
+      by: ['productId'],
+      where: {
+        pharmacyId,
+        productId: { in: candidateProducts.map((p) => p.id) },
+        quantityRemaining: { gt: 0 },
+        expiryDate: { gt: now },
+      },
+      _sum: { quantityRemaining: true },
+    });
+
+    const stockByProduct = new Map(stockRows.map((r) => [r.productId, r._sum.quantityRemaining ?? 0]));
+    const inStockProducts = candidateProducts
+      .map((p) => ({ id: p.id, name: p.name, currentStock: stockByProduct.get(p.id) ?? 0 }))
+      .filter((p) => p.currentStock > 0);
+
+    if (inStockProducts.length === 0) continue;
+
+    results.push({
+      suggestedGenericName: alt.suggestedGenericName,
+      rationale: alt.rationale,
+      sourceCitation: alt.sourceCitation,
+      products: inStockProducts,
+    });
+  }
+
+  return results;
 }

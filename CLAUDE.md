@@ -40,6 +40,10 @@ npm run db:generate  # regenerate Prisma client after schema changes
 npm run db:studio    # open Prisma Studio GUI
 npm run db:seed      # seed dev pharmacy + users
 npm run db:seed:master-catalog  # seed Tanzania master drug catalogue
+npm run db:seed:drug            # seed DrugDatabase (AWaRe + NEMLIT catalogue, 660 drugs)
+npm run db:seed:stewardship     # seed antibiotic stewardship suggestions (DRAFT)
+npm run db:seed:alternatives    # seed stockout alternative suggestions (DRAFT)
+npm run db:seed:chat-rooms      # seed Chat Room launch rooms (#all-tanzania, #drug-alerts)
 ```
 
 Running a single test file:
@@ -193,6 +197,176 @@ Reviewer types: `PLATFORM_PHARMACIST`, `TMDA_REFERENCE`.
 - `GET /review-queue` -- list entries with filters (status, entityType, reviewerType).
 - `GET /review-queue/:id` -- single entry detail.
 - `PATCH /review-queue/:id` -- update status or add reviewer notes.
+
+### AWaRe classification, NEMLIT catalogue, and AMR stewardship
+
+`backend/src/data/drug-database-seed.ts` seeds the `DrugDatabase` model (clinical
+facts keyed by `genericName` -- separate from `DrugProduct`, the TMDA-registered
+master catalogue, and from a pharmacy's own `Product` rows). This model now
+carries two **separate, non-merged** antibiotic classification systems plus
+Tanzania's national essential-medicines listing:
+
+- `awarClass` -- WHO AWaRe 2023 global classification. **International
+  reference only** -- never the primary badge.
+- `tanzaniaAwareClass` -- Tanzania STG/NEMLIT 2021 (Part I, §6.2.1-6.2.3)
+  classification. **Primary** -- this is what the dispensing-screen AWaRe dot
+  and the AMR stewardship suggestions are driven by.
+- `nemlitListed` (boolean) + `nemlitFacilityLevel` (`A`/`B`/`C`/`D`/`S`) --
+  whether the drug is in Tanzania's National Essential Medicines List at all,
+  and the minimum facility tier permitted to prescribe/stock it, independent
+  of AWaRe grouping.
+
+**Resolution order** (`enrichProductsWithAwarClass()` in
+`backend/src/modules/inventory/inventory.service.ts`): an explicit per-product
+override wins outright; otherwise **Tanzania's classification is primary**,
+falling back to WHO's only when Tanzania's STG doesn't classify that drug.
+WHO's value is still returned separately (`whoAwareClass`) as a secondary
+reference field -- do not surface it as the primary badge anywhere.
+
+**Tanzania and WHO disagree on 11 of the 36 antibiotics Tanzania's STG
+classifies** (confirmed against the STG source text, not assumed) -- most
+importantly co-trimoxazole (Tanzania: Watch, WHO: Access) since it's one of
+the most commonly dispensed drugs in the country. When adding new antibiotics
+to the seed, always check both `getAwarClass()` and `getTanzaniaAwareClass()`
+in `drug-database-seed.ts` -- do not assume they agree.
+
+**NEMLIT full catalogue** (`NEMLIT_FULL_CATALOGUE_SEED` in the same file):
+mechanically extracted from Tanzania's STG/NEMLIT 2021 PDF (Part I, all 28
+therapeutic chapters), ~650 total `DrugDatabase` rows. This is a **bulk,
+unreviewed** extraction -- `clinicianReviewed: false` throughout, dosing
+fields are generic placeholders (NEMLIT Part I lists drug/formulation/
+facility-level only; actual dosing regimens live in Part II, organized by
+disease, not yet digitized). Route and therapeutic-category tags are
+best-effort from chapter grouping, not clinician-verified. Treat this as a
+name/AWaRe/NEMLIT-status catalogue, not a dosing reference, until reviewed.
+
+**AMR stewardship-lite** (`backend/src/modules/patient-safety/`): at
+dispensing, when a WATCH/RESERVE antibiotic (per the resolved/Tanzania-primary
+class) is added to the cart, the frontend shows an optional, non-blocking
+"Indication?" picker (`StewardshipIndication`: `URTI`, `PNEUMONIA`, `UTI`,
+`STI`, `OTHER`). Leaving it blank never affects checkout. If an indication is
+selected and a reviewed alternative exists, a dismissible suggestion chip
+appears (`GET /patient-safety/stewardship-suggestion`). Every dispense of a
+WATCH/RESERVE drug -- indication given or not -- writes an anonymous
+`SafetyEvent` (`eventType: 'AMR_INDICATION_CAPTURED'`, no patient data),
+surfaced as an "AMR Stewardship" panel on Reports > Safety Impact: sales with
+vs. without an indication recorded, framed as a PIC training signal, never a
+compliance check.
+
+Suggestion content lives in `StewardshipSuggestion` (own migration,
+`reviewStatus` field mirroring `DrugProduct`'s pattern) and is seeded via
+`npm run db:seed:stewardship` (`backend/prisma/seed-stewardship-suggestions.ts`).
+**Every row ships as `DRAFT`** -- the live lookup only ever returns `APPROVED`
+rows. There is no admin UI to approve them yet (approve via Prisma Studio);
+wiring this into the Review Queue module properly (which currently only
+updates its own queue rows, not the underlying entity) is a real follow-up,
+not yet built. Suggestions are two evidence tiers, distinguished by
+`sourceCitation`: most are grounded in specific Tanzania STG 2021 Part II
+tables (cited by table/page); three URTI suggestions are general stewardship
+principle (no specific STG table found) and are labeled as such so a
+reviewing pharmacist knows which kind of check to do. Deliberately omit STI
+entirely (Tanzania's own NEMLIT upgrades ceftriaxone/azithromycin/cefixime to
+facility-level A specifically for STI, meaning a downgrade suggestion would
+contradict national policy) and UTI beyond complicated cystitis (the STG's
+own first-line for pyelonephritis/urosepsis has no Access-tier alternative).
+
+### Stockout alternatives
+
+General-purpose medicine substitution, distinct from the antibiotic
+stewardship suggestions above: triggered by "this drug has zero stock right
+now" at the dispensing counter, not by a clinical indication. Model is
+`TherapeuticAlternative` (`backend/prisma/schema.prisma`), seeded via
+`npm run db:seed:alternatives` (`backend/prisma/seed-therapeutic-alternatives.ts`).
+Same `DRAFT`-until-`APPROVED` governance as stewardship suggestions.
+
+`getStockoutAlternatives(pharmacyId, genericName)` in `inventory.service.ts`
+(`GET /inventory/products/stockout-alternatives`) only ever returns an
+alternative if the pharmacy has real, unexpired, in-stock inventory of it
+right now -- otherwise there is nothing useful to suggest, so nothing is
+returned. Not trial/grace-restricted (matches `/inventory` staying open
+during grace, unlike Knowledge Hub / Chat Room).
+
+**Frontend trigger is narrower than it may first appear:** in
+`DispensingScreen.tsx`, the "out of stock" prompt (`outOfStockMatches` +
+`StockoutAlternatives` component) only fires when the search returns *zero*
+in-stock matches. If a pharmacy stocks multiple brands of the same generic
+and only one is out, the search still returns the others and the prompt
+never appears for the out-of-stock one -- known scope boundary, not a bug.
+
+**Seed content is deliberately a small set (8 rows / 4 pairs), not
+exhaustive coverage of the catalogue.** Every pair in the core drug list was
+checked for genuine interchangeability before inclusion; most were excluded
+on purpose:
+- metformin / glibenclamide -- different diabetes-drug classes, different
+  hypoglycaemia and renal risk profiles, not a casual swap.
+- carbamazepine / valproate -- switching anticonvulsants is a specialist
+  decision (seizure-type-specific), not a counter-side substitution.
+- furosemide / spironolactone -- often used *together*, not as alternatives
+  to each other.
+- rifampicin, dolutegravir, artemether-lumefantrine -- single-purpose drugs
+  inside standardised national programmes (TB/DOTS, HIV/ART, malaria
+  treatment guidelines). Ad-hoc substitution at the pharmacy counter is
+  never appropriate for these -- do not add alternative rows for them.
+- warfarin -- no safe casual substitute; switching anticoagulants needs
+  clinical oversight (INR monitoring).
+
+What shipped: diclofenac/ibuprofen/paracetamol (NSAID-for-NSAID and
+paracetamol-as-safer-default, all directions) and enalapril/losartan (the
+standard ACE-inhibitor/ARB swap). Extending this to more of the 660-drug
+catalogue requires the same per-pair clinical reasoning, not a bulk pass.
+
+### Chat Room module
+
+`backend/src/modules/chat/` -- mounts at `/api/v1/chat`. Lives inside the
+frontend Knowledge Hub as a tab (`KnowledgeFeedPage.tsx`, tab id `'chat'`,
+component `ChatRoomPage` rendered with `embedded`), not a standalone route --
+there is deliberately no `/chat` page or sidebar entry.
+
+**Access is gated identically to Knowledge Hub, with no exceptions:**
+`authenticate` + `enforceTrialRestrictions` + `requirePermission('knowledge.view')`,
+same three middlewares in the same order as `knowledge.router.ts`. This
+includes `#drug-alerts`, the TMDA recall/safety broadcast room -- founder
+decision, made with the tradeoff explicitly on the table (a lapsed pharmacy
+loses the recall channel along with everything else). Do not carve out an
+exception for `#drug-alerts` without asking first; a past version of this
+guidance recommended exempting it and was explicitly overruled.
+
+**Cross-pharmacy by design, not a bug:** `ChatRoom` / `ChatRoomMembership` /
+`ChatRoomMessage` are NOT scoped by `pharmacyId`. Membership carries
+`userType` and `isApotekhCustomer` independently of the `User` row so a
+future non-APOTEKH registration path (doctors/nurses/students joining a
+Medscape-style knowledge community, or other products on a future "APOTEKH
+Platform" alongside this one) needs no schema change -- only a new
+registration path writing to the same tables. `ChatRoom.region` exists for
+this reason too.
+
+**Launch scope is deliberately two rooms**, seeded via `npm run db:seed:chat-rooms`
+(`backend/prisma/seed-chat-rooms.ts`): `#all-tanzania` (national, everyone
+auto-joins on first visit) and `#drug-alerts` (read-only, `SUPER_ADMIN` /
+system posts only). Regional rooms (`ChatRoomKind.REGIONAL`) stay in the
+schema but unopened -- an empty regional room reads as "nobody is here" and
+was assessed as worse than not having one yet; open one only when a region
+has enough members to sustain conversation.
+
+Real-time delivery reuses the existing SSE pattern in
+`realtime.service.ts` (`registerRoomClient` / `emitToRoom`, keyed by
+`roomId` alongside the pre-existing pharmacy-keyed functions) -- no new
+transport was introduced.
+
+**Hard constraint:** never add a patient-identifying field (case reference
+codes, "PAT-XXX" style IDs, anything that could re-link a message to a real
+person) to `ChatRoomMessage`. Free text can't be technically policed, but the
+composer must always carry a visible reminder not to include patient
+identifying details.
+
+A separate, unrelated pharmacy-internal forum (`ChatThread`/`ChatMessage`,
+"Community" tab) was removed 2026-08-16: it shipped with a live router and
+frontend tab, but the underlying database tables were never actually
+created (the migration creating them sat as an uncommitted-to-folder loose
+`.sql` file and was never run) -- the feature 500'd on every use since it was
+built. See `backend/prisma/migrations/manual_knowledge_cms_and_chat.sql`,
+kept in place with a superseded notice rather than deleted, for the full
+story.
 
 ### Forecasting module
 
@@ -523,9 +697,13 @@ CANNOT:
 
 - **Clinical Decision Support Suite is NEVER tier-gated.** Drug interaction
   checker (4 severity levels), dose calculator, contraindication alerts (8 flags),
-  NCD hints, diagnosis-drug matching, alternative medicine suggestions, therapeutic
-  equivalence matching, and override logging are identical across ADDO, BASIC,
-  STANDARD, and PREMIUM.
+  NCD hints, diagnosis-drug matching, AMR stewardship suggestions (see "AWaRe
+  classification, NEMLIT catalogue, and AMR stewardship" above), and override
+  logging are identical across ADDO, BASIC, STANDARD, and PREMIUM. "Alternative
+  medicine suggestions / therapeutic equivalence matching" beyond the AMR
+  stewardship suggestions described above is aspirational marketing language,
+  not yet a built feature — do not assume a general-purpose equivalence engine
+  exists elsewhere in the codebase.
 - **Override model: dispenser proceeds at own risk.** When a drug interaction,
   contraindication, or AWaRe RESERVE alert fires, the dispenser is shown a clear
   warning. They may acknowledge and proceed — no Superintendent PIN required, no
@@ -592,6 +770,39 @@ never add it to the website pricing page.
 - "Knowledge Hub" — consistent label across all tiers
 - "Compliance" — section header, never "EFDMS" or "TRA" in UI
 - "APOTEKH" — platform name, never "PharmaConnect"
+
+### Freemium / metered-access model for non-paying retail pharmacies (decided, NOT YET BUILT)
+
+**Status: policy decision only — no metering/paywall-degradation logic exists in
+the codebase yet.** This is founder-agreed direction for a future build, tracked
+in `docs/future-features.md` under Financial & Billing. Do not assume any of the
+caps below are enforced anywhere until that work is actually implemented.
+
+**Rationale:** a lapsed/never-subscribed pharmacy should never hit a 100% wall.
+The goal is reach and data flow (every pharmacy on the platform, paying or not,
+still generates operational signal) — full lockout drives pharmacies back
+to zero-tooling rather than toward paying. Every feature below either stays
+fully free or degrades to a reduced/capped version; nothing goes to zero.
+Pricing itself is designed to be a rounding error against a pharmacy's daily
+revenue (e.g. an ADDO clearing ~30,000 Tsh/day pays ~500 Tsh/day at the
+15,000/month tier), so a capped-not-cut free tier is a deliberate, generous
+floor, not a workaround to avoid ever having to pay.
+
+| Feature | Free / non-paying behaviour | Degrades to |
+|---|---|---|
+| Dispensing + Inventory | Unlimited, always | — never metered |
+| Barcode/QR scanner | Unlimited, always | — never metered |
+| Drug interaction alerts — ALL severities (HIGH, CONTRAINDICATED, MODERATE, MINOR) share one pool | 10 full-detail alerts/month | Alert still fires ("something is wrong here") but with no detail — no exemption for HIGH/CONTRAINDICATED; founder's explicit call after considering it, reasoning that most competing systems in-market don't offer interaction checking at all, so even the degraded version is a net improvement over the status quo |
+| AMR stewardship suggestion chips | 10/month | Chip stops appearing; indication logging (anonymous `SafetyEvent`) keeps working regardless |
+| Chat Room — including `#drug-alerts` | Read-only, always | No posting; no exception for `#drug-alerts` — matches the existing hard gate decision in the Chat Room module section below (same middlewares as Knowledge Hub, no carve-out) |
+| Knowledge Hub | 3 full articles/month | Headlines/list stay visible; article body locks |
+| Analytics | Today's revenue total only | Everything else (sparkline, breakdowns, forecasting inputs) locked |
+| Compliance / DLDM | Deadline list stays visible | Upload, storage, reminders lock |
+| Forecasting | None | Fully locked — PREMIUM-only regardless of payment state, unchanged from today |
+
+Reset cycle: calendar month, per pharmacy. Restoration on payment is instant
+(reuses the existing AzamPay callback → `activateSubscriptionFromPayment` flip
+already live for subscription activation — no new restore logic needed).
 
 ---
 
@@ -825,6 +1036,48 @@ wa.me/{phone}?text=*APOTEKH Purchase Order -- {orderNumber}*%0AFrom: {pharmacyNa
 APOTEKH Wholesale is a separate B2B operations system for wholesale pharmacies and distributors. It runs on the same platform backbone (auth, users, catalogue, outlet data) as retail but has independent workflows: catalogues with tiered pricing, buyer orders, credit management, delivery logistics, VAT invoicing, and demand insights.
 
 **Key principle (updated):** Wholesale is now openly marketed — `website/src/lib/data/pricing.ts` carries a featured WHOLESALE tier (Tsh 100,000/month, "Discuss wholesale" CTA) with a problem-led pitch. Note the deliberate nuance: wholesale marketing may reference **TRA-compliant VAT invoicing** (B2B buyers need it), while retail UI/onboarding still never mentions EFDMS/TRA/VFD. Do not copy TRA language into any retail-facing surface.
+
+### Wholesale monetization roadmap — subscription now, commission later (decided, NOT YET BUILT)
+
+**Status: policy decision only.** Wholesale bills exactly like retail today —
+flat Tsh 100,000/month via the existing AzamPay flow
+(`SUBSCRIPTION_PRICE_TABLE`). No commission calculation, per-order billing, or
+invoicing-against-volume logic exists in the codebase. This section records
+the agreed direction so a future build stays consistent with it.
+
+**Plan:** onboard wholesalers on the flat subscription first (reuses existing
+billing infra, no new engineering to launch). Tell wholesalers upfront, as
+part of the pitch, that pricing will transition from flat subscription to a
+volume-based commission (~1%) once order volume through the platform
+justifies it — stated as a roadmap, not sprung on them later.
+
+**Why commission, eventually:** an ADDO-tier retail pharmacy typically orders
+roughly Tsh 300,000–2,000,000/month. A wholesaler with even 15–20 active buyer
+pharmacies ordering through APOTEKH could see Tsh 15–50 million/month in
+platform-routed order volume — at which point 1% (150,000–500,000/month)
+matches or exceeds the flat fee, and scales with the wholesaler's own growth
+instead of capping out. This also ties revenue to whether APOTEKH is actually
+driving the wholesaler's growth, which is a more honest pitch to a skeptical
+first-time wholesaler than a flat fee charged regardless of outcome. ~1% also
+matches an already-normalized local precedent (mobile money / payment
+processors like M-Pesa, Nala) so it doesn't read as an unusual ask.
+
+**Non-paying / lapsed wholesaler access (mirrors the retail freemium model
+above — no hard wall):** the wholesaler's catalogue stays visible to retail
+buyers searching/browsing (preserves the network-effect "magnet" value —
+retail pharmacies still discover what they stock and at what price), but the
+one-tap order button is disabled. The buyer sees the product and price and
+must contact the wholesaler off-platform to complete the order. This is not a
+new UX pattern to invent — it's the same contact-only model already live in
+Supplier Discovery / the Tier 2 Supplier Portal (`GET
+/suppliers/price-comparison`, "no automated ordering; users must contact
+suppliers directly"). Reuse that pattern rather than building a second one.
+
+**When actually implementing:** if an existing paying wholesaler is later
+moved from flat-fee to commission, let them run on whichever is cheaper for a
+grace period rather than a hard cutover — a volume-based rate can come out
+higher than the flat fee at high volume, and switching should read as
+"better deal," not a bait-and-switch.
 
 ### Registration & Setup (SUPER_ADMIN)
 
@@ -1195,6 +1448,16 @@ Rules:
 
 ## Key decisions
 
+- `P2pOrder` / `P2pOrderItem` (schema.prisma) are a preserved-but-unbuilt
+  artifact: applied directly to the database in May 2026, never committed to
+  git, discovered and adopted into version control 2026-08-16. Zero rows,
+  zero code references anywhere in the app. Likely early scaffolding toward
+  the Phase 2 "Stock Exchange" module, but structurally enables
+  peer-to-peer retail-to-retail trading, which conflicts with the closed
+  B2B network policy below (Tanzanian law restricts open pharmacy
+  marketplaces). Do not build retail-facing features on this schema without
+  resolving that policy question first — it was adopted for documentation
+  hygiene, not as a green light.
 - OneDrive sync conflicts with `.git` — move project outside OneDrive for
   reliable Git operations. OneDrive actively modifies `.git/objects/` causing
   file loss during commits.

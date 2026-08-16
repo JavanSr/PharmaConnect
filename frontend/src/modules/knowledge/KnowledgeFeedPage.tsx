@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/Input';
 import { useDebounce } from '@/hooks/useDebounce';
 import { api } from '@/lib/api';
 import { useNotificationStore } from '@/stores/notificationStore';
-import { CommunityPage } from './CommunityPage';
+import { ChatRoomPage } from '@/modules/chat/ChatRoomPage';
 import { WriteArticlePage } from './WriteArticlePage';
 import type { Article, Bulletin, Publication } from '@/types';
 
@@ -18,7 +18,7 @@ const CATEGORIES = ['All', 'DRUG_SAFETY', 'REGULATORY', 'CLINICAL', 'BUSINESS', 
 
 export const KnowledgeFeedPage: React.FC = () => {
   const [searchParams] = useSearchParams();
-  const [tab, setTab]       = useState<'feed' | 'community' | 'write'>('feed');
+  const [tab, setTab]       = useState<'feed' | 'chat' | 'write'>('feed');
   const [category, setCategory] = useState('All');
   const [search, setSearch] = useState(searchParams.get('q') ?? '');
   const [email, setEmail] = useState('');
@@ -84,14 +84,14 @@ export const KnowledgeFeedPage: React.FC = () => {
           <Library size={15} /> Articles & Bulletins
         </button>
         <button
-          onClick={() => setTab('community')}
+          onClick={() => setTab('chat')}
           className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-            tab === 'community'
+            tab === 'chat'
               ? 'border-[#1A6B5C] text-[#1A6B5C]'
               : 'border-transparent text-[#64748B] hover:text-[#0D4035]'
           }`}
         >
-          <MessageSquare size={15} /> Community
+          <MessageSquare size={15} /> Chat Room
         </button>
         <button
           onClick={() => setTab('write')}
@@ -105,8 +105,8 @@ export const KnowledgeFeedPage: React.FC = () => {
         </button>
       </div>
 
-      {tab === 'community' && <CommunityPage />}
-      {tab === 'write'     && <WriteArticlePage />}
+      {tab === 'chat'  && <ChatRoomPage embedded />}
+      {tab === 'write' && <WriteArticlePage />}
       {tab === 'feed' && <>
 
       <Card>

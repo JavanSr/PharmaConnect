@@ -8,8 +8,8 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
 
@@ -158,7 +158,6 @@ enum NotificationChannel {
   WHATSAPP
 }
 
-
 enum SourceDocumentType {
   PRODUCT_REGISTER
   SMPC
@@ -289,131 +288,132 @@ model Pharmacy {
   createdAt             DateTime              @default(now())
   updatedAt             DateTime              @updatedAt
 
-  users                      User[]
-  products                   Product[]
-  batches                    Batch[]
-  suppliers                  Supplier[]
-  stockMovements             StockMovement[]
-  syncConflicts              SyncConflict[]
-  complianceItems            ComplianceItem[]
-  complianceAlerts           ComplianceAlert[]
-  staffCredentials           StaffCredential[]
-  inspectionChecklists       InspectionChecklist[]
-  overrideLogs               OverrideLog[]
-  notifications              Notification[]
-  settings                   PharmacySetting[]
-  stockAdjustmentSuggestions StockAdjustmentSuggestion[]
-  productBarcodeMappings     ProductBarcodeMapping[]
-  barcodeScanTelemetry       BarcodeScanTelemetry[]
-  coldChainLogs              ColdChainLog[]
-  adverseReactionReports     AdverseReactionReport[]
-  stockOrders                StockOrder[]
-  supplierPortalTokens       SupplierPortalToken[]
-  chatThreads                ChatThread[]
-  memberships                PharmacyMembership[]
-  aiCounsellingCache         AiCounsellingCache[]
-  featureTelemetry           FeatureTelemetry[]
-  prescriptions              Prescription[]
-  dispensingTransactions     DispensingTransaction[]
-  safetyEvents               SafetyEvent[]
+  users                       User[]
+  products                    Product[]
+  batches                     Batch[]
+  suppliers                   Supplier[]
+  stockMovements              StockMovement[]
+  syncConflicts               SyncConflict[]
+  complianceItems             ComplianceItem[]
+  complianceAlerts            ComplianceAlert[]
+  staffCredentials            StaffCredential[]
+  inspectionChecklists        InspectionChecklist[]
+  overrideLogs                OverrideLog[]
+  notifications               Notification[]
+  settings                    PharmacySetting[]
+  stockAdjustmentSuggestions  StockAdjustmentSuggestion[]
+  productBarcodeMappings      ProductBarcodeMapping[]
+  barcodeScanTelemetry        BarcodeScanTelemetry[]
+  coldChainLogs               ColdChainLog[]
+  adverseReactionReports      AdverseReactionReport[]
+  stockOrders                 StockOrder[]
+  supplierPortalTokens        SupplierPortalToken[]
+  memberships                 PharmacyMembership[]
+  aiCounsellingCache          AiCounsellingCache[]
+  featureTelemetry            FeatureTelemetry[]
+  prescriptions               Prescription[]
+  dispensingTransactions      DispensingTransaction[]
+  safetyEvents                SafetyEvent[]
   subscriptionPaymentRequests SubscriptionPaymentRequest[]
-  wholesalerSuppliers        Supplier[]                   @relation("WholesalerSuppliers")
-  cachedCatalogues           SupplierCatalogue[]          @relation("RetailPharmacyCachedCatalogues")
-  retailLinks                PharmacyLink[]               @relation("RetailLinks")
-  wholesaleLinks             PharmacyLink[]               @relation("WholesaleLinks")
-  subscriptionInvoices       SubscriptionInvoice[]
+  wholesalerSuppliers         Supplier[]                   @relation("WholesalerSuppliers")
+  cachedCatalogues            SupplierCatalogue[]          @relation("RetailPharmacyCachedCatalogues")
+  retailLinks                 PharmacyLink[]               @relation("RetailLinks")
+  wholesaleLinks              PharmacyLink[]               @relation("WholesaleLinks")
+  subscriptionInvoices        SubscriptionInvoice[]
+  p2pOrdersAsBuyer            P2pOrder[]                   @relation("P2pOrderBuyer")
+  p2pOrdersAsSeller           P2pOrder[]                   @relation("P2pOrderSeller")
 
   @@map("pharmacies")
 }
 
 model User {
-  id                   String    @id @default(uuid())
-  pharmacyId           String?   @map("last_pharmacy_id")
-  email                String    @unique
-  password             String
-  firstName            String
-  lastName             String
-  role                 UserRole  @default(DISPENSER)
-  phone                String?
-  picPinHash               String?   @map("pic_pin_hash")
-  lastPasswordChangeAt     DateTime? @map("last_password_change_at")
-  mustChangePassword       Boolean   @default(false) @map("must_change_password")
-  isActive                 Boolean   @default(true)
-  lastLogin                DateTime?
-  emailVerifiedAt          DateTime? @map("email_verified_at")
-  emailVerificationToken   String?   @unique @map("email_verification_token") @db.VarChar(64)
-  emailVerificationExpiry  DateTime? @map("email_verification_expiry")
-  passwordResetToken       String?   @unique @map("password_reset_token") @db.VarChar(64)
-  passwordResetExpiry      DateTime? @map("password_reset_expiry")
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
+  id                      String    @id @default(uuid())
+  pharmacyId              String?   @map("last_pharmacy_id")
+  email                   String    @unique
+  password                String
+  firstName               String
+  lastName                String
+  role                    UserRole  @default(DISPENSER)
+  phone                   String?
+  picPinHash              String?   @map("pic_pin_hash")
+  lastPasswordChangeAt    DateTime? @map("last_password_change_at")
+  mustChangePassword      Boolean   @default(false) @map("must_change_password")
+  isActive                Boolean   @default(true)
+  lastLogin               DateTime?
+  emailVerifiedAt         DateTime? @map("email_verified_at")
+  emailVerificationToken  String?   @unique @map("email_verification_token") @db.VarChar(64)
+  emailVerificationExpiry DateTime? @map("email_verification_expiry")
+  passwordResetToken      String?   @unique @map("password_reset_token") @db.VarChar(64)
+  passwordResetExpiry     DateTime? @map("password_reset_expiry")
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
 
-  pharmacy                           Pharmacy?                   @relation(fields: [pharmacyId], references: [id])
-  stockMovements                     StockMovement[]
-  cpdActivities                      CpdActivity[]
-  articles                           Article[]                   @relation("AuthoredArticles")
-  submittedArticles                  Article[]                   @relation("SubmittedArticles")
-  chatThreads                        ChatThread[]                @relation("ChatThreadAuthor")
-  chatMessages                       ChatMessage[]               @relation("ChatMessageAuthor")
-  refreshTokens                      RefreshToken[]
-  resolvedSyncConflicts              SyncConflict[]              @relation("ResolvedSyncConflicts")
-  uploadedComplianceDocuments        ComplianceDocument[]        @relation("UploadedComplianceDocuments")
-  complianceAlertRecipients          ComplianceAlert[]           @relation("ComplianceAlertRecipients")
-  staffCredentials                   StaffCredential[]
-  generatedInspectionChecklists      InspectionChecklist[]       @relation("GeneratedInspectionChecklists")
-  notifications                      Notification[]
-  overrideLogs                       OverrideLog[]               @relation("OverrideLogUser")
-  approvedOverrides                  OverrideLog[]               @relation("OverrideLogPicUser")
-  createdSettings                    PharmacySetting[]           @relation("PharmacySettingCreatedBy")
-  createdStockAdjustmentSuggestions  StockAdjustmentSuggestion[] @relation("StockAdjustmentSuggestionCreatedBy")
-  reviewedStockAdjustmentSuggestions StockAdjustmentSuggestion[] @relation("StockAdjustmentSuggestionReviewedBy")
-  createdProductBarcodeMappings      ProductBarcodeMapping[]     @relation("ProductBarcodeMappingCreatedBy")
-  createdBarcodeScanTelemetry        BarcodeScanTelemetry[]      @relation("BarcodeScanTelemetryCreatedBy")
-  coldChainLogs                      ColdChainLog[]
-  adverseReactionReports             AdverseReactionReport[]
-  createdStockOrders                 StockOrder[]                @relation("StockOrderCreatedBy")
-  memberships                        PharmacyMembership[]        @relation("UserPharmacyMemberships")
-  createdMemberships                 PharmacyMembership[]        @relation("PharmacyMembershipCreatedBy")
-  createdAiCounsellingCache          AiCounsellingCache[]        @relation("AiCounsellingCacheCreatedBy")
-  createdFeatureTelemetry            FeatureTelemetry[]          @relation("FeatureTelemetryCreatedBy")
-  prescriptions                      Prescription[]              @relation("PrescriptionCreatedBy")
-  dispensingTransactions             DispensingTransaction[]      @relation("DispensingTransactionCreatedBy")
-  safetyEvents                       SafetyEvent[]               @relation("SafetyEventUser")
-  createdSubscriptionPaymentRequests SubscriptionPaymentRequest[] @relation("SubscriptionPaymentRequestCreatedBy")
+  pharmacy                            Pharmacy?                    @relation(fields: [pharmacyId], references: [id])
+  stockMovements                      StockMovement[]
+  cpdActivities                       CpdActivity[]
+  articles                            Article[]                    @relation("AuthoredArticles")
+  submittedArticles                   Article[]                    @relation("SubmittedArticles")
+  chatRoomMemberships                 ChatRoomMembership[]         @relation("ChatRoomMemberships")
+  chatRoomMessages                    ChatRoomMessage[]            @relation("ChatRoomMessageAuthor")
+  refreshTokens                       RefreshToken[]
+  resolvedSyncConflicts               SyncConflict[]               @relation("ResolvedSyncConflicts")
+  uploadedComplianceDocuments         ComplianceDocument[]         @relation("UploadedComplianceDocuments")
+  complianceAlertRecipients           ComplianceAlert[]            @relation("ComplianceAlertRecipients")
+  staffCredentials                    StaffCredential[]
+  generatedInspectionChecklists       InspectionChecklist[]        @relation("GeneratedInspectionChecklists")
+  notifications                       Notification[]
+  overrideLogs                        OverrideLog[]                @relation("OverrideLogUser")
+  approvedOverrides                   OverrideLog[]                @relation("OverrideLogPicUser")
+  createdSettings                     PharmacySetting[]            @relation("PharmacySettingCreatedBy")
+  createdStockAdjustmentSuggestions   StockAdjustmentSuggestion[]  @relation("StockAdjustmentSuggestionCreatedBy")
+  reviewedStockAdjustmentSuggestions  StockAdjustmentSuggestion[]  @relation("StockAdjustmentSuggestionReviewedBy")
+  createdProductBarcodeMappings       ProductBarcodeMapping[]      @relation("ProductBarcodeMappingCreatedBy")
+  createdBarcodeScanTelemetry         BarcodeScanTelemetry[]       @relation("BarcodeScanTelemetryCreatedBy")
+  coldChainLogs                       ColdChainLog[]
+  adverseReactionReports              AdverseReactionReport[]
+  createdStockOrders                  StockOrder[]                 @relation("StockOrderCreatedBy")
+  memberships                         PharmacyMembership[]         @relation("UserPharmacyMemberships")
+  createdMemberships                  PharmacyMembership[]         @relation("PharmacyMembershipCreatedBy")
+  createdAiCounsellingCache           AiCounsellingCache[]         @relation("AiCounsellingCacheCreatedBy")
+  createdFeatureTelemetry             FeatureTelemetry[]           @relation("FeatureTelemetryCreatedBy")
+  prescriptions                       Prescription[]               @relation("PrescriptionCreatedBy")
+  dispensingTransactions              DispensingTransaction[]      @relation("DispensingTransactionCreatedBy")
+  safetyEvents                        SafetyEvent[]                @relation("SafetyEventUser")
+  createdSubscriptionPaymentRequests  SubscriptionPaymentRequest[] @relation("SubscriptionPaymentRequestCreatedBy")
   reviewedSubscriptionPaymentRequests SubscriptionPaymentRequest[] @relation("SubscriptionPaymentRequestReviewedBy")
 
   @@map("users")
 }
 
 model SubscriptionPaymentRequest {
-  id                 String                           @id @default(uuid())
-  pharmacyId         String                           @map("pharmacy_id")
-  requestedBy        String                           @map("requested_by")
-  requestedTier      SubscriptionTier                 @map("requested_tier")
-  billingCycle       BillingCycle                     @map("billing_cycle")
-  amount             Decimal                          @db.Decimal(12, 2)
-  paymentMethod      String                           @map("payment_method")
-  transactionRef     String                           @map("transaction_ref")
-  provider           String?
-  providerReference  String?                          @map("provider_reference")
-  checkoutUrl        String?                          @map("checkout_url")
-  payerPhone         String?                          @map("payer_phone")
-  note               String?
-  status             SubscriptionPaymentRequestStatus @default(PENDING)
-  reviewedBy         String?                          @map("reviewed_by")
-  reviewedAt         DateTime?                        @map("reviewed_at")
-  reviewNote         String?                          @map("review_note")
-  paidUntil          DateTime?                        @map("paid_until")
-  createdAt          DateTime                         @default(now()) @map("created_at")
-  updatedAt          DateTime                         @updatedAt @map("updated_at")
+  id                String                           @id @default(uuid())
+  pharmacyId        String                           @map("pharmacy_id")
+  requestedBy       String                           @map("requested_by")
+  requestedTier     SubscriptionTier                 @map("requested_tier")
+  billingCycle      BillingCycle                     @map("billing_cycle")
+  amount            Decimal                          @db.Decimal(12, 2)
+  paymentMethod     String                           @map("payment_method")
+  transactionRef    String                           @map("transaction_ref")
+  provider          String?
+  providerReference String?                          @map("provider_reference")
+  checkoutUrl       String?                          @map("checkout_url")
+  payerPhone        String?                          @map("payer_phone")
+  note              String?
+  status            SubscriptionPaymentRequestStatus @default(PENDING)
+  reviewedBy        String?                          @map("reviewed_by")
+  reviewedAt        DateTime?                        @map("reviewed_at")
+  reviewNote        String?                          @map("review_note")
+  paidUntil         DateTime?                        @map("paid_until")
+  createdAt         DateTime                         @default(now()) @map("created_at")
+  updatedAt         DateTime                         @updatedAt @map("updated_at")
 
-  pharmacy           Pharmacy                         @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
-  requester          User                             @relation("SubscriptionPaymentRequestCreatedBy", fields: [requestedBy], references: [id], onDelete: Restrict)
-  reviewer           User?                            @relation("SubscriptionPaymentRequestReviewedBy", fields: [reviewedBy], references: [id], onDelete: SetNull)
+  pharmacy  Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  requester User     @relation("SubscriptionPaymentRequestCreatedBy", fields: [requestedBy], references: [id], onDelete: Restrict)
+  reviewer  User?    @relation("SubscriptionPaymentRequestReviewedBy", fields: [reviewedBy], references: [id], onDelete: SetNull)
 
+  @@unique([pharmacyId, transactionRef], map: "subscription_payment_requests_pharmacy_transaction_ref_key")
   @@index([pharmacyId, status, createdAt], map: "subscription_payment_requests_pharmacy_status_created_idx")
   @@index([status, createdAt], map: "subscription_payment_requests_status_created_idx")
-  @@unique([pharmacyId, transactionRef], map: "subscription_payment_requests_pharmacy_transaction_ref_key")
   @@map("subscription_payment_requests")
 }
 
@@ -513,6 +513,7 @@ model Product {
   coldChainLogs              ColdChainLog[]
   stockOrderItems            StockOrderItem[]
   supplierCatalogueItems     SupplierCatalogueItem[]     @relation("SupplierCatalogueItemProduct")
+  p2pOrderItems              P2pOrderItem[]
 
   @@index([pharmacyId, barcode], map: "products_pharmacy_barcode_idx")
   @@index([pharmacyId, isActive, name], map: "products_pharmacy_active_name_idx")
@@ -685,25 +686,25 @@ model StockAdjustmentSuggestion {
 }
 
 model Supplier {
-  id                             String   @id @default(uuid())
-  pharmacyId                     String
-  name                           String
-  contactName                    String?
-  phone                          String?
-  email                          String?
-  address                        String?
-  isActive                       Boolean  @default(true)
-  isApotekNetworkWholesaler      Boolean  @default(false) @map("is_apotek_network_wholesaler")
-  wholesalerPharmacyId           String?  @map("wholesaler_pharmacy_id")
-  createdAt                      DateTime @default(now())
-  updatedAt                      DateTime @updatedAt
+  id                        String   @id @default(uuid())
+  pharmacyId                String
+  name                      String
+  contactName               String?
+  phone                     String?
+  email                     String?
+  address                   String?
+  isActive                  Boolean  @default(true)
+  isApotekNetworkWholesaler Boolean  @default(false) @map("is_apotek_network_wholesaler")
+  wholesalerPharmacyId      String?  @map("wholesaler_pharmacy_id")
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
 
-  pharmacy                Pharmacy                  @relation(fields: [pharmacyId], references: [id])
-  wholesalerPharmacy    Pharmacy?                  @relation("WholesalerSuppliers", fields: [wholesalerPharmacyId], references: [id], onDelete: SetNull)
-  batches               Batch[]
-  productsLastOrdered   Product[]                  @relation("ProductLastSupplier")
-  stockOrderItems       StockOrderItem[]
-  supplierCatalogues    SupplierCatalogue[]        @relation("SupplierCatalogues")
+  pharmacy            Pharmacy            @relation(fields: [pharmacyId], references: [id])
+  wholesalerPharmacy  Pharmacy?           @relation("WholesalerSuppliers", fields: [wholesalerPharmacyId], references: [id], onDelete: SetNull)
+  batches             Batch[]
+  productsLastOrdered Product[]           @relation("ProductLastSupplier")
+  stockOrderItems     StockOrderItem[]
+  supplierCatalogues  SupplierCatalogue[] @relation("SupplierCatalogues")
 
   @@index([isApotekNetworkWholesaler], map: "suppliers_is_apotek_network_wholesaler_idx")
   @@map("suppliers")
@@ -721,9 +722,9 @@ model StockOrder {
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
-  pharmacy      Pharmacy             @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
-  createdByUser User                 @relation("StockOrderCreatedBy", fields: [createdBy], references: [id], onDelete: Restrict)
-  items         StockOrderItem[]
+  pharmacy            Pharmacy             @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  createdByUser       User                 @relation("StockOrderCreatedBy", fields: [createdBy], references: [id], onDelete: Restrict)
+  items               StockOrderItem[]
   supplierPortalToken SupplierPortalToken?
 
   @@unique([pharmacyId, orderNumber], map: "stock_orders_pharmacy_order_number_key")
@@ -749,9 +750,9 @@ model StockOrderItem {
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
-  stockOrder           StockOrder              @relation(fields: [stockOrderId], references: [id], onDelete: Cascade)
-  product              Product?                @relation(fields: [productId], references: [id], onDelete: SetNull)
-  supplier             Supplier?               @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  stockOrder              StockOrder               @relation(fields: [stockOrderId], references: [id], onDelete: Cascade)
+  product                 Product?                 @relation(fields: [productId], references: [id], onDelete: SetNull)
+  supplier                Supplier?                @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   supplierPortalLineItems SupplierPortalLineItem[]
 
   @@index([stockOrderId], map: "stock_order_items_order_idx")
@@ -761,19 +762,19 @@ model StockOrderItem {
 }
 
 model SupplierCatalogue {
-  id                   String    @id @default(uuid())
-  wholesalerId         String    @map("wholesaler_id")
-  retailPharmacyId     String?   @map("retail_pharmacy_id")
-  lastSyncedAt         DateTime? @map("last_synced_at")
-  syncStatus           String    @default("ACTIVE")
-  lastSyncError        String?   @map("last_sync_error")
-  totalItemsAvailable  Int       @default(0) @map("total_items_available")
-  createdAt            DateTime  @default(now()) @map("created_at")
-  updatedAt            DateTime  @updatedAt @map("updated_at")
+  id                  String    @id @default(uuid())
+  wholesalerId        String    @map("wholesaler_id")
+  retailPharmacyId    String?   @map("retail_pharmacy_id")
+  lastSyncedAt        DateTime? @map("last_synced_at")
+  syncStatus          String    @default("ACTIVE")
+  lastSyncError       String?   @map("last_sync_error")
+  totalItemsAvailable Int       @default(0) @map("total_items_available")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
 
-  wholesaler       Supplier                  @relation("SupplierCatalogues", fields: [wholesalerId], references: [id], onDelete: Cascade)
-  retailPharmacy   Pharmacy?                 @relation("RetailPharmacyCachedCatalogues", fields: [retailPharmacyId], references: [id], onDelete: Cascade)
-  items            SupplierCatalogueItem[]
+  wholesaler     Supplier                @relation("SupplierCatalogues", fields: [wholesalerId], references: [id], onDelete: Cascade)
+  retailPharmacy Pharmacy?               @relation("RetailPharmacyCachedCatalogues", fields: [retailPharmacyId], references: [id], onDelete: Cascade)
+  items          SupplierCatalogueItem[]
 
   @@unique([wholesalerId, retailPharmacyId], map: "supplier_catalogues_wholesaler_retail_key")
   @@index([retailPharmacyId, syncStatus], map: "supplier_catalogues_retail_sync_idx")
@@ -781,20 +782,20 @@ model SupplierCatalogue {
 }
 
 model SupplierCatalogueItem {
-  id                    String    @id @default(uuid())
-  catalogueId           String    @map("catalogue_id")
-  productId             String?   @map("product_id")
-  productName           String    @map("product_name")
-  genericName           String?   @map("generic_name")
-  strength              String?
-  dosageForm            String?   @map("dosage_form")
-  quantityAvailable     Int       @map("quantity_available")
-  unitPrice             Decimal   @db.Decimal(12, 2)
-  minimumOrderQuantity  Int       @default(1) @map("minimum_order_quantity")
-  batchNumber           String?   @map("batch_number")
-  expiryDate            DateTime? @map("expiry_date")
-  createdAt             DateTime  @default(now()) @map("created_at")
-  updatedAt             DateTime  @updatedAt @map("updated_at")
+  id                   String    @id @default(uuid())
+  catalogueId          String    @map("catalogue_id")
+  productId            String?   @map("product_id")
+  productName          String    @map("product_name")
+  genericName          String?   @map("generic_name")
+  strength             String?
+  dosageForm           String?   @map("dosage_form")
+  quantityAvailable    Int       @map("quantity_available")
+  unitPrice            Decimal   @db.Decimal(12, 2)
+  minimumOrderQuantity Int       @default(1) @map("minimum_order_quantity")
+  batchNumber          String?   @map("batch_number")
+  expiryDate           DateTime? @map("expiry_date")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
 
   catalogue SupplierCatalogue @relation(fields: [catalogueId], references: [id], onDelete: Cascade)
   product   Product?          @relation("SupplierCatalogueItemProduct", fields: [productId], references: [id], onDelete: SetNull)
@@ -805,17 +806,17 @@ model SupplierCatalogueItem {
 }
 
 model SyncConflict {
-  id            String             @id @default(uuid())
-  pharmacyId    String             @map("pharmacy_id")
-  entityType    String             @map("entity_type")
-  entityId      String             @map("entity_id")
-  conflictType  String             @map("conflict_type")
-  localPayload  Json               @default("{}") @map("local_payload")
-  serverPayload Json               @default("{}") @map("server_payload")
-  status        String             @default("OPEN")
-  resolvedBy    String?            @map("resolved_by")
-  resolvedAt    DateTime?          @map("resolved_at")
-  createdAt     DateTime           @default(now()) @map("created_at")
+  id            String    @id @default(uuid())
+  pharmacyId    String    @map("pharmacy_id")
+  entityType    String    @map("entity_type")
+  entityId      String    @map("entity_id")
+  conflictType  String    @map("conflict_type")
+  localPayload  Json      @default("{}") @map("local_payload")
+  serverPayload Json      @default("{}") @map("server_payload")
+  status        String    @default("OPEN")
+  resolvedBy    String?   @map("resolved_by")
+  resolvedAt    DateTime? @map("resolved_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
 
   pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id])
   resolver User?    @relation("ResolvedSyncConflicts", fields: [resolvedBy], references: [id])
@@ -841,17 +842,17 @@ model AlertLog {
 }
 
 model StockMovement {
-  id         String       @id @default(uuid())
-  pharmacyId String
-  productId  String
-  batchId    String?
-  userId     String
-  type       MovementType
-  quantity   Int
-  notes      String?
-  localCreatedAt DateTime? @map("local_created_at")
-  syncedAt   DateTime?     @map("synced_at")
-  createdAt  DateTime     @default(now())
+  id             String       @id @default(uuid())
+  pharmacyId     String
+  productId      String
+  batchId        String?
+  userId         String
+  type           MovementType
+  quantity       Int
+  notes          String?
+  localCreatedAt DateTime?    @map("local_created_at")
+  syncedAt       DateTime?    @map("synced_at")
+  createdAt      DateTime     @default(now())
 
   pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id])
   product  Product  @relation(fields: [productId], references: [id])
@@ -1558,7 +1559,21 @@ model DrugDatabase {
   brandNames            String[] @default([]) @map("brand_names")
   drugClass             String?  @map("drug_class")
   therapeuticCategory   String?  @map("therapeutic_category")
+  // WHO AWaRe classification, 2023 global list — international reference only.
+  // Tanzania's own STG/NEMLIT classification (tanzaniaAwareClass) is primary
+  // and takes precedence wherever the two disagree; see enrichProductsWithAwarClass()
+  // in inventory.service.ts for the resolution order.
   awarClass             String?  @map("awar_class")
+  // Tanzania STG/NEMLIT 2021 (§6.2.1-6.2.3) Access/Watch/Reserve classification —
+  // the primary/default classification shown to dispensers. Null for drugs the
+  // Tanzania STG does not classify (WHO-only reference, not a national position).
+  tanzaniaAwareClass    String?  @map("tanzania_aware_class")
+  // True if this drug appears in Tanzania's STG/NEMLIT at all (independent of
+  // AWaRe categorization) — distinguishes "Tanzania NEMLIT" from "WHO AWaRe only".
+  nemlitListed          Boolean  @default(false) @map("nemlit_listed")
+  // NEMLIT 2021 prescribing-level restriction: A (dispensary+) through S
+  // (specialist/tertiary only). Facility-tier code, unrelated to AWaRe.
+  nemlitFacilityLevel   String?  @map("nemlit_facility_level")
   standardAdultDose     String?  @map("standard_adult_dose")
   frequency             String?
   route                 String?
@@ -1586,6 +1601,57 @@ model DrugDatabase {
   @@index([genericName], map: "drug_database_generic_name_idx")
   @@index([therapeuticCategory], map: "drug_database_therapeutic_category_idx")
   @@map("drug_database")
+}
+
+// AMR stewardship: optional, non-blocking indication capture at dispensing time
+// for AWaRe WATCH/RESERVE antibiotics, plus a reviewable Access-tier alternative
+// suggestion sourced from the Tanzania Standard Treatment Guidelines. Suggestions
+// are DRAFT until a platform pharmacist flips them to APPROVED — only APPROVED
+// rows are ever surfaced to a dispenser.
+enum StewardshipIndication {
+  URTI
+  PNEUMONIA
+  UTI
+  STI
+  OTHER
+}
+
+model StewardshipSuggestion {
+  id                   String                @id @default(uuid())
+  triggerGenericName   String                @map("trigger_generic_name")
+  indication           StewardshipIndication
+  suggestedGenericName String                @map("suggested_generic_name")
+  rationale            String
+  sourceCitation       String                @default("Tanzania Standard Treatment Guidelines 2023") @map("source_citation")
+  reviewStatus         ReviewStatus          @default(DRAFT) @map("review_status")
+  createdAt            DateTime              @default(now()) @map("created_at")
+  updatedAt            DateTime              @updatedAt @map("updated_at")
+
+  @@index([triggerGenericName, indication, reviewStatus], map: "stewardship_suggestions_lookup_idx")
+  @@map("stewardship_suggestions")
+}
+
+// Stockout alternatives — general-purpose (not antibiotic/indication-
+// specific like StewardshipSuggestion above). Triggered by "this drug has
+// zero stock right now" at the dispensing counter, not by a clinical
+// indication. Same DRAFT-until-APPROVED governance as StewardshipSuggestion.
+// See seed-therapeutic-alternatives.ts for why most drugs deliberately have
+// NO row here — same-therapeutic-category does not mean safely
+// interchangeable (e.g. metformin/glibenclamide, or any anticonvulsant
+// pair, or the TB/HIV/malaria program drugs are excluded on purpose).
+model TherapeuticAlternative {
+  id                   String       @id @default(uuid())
+  triggerGenericName   String       @map("trigger_generic_name")
+  suggestedGenericName String       @map("suggested_generic_name")
+  therapeuticCategory  String       @map("therapeutic_category")
+  rationale            String
+  sourceCitation       String       @map("source_citation")
+  reviewStatus         ReviewStatus @default(DRAFT) @map("review_status")
+  createdAt            DateTime     @default(now()) @map("created_at")
+  updatedAt            DateTime     @updatedAt @map("updated_at")
+
+  @@index([triggerGenericName, reviewStatus], map: "therapeutic_alternatives_lookup_idx")
+  @@map("therapeutic_alternatives")
 }
 
 model DrugInteraction {
@@ -1783,10 +1849,10 @@ model Article {
   updatedAt          DateTime        @updatedAt
 
   // User-submitted articles (Medium-like contributor model)
-  submittedByUserId  String?         @map("submitted_by_user_id")
-  submissionStatus   String?         @map("submission_status") // DRAFT | PENDING_REVIEW | APPROVED | REJECTED
-  rejectionNote      String?         @map("rejection_note")
-  authorBio          String?         @map("author_bio")
+  submittedByUserId String? @map("submitted_by_user_id")
+  submissionStatus  String? @map("submission_status") // DRAFT | PENDING_REVIEW | APPROVED | REJECTED
+  rejectionNote     String? @map("rejection_note")
+  authorBio         String? @map("author_bio")
 
   author        User?         @relation("AuthoredArticles", fields: [authorId], references: [id])
   submittedBy   User?         @relation("SubmittedArticles", fields: [submittedByUserId], references: [id])
@@ -1795,42 +1861,92 @@ model Article {
   @@map("articles")
 }
 
-// ─── Community Chat ───────────────────────────────────────────────────────────
+// ─── Chat Room (cross-pharmacy regional community, V1) ────────────────────────
+//
+// Deliberately NOT pharmacy-scoped. Membership carries userType and
+// isApotekhCustomer independently of the User row itself, so Phase 2 (opening
+// registration to non-APOTEKH doctors/nurses/students for the future
+// Medscape-style knowledge community) needs no schema change — only a new
+// registration path writing to the same tables. Region lives on the room, not
+// hardcoded logic, so opening a regional room later is a data change, not a
+// deploy.
+//
+// V1 launch scope is deliberately just two rooms (seeded in
+// seed-chat-rooms.ts): #all-tanzania (national, everyone auto-joins) and
+// #drug-alerts (read-only broadcast, SUPER_ADMIN/system posts only, wired to
+// the TMDA bulletin feed as a fast-follow). Regional rooms stay in the schema
+// but unopened (isActive: false) until a region has enough members to sustain
+// conversation — launching them empty was assessed as actively worse than not
+// having them yet.
+//
+// Hard constraint, not a preference: never add a patient-identifying field
+// (case reference codes, "PAT-XXX" style IDs, anything that could re-link a
+// message to a real person) to ChatRoomMessage. Cases discussed here must stay
+// fully de-identified by design — age band, sex, presentation — matching the
+// same "no persistent patient data" rule that governs the rest of the app.
+// Free-text bodies can't be technically policed, but the composer must always
+// carry a visible reminder not to include patient-identifying details.
 
-model ChatThread {
-  id         String        @id @default(uuid())
-  pharmacyId String        @map("pharmacy_id")
-  authorId   String        @map("author_id")
-  title      String
-  body       String
-  category   String        @default("GENERAL")
-  isPinned   Boolean       @default(false)  @map("is_pinned")
-  isLocked   Boolean       @default(false)  @map("is_locked")
-  viewCount  Int           @default(0)      @map("view_count")
-  replyCount Int           @default(0)      @map("reply_count")
-  createdAt  DateTime      @default(now())  @map("created_at")
-  updatedAt  DateTime      @updatedAt       @map("updated_at")
-
-  pharmacy  Pharmacy      @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
-  author    User          @relation("ChatThreadAuthor", fields: [authorId], references: [id])
-  messages  ChatMessage[]
-
-  @@map("chat_threads")
+enum ChatRoomKind {
+  NATIONAL
+  REGIONAL
+  DRUG_ALERTS
+  CLINICAL_CASES
+  STOCK_HELP
 }
 
-model ChatMessage {
-  id         String   @id @default(uuid())
-  threadId   String   @map("thread_id")
-  authorId   String   @map("author_id")
-  body       String
-  isEdited   Boolean  @default(false) @map("is_edited")
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt      @map("updated_at")
+model ChatRoom {
+  id          String       @id @default(uuid())
+  slug        String       @unique
+  name        String
+  kind        ChatRoomKind
+  region      String?
+  description String?
+  isReadOnly  Boolean      @default(false) @map("is_read_only")
+  isActive    Boolean      @default(true) @map("is_active")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
 
-  thread  ChatThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
-  author  User       @relation("ChatMessageAuthor", fields: [authorId], references: [id])
+  memberships ChatRoomMembership[]
+  messages    ChatRoomMessage[]
 
-  @@map("chat_messages")
+  @@map("chat_rooms")
+}
+
+model ChatRoomMembership {
+  id                String   @id @default(uuid())
+  roomId            String   @map("room_id")
+  userId            String   @map("user_id")
+  userType          String   @map("user_type")
+  isApotekhCustomer Boolean  @default(true) @map("is_apotekh_customer")
+  joinedAt          DateTime @default(now()) @map("joined_at")
+
+  room ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user User     @relation("ChatRoomMemberships", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, userId])
+  @@map("chat_room_memberships")
+}
+
+model ChatRoomMessage {
+  id              String   @id @default(uuid())
+  roomId          String   @map("room_id")
+  authorId        String   @map("author_id")
+  body            String
+  linkedDrugName  String?  @map("linked_drug_name")
+  isSystemMessage Boolean  @default(false) @map("is_system_message")
+  isFlagged       Boolean  @default(false) @map("is_flagged")
+  isRemoved       Boolean  @default(false) @map("is_removed")
+  removedBy       String?  @map("removed_by")
+  removedReason   String?  @map("removed_reason")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  room   ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  author User     @relation("ChatRoomMessageAuthor", fields: [authorId], references: [id])
+
+  @@index([roomId, createdAt], map: "chat_room_messages_room_created_idx")
+  @@map("chat_room_messages")
 }
 
 // -- Supplier Portal (Tier 2 wholesaler tokenized confirmation) ----------------
@@ -1911,6 +2027,67 @@ model PharmacyLink {
 
   @@unique([retailId, wholesaleId])
   @@map("pharmacy_links")
+}
+
+// ─── P2P orders (pharmacy-to-pharmacy) ────────────────────────────────────────
+// Applied directly to the database 2026-05-23 as an early technical spike,
+// never wired to any router/service and never committed to git until now
+// (adopted 2026-08-16 — schema below matches the live table exactly, this
+// migration is a documentation catch-up, not new functionality). Zero rows,
+// zero code references anywhere in the app as of adoption.
+//
+// This is very likely early scaffolding toward the Phase 2 "Stock Exchange"
+// module (pharmacy-to-pharmacy stock trading within the APOTEKH network —
+// see CLAUDE.md module architecture table). Do NOT build retail-to-retail
+// ordering features on top of this without confirming current product intent
+// first: CLAUDE.md's B2B section states the ordering network is closed
+// (retail can only order from registered wholesale pharmacies or via the
+// Supplier Portal) specifically because Tanzanian law restricts open
+// peer-to-peer pharmacy marketplaces. A general P2P retail-to-retail trading
+// feature may not be legally viable — this schema is preserved as a
+// reference/starting point only, not a green light to build on it.
+model P2pOrder {
+  id               String    @id @default(uuid())
+  buyerPharmacyId  String    @map("buyer_pharmacy_id")
+  sellerPharmacyId String    @map("seller_pharmacy_id")
+  orderNumber      String    @unique @map("order_number")
+  status           String
+  totalAmount      Decimal   @map("total_amount") @db.Decimal(12, 2)
+  notes            String?
+  submittedAt      DateTime? @map("submitted_at")
+  confirmedAt      DateTime? @map("confirmed_at")
+  readyAt          DateTime? @map("ready_at")
+  completedAt      DateTime? @map("completed_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  buyer  Pharmacy       @relation("P2pOrderBuyer", fields: [buyerPharmacyId], references: [id])
+  seller Pharmacy       @relation("P2pOrderSeller", fields: [sellerPharmacyId], references: [id])
+  items  P2pOrderItem[]
+
+  @@index([buyerPharmacyId, status], map: "p2p_orders_buyer_status_idx")
+  @@index([sellerPharmacyId, status], map: "p2p_orders_seller_status_idx")
+  @@index([createdAt], map: "p2p_orders_created_at_idx")
+  @@map("p2p_orders")
+}
+
+model P2pOrderItem {
+  id                String   @id @default(uuid())
+  p2pOrderId        String   @map("p2p_order_id")
+  productId         String   @map("product_id")
+  quantityOrdered   Int      @map("quantity_ordered")
+  quantityConfirmed Int      @map("quantity_confirmed")
+  unitPrice         Decimal  @map("unit_price") @db.Decimal(12, 2)
+  status            String
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  order   P2pOrder @relation(fields: [p2pOrderId], references: [id], onDelete: Cascade)
+  product Product  @relation(fields: [productId], references: [id])
+
+  @@index([p2pOrderId], map: "p2p_order_items_order_idx")
+  @@index([productId], map: "p2p_order_items_product_idx")
+  @@map("p2p_order_items")
 }
 
 // ─── B2B Backorders (partial-fulfilment shortfall queue) ─────────────────────
