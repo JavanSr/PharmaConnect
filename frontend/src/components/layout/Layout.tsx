@@ -240,6 +240,7 @@ export const Layout: React.FC = () => {
           onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
           inGrace={isInGrace}
           hiddenOnDesktop={sidebarHidden}
+          onOpenMore={() => setSidebarOpen(true)}
         />
       </div>
 
@@ -258,7 +259,7 @@ export const Layout: React.FC = () => {
         {!isFounderAccount && (
           <FinVerificationBanner />
         )}
-        <main className="flex-1 overflow-y-auto px-margin-mobile py-stack-lg sm:px-margin-tablet print:block print:overflow-visible print:p-0">
+        <main className="flex-1 overflow-y-auto px-margin-mobile pt-stack-lg pb-24 lg:pb-stack-lg sm:px-margin-tablet print:block print:overflow-visible print:p-0">
           <Outlet />
         </main>
       </div>
@@ -273,7 +274,7 @@ export const Layout: React.FC = () => {
           rel="noopener noreferrer"
           title="Chat with Support"
           aria-label="Chat with Support on WhatsApp"
-          className="fixed bottom-5 right-5 z-50 flex items-center justify-center w-12 h-12 rounded-full shadow-lg transition-transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 print:hidden"
+          className="fixed bottom-20 right-5 z-40 flex items-center justify-center w-12 h-12 rounded-full shadow-lg transition-transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 lg:bottom-5 lg:z-50 print:hidden"
           style={{ backgroundColor: '#25D366' }}
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white" width="24" height="24" aria-hidden="true">

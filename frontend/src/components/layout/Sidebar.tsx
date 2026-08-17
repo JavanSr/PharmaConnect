@@ -4,7 +4,7 @@ import {
   LayoutDashboard, BookOpen, Package, Shield, Pill,
   Lock, ChevronLeft, ChevronRight, Settings, LogOut, BarChart3, FileBarChart2,
   ClipboardList, Users,
-  Building2, X, Telescope, ExternalLink, TrendingUp,
+  Building2, X, Telescope, ExternalLink, TrendingUp, MoreHorizontal,
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { usePharmacyStore } from '@/stores/pharmacyStore';
@@ -32,14 +32,16 @@ interface NavItem {
   graceAllowed?: boolean;
   /** Minimum subscription tier required to see this item (retail hierarchy). SUPER_ADMIN bypasses. */
   minTier?: RetailTier;
+  /** High-frequency destination — eligible for the mobile bottom nav bar (max 4 shown). */
+  core?: boolean;
 }
 
 const phase1Nav: NavItem[] = [
   // ── Primary daily operations ─────────────────────────────────────────────────
-  { label: 'Dashboard',         path: '/dashboard',         icon: <LayoutDashboard size={18} /> },
-  { label: 'Dispensing',        path: '/dispensing',        icon: <Pill size={18} />,        roles: ['OWNER','PHARMACIST_IN_CHARGE','DISPENSER','CASHIER','SUPER_ADMIN'], graceAllowed: true },
-  { label: 'Inventory',         path: '/inventory',         icon: <Package size={18} />,     graceAllowed: true },
-  { label: 'Compliance',        path: '/compliance',        icon: <Shield size={18} />,      roles: ['OWNER','PHARMACIST_IN_CHARGE','DISPENSER','SUPER_ADMIN'] },
+  { label: 'Dashboard',         path: '/dashboard',         icon: <LayoutDashboard size={18} />, core: true },
+  { label: 'Dispensing',        path: '/dispensing',        icon: <Pill size={18} />,        roles: ['OWNER','PHARMACIST_IN_CHARGE','DISPENSER','CASHIER','SUPER_ADMIN'], graceAllowed: true, core: true },
+  { label: 'Inventory',         path: '/inventory',         icon: <Package size={18} />,     graceAllowed: true, core: true },
+  { label: 'Compliance',        path: '/compliance',        icon: <Shield size={18} />,      roles: ['OWNER','PHARMACIST_IN_CHARGE','DISPENSER','SUPER_ADMIN'], core: true },
   // ── Analytics & reporting ────────────────────────────────────────────────────
   { label: 'Analytics',         path: '/analytics',         icon: <BarChart3 size={18} />,      graceAllowed: true },
   { label: 'Reports',           path: '/reports',           icon: <FileBarChart2 size={18} />,  roles: ['OWNER','PHARMACIST_IN_CHARGE','CASHIER','WHOLESALE_MANAGER','SUPER_ADMIN'] },
@@ -49,8 +51,8 @@ const phase1Nav: NavItem[] = [
   // ── Team ─────────────────────────────────────────────────────────────────────
   { label: 'Staff Activity',    path: '/staff-activity',    icon: <Users size={18} />,       roles: ['OWNER','PHARMACIST_IN_CHARGE'], minTier: 'BASIC' },
   // ── Wholesale (hidden from pure retail) ──────────────────────────────────────
-  { label: 'Wholesale',         path: '/wholesale',         icon: <Building2 size={18} />,   roles: ['OWNER','WHOLESALE_MANAGER','WHOLESALE_COUNTER_STAFF','DELIVERY_STAFF','SUPER_ADMIN'] },
-  { label: 'Orders',            path: '/wholesale/orders',  icon: <ClipboardList size={18} />, roles: ['OWNER','WHOLESALE_MANAGER','WHOLESALE_COUNTER_STAFF','DELIVERY_STAFF','SUPER_ADMIN'] },
+  { label: 'Wholesale',         path: '/wholesale',         icon: <Building2 size={18} />,   roles: ['OWNER','WHOLESALE_MANAGER','WHOLESALE_COUNTER_STAFF','DELIVERY_STAFF','SUPER_ADMIN'], core: true },
+  { label: 'Orders',            path: '/wholesale/orders',  icon: <ClipboardList size={18} />, roles: ['OWNER','WHOLESALE_MANAGER','WHOLESALE_COUNTER_STAFF','DELIVERY_STAFF','SUPER_ADMIN'], core: true },
   { label: 'Founder',           path: '/founder',           icon: <Telescope size={18} />,   roles: ['SUPER_ADMIN'] },
 ];
 
@@ -77,6 +79,8 @@ interface SidebarProps {
   inGrace?: boolean;
   /** Desktop-only: hide the sidebar completely (user toggled it off). */
   hiddenOnDesktop?: boolean;
+  /** Mobile: opens the full slide-in drawer (used by the bottom nav's "More" button). */
+  onOpenMore?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -86,6 +90,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onToggleCollapse,
   inGrace = false,
   hiddenOnDesktop = false,
+  onOpenMore,
 }) => {
   const { user, logout } = useAuthStore();
   const { pharmacy } = usePharmacyStore();
@@ -239,6 +244,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     return true;
   });
 
+  // ── Mobile bottom nav: top 4 "core" destinations from the same filtered list ──
+  const mobileCoreNav = visiblePhase1Nav.filter((item) => item.core).slice(0, 4);
 
   // ── Founder sidebar (SUPER_ADMIN only) ────────────────────────────────────
   const FounderSidebarContent = () => (
@@ -397,6 +404,56 @@ export const Sidebar: React.FC<SidebarProps> = ({
     </div>
   );
 
+  // ── Mobile bottom nav bar ──────────────────────────────────────────────────
+  const MobileBottomNav = () => (
+    <nav
+      aria-label="Primary"
+      className="fixed inset-x-0 bottom-0 z-30 flex items-stretch border-t border-outline-variant/30 bg-surface-container-lowest pb-[env(safe-area-inset-bottom)] lg:hidden"
+    >
+      {mobileCoreNav.map((item) => {
+        const active = checkActive(item.path);
+        const locked = inGrace && !isGracePath(item.path) && item.path !== '/dashboard';
+        if (locked) {
+          return (
+            <div
+              key={item.path}
+              className="flex flex-1 flex-col items-center justify-center gap-0.5 py-2 opacity-40"
+              aria-disabled="true"
+            >
+              <span className="relative">
+                {item.icon}
+                <Lock size={9} className="absolute -right-1 -top-1" />
+              </span>
+              <span className="text-[10px] font-medium truncate max-w-full px-1">{item.label}</span>
+            </div>
+          );
+        }
+        return (
+          <Link
+            key={item.path}
+            to={item.path}
+            className={`flex flex-1 flex-col items-center justify-center gap-0.5 py-2 min-h-touch-target-min ${
+              active ? 'text-primary' : 'text-on-surface-variant'
+            }`}
+          >
+            {item.icon}
+            <span className="text-[10px] font-medium truncate max-w-full px-1">{item.label}</span>
+            {active && <span className="w-1 h-1 rounded-full bg-[#E8A020]" aria-hidden="true" />}
+          </Link>
+        );
+      })}
+      <button
+        type="button"
+        onClick={onOpenMore}
+        className="flex flex-1 flex-col items-center justify-center gap-0.5 py-2 min-h-touch-target-min text-on-surface-variant"
+        aria-label="Open full menu"
+      >
+        <MoreHorizontal size={18} />
+        <span className="text-[10px] font-medium">More</span>
+      </button>
+    </nav>
+  );
+
   return (
     <>
       {/* Mobile overlay */}
@@ -448,6 +505,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </button>
         </div>
       )}
+
+      {/* Mobile bottom nav — quick access to core destinations; founder uses the drawer only */}
+      {user?.role !== 'SUPER_ADMIN' && mobileCoreNav.length > 0 && <MobileBottomNav />}
     </>
   );
 };
